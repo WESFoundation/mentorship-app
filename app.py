@@ -3578,7 +3578,27 @@ def my_mentors():
         # req.mentor is the Mentor's User object.
         # req.mentor.mentor_profile is the MentorProfile object attached to that User.
         if req.mentor and req.mentor.mentor_profile:
-             my_mentors.append(req.mentor.mentor_profile)
+            mentor_profile = req.mentor.mentor_profile
+            
+            # Fetch next scheduled meeting for this mentor
+            next_meeting = MeetingRequest.query.filter(
+                MeetingRequest.requester_id == mentee.id,
+                MeetingRequest.requested_to_id == req.mentor.id,
+                MeetingRequest.status.in_(["pending", "approved"]),
+                MeetingRequest.meeting_date >= datetime.now().date()
+            ).order_by(
+                MeetingRequest.meeting_date.asc(),
+                MeetingRequest.meeting_time.asc()
+            ).first()
+            
+            # Format next_session as "DD-MM-YYYY, HH:MM AM/PM"
+            if next_meeting:
+                meeting_datetime = datetime.combine(next_meeting.meeting_date, next_meeting.meeting_time)
+                mentor_profile.next_session = meeting_datetime.strftime("%d-%m-%Y, %I:%M %p")
+            else:
+                mentor_profile.next_session = "Not scheduled"
+            
+            my_mentors.append(mentor_profile)
 
     return render_template(
         "mentee/mentee_my_mentors.html",
