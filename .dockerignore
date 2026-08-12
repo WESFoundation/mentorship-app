@@ -1,0 +1,16 @@
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+.vscode
+.kiro
+shh terminal2.txt
+zextra/
+*.db
+*.sqlite
+instance/*.db
