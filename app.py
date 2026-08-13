@@ -239,13 +239,16 @@ SCOPES = LOGIN_SCOPES
 # ============================================================
 # DATABASE CONFIGURATION
 # ============================================================
-if PRODUCTION:
-    # Production database - Use PostgreSQL or MySQL
-    # Example: app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
-    # For now, using SQLite (not recommended for production with multiple workers)
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///mentors_connect.db")
+db_url = os.environ.get("DATABASE_URL")
+if db_url:
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 else:
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///mentors_connect.db"
+    instance_dir = os.path.join(app.root_path, "instance")
+    os.makedirs(instance_dir, exist_ok=True)
+    db_path = os.path.join(instance_dir, "mentors_connect.db")
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
