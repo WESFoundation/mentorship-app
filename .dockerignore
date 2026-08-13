@@ -11,6 +11,3 @@ __pycache__
 .kiro
 shh terminal2.txt
 zextra/
-*.db
-*.sqlite
-instance/*.db

@@ -239,15 +239,16 @@ SCOPES = LOGIN_SCOPES
 # ============================================================
 # DATABASE CONFIGURATION
 # ============================================================
-db_url = os.environ.get("DATABASE_URL")
-if db_url:
+db_url = os.environ.get("DATABASE_URL", "").strip()
+instance_dir = os.path.join(app.root_path, "instance")
+os.makedirs(instance_dir, exist_ok=True)
+db_path = os.path.join(instance_dir, "mentors_connect.db")
+
+if db_url and not db_url.startswith("sqlite"):
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 else:
-    instance_dir = os.path.join(app.root_path, "instance")
-    os.makedirs(instance_dir, exist_ok=True)
-    db_path = os.path.join(instance_dir, "mentors_connect.db")
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
