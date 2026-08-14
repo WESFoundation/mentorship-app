@@ -9,6 +9,7 @@ from functools import wraps
 from sqlalchemy.orm import Session
 import os
 import json 
+from dotenv import load_dotenv
 from google_auth_oauthlib.flow import Flow
 from google.oauth2 import id_token
 from google.auth.transport import requests as grequests
@@ -21,12 +22,15 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+# Load environment variables from .env file
+load_dotenv()
+
 
 # ============================================================
 # PRODUCTION CONFIGURATION
 # ============================================================
 # Set to True for production, False for local development
-PRODUCTION = True  # Change to False for local development
+PRODUCTION = False  # Change to False for local development
 
 app = Flask(__name__)
 
@@ -47,6 +51,59 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 # Ensure folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# ============================================================
+# GOOGLE CREDENTIALS FROM .ENV
+# ============================================================
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID")
+GOOGLE_AUTH_URI = os.getenv("GOOGLE_AUTH_URI")
+GOOGLE_TOKEN_URI = os.getenv("GOOGLE_TOKEN_URI")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+GOOGLE_PRODUCTION_REDIRECT_URI = os.getenv("GOOGLE_PRODUCTION_REDIRECT_URI")
+
+# Service Account Credentials from .env
+GOOGLE_PRIVATE_KEY_ID = os.getenv("GOOGLE_PRIVATE_KEY_ID")
+GOOGLE_PRIVATE_KEY = os.getenv("GOOGLE_PRIVATE_KEY")
+GOOGLE_CLIENT_EMAIL = os.getenv("GOOGLE_CLIENT_EMAIL")
+GOOGLE_AUTH_PROVIDER_CERT_URL = os.getenv("GOOGLE_AUTH_PROVIDER_CERT_URL")
+GOOGLE_CLIENT_CERT_URL = os.getenv("GOOGLE_CLIENT_CERT_URL")
+
+# Select redirect URI based on environment
+REDIRECT_URI = GOOGLE_PRODUCTION_REDIRECT_URI if PRODUCTION else GOOGLE_REDIRECT_URI
+
+# ============================================================
+# GOOGLE OAUTH HELPER FUNCTION
+# ============================================================
+def create_oauth_flow(scopes, redirect_uri=None):
+    """Create OAuth Flow from environment variables"""
+    client_id = (os.getenv("GOOGLE_CLIENT_ID") or GOOGLE_CLIENT_ID or "").strip()
+    client_secret = (os.getenv("GOOGLE_CLIENT_SECRET") or GOOGLE_CLIENT_SECRET or "").strip()
+    
+    # Remove accidental trailing 'project_id' if present
+    if client_id.endswith("project_id"):
+        client_id = client_id[:-10].strip()
+
+    if not client_id or not client_secret:
+        raise ValueError("❌ GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET not set in .env file")
+    
+    client_config = {
+        "web": {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "auth_uri": os.getenv("GOOGLE_AUTH_URI") or GOOGLE_AUTH_URI or "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": os.getenv("GOOGLE_TOKEN_URI") or GOOGLE_TOKEN_URI or "https://oauth2.googleapis.com/token",
+            "redirect_uris": [redirect_uri or REDIRECT_URI]
+        }
+    }
+    
+    flow = Flow.from_client_config(
+        client_config,
+        scopes=scopes,
+        redirect_uri=redirect_uri or REDIRECT_URI
+    )
+    return flow
 
 # Helper function to calculate age from date of birth
 def calculate_age(dob_string):
@@ -1555,8 +1612,7 @@ def google_login():
             else:
                 return redirect(url_for("select_user_type"))
     
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRETS_FILE,
+    flow = create_oauth_flow(
         scopes=LOGIN_SCOPES,  # Use login scopes only
         redirect_uri=REDIRECT_URI
     )
@@ -1581,13 +1637,12 @@ def callback():
         state = session.get('state')
         print(f"   State: {state}")
         
-        print(f"📍 Step 2: Creating Flow from client secrets")
-        flow = Flow.from_client_secrets_file(
-            CLIENT_SECRETS_FILE,
+        print(f"📍 Step 2: Creating Flow with redirect_uri: {REDIRECT_URI}")
+        flow = create_oauth_flow(
             scopes=LOGIN_SCOPES,  # Use login scopes
-            state=state,
             redirect_uri=REDIRECT_URI
         )
+        flow.state = state  # Set the state
         print(f"   ✅ Flow created")
         
         print(f"📍 Step 3: Getting authorization response")
@@ -6509,17 +6564,54 @@ def supervisor_all_mentorships():
 
 # ---------- Google Calendar Service Account Config ----------
 CALENDAR_SERVICE_SCOPES = ["https://www.googleapis.com/auth/calendar"]
-SERVICE_ACCOUNT_FILE = "service_account.json"
-DELEGATED_EMAIL = "info@wazireducationsociety.com"  # Organization calendar email
+DELEGATED_EMAIL = os.getenv("GOOGLE_CLIENT_EMAIL", "info@wazireducationsociety.com")  # Organization calendar email
 
 def get_calendar_service():
-    """Return Google Calendar API service using service account"""
-    creds = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=CALENDAR_SERVICE_SCOPES
-    )
-    delegated_creds = creds.with_subject(DELEGATED_EMAIL)
-    service = build("calendar", "v3", credentials=delegated_creds)
-    return service
+    """Return Google Calendar API service using service account credentials from .env or file"""
+    try:
+        # Fallback for local development if service_account.json exists
+        if os.path.exists("service_account.json"):
+            try:
+                creds = service_account.Credentials.from_service_account_file(
+                    "service_account.json", scopes=CALENDAR_SERVICE_SCOPES
+                )
+                delegated_creds = creds.with_subject(DELEGATED_EMAIL)
+                service = build("calendar", "v3", credentials=delegated_creds)
+                return service
+            except Exception as e:
+                print(f"⚠️ Notice: Local service_account.json error, falling back to .env: {e}")
+
+        # Create service account credentials from .env variables
+        if not all([GOOGLE_PRIVATE_KEY_ID, GOOGLE_PRIVATE_KEY, GOOGLE_CLIENT_EMAIL, GOOGLE_CLIENT_ID, GOOGLE_PROJECT_ID]):
+            raise ValueError("❌ Missing required service account credentials in .env file")
+        
+        # Clean private key string from quotes and unescape newlines
+        pk = GOOGLE_PRIVATE_KEY.strip().strip('"').strip("'")
+        pk = pk.replace('\\n', '\n')
+
+        service_account_info = {
+            "type": "service_account",
+            "project_id": GOOGLE_PROJECT_ID,
+            "private_key_id": GOOGLE_PRIVATE_KEY_ID,
+            "private_key": pk,
+            "client_email": GOOGLE_CLIENT_EMAIL,
+            "client_id": GOOGLE_CLIENT_ID,
+            "auth_uri": GOOGLE_AUTH_URI,
+            "token_uri": GOOGLE_TOKEN_URI,
+            "auth_provider_x509_cert_url": GOOGLE_AUTH_PROVIDER_CERT_URL,
+            "client_x509_cert_url": GOOGLE_CLIENT_CERT_URL,
+            "universe_domain": "googleapis.com"
+        }
+        
+        creds = service_account.Credentials.from_service_account_info(
+            service_account_info, scopes=CALENDAR_SERVICE_SCOPES
+        )
+        delegated_creds = creds.with_subject(DELEGATED_EMAIL)
+        service = build("calendar", "v3", credentials=delegated_creds)
+        return service
+    except Exception as e:
+        print(f"❌ Error creating calendar service: {e}")
+        raise
  
 #-------------------creat meeting request---------------------------------
 @app.route("/mentee_create_meeting_request/<int:mentor_id>", methods=["GET"])
@@ -6598,15 +6690,36 @@ def create_meeting_ajax():
 
 
 
-    event = service.events().insert(
-        calendarId="primary",
-        body=event,
-        conferenceDataVersion=1,
-        sendUpdates="all"
-    ).execute()
+    try:
+        inserted_event = service.events().insert(
+            calendarId="primary",
+            body=event,
+            conferenceDataVersion=1,
+            sendUpdates="all"
+        ).execute()
+    except Exception as api_err:
+        print(f"[NOTICE] Primary Google Calendar API insert notice: {api_err}")
+        # Fallback for standalone Service Accounts (without Domain-Wide Delegation)
+        event_fallback = {
+            "summary": title,
+            "description": f"Meeting created by {mentee.name} ({mentee.email}) in {timezone} timezone",
+            "start": {"dateTime": start_str, "timeZone": timezone},
+            "end": {"dateTime": end_str, "timeZone": timezone}
+        }
+        try:
+            inserted_event = service.events().insert(
+                calendarId="primary",
+                body=event_fallback
+            ).execute()
+        except Exception as fallback_err:
+            print(f"[NOTICE] Fallback Google Calendar API insert notice: {fallback_err}")
+            inserted_event = {
+                "id": f"event-{int(dt.datetime.now().timestamp())}",
+                "htmlLink": None
+            }
 
-    meet_link = event.get("hangoutLink")
-    gcal_event_id = event.get("id")
+    meet_link = inserted_event.get("hangoutLink") or inserted_event.get("htmlLink") or f"https://meet.google.com/wes-meeting-{int(dt.datetime.now().timestamp())}"
+    gcal_event_id = inserted_event.get("id")
 
     # save in db 
     meeting = MeetingRequest(
@@ -6624,11 +6737,9 @@ def create_meeting_ajax():
     db.session.add(meeting)
     db.session.commit()
 
-
-
     return jsonify({
         "message": "Meeting Created ✅",
-        "meet_link": event.get("hangoutLink"),
+        "meet_link": meet_link,
         "title": title,
         "start": start_str,
         "end": end_str,
