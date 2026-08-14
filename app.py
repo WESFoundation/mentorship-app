@@ -29,8 +29,8 @@ load_dotenv()
 # ============================================================
 # PRODUCTION CONFIGURATION
 # ============================================================
-# Set to True for production, False for local development
-PRODUCTION = False  # Change to False for local development
+# Set via environment variable PRODUCTION=true or default to False for local development
+PRODUCTION = os.getenv("PRODUCTION", "False").lower() == "true" or os.getenv("FLASK_ENV") == "production"
 
 app = Flask(__name__)
 
@@ -262,14 +262,13 @@ def load_user(user_id):
 # ============================================================
 if PRODUCTION:
     # Production settings - HTTPS required
-    # Remove OAUTHLIB_INSECURE_TRANSPORT in production
     CLIENT_SECRETS_FILE = "client_secret.json"
-    REDIRECT_URI = "https://mentorship.weslux.lu/callback"
+    REDIRECT_URI = (os.getenv("GOOGLE_PRODUCTION_REDIRECT_URI") or "https://mentorship.weslux.lu/callback").strip()
 else:
     # Development settings - HTTP allowed
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # ONLY for local dev (http)
     CLIENT_SECRETS_FILE = "client_secret.json"
-    REDIRECT_URI = "http://127.0.0.1:5000/callback"
+    REDIRECT_URI = (os.getenv("GOOGLE_REDIRECT_URI") or "http://127.0.0.1:5000/callback").strip()
 
 # Scopes for Google OAuth Login (user info only)
 LOGIN_SCOPES = [
