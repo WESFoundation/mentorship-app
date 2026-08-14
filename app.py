@@ -6585,9 +6585,9 @@ def get_calendar_service():
         if not all([GOOGLE_PRIVATE_KEY_ID, GOOGLE_PRIVATE_KEY, GOOGLE_CLIENT_EMAIL, GOOGLE_PROJECT_ID]):
             raise ValueError("❌ Missing required service account credentials in .env file")
         
-        # Clean private key string (handles literal \n, quotes, and ASCII byte 92 leading backslashes)
-        pk = GOOGLE_PRIVATE_KEY.strip()
-        pk = pk.replace('\\n', '\n')
+        # Clean private key string (handles literal \n, \\n, quotes, and ASCII byte 92 leading backslashes)
+        pk = GOOGLE_PRIVATE_KEY.strip().strip('"').strip("'")
+        pk = pk.replace('\\\\n', '\n').replace('\\n', '\n')
         begin_idx = pk.find("-----BEGIN PRIVATE KEY-----")
         if begin_idx != -1:
             pk = pk[begin_idx:]
