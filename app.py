@@ -20,13 +20,23 @@ import random
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import sys
+
+# Force UTF-8 output so emoji-heavy logs do not crash on Windows consoles (cp1252).
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 
 # ============================================================
 # PRODUCTION CONFIGURATION
 # ============================================================
 # Set to True for production, False for local development
-PRODUCTION = True  # Change to False for local development
+# Can be overridden via env var: PRODUCTION=false python app.py
+PRODUCTION = os.environ.get("PRODUCTION", "true").lower() in ("1", "true", "yes")
 
 app = Flask(__name__)
 
@@ -734,6 +744,69 @@ class MentorshipRequest(db.Model):
     mentee = db.relationship("User", foreign_keys=[mentee_id], backref="sent_requests")
     mentor = db.relationship("User", foreign_keys=[mentor_id], backref="received_requests")
 
+#------------Notification table-------------------
+class Notification(db.Model):
+    __tablename__ = "notifications"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    link = db.Column(db.String(300))
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", foreign_keys=[user_id], backref="notifications")
+
+def create_notification(user_id, message, link=None):
+    """Persist an in-app notification for a user. Never throws."""
+    try:
+        notification = Notification(user_id=user_id, message=message, link=link)
+        db.session.add(notification)
+        db.session.commit()
+        return True
+    except Exception as e:
+        db.session.rollback()
+        print("Notification Error:", e)
+        return False
+
+def notify_mentorship_connection(req):
+    """Notify both mentor and mentee when a mentorship is fully connected.
+    Fully connected = supervisor approved AND final approved.
+    Returns True if notifications were created."""
+    if not req:
+        return False
+    is_connected = (
+        req.supervisor_status == "approved"
+        and req.final_status == "approved"
+    )
+    if not is_connected:
+        return False
+
+    mentor = req.mentor
+    mentee = req.mentee
+    sent = False
+
+    if mentee:
+        mentor_name = mentor.name if mentor else "your mentor"
+        mentee_link = url_for("my_mentors")
+        if create_notification(
+            mentee.id,
+            f"Your mentorship with {mentor_name} is now connected and active.",
+            mentee_link
+        ):
+            sent = True
+
+    if mentor:
+        mentee_name = mentee.name if mentee else "your mentee"
+        mentor_link = url_for("my_mentees")
+        if create_notification(
+            mentor.id,
+            f"You are now connected with mentee {mentee_name}.",
+            mentor_link
+        ):
+            sent = True
+
+    return sent
+
 #------------Meeting Request table-------------------
 class MeetingRequest(db.Model):
     __tablename__ = "meeting_requests"
@@ -910,6 +983,37 @@ class ChatMessage(db.Model):
     
     def __repr__(self):
         return f"<ChatMessage {self.id}>"
+
+
+#------------Resources Hub - Notes Table-------------------
+class ResourceNote(db.Model):
+    """
+    Notes written by the mentee in the Resources Hub.
+    A mentee can call/tag a mentor on a note.
+    """
+    __tablename__ = "resource_notes"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Who the note is about (the mentee who wrote it)
+    mentee_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+
+    # Called/tagged mentor
+    mentor_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=True)
+
+    title = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+
+    # Metadata
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    mentee = db.relationship("User", foreign_keys=[mentee_id], backref="note_about_me")
+    mentor = db.relationship("User", foreign_keys=[mentor_id], backref="tagged_notes")
+
+    def __repr__(self):
+        return f"<ResourceNote {self.id}: {self.title}>"
 
 
 def assign_master_tasks_to_mentorship(mentorship_request):
@@ -1975,6 +2079,15 @@ def mentordashboard():
     schools = sorted({m.school_college_name for m in MenteeProfile.query.distinct() if m.school_college_name})
     goals = sorted({m.goal for m in MenteeProfile.query.distinct() if m.goal})
 
+    # Connected mentees (fully approved requests)
+    connected_reqs = MentorshipRequest.query.filter_by(
+        mentor_id=mentor.id,
+        
+        supervisor_status="approved",
+        final_status="approved"
+    ).all()
+    my_mentees = [req.mentee for req in connected_reqs if req.mentee]
+
     return render_template(
         "mentor/mentordashboard.html",
         mentorship_requests=incoming_requests,
@@ -1988,7 +2101,8 @@ def mentordashboard():
         show_sidebar=True,
         mentee=example_mentee,
         profile_complete=profile_complete,
-        profile_stats=profile_stats
+        profile_stats=profile_stats,
+        my_mentees=my_mentees
     )
 
 @app.route("/mentor_mentorship_request", methods=["GET", "POST"])
@@ -2093,12 +2207,26 @@ def menteedashboard():
         parent_consent_status = mentee_profile.parent_consent_status if mentee_profile else None
         parent_email = mentee_profile.parent_email if mentee_profile else None
 
+        # Fetch the mentee's connected mentors (fully approved requests)
+        connected_requests = MentorshipRequest.query.filter_by(
+            mentee_id=user.id,
+            
+            supervisor_status="approved",
+            final_status="approved"
+        ).all()
+
+        my_mentors = []
+        for req in connected_requests:
+            if req.mentor and req.mentor.mentor_profile:
+                my_mentors.append(req.mentor.mentor_profile)
+
         # Optionally, fetch mentors already assigned to this mentee
         # This depends if you have a "mentorship" table, for now we just show all mentors
     
         return render_template(
             "mentee/menteedashboard.html",
             all_mentors=all_mentors,
+            my_mentors=my_mentors,
             professions=[row.profession for row in MentorProfile.query.with_entities(MentorProfile.profession).distinct() if row.profession],
             locations=[row.location for row in MentorProfile.query.with_entities(MentorProfile.location).distinct() if row.location],
             educations=[row.education for row in MentorProfile.query.with_entities(MentorProfile.education).distinct() if row.education],
@@ -3552,6 +3680,28 @@ def find_mentees():
         )
 
 # mentee dashboard to my mentors
+class MentorLite:
+    """Minimal MentorProfile stand-in for a mentor with no profile yet.
+    Exposes `.user` and all MentorProfile attribute names as empty strings
+    so templates can render them safely."""
+
+    def __init__(self, user):
+        self.user = user
+        for attr in [
+            "profile_picture", "profession", "organisation", "location",
+            "years_of_experience", "education", "language",
+            "preferred_communication", "why_mentor", "role",
+            "industry_sector", "skills", "availability",
+            "mentorship_topics", "linkedin_link", "github_link",
+            "portfolio_link", "preferred_duration",
+            "mentorship_type_preference", "connect_frequency",
+            "whatsapp", "highest_qualification", "degree_name",
+            "field_of_study", "university_name", "graduation_year",
+            "academic_status", "certifications", "research_work",
+            "mentorship_philosophy", "mentorship_motto", "other_social_link",
+        ]:
+            setattr(self, attr, "")
+
 @app.route("/my_mentors")
 def my_mentors():
     if "email" not in session or session.get("user_type") != "2":
@@ -3568,7 +3718,7 @@ def my_mentors():
     # A fully approved request means: Mentor accepted AND Supervisor approved AND system final approval is done.
     accepted_requests = MentorshipRequest.query.filter_by(
         mentee_id=mentee.id,
-        mentor_status="accepted",
+        
         supervisor_status="approved",
         final_status="approved"
     ).all()
@@ -3577,8 +3727,12 @@ def my_mentors():
     for req in accepted_requests:
         # req.mentor is the Mentor's User object.
         # req.mentor.mentor_profile is the MentorProfile object attached to that User.
-        if req.mentor and req.mentor.mentor_profile:
-             my_mentors.append(req.mentor.mentor_profile)
+        if req.mentor:
+            if req.mentor.mentor_profile:
+                my_mentors.append(req.mentor.mentor_profile)
+            else:
+                # Mentor has no completed profile yet - still show them as connected
+                my_mentors.append(MentorLite(req.mentor))
 
     return render_template(
         "mentee/mentee_my_mentors.html",
@@ -3601,7 +3755,7 @@ def my_mentees():
 
     accepted_requests = MentorshipRequest.query.filter_by(
         mentor_id=mentor.id,
-        mentor_status="accepted",
+        
         supervisor_status="approved",
         final_status="approved"
     ).all()
@@ -4072,7 +4226,7 @@ def mentee_tasks():
     approved_mentors = MentorshipRequest.query\
         .filter_by(
             mentee_id=mentee.id,
-            mentor_status="accepted", 
+             
             supervisor_status="approved",
             final_status="approved"
         )\
@@ -4389,7 +4543,7 @@ def mentor_tasks():
     my_mentees_data = []
     accepted_requests = MentorshipRequest.query.filter_by(
         mentor_id=mentor.id,
-        mentor_status="accepted",
+        
         supervisor_status="approved",
         final_status="approved"
     ).all()
@@ -4452,6 +4606,207 @@ def mentor_tasks():
         profile_complete=profile_complete
     )
 
+@app.route("/export_mentee_work", methods=["GET"])
+def export_mentee_work():
+    """Export all tasks (master + personal) of mentees as an Excel file.
+    Usable by both the mentee themselves and their mentors."""
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    if "email" not in session:
+        return redirect(url_for("signin"))
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return redirect(url_for("signin"))
+
+    user_type = session.get("user_type")
+    if user_type not in ["1", "2"]:
+        return jsonify({"error": "Only mentees and mentors can export tasks."}), 403
+
+    rows = []
+
+    if user_type == "2":
+        # Mentee: all their own work (master tasks assigned + personal tasks)
+        master_tasks = MenteeTask.query.filter_by(mentee_id=user.id)\
+            .join(MasterTask, MenteeTask.task_id == MasterTask.id)\
+            .order_by(MenteeTask.meeting_number)\
+            .all()
+        personal_tasks = PersonalTask.query.filter_by(mentee_id=user.id)\
+            .order_by(PersonalTask.created_date.desc())\
+            .all()
+
+        mentee_name = user.name or "N/A"
+        for t in master_tasks:
+            rows.append({
+                "mentee": mentee_name,
+                "mentee_email": user.email or "",
+                "mentor": t.mentor.name if t.mentor else "N/A",
+                "task_type": "Mentorship Task",
+                "title": t.master_task.mentee_focus if t.master_task else "",
+                "description": t.master_task.purpose_of_call if t.master_task else "",
+                "month": t.month or (t.master_task.month if t.master_task else ""),
+                "meeting_number": t.meeting_number,
+                "assigned_date": t.assigned_date,
+                "due_date": t.due_date,
+                "completed_date": t.completed_date,
+                "status": t.status,
+                "progress": t.progress or 0,
+                "priority": "N/A"
+            })
+        for t in personal_tasks:
+            rows.append({
+                "mentee": mentee_name,
+                "mentee_email": user.email or "",
+                "mentor": t.mentor.name if t.mentor else "N/A",
+                "task_type": "Personal Task",
+                "title": t.title,
+                "description": t.description or "",
+                "month": "",
+                "meeting_number": "N/A",
+                "assigned_date": t.created_date,
+                "due_date": t.due_date,
+                "completed_date": t.completed_date,
+                "status": t.status,
+                "progress": t.progress or 0,
+                "priority": t.priority or "medium"
+            })
+
+    else:
+        # Mentor: all work of their mentees (master + personal tasks they assigned)
+        mentor_name = user.name or "N/A"
+
+        master_tasks = MenteeTask.query.filter(
+            MenteeTask.mentor_id == user.id
+        ).order_by(MenteeTask.meeting_number).all()
+        personal_tasks = PersonalTask.query.filter_by(mentor_id=user.id)\
+            .order_by(PersonalTask.created_date.desc())\
+            .all()
+
+        for t in master_tasks:
+            mentee_user = t.mentee
+            rows.append({
+                "mentee": mentee_user.name if mentee_user else "N/A",
+                "mentee_email": mentee_user.email if mentee_user else "",
+                "mentor": mentor_name,
+                "task_type": "Mentorship Task",
+                "title": t.master_task.mentee_focus if t.master_task else "",
+                "description": t.master_task.purpose_of_call if t.master_task else "",
+                "month": t.month or (t.master_task.month if t.master_task else ""),
+                "meeting_number": t.meeting_number,
+                "assigned_date": t.assigned_date,
+                "due_date": t.due_date,
+                "completed_date": t.completed_date,
+                "status": t.status,
+                "progress": t.progress or 0,
+                "priority": "N/A"
+            })
+        for t in personal_tasks:
+            mentee_user = t.mentee
+            rows.append({
+                "mentee": mentee_user.name if mentee_user else "N/A",
+                "mentee_email": mentee_user.email if mentee_user else "",
+                "mentor": mentor_name,
+                "task_type": "Personal Task",
+                "title": t.title,
+                "description": t.description or "",
+                "month": "",
+                "meeting_number": "N/A",
+                "assigned_date": t.created_date,
+                "due_date": t.due_date,
+                "completed_date": t.completed_date,
+                "status": t.status,
+                "progress": t.progress or 0,
+                "priority": t.priority or "medium"
+            })
+
+    # Build the workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Mentee Work"
+
+    headers = [
+        "Mentee Name", "Mentee Email", "Mentor Name", "Task Type",
+        "Work / Task", "Details", "Month", "Meeting No.",
+        "Assigned Date", "Due Date (Deadline)", "Completed Date",
+        "Status", "Progress (%)", "Priority"
+    ]
+
+    header_fill = PatternFill(start_color="1D4ED8", end_color="1D4ED8", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF")
+    thin = Side(style="thin", color="CBD5E1")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    for col_idx, h in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=h)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = border
+
+    def fmt(v):
+        if not v:
+            return "N/A"
+        if hasattr(v, "strftime"):
+            return v.strftime("%d-%b-%Y")
+        return str(v)
+
+    def status_label(s):
+        if s == "completed":
+            return "Completed"
+        if s in ("in-progress", "in_progress"):
+            return "In Progress"
+        return "Pending / Not Completed"
+
+    now_dt = datetime.utcnow()
+
+    for r_idx, r in enumerate(rows, start=2):
+        due = r["due_date"]
+        is_completed = r["status"] == "completed"
+        status = status_label(r["status"])
+        if not is_completed and due and hasattr(due, "date") and due.date() < now_dt.date():
+            status = "Overdue / Not Completed"
+
+        values = [
+            r["mentee"], r["mentee_email"], r["mentor"], r["task_type"],
+            r["title"], r["description"], r["month"], r["meeting_number"],
+            fmt(r["assigned_date"]), fmt(r["due_date"]), fmt(r["completed_date"]),
+            status, r["progress"], r["priority"]
+        ]
+        for c_idx, val in enumerate(values, start=1):
+            cell = ws.cell(row=r_idx, column=c_idx, value=val)
+            cell.border = border
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+            if c_idx == 12 and status.startswith("Completed"):
+                cell.font = Font(bold=True, color="065F46")
+            elif c_idx == 12 and status.startswith("Overdue"):
+                cell.font = Font(bold=True, color="DC2626")
+
+    # Column widths
+    widths = [18, 24, 18, 16, 40, 50, 12, 12, 14, 14, 14, 22, 12, 12]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = f"A1:N{max(len(rows) + 1, 2)}"
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    file_label = "Mentee_Work_All" if user_type == "1" else "My_Work"
+    filename = f"{file_label}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+
+    from flask import send_file
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
 @app.route("/mentor_create_task", methods=["POST"])
 def mentor_create_task():
     if "email" not in session or session.get("user_type") != "1":
@@ -4473,7 +4828,7 @@ def mentor_create_task():
         mentorship = MentorshipRequest.query.filter_by(
             mentor_id=mentor.id,
             mentee_id=mentee_id,
-            mentor_status="accepted",
+            
             supervisor_status="approved",
             final_status="approved"
         ).first()
@@ -5312,6 +5667,21 @@ def mentor_response():
         flash("Something went wrong while updating the request.", "error")
         print("DB Commit Error:", e)
 
+    # Notify the mentee about the mentor's response
+    if mentorship_request.mentee:
+        if action == "accept":
+            create_notification(
+                mentorship_request.mentee.id,
+                f"A mentor ({mentor.name}) accepted your mentorship request.",
+                url_for("my_mentors")
+            )
+        else:
+            create_notification(
+                mentorship_request.mentee.id,
+                f"Your mentorship request to {mentor.name} was not accepted.",
+                url_for("my_mentors")
+            )
+
     # Always redirect to mentor dashboard
     return redirect(url_for("mentor_mentorship_request"))
 
@@ -5336,6 +5706,52 @@ def inject_user_profile_pic():
                 profile_pic = profile.profile_picture if profile else None
         return dict(current_user_profile_pic=profile_pic)
     return dict(current_user_profile_pic=None)
+
+@app.context_processor
+def inject_notifications():
+    """Provide unread notification count + latest notifications to every template."""
+    if "email" not in session:
+        return dict(unread_notifications=0, latest_notifications=[])
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return dict(unread_notifications=0, latest_notifications=[])
+    unread_count = Notification.query.filter_by(user_id=user.id, is_read=False).count()
+    latest = Notification.query.filter_by(user_id=user.id).order_by(
+        Notification.created_at.desc()
+    ).limit(5).all()
+    return dict(unread_notifications=unread_count, latest_notifications=latest)
+
+@app.route("/notifications")
+def notifications_page():
+    if "email" not in session:
+        return redirect(url_for("signin"))
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return redirect(url_for("signin"))
+    all_notifications = Notification.query.filter_by(user_id=user.id).order_by(
+        Notification.created_at.desc()
+    ).all()
+    return render_template(
+        "notifications.html",
+        notifications=all_notifications,
+        show_sidebar=True
+    )
+
+@app.route("/notifications/read_all", methods=["POST"])
+def notifications_read_all():
+    if "email" not in session:
+        return jsonify({"success": False}), 401
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return jsonify({"success": False}), 401
+    try:
+        Notification.query.filter_by(user_id=user.id, is_read=False).update({"is_read": True})
+        db.session.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        db.session.rollback()
+        print("Mark read error:", e)
+        return jsonify({"success": False}), 500
 
 @app.route("/editmentorprofile", methods=["GET", "POST"])
 def editmentorprofile():
@@ -6135,6 +6551,16 @@ def mentorprofile():
         
         institution_profile_picture = institution_details.profile_picture if institution_details else None
 
+        # Connected mentees (fully approved requests)
+        connected_reqs = MentorshipRequest.query.filter_by(
+            mentor_id=user.id,
+            
+            supervisor_status="approved",
+            final_status="approved"
+        ).all()
+        connected_mentees = [req.mentee for req in connected_reqs if req.mentee]
+        connected_mentees_count = len(connected_mentees)
+
         return render_template(
             "mentor/mentorprofile.html",
             show_sidebar=False,
@@ -6176,7 +6602,9 @@ def mentorprofile():
             graduation_year=profile.graduation_year if profile else "",
             academic_status=profile.academic_status if profile else "",
             certifications=profile.certifications if profile else "",
-            research_work=profile.research_work if profile else ""
+            research_work=profile.research_work if profile else "",
+            connected_mentees=connected_mentees,
+            connected_mentees_count=connected_mentees_count
         )
     return redirect(url_for("signin"))
 
@@ -6197,6 +6625,16 @@ def menteeprofile():
             institution_details = Institution.query.filter_by(name=user.institution).first()
         
         institution_profile_picture = institution_details.profile_picture if institution_details else None
+
+        # Connected mentors (fully approved requests)
+        connected_reqs = MentorshipRequest.query.filter_by(
+            mentee_id=user.id,
+            
+            supervisor_status="approved",
+            final_status="approved"
+        ).all()
+        connected_mentors = [req.mentor for req in connected_reqs if req.mentor]
+        connected_mentors_count = len(connected_mentors)
 
         return render_template(
             "mentee/menteeprofile.html",
@@ -6248,7 +6686,9 @@ def menteeprofile():
             # Common fields
             mentorship_expectations=profile.mentorship_expectations if profile else "",
             comments=profile.comments if profile else "",
-            terms_agreement=profile.terms_agreement if profile else ""
+            terms_agreement=profile.terms_agreement if profile else "",
+            connected_mentors=connected_mentors,
+            connected_mentors_count=connected_mentors_count
         )
     return redirect(url_for("signin"))
 
@@ -6412,6 +6852,21 @@ def supervisor_response():
         mentorship_request.supervisor_status = "rejected"
         mentorship_request.final_status = "rejected"
         flash("Mentorship request rejected!", "success")
+
+        # Notify the mentee about the rejection
+        if mentorship_request.mentee:
+            create_notification(
+                mentorship_request.mentee.id,
+                "Your mentorship request was rejected by the supervisor.",
+                url_for("my_mentors")
+            )
+        if mentorship_request.mentor:
+            mentor_name = mentorship_request.mentor.name
+            create_notification(
+                mentorship_request.mentor.id,
+                f"Mentorship with a mentee was rejected by the supervisor.",
+                url_for("my_mentees")
+            )
     else:
         flash("Invalid action!", "error")
         return redirect(url_for("supervisor_response"))
@@ -6422,6 +6877,11 @@ def supervisor_response():
         db.session.rollback()
         flash("Something went wrong while updating the request.", "error")
         print("DB Commit Error:", e)
+
+    # If connection is now complete (mentor already accepted + supervisor approves),
+    # notify both sides.
+    if action == "approve":
+        notify_mentorship_connection(mentorship_request)
     
     return redirect(url_for("supervisordashboard"))
 
@@ -8051,6 +8511,206 @@ def get_reminder_content(reminder_id):
         "email_style": reminder.email_style,
         "sent_at": reminder.sent_at.isoformat()
     })
+
+
+# ============================================================
+# RESOURCES HUB - NOTES
+# ============================================================
+
+def get_mentor_options_for_mentee(mentee_user):
+    """
+    Return a list of mentor dicts a mentee can call/tag in a note.
+    Shows accepted (active) mentors first, then all other mentors.
+    """
+    mentors = []
+    seen = set()
+
+    accepted_requests = MentorshipRequest.query.filter_by(
+        mentee_id=mentee_user.id,
+        
+        supervisor_status="approved",
+        final_status="approved"
+    ).all()
+
+    for req in accepted_requests:
+        if req.mentor and req.mentor.id not in seen:
+            seen.add(req.mentor.id)
+            mentors.append({
+                "id": req.mentor.id,
+                "name": req.mentor.name,
+                "email": req.mentor.email,
+                "is_active": True
+            })
+
+    for mentor_user in User.query.filter_by(user_type="1").all():
+        if mentor_user.id not in seen:
+            seen.add(mentor_user.id)
+            mentors.append({
+                "id": mentor_user.id,
+                "name": mentor_user.name,
+                "email": mentor_user.email,
+                "is_active": False
+            })
+
+    return mentors
+
+
+@app.route("/resources")
+def resources_hub():
+    """Resources Hub page: Notes panel where mentees can call/tag a mentor."""
+    if "email" not in session:
+        return redirect(url_for("signin"))
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return redirect(url_for("signin"))
+
+    user_type = session.get("user_type")
+    notes = []
+    tag_options = []
+
+    if user_type == "2":
+        # Mentee: their own notes (about themselves)
+        notes = ResourceNote.query.filter(
+            ResourceNote.mentee_id == user.id
+        ).order_by(ResourceNote.updated_at.desc()).all()
+        tag_options = get_mentor_options_for_mentee(user)
+
+    elif user_type == "1":
+        # Mentor: notes calling them, or notes about their mentees
+        mentee_ids = [r.mentee_id for r in MentorshipRequest.query.filter_by(
+            mentor_id=user.id,
+            
+            supervisor_status="approved",
+            final_status="approved"
+        ).all()]
+
+        combined = {}
+        for n in ResourceNote.query.filter(
+            db.or_(
+                ResourceNote.mentor_id == user.id,
+                ResourceNote.mentee_id.in_(mentee_ids) if mentee_ids else False
+            )
+        ).all():
+            combined[n.id] = n
+        notes = sorted(combined.values(), key=lambda n: n.updated_at or n.created_at, reverse=True)
+
+    else:
+        # Supervisor / Institution: see everything
+        notes = ResourceNote.query.order_by(ResourceNote.updated_at.desc()).all()
+
+    return render_template(
+        "resources_hub.html",
+        notes=notes,
+        tag_options=tag_options,
+        user_type=user_type,
+        current_user=user,
+        now=datetime.utcnow(),
+        show_sidebar=True,
+        profile_complete=check_profile_complete(user.id, user_type) if user_type in ["0", "1", "2", "3"] else True
+    )
+
+
+@app.route("/notes/create", methods=["POST"])
+def create_note():
+    if "email" not in session:
+        return jsonify({"error": "Please sign in first."}), 401
+
+    user_type = session.get("user_type")
+    if user_type != "2":
+        return jsonify({"error": "Only mentees can write notes in the Resources Hub."}), 403
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return jsonify({"error": "User not found."}), 404
+
+    title = (request.form.get("title") or "").strip()
+    content = (request.form.get("content") or "").strip()
+    mentor_id = request.form.get("mentor_id") or request.form.get("tag_mentor_id")
+
+    if not title:
+        return jsonify({"error": "Note title is required."}), 400
+    if not content:
+        return jsonify({"error": "Note content is required."}), 400
+
+    mentor = None
+    if mentor_id:
+        mentor = User.query.get(int(mentor_id))
+        if not mentor or mentor.user_type != "1":
+            return jsonify({"error": "Selected mentor is not valid."}), 400
+
+    note = ResourceNote(
+        mentee_id=user.id,
+        mentor_id=mentor.id if mentor else None,
+        title=title,
+        content=content
+    )
+    db.session.add(note)
+    db.session.commit()
+
+    message = "Note saved."
+    if mentor:
+        message = f"Note saved. {mentor.name} has been called/tagged."
+
+    return jsonify({"success": True, "message": message})
+
+
+@app.route("/notes/update/<int:note_id>", methods=["POST"])
+def update_note(note_id):
+    if "email" not in session:
+        return jsonify({"error": "Please sign in first."}), 401
+
+    note = ResourceNote.query.get(note_id)
+    if not note:
+        return jsonify({"error": "Note not found."}), 404
+
+    user = User.query.filter_by(email=session["email"]).first()
+    user_type = session.get("user_type")
+    if not user or (user_type != "2" or note.mentee_id != user.id):
+        return jsonify({"error": "You can only edit your own notes."}), 403
+
+    title = (request.form.get("title") or "").strip()
+    content = (request.form.get("content") or "").strip()
+    mentor_id = request.form.get("mentor_id")
+
+    if not title:
+        return jsonify({"error": "Note title is required."}), 400
+    if not content:
+        return jsonify({"error": "Note content is required."}), 400
+
+    if mentor_id:
+        mentor = User.query.get(int(mentor_id))
+        if not mentor or mentor.user_type != "1":
+            return jsonify({"error": "Selected mentor is not valid."}), 400
+        note.mentor_id = mentor.id
+    else:
+        note.mentor_id = None
+
+    note.title = title
+    note.content = content
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "Note updated successfully."})
+
+
+@app.route("/notes/delete/<int:note_id>", methods=["POST"])
+def delete_note(note_id):
+    if "email" not in session:
+        return jsonify({"error": "Please sign in first."}), 401
+
+    note = ResourceNote.query.get(note_id)
+    if not note:
+        return jsonify({"error": "Note not found."}), 404
+
+    user = User.query.filter_by(email=session["email"]).first()
+    user_type = session.get("user_type")
+    if not user or (user_type != "2" or note.mentee_id != user.id):
+        return jsonify({"error": "You can only delete your own notes."}), 403
+
+    db.session.delete(note)
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "Note deleted successfully."})
 
 
 if __name__ == '__main__':

@@ -83,6 +83,51 @@
         {% endif %}
 
         <div class="flex items-center gap-3">
+            <!-- Notifications Bell -->
+            <div class="relative">
+                <button id="notification-bell-btn"
+                    class="group relative flex items-center p-2 rounded-full hover:bg-slate-100/50 transition-all duration-200"
+                    title="Notifications">
+                    <svg class="w-5 h-5 text-slate-600 group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    {% if unread_notifications > 0 %}
+                    <span class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center shadow">{{ unread_notifications }}</span>
+                    {% endif %}
+                </button>
+
+                <!-- Notification dropdown -->
+                <div id="notification-menu"
+                    class="hidden absolute right-0 mt-2 w-80 bg-white/95 backdrop-blur-xl rounded-xl shadow-xl border border-slate-100 py-2 ring-1 ring-black ring-opacity-5 z-50">
+                    <div class="px-4 py-3 border-b border-slate-100 mb-1 flex items-center justify-between">
+                        <p class="text-sm font-medium text-slate-900">Notifications</p>
+                        <button id="notification-mark-read"
+                            class="text-xs text-primary hover:underline">Mark all read</button>
+                    </div>
+                    <div class="max-h-80 overflow-y-auto">
+                        {% if latest_notifications %}
+                            {% for n in latest_notifications %}
+                            <a href="{{ n.link if n.link else url_for('notifications_page') }}"
+                               class="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors {% if not n.is_read %}bg-blue-50/40{% endif %}" onclick="notificationClick({{ n.id }})">
+                                <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 {% if not n.is_read %}bg-blue-500{% else %}bg-transparent{% endif %}"></div>
+                                <div class="min-w-0">
+                                    <p class="text-sm text-slate-700 truncate">{{ n.message }}</p>
+                                    <p class="text-xs text-slate-400 mt-0.5">{{ n.created_at.strftime('%d %b, %I:%M %p') }}</p>
+                                </div>
+                            </a>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-sm text-slate-400 text-center py-8">No notifications yet.</p>
+                        {% endif %}
+                    </div>
+                    <a href="{{ url_for('notifications_page') }}"
+                       class="block text-center text-sm text-primary hover:bg-slate-50 py-2.5 border-t border-slate-100 font-medium">
+                        View all notifications
+                    </a>
+                </div>
+            </div>
+
             <!-- My Certificate Button -->
             {% if session.get('user_type') in ['1', '2'] %}
             <a href="{{ url_for('my_certificate') }}" 
@@ -264,6 +309,15 @@
                     Messages
                 </a>
 
+                <a href="{{ url_for('resources_hub')}}"
+                    class="sidebar-nav-item {% if request.endpoint == 'resources_hub' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    Resources Hub
+                </a>
+
                 <div class="px-4 py-2 text-xs font-bold text-white/40 uppercase tracking-widest mb-2 mt-6">Admin</div>
 
                 <a href="{{ url_for('create_account')}}"
@@ -370,6 +424,15 @@
                     Messages
                 </a>
 
+                <a href="{{ url_for('resources_hub')}}"
+                    class="sidebar-nav-item {% if request.endpoint == 'resources_hub' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    Resources Hub
+                </a>
+
                 {% elif session.get('user_type') == '3' %}
 
                 <div class="px-4 py-2 text-xs font-bold text-white/40 uppercase tracking-widest mb-2 mt-2">Institution
@@ -440,6 +503,15 @@
                     Messages
                 </a>
 
+                <a href="{{ url_for('resources_hub')}}"
+                    class="sidebar-nav-item {% if request.endpoint == 'resources_hub' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    Resources Hub
+                </a>
+
                 {% elif session.get('user_type') == '2' %}
 
                 <div class="px-4 py-2 text-xs font-bold text-white/40 uppercase tracking-widest mb-2 mt-2">Learning
@@ -505,6 +577,15 @@
                             d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                     </svg>
                     Messages
+                </a>
+
+                <a href="{{ url_for('resources_hub')}}"
+                    class="sidebar-nav-item {% if request.endpoint == 'resources_hub' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    Resources Hub
                 </a>
 
                 {% endif %}
@@ -632,6 +713,51 @@
                 }
             }
         });
+
+        // Notification Bell Functionality
+        const notifBtn = document.getElementById('notification-bell-btn');
+        const notifMenu = document.getElementById('notification-menu');
+        let isNotifOpen = false;
+
+        if (notifBtn && notifMenu) {
+            notifBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                isNotifOpen = !isNotifOpen;
+                if (isNotifOpen) {
+                    notifMenu.classList.remove('hidden');
+                    notifMenu.classList.add('animate-scale-in');
+                } else {
+                    notifMenu.classList.add('hidden');
+                    notifMenu.classList.remove('animate-scale-in');
+                }
+            });
+
+            document.addEventListener('click', (event) => {
+                if (isNotifOpen && !notifMenu.contains(event.target) && event.target !== notifBtn) {
+                    notifMenu.classList.add('hidden');
+                    notifMenu.classList.remove('animate-scale-in');
+                    isNotifOpen = false;
+                }
+            });
+        }
+
+        // Mark all notifications read
+        document.getElementById('notification-mark-read')?.addEventListener('click', async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const res = await fetch("{{ url_for('notifications_read_all') }}", { method: "POST" });
+            if (res.ok) {
+                const badge = notifBtn ? notifBtn.querySelector('span') : null;
+                if (badge) badge.remove();
+                notifMenu.querySelectorAll('a').forEach(a => a.classList.remove('bg-blue-50/40'));
+                notifMenu.querySelectorAll('div > div > div.w-2').forEach(dot => dot.classList.remove('bg-blue-500'));
+            }
+        });
+
+        // When a notification link is clicked, mark all read (same endpoint)
+        async function notificationClick() {
+            await fetch("{{ url_for('notifications_read_all') }}", { method: "POST" });
+        }
     </script>
     <!-- FullCalendar JS -->
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>

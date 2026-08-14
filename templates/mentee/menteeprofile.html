@@ -92,6 +92,24 @@
                         <span>{{ age }} years old</span>
                         {% endif %}
                     </div>
+                    <div class="flex items-center gap-3 mt-3">
+                        {% set cc = connected_mentors_count if connected_mentors_count is defined else 0 %}
+                        <a href="{{ url_for('my_mentors') }}"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-100 text-green-800 text-sm font-semibold hover:bg-green-200 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            {{ cc }}
+                            Connected Mentor{{ 's' if cc != 1 }}
+                        </a>
+                        {% if cc %}
+                        <span
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500 text-white text-sm font-semibold">
+                            <span class="w-2 h-2 rounded-full bg-white"></span> Connected
+                        </span>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
 

@@ -29,6 +29,14 @@
                 </h1>
                 <p class="text-slate-500 font-medium">Manage your learning journey and assignments from mentors</p>
             </div>
+            <div class="flex flex-wrap justify-end items-center gap-3">
+            <a href="{{ url_for('export_mentee_work') }}"
+                class="px-5 py-2.5 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-500/30 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                Export to Excel
+            </a>
             <button onclick="openCreateTaskModal()"
                 class="px-5 py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-500/30 flex items-center gap-2 group">
                 <svg class="w-5 h-5 group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor"
@@ -37,6 +45,7 @@
                 </svg>
                 Add Personal Task
             </button>
+        </div>
         </div>
 
         <!-- Statistics Cards -->

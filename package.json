@@ -1,0 +1,10 @@
+{
+  "name": "mentor-connect",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mentor Connect - Flask mentorship platform",
+  "scripts": {
+    "dev": "set \"PRODUCTION=false\" && py -3.13 app.py",
+    "dev:venv": "set \"PRODUCTION=false\" && .venv\\Scripts\\python.exe app.py"
+  }
+}

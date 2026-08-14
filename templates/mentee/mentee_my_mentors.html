@@ -22,8 +22,19 @@
   <!-- My Mentors Section -->
   <section id="mymentors" class=" p-6 bg-white rounded-xl shadow-sm">
     <div class="mb-6">
-      <h2 class="text-xl font-semibold text-gray-800 mb-2">My Mentors</h2>
-      <p class="text-gray-600">Manage your current mentorship relationships</p>
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-2">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-800 mb-2">My Mentors</h2>
+          <p class="text-gray-600">Manage your current mentorship relationships</p>
+        </div>
+        <a href="{{ url_for('export_mentee_work') }}"
+          class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition shadow-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+          </svg>
+          Export My Work to Excel
+        </a>
+      </div>
     </div>
     
     {% if my_mentors and my_mentors|length > 0 %}
