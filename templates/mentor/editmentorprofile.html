@@ -689,12 +689,6 @@
 
     <p class="text-sm text-gray-500 mt-1"><i class="fas fa-mouse-pointer mr-1"></i>Click to select multiple languages</p>
 </div>
-
-                    <!-- Other Language Field -->
-                    <div id="other_language_field" style="display: none;">
-                        <label class="block text-gray-700 font-semibold mb-2">Specify Other Language(s)</label>
-                        <input type="text" name="other_language" id="other_language" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300" placeholder="Enter language(s), separated by commas">
-                    </div>
                 </div>
                 <div class="space-y-4">
                     <div>
@@ -703,10 +697,10 @@
                     </div>
 
                     <!-- Criminal Certificate Upload (Mandatory for Luxembourg) -->
-                    <div id="criminal_certificate_field">
+                    <div id="criminal_certificate_field" style="display: none;">
                         <label class="block text-gray-700 font-semibold mb-2">
                             <i class="fas fa-file-pdf text-red-600 mr-2"></i>Criminal Certificate (PDF)
-                            <span id="luxembourg_required_badge" class="text-red-600 font-bold" style="display: none;">*</span>
+                            <span id="luxembourg_required_badge" class="text-red-600 font-bold">*</span>
                         </label>
                         <div class="space-y-2">
                             {% if criminal_certificate %}
@@ -783,7 +777,7 @@
                     </div>
 
                     <div>
-                        <label class="block text-gray-700 font-semibold mb-2">Titile Of Degree</label>
+                        <label class="block text-gray-700 font-semibold mb-2">Title Of Degree</label>
                         <input type="text" name="degree_name" value="{{ degree_name or '' }}" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300" placeholder="e.g., B.Tech, MBA, M.Sc, PhD">
                         <p class="text-sm text-gray-500 mt-1"><i class="fas fa-info-circle mr-1"></i>Enter the specific degree name</p>
                     </div>
@@ -1502,18 +1496,40 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Country dropdown handler
+    // Country dropdown handler with criminal certificate logic
     const countrySelect = document.getElementById('country_select');
     const otherCountryField = document.getElementById('other_country_field');
+    const criminalCertificateField = document.getElementById('criminal_certificate_field');
+    const luxembourgBadge = document.getElementById('luxembourg_required_badge');
+    const luxembourgMessage = document.getElementById('luxembourg_message');
+    const optionalMessage = document.getElementById('optional_message');
     
     if (countrySelect) {
         countrySelect.addEventListener('change', function() {
-            if (this.value === 'Other') {
-                otherCountryField.style.display = 'block';
-                document.getElementById('other_country');
+            const selectedCountry = this.value;
+            
+            // Show/hide other country field
+            if (selectedCountry === 'Other') {
+                if (otherCountryField) otherCountryField.style.display = 'block';
             } else {
-                otherCountryField.style.display = 'none';
-                document.getElementById('other_country');
+                if (otherCountryField) otherCountryField.style.display = 'none';
+            }
+            
+            // Show/hide criminal certificate based on country
+            if (selectedCountry === 'Luxembourg') {
+                // Show criminal certificate field
+                if (criminalCertificateField) criminalCertificateField.style.display = 'block';
+                if (luxembourgBadge) luxembourgBadge.style.display = 'inline';
+                if (luxembourgMessage) luxembourgMessage.style.display = 'inline';
+                if (optionalMessage) optionalMessage.style.display = 'none';
+                console.log('Luxembourg selected - Criminal certificate MANDATORY');
+            } else {
+                // Hide criminal certificate field
+                if (criminalCertificateField) criminalCertificateField.style.display = 'none';
+                if (luxembourgBadge) luxembourgBadge.style.display = 'none';
+                if (luxembourgMessage) luxembourgMessage.style.display = 'none';
+                if (optionalMessage) optionalMessage.style.display = 'inline';
+                console.log('Non-Luxembourg country - Criminal certificate HIDDEN');
             }
         });
     }
@@ -1534,31 +1550,29 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Language dropdown handler (for multi-select)
-    const languageSelect = document.getElementById('language_select');
-    const otherLanguageField = document.getElementById('other_language_field');
-    
-    if (languageSelect) {
-        languageSelect.addEventListener('change', function() {
-            const selectedOptions = Array.from(this.selectedOptions).map(opt => opt.value);
-            if (selectedOptions.includes('Other')) {
-                otherLanguageField.style.display = 'block';
-            } else {
-                otherLanguageField.style.display = 'none';
-            }
-        });
-    }
+
 });
 
 // Form validation function
 function validateForm() {
     const form = document.getElementById('mentorProfileForm');
+    const countrySelect = document.getElementById('country_select');
+    const criminalCertificateInput = document.getElementById('criminal_certificate_input');
+    
     if (!form) {
         console.error('Form not found');
         return false;
     }
     
-    constFields = [
+    // Check if Luxembourg is selected and criminal certificate is required
+    if (countrySelect && countrySelect.value === 'Luxembourg') {
+        if (!criminalCertificateInput || !criminalCertificateInput.files || criminalCertificateInput.files.length === 0) {
+            alert('❌ Criminal Certificate is mandatory for Luxembourg mentors');
+            return false;
+        }
+    }
+    
+    const fields = [
         { name: 'profession', label: 'Profession' },
         { name: 'skills', label: 'Skills' },
         { name: 'role', label: 'Role' },
@@ -1568,11 +1582,13 @@ function validateForm() {
         { name: 'whatsapp', label: 'WhatsApp Number' },
         { name: 'city', label: 'City' },
         { name: 'country', label: 'Country' },
-        { name: 'education', label: 'Education' },
-        { name: 'language', label: 'Language' },
+        { name: 'highest_qualification', label: 'Highest Qualification' },
+        { name: 'degree_name', label: 'Title Of Degree' },
+        { name: 'field_of_study', label: 'Field of Study' },
+        { name: 'university_name', label: 'University Name' },
+        { name: 'graduation_year', label: 'Graduation Year' },
+        { name: 'academic_status', label: 'Academic Status' },
         { name: 'linkedin_link', label: 'LinkedIn Link' },
-        { name: 'mentorship_topics', label: 'Mentorship Topics' },
-        { name: 'mentorship_type_preference', label: 'Mentorship Type Preference' },
         { name: 'preferred_communication', label: 'Preferred Communication' },
         { name: 'availability', label: 'Availability' },
         { name: 'connect_frequency', label: 'Connect Frequency' },
@@ -1584,7 +1600,7 @@ function validateForm() {
 
     let emptyFields = [];
 
-   Fields.forEach(field => {
+    fields.forEach(field => {
         const element = form.elements[field.name];
         if (!element) {
             console.warn(`Field not found: ${field.name}`);
@@ -1594,7 +1610,6 @@ function validateForm() {
         let isEmpty = false;
 
         if (element.type === 'select-multiple') {
-            // For multi-select, check if at least one option is selected
             isEmpty = element.selectedOptions.length === 0;
         } else if (element.tagName === 'TEXTAREA') {
             isEmpty = !element.value.trim();
@@ -1641,8 +1656,16 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('mentorProfileForm not found in DOM');
     }
     
-    // Handle Luxembourg criminal certificate requirement
-    updateCriminalCertificateRequirement();
+    // On page load, check if Luxembourg is already selected
+    if (countrySelect && countrySelect.value === 'Luxembourg') {
+        if (criminalCertificateField) criminalCertificateField.style.display = 'block';
+        if (luxembourgBadge) luxembourgBadge.style.display = 'inline';
+        if (luxembourgMessage) luxembourgMessage.style.display = 'inline';
+        if (optionalMessage) optionalMessage.style.display = 'none';
+        console.log('Page loaded with Luxembourg selected');
+    } else {
+        if (criminalCertificateField) criminalCertificateField.style.display = 'none';
+    }
 });
 
 // PDF preview function
@@ -1686,23 +1709,10 @@ function formatFileSize(bytes) {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
-// Update criminal certificate requirement based on country selection
-function updateCriminalCertificateRequirement() {
-    // Criminal certificate is now optional for all countries
-    const luxembourgBadge = document.getElementById('luxembourg_required_badge');
-    const luxembourgMessage = document.getElementById('luxembourg_message');
-    const optionalMessage = document.getElementById('optional_message');
-    const certificateField = document.getElementById('criminal_certificate_field');
-    
-    if (luxembourgBadge) luxembourgBadge.style.display = 'none';
-    if (luxembourgMessage) luxembourgMessage.style.display = 'none';
-    if (optionalMessage) optionalMessage.style.display = 'inline';
-    if (certificateField) certificateField.classList.remove('border-2', 'border-red-200', 'p-4', 'rounded-xl', 'bg-red-50');
-    }
-}
-
 // Language multi-select dropdown functionality
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Language dropdown script loaded');
+    
     const languageDropdownToggle = document.getElementById('language_dropdown_toggle');
     const languageDropdownMenu = document.getElementById('language_dropdown_menu');
     const selectedLanguagesContainer = document.getElementById('selected_languages_container');
@@ -1711,11 +1721,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const otherLanguageField = document.getElementById('other_language_field');
     const otherLanguageInput = document.getElementById('other_language_input');
 
+    console.log('Toggle button:', languageDropdownToggle);
+    console.log('Dropdown menu:', languageDropdownMenu);
+    console.log('Checkboxes found:', languageCheckboxes.length);
+
     // Store selected languages
     let selectedLanguages = [];
 
     // Initialize with existing languages from hidden input
-    if (languageHiddenInput.value) {
+    if (languageHiddenInput && languageHiddenInput.value) {
         const existingLanguages = languageHiddenInput.value.split(',');
         selectedLanguages = existingLanguages.filter(lang => lang.trim() !== '');
         
@@ -1728,24 +1742,33 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Show other language field if "Other" is selected
         if (selectedLanguages.includes('Other')) {
-            otherLanguageField.style.display = 'block';
+            if (otherLanguageField) otherLanguageField.style.display = 'block';
         }
         
-        updateSelectedLanguagesDisplay();
+        if (typeof updateSelectedLanguagesDisplay === 'function') {
+            updateSelectedLanguagesDisplay();
+        }
     }
 
-    // Toggle dropdown
-    if (languageDropdownToggle) {
+    // Toggle dropdown - FIXED with direct check
+    if (languageDropdownToggle && languageDropdownMenu) {
+        console.log('Attaching click event to dropdown toggle');
         languageDropdownToggle.addEventListener('click', function(e) {
+            console.log('Dropdown toggle clicked!');
             e.stopPropagation();
             languageDropdownMenu.classList.toggle('hidden');
+            console.log('Dropdown menu hidden status:', languageDropdownMenu.classList.contains('hidden'));
         });
+    } else {
+        console.error('Missing dropdown elements:', { languageDropdownToggle, languageDropdownMenu });
     }
 
     // Close dropdown when clicking outside
     document.addEventListener('click', function(e) {
-        if (!languageDropdownToggle.contains(e.target) && !languageDropdownMenu.contains(e.target)) {
-            languageDropdownMenu.classList.add('hidden');
+        if (languageDropdownToggle && languageDropdownMenu) {
+            if (!languageDropdownToggle.contains(e.target) && !languageDropdownMenu.contains(e.target)) {
+                languageDropdownMenu.classList.add('hidden');
+            }
         }
     });
 
@@ -1757,11 +1780,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (value === 'Other') {
                 if (isChecked) {
-                    otherLanguageField.style.display = 'block';
-                    otherLanguageInput.focus();
+                    if (otherLanguageField) otherLanguageField.style.display = 'block';
+                    if (otherLanguageInput) otherLanguageInput.focus();
                 } else {
-                    otherLanguageField.style.display = 'none';
-                    otherLanguageInput.value = '';
+                    if (otherLanguageField) otherLanguageField.style.display = 'none';
+                    if (otherLanguageInput) otherLanguageInput.value = '';
                 }
             }
 
@@ -1776,20 +1799,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
-            updateSelectedLanguagesDisplay();
-            updateHiddenInput();
+            if (typeof updateSelectedLanguagesDisplay === 'function') {
+                updateSelectedLanguagesDisplay();
+            }
+            if (typeof updateHiddenInput === 'function') {
+                updateHiddenInput();
+            }
         });
     });
 
     // Handle other language input
     if (otherLanguageInput) {
         otherLanguageInput.addEventListener('input', function() {
-            updateHiddenInput();
+            if (typeof updateHiddenInput === 'function') {
+                updateHiddenInput();
+            }
         });
     }
 
     // Update selected languages display
-    function updateSelectedLanguagesDisplay() {
+    window.updateSelectedLanguagesDisplay = function() {
+        if (!selectedLanguagesContainer) return;
         selectedLanguagesContainer.innerHTML = '';
         
         selectedLanguages.forEach(language => {
@@ -1806,15 +1836,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Add remove functionality
         document.querySelectorAll('.remove-language-btn').forEach(button => {
-            button.addEventListener('click', function() {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
                 const valueToRemove = this.getAttribute('data-value');
                 removeLanguage(valueToRemove);
             });
         });
-    }
+    };
 
     // Remove language
-    function removeLanguage(value) {
+    window.removeLanguage = function(value) {
         selectedLanguages = selectedLanguages.filter(lang => lang !== value);
         
         // Uncheck corresponding checkbox
@@ -1826,26 +1857,33 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Hide other language field if "Other" is removed
         if (value === 'Other') {
-            otherLanguageField.style.display = 'none';
-            otherLanguageInput.value = '';
+            if (otherLanguageField) otherLanguageField.style.display = 'none';
+            if (otherLanguageInput) otherLanguageInput.value = '';
         }
 
-        updateSelectedLanguagesDisplay();
-        updateHiddenInput();
-    }
+        if (typeof updateSelectedLanguagesDisplay === 'function') {
+            updateSelectedLanguagesDisplay();
+        }
+        if (typeof updateHiddenInput === 'function') {
+            updateHiddenInput();
+        }
+    };
 
     // Update hidden input value
-    function updateHiddenInput() {
+    window.updateHiddenInput = function() {
+        if (!languageHiddenInput) return;
+        
         let languages = [...selectedLanguages];
         
         // Add other languages if specified
-        if (selectedLanguages.includes('Other') && otherLanguageInput.value.trim()) {
+        if (selectedLanguages.includes('Other') && otherLanguageInput && otherLanguageInput.value.trim()) {
             const otherLanguages = otherLanguageInput.value.split(',').map(lang => lang.trim()).filter(lang => lang);
             languages = [...selectedLanguages.filter(lang => lang !== 'Other'), ...otherLanguages];
         }
         
         languageHiddenInput.value = languages.join(',');
-    }
+        console.log('Hidden input updated:', languageHiddenInput.value);
+    };
 
     // Form validation for languages
     function validateLanguages() {
