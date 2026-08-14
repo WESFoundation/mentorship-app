@@ -6582,12 +6582,19 @@ def get_calendar_service():
                 print(f"⚠️ Notice: Local service_account.json error, falling back to .env: {e}")
 
         # Create service account credentials from .env variables
-        if not all([GOOGLE_PRIVATE_KEY_ID, GOOGLE_PRIVATE_KEY, GOOGLE_CLIENT_EMAIL, GOOGLE_CLIENT_ID, GOOGLE_PROJECT_ID]):
+        if not all([GOOGLE_PRIVATE_KEY_ID, GOOGLE_PRIVATE_KEY, GOOGLE_CLIENT_EMAIL, GOOGLE_PROJECT_ID]):
             raise ValueError("❌ Missing required service account credentials in .env file")
         
-        # Clean private key string from quotes and unescape newlines
-        pk = GOOGLE_PRIVATE_KEY.strip().strip('"').strip("'")
+        # Clean private key string (handles literal \n, quotes, and ASCII byte 92 leading backslashes)
+        pk = GOOGLE_PRIVATE_KEY.strip()
         pk = pk.replace('\\n', '\n')
+        begin_idx = pk.find("-----BEGIN PRIVATE KEY-----")
+        if begin_idx != -1:
+            pk = pk[begin_idx:]
+        end_tag = "-----END PRIVATE KEY-----"
+        end_idx = pk.find(end_tag)
+        if end_idx != -1:
+            pk = pk[:end_idx + len(end_tag)] + "\n"
 
         service_account_info = {
             "type": "service_account",
@@ -6595,11 +6602,9 @@ def get_calendar_service():
             "private_key_id": GOOGLE_PRIVATE_KEY_ID,
             "private_key": pk,
             "client_email": GOOGLE_CLIENT_EMAIL,
-            "client_id": GOOGLE_CLIENT_ID,
-            "auth_uri": GOOGLE_AUTH_URI,
-            "token_uri": GOOGLE_TOKEN_URI,
-            "auth_provider_x509_cert_url": GOOGLE_AUTH_PROVIDER_CERT_URL,
-            "client_x509_cert_url": GOOGLE_CLIENT_CERT_URL,
+            "auth_uri": GOOGLE_AUTH_URI or "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": GOOGLE_TOKEN_URI or "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": GOOGLE_AUTH_PROVIDER_CERT_URL or "https://www.googleapis.com/oauth2/v1/certs",
             "universe_domain": "googleapis.com"
         }
         
@@ -6610,7 +6615,7 @@ def get_calendar_service():
         service = build("calendar", "v3", credentials=delegated_creds)
         return service
     except Exception as e:
-        print(f"❌ Error creating calendar service: {e}")
+        print(f"[NOTICE] Error creating calendar service: {e}")
         raise
  
 #-------------------creat meeting request---------------------------------
