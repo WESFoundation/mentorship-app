@@ -5,6 +5,7 @@ env/
 ENV/
 .env
 .env.*
+!.env.example
 
 # Python
 __pycache__/
@@ -55,8 +56,10 @@ htmlcov/
 .pyc
 
 # Database
-!instance/
-!instance/mentors_connect.db
+*.db
+*.sqlite
+*.sqlite3
+instance/
 
 # Editor temp files
 .~lock.*

@@ -250,30 +250,25 @@ SCOPES = LOGIN_SCOPES
 # -------------mantee = "2"--------------------------
 
 # ============================================================
-# DATABASE CONFIGURATION (Supabase PostgreSQL & Fallback)
+# DATABASE CONFIGURATION (Supabase PostgreSQL)
 # ============================================================
 db_url = os.environ.get("DATABASE_URL", "").strip()
 
-if db_url:
-    # Fix protocol prefix for SQLAlchemy 1.4+ / 2.0+ if Supabase provides postgres://
-    if db_url.startswith("postgres://"):
-        db_url = db_url.replace("postgres://", "postgresql://", 1)
-    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
-else:
-    # Fallback to SQLite if DATABASE_URL is not set
-    instance_dir = os.path.join(app.root_path, "instance")
-    os.makedirs(instance_dir, exist_ok=True)
-    db_path = os.path.join(instance_dir, "mentors_connect.db")
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+if not db_url:
+    raise ValueError("❌ DATABASE_URL environment variable is missing! Please set DATABASE_URL in your .env file.")
 
+# Fix protocol prefix for SQLAlchemy 1.4+ / 2.0+ if Supabase provides postgres://
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# Optimize connection pooling for Supabase PostgreSQL
-if app.config["SQLALCHEMY_DATABASE_URI"].startswith("postgresql"):
-    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-        "pool_pre_ping": True,
-        "pool_recycle": 300,
-    }
+# Optimize connection pooling for PostgreSQL (Supabase)
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 300,
+}
 
 db = SQLAlchemy(app)
 
@@ -462,7 +457,7 @@ class User(db.Model):
     # OAuth fields
     google_id = db.Column(db.String(200), unique=True, nullable=True)
     oauth_provider = db.Column(db.String(50), nullable=True)  # 'google', 'facebook', etc.
-    profile_picture_url = db.Column(db.String(500), nullable=True)  # OAuth profile picture
+    profile_picture_url = db.Column(db.Text, nullable=True)  # OAuth profile picture
     oauth_created_at = db.Column(db.DateTime, nullable=True)
     
     # Registration timestamp
