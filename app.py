@@ -1313,16 +1313,13 @@ def inject_profile_complete():
 
 
 # ---------- Profile Completion Check Function ----------
-def check_profile_complete(user_id, user_type):
+def check_profile_complete(user_id, user_type, profile_obj=None):
     """
     Check if user profile is FULLY complete with ALL mandatory fields
     Returns True only if ALL required fields are filled, False otherwise
     """
-    print(f"🔍 Checking profile completion for user_id: {user_id}, user_type: {user_type}")
-    
     if user_type == "1":  # Mentor
-        profile = MentorProfile.query.filter_by(user_id=user_id).first()
-        print(f"📊 Mentor profile found: {profile is not None}")
+        profile = profile_obj if profile_obj is not None else MentorProfile.query.filter_by(user_id=user_id).first()
         if profile:
             # Check if ALL mandatory fields are filled (including profile picture)
             # Use 'or' with empty string to handle None values gracefully
@@ -1349,13 +1346,11 @@ def check_profile_complete(user_id, user_type):
                 profile.mentorship_motto,
                 profile.profile_picture  # Profile picture is now mandatory
             ])
-            print(f"✅ Mentor profile complete: {has_all_required}")
             return has_all_required
-        print("❌ No mentor profile found")
         return False
     
     elif user_type == "2":  # Mentee
-        profile = MenteeProfile.query.filter_by(user_id=user_id).first()
+        profile = profile_obj if profile_obj is not None else MenteeProfile.query.filter_by(user_id=user_id).first()
         print(f"📊 Mentee profile found: {profile is not None}")
         if profile:
             # Check if ALL mandatory fields are filled (including profile picture)
@@ -2052,7 +2047,7 @@ def select_user_type():
     return render_template("auth/select_user_type.html", user=user)
 
 # Helper function to calculate mentor profile completion percentage
-def calculate_mentor_profile_completion(mentor_id):
+def calculate_mentor_profile_completion(mentor_id, profile_obj=None):
     """
     Calculate profile completion percentage and return missing fields
     Includes all meaningful profile fields for accurate completion tracking
@@ -2063,7 +2058,7 @@ def calculate_mentor_profile_completion(mentor_id):
         'total_fields': int
     }
     """
-    profile = MentorProfile.query.filter_by(user_id=mentor_id).first()
+    profile = profile_obj if profile_obj is not None else MentorProfile.query.filter_by(user_id=mentor_id).first()
     
     # Define all profile fields for completion calculation
     all_fields = {
@@ -2319,33 +2314,28 @@ def mentor_mentorship_request():
 @profile_required
 def menteedashboard():
     if "email" in session and session.get("user_type") == "2":
-        # Fetch current mentee
-        user = User.query.filter_by(email=session["email"]).first()
+        # Fetch current mentee and profile
+        user = User.query.options(joinedload(User.mentee_profile)).filter_by(email=session["email"]).first()
+        mentee_profile = user.mentee_profile if user else None
+        profile_complete = check_profile_complete(user.id, "2", profile_obj=mentee_profile) if user else False
 
-        profile_complete = check_profile_complete(user.id, "2")
+        all_mentors = MentorProfile.query.options(joinedload(MentorProfile.user)).all()
 
-        all_mentors = MentorProfile.query.filter_by().all()
+        # unique filter values from db
+        professions = sorted({row.profession for row in all_mentors if row.profession})
+        locations = sorted({row.location for row in all_mentors if row.location})
+        educations = sorted({row.education for row in all_mentors if row.education})
+        experiences = sorted({row.years_of_experience for row in all_mentors if row.years_of_experience})
 
-        all_mentors = MentorProfile.query.filter_by().all()
-
-        # unique filter value from db
-        professions = [row.profession for row in MentorProfile.query.with_entities(MentorProfile.profession).distinct() if row]
-        locations = [row.location for row in MentorProfile.query.with_entities(MentorProfile.location).distinct() if row.location]
-        educations = [row.education for row in MentorProfile.query.with_entities(MentorProfile.education).distinct() if row.education]
-        experiences = [row.years_of_experience for row in MentorProfile.query.with_entities(MentorProfile.years_of_experience).distinct() if row.years_of_experience]
-
-        # Fetch mentee profile to get career goal
-        mentee_profile = MenteeProfile.query.filter_by(user_id=user.id).first()
         career_goal = mentee_profile.goal if mentee_profile else None
-        
-        # Get parent consent status and email for under-18 mentees
         parent_consent_status = mentee_profile.parent_consent_status if mentee_profile else None
         parent_email = mentee_profile.parent_email if mentee_profile else None
 
         # Fetch the mentee's connected mentors (fully approved requests)
-        connected_requests = MentorshipRequest.query.filter_by(
+        connected_requests = MentorshipRequest.query.options(
+            joinedload(MentorshipRequest.mentor).joinedload(User.mentor_profile)
+        ).filter_by(
             mentee_id=user.id,
-            
             supervisor_status="approved",
             final_status="approved"
         ).all()
@@ -2355,17 +2345,14 @@ def menteedashboard():
             if req.mentor and req.mentor.mentor_profile:
                 my_mentors.append(req.mentor.mentor_profile)
 
-        # Optionally, fetch mentors already assigned to this mentee
-        # This depends if you have a "mentorship" table, for now we just show all mentors
-    
         return render_template(
             "mentee/menteedashboard.html",
             all_mentors=all_mentors,
             my_mentors=my_mentors,
-            professions=[row.profession for row in MentorProfile.query.with_entities(MentorProfile.profession).distinct() if row.profession],
-            locations=[row.location for row in MentorProfile.query.with_entities(MentorProfile.location).distinct() if row.location],
-            educations=[row.education for row in MentorProfile.query.with_entities(MentorProfile.education).distinct() if row.education],
-            experiences=[row.years_of_experience for row in MentorProfile.query.with_entities(MentorProfile.years_of_experience).distinct() if row.years_of_experience],
+            professions=professions,
+            locations=locations,
+            educations=educations,
+            experiences=experiences,
             show_sidebar=True,
             profile_complete=profile_complete,
             career_goal=career_goal,
@@ -3511,6 +3498,7 @@ def editinstitutionprofile():
 
 #-------- find function------------
 @app.route("/find_mentor", methods=["GET"])
+@cache.cached(timeout=60, query_string=True)
 def find_mentor():
     # Get current mentee's profile for suggestions
     current_user_id = None
@@ -3575,7 +3563,7 @@ def find_mentor():
             mentor.research_work = mentor_profile.research_work
             mentor.mentorship_philosophy = mentor_profile.mentorship_philosophy
             mentor.mentorship_motto = mentor_profile.mentorship_motto
-            mentor.is_profile_complete = check_profile_complete(user.id, "1")
+            mentor.is_profile_complete = check_profile_complete(user.id, "1", profile_obj=mentor_profile)
         else:
             # Use basic user data as fallback for incomplete profiles
             mentor.id = user.id
@@ -3752,6 +3740,7 @@ def calculate_mentor_suggestions(mentee_profile, all_mentors, current_user_id):
     return suggestions[:10]
 
 @app.route("/find_mentees", methods=["GET"])
+@cache.cached(timeout=60, query_string=True)
 def find_mentees():
     if "email" not in session or session.get("user_type") != "1": 
         return redirect(url_for("signin"))
@@ -7976,11 +7965,11 @@ def get_allowed_contacts():
 
 # ==================== PROFILE COMPLETION REMINDER SYSTEM ====================
 
-def calculate_mentee_profile_completion(mentee_id):
+def calculate_mentee_profile_completion(mentee_id, profile_obj=None):
     """
     Calculate profile completion percentage for mentees - tracks meaningful profile fields
     """
-    profile = MenteeProfile.query.filter_by(user_id=mentee_id).first()
+    profile = profile_obj if profile_obj is not None else MenteeProfile.query.filter_by(user_id=mentee_id).first()
     
     if not profile:
         return {
