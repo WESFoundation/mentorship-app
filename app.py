@@ -210,7 +210,15 @@ login_manager.login_view = "signin"
 # --- User Loader ---
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    if not user_id:
+        return None
+    try:
+        return User.query.options(
+            joinedload(User.mentor_profile),
+            joinedload(User.mentee_profile)
+        ).filter_by(id=int(user_id)).first()
+    except Exception:
+        return None
 
 
 # ============================================================
@@ -266,13 +274,22 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Optimize connection pooling for PostgreSQL (Supabase)
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_pre_ping": True,
-    "pool_recycle": 300,
+    "pool_size": 20,
+    "max_overflow": 30,
+    "pool_recycle": 1800,
+    "pool_timeout": 30,
+    "pool_pre_ping": False,
 }
 
 db = SQLAlchemy(app)
 
 migrate = Migrate(app, db)
+
+# Configure Flask-Caching in memory (SimpleCache for 0ms RAM caching)
+from flask_caching import Cache
+from sqlalchemy.orm import joinedload
+
+cache = Cache(app, config={"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": 300})
 
 # ============================================================
 # JINJA2 CUSTOM FILTERS
@@ -3511,13 +3528,13 @@ def find_mentor():
     education = request.args.get("education")
     experience = request.args.get("experience")
 
-    # Get ALL users with user_type = "1" (mentors) - including those without complete profiles
-    all_mentor_users = User.query.filter_by(user_type="1").all()
+    # Get ALL users with user_type = "1" (mentors) - eager load mentor_profile in 1 single query
+    all_mentor_users = User.query.filter_by(user_type="1").options(joinedload(User.mentor_profile)).all()
     
     # Create enriched mentor objects combining User and MentorProfile data
     all_mentors = []
     for user in all_mentor_users:
-        mentor_profile = MentorProfile.query.filter_by(user_id=user.id).first()
+        mentor_profile = user.mentor_profile
         
         # Create enriched object with user data as fallback
         mentor = type('MentorData', (), {})()
@@ -3871,9 +3888,10 @@ def my_mentees():
         flash("Mentor profile not found.", "error")
         return redirect(url_for("signin"))
 
-    accepted_requests = MentorshipRequest.query.filter_by(
+    accepted_requests = MentorshipRequest.query.options(
+        joinedload(MentorshipRequest.mentee).joinedload(User.mentee_profile)
+    ).filter_by(
         mentor_id=mentor.id,
-        
         supervisor_status="approved",
         final_status="approved"
     ).all()
@@ -3881,7 +3899,7 @@ def my_mentees():
     my_mentees_data = []
     for req in accepted_requests:
         if req.mentee:
-            mentee_profile = MenteeProfile.query.filter_by(user_id=req.mentee.id).first()
+            mentee_profile = req.mentee.mentee_profile
             if mentee_profile:
                 # Use the check_profile_complete function instead of accessing non-existent attribute
                 mentee_profile_complete = check_profile_complete(req.mentee.id, "2")
