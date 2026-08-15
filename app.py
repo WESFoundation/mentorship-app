@@ -31,6 +31,9 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 
 
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
 # ============================================================
 # PRODUCTION CONFIGURATION
 # ============================================================
@@ -247,17 +250,30 @@ SCOPES = LOGIN_SCOPES
 # -------------mantee = "2"--------------------------
 
 # ============================================================
-# DATABASE CONFIGURATION
+# DATABASE CONFIGURATION (Supabase PostgreSQL & Fallback)
 # ============================================================
-if PRODUCTION:
-    # Production database - Use PostgreSQL or MySQL
-    # Example: app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
-    # For now, using SQLite (not recommended for production with multiple workers)
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///mentors_connect.db")
+db_url = os.environ.get("DATABASE_URL", "").strip()
+
+if db_url:
+    # Fix protocol prefix for SQLAlchemy 1.4+ / 2.0+ if Supabase provides postgres://
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 else:
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///mentors_connect.db"
+    # Fallback to SQLite if DATABASE_URL is not set
+    instance_dir = os.path.join(app.root_path, "instance")
+    os.makedirs(instance_dir, exist_ok=True)
+    db_path = os.path.join(instance_dir, "mentors_connect.db")
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# Optimize connection pooling for Supabase PostgreSQL
+if app.config["SQLALCHEMY_DATABASE_URI"].startswith("postgresql"):
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+    }
 
 db = SQLAlchemy(app)
 
