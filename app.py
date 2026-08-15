@@ -807,6 +807,113 @@ def notify_mentorship_connection(req):
 
     return sent
 
+def send_mentorship_connected_email(req):
+    """Send a connection email to both the mentee and mentor when a mentorship
+    is fully established (supervisor approved AND final approved).
+
+    Uses the standard SMTP configuration already present in the app.
+    Never throws -- logs and returns True/False per recipient.
+    """
+    if not req:
+        return False
+
+    mentor = req.mentor
+    mentee = req.mentee
+    sent = False
+
+    mentee_name = mentee.name if mentee else "Mentee"
+    mentor_name = mentor.name if mentor else "Mentor"
+    purpose = req.purpose or "career guidance"
+    duration = req.duration_months if req.duration_months else "short-term"
+
+    def build_mentee_email():
+        return (
+            f"<p style=\"color: #475569; font-size: 16px; line-height: 1.6;\">"
+            f"Your mentorship with <strong>{mentor_name}</strong> is now <strong>active</strong>!"
+            f" This partnership will focus on <strong>{purpose}</strong> for a {duration}-month journey.</p>"
+        )
+
+    def build_mentor_email():
+        return (
+            f"<p style=\"color: #475569; font-size: 16px; line-height: 1.6;\">"
+            f"You are now connected with mentee <strong>{mentee_name}</strong>."
+            f" Your mentorship will focus on <strong>{purpose}</strong> for a {duration}-month journey.</p>"
+        )
+
+    def build_shell(subject, greeting, highlight_block, dashboard_link, dashboard_label):
+        return f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f8fafc;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                <div style="background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); padding: 40px 20px; text-align: center;">
+                    <h1 style="color: white; margin: 0; font-size: 28px;">{subject}</h1>
+                    <p style="color: #e0e7ff; margin: 10px 0 0 0; font-size: 16px;">Mentorship Connected</p>
+                </div>
+                <div style="padding: 40px 30px;">
+                    <h2 style="color: #1e293b; margin-top: 0;">{greeting}</h2>
+                    {highlight_block}
+                    <div style="background-color: #f1f5f9; border-left: 4px solid #2563eb; padding: 20px; margin: 30px 0; border-radius: 8px;">
+                        <h3 style="color: #1e293b; margin-top: 0; font-size: 18px;">🚀 Your Mentorship Details</h3>
+                        <ul style="color: #475569; line-height: 1.8; margin: 10px 0; padding-left: 20px;">
+                            <li><strong>Purpose:</strong> {purpose}</li>
+                            <li><strong>Duration:</strong> {duration} months</li>
+                        </ul>
+                    </div>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{dashboard_link}" style="display: inline-block; background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); color: white; padding: 16px 40px; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 16px;">
+                            {dashboard_label} →
+                        </a>
+                    </div>
+                    <p style="color: #475569; font-size: 16px; margin-top: 30px;">
+                        Best regards,<br>
+                        <strong style="color: #2563eb;">The Mentor Connect Team</strong><br>
+                        <span style="color: #64748b; font-size: 14px;">Wazir Education Society</span>
+                    </p>
+                </div>
+                <div style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #64748b; font-size: 12px; margin: 0;">
+                        © 2026 Mentor Connect - Wazir Education Society. All rights reserved.
+                    </p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+    # Email to the mentee
+    if mentee and mentee.email:
+        try:
+            mentee_subject = f"Your Mentorship is Now Connected! 🎉"
+            mentee_html = build_shell(
+                mentee_subject,
+                f"Hi {mentee.name},",
+                build_mentee_email(),
+                url_for("my_mentors", _external=True),
+                "View My Mentor",
+            )
+            if send_email_reminder(mentee.email, mentee_subject, mentee_html):
+                sent = True
+        except Exception as e:
+            print(f"Mentee connection email error: {e}")
+
+    # Email to the mentor
+    if mentor and mentor.email:
+        try:
+            mentor_subject = f"You're Now Connected with a New Mentee! 🎉"
+            mentor_html = build_shell(
+                mentor_subject,
+                f"Hi {mentor.name},",
+                build_mentor_email(),
+                url_for("my_mentees", _external=True),
+                "View My Mentee",
+            )
+            if send_email_reminder(mentor.email, mentor_subject, mentor_html):
+                sent = True
+        except Exception as e:
+            print(f"Mentor connection email error: {e}")
+
+    return sent
+
 #------------Meeting Request table-------------------
 class MeetingRequest(db.Model):
     __tablename__ = "meeting_requests"
@@ -6879,9 +6986,10 @@ def supervisor_response():
         print("DB Commit Error:", e)
 
     # If connection is now complete (mentor already accepted + supervisor approves),
-    # notify both sides.
+    # notify both sides and send the connection emails.
     if action == "approve":
         notify_mentorship_connection(mentorship_request)
+        send_mentorship_connected_email(mentorship_request)
     
     return redirect(url_for("supervisordashboard"))
 
