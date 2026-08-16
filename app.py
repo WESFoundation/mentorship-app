@@ -250,26 +250,68 @@ CALENDAR_SCOPES = [
 # Combined scopes (for backward compatibility)
 SCOPES = LOGIN_SCOPES
 
-
-
-#--------------User_type Code------------------------
-# -------------supervisor = "0"----------------------
-# -------------mentor = "1"--------------------------
-# -------------mantee = "2"--------------------------
+def get_google_flow(scopes, redirect_uri, state=None):
+    """Create Google OAuth Flow using client_secret.json or env vars"""
+    client_id = os.environ.get("GOOGLE_CLIENT_ID")
+    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
+    
+    if os.path.exists(CLIENT_SECRETS_FILE):
+        return Flow.from_client_secrets_file(
+            CLIENT_SECRETS_FILE,
+            scopes=scopes,
+            state=state,
+            redirect_uri=redirect_uri
+        )
+    elif client_id and client_secret:
+        client_config = {
+            "web": {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [redirect_uri]
+            }
+        }
+        return Flow.from_client_config(
+            client_config,
+            scopes=scopes,
+            state=state,
+            redirect_uri=redirect_uri
+        )
+    else:
+        raise FileNotFoundError(f"Neither {CLIENT_SECRETS_FILE} file nor GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET environment variables were found.")
 
 # ============================================================
-# HYBRID DATABASE CONFIGURATION (SQLite Main + Supabase Cloud Backup)
+# DATABASE CONFIGURATION (Production Supabase vs Local SQLite)
 # ============================================================
-# Main web app reads and writes from local SQLite for 0ms lightning fast speed!
-instance_db_path = os.path.join(app.instance_path, "mentors_connect.db")
-root_db_path = os.path.join(app.root_path, "mentors_connect.db")
+db_url = os.environ.get("DATABASE_URL", "").strip()
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
 
-if os.path.exists(instance_db_path):
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
-elif os.path.exists(root_db_path):
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{root_db_path}"
+# In Production (Coolify), connect directly to Supabase PostgreSQL so data persists
+if PRODUCTION and db_url:
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_size": 20,
+        "max_overflow": 30,
+        "pool_recycle": 1800,
+        "pool_timeout": 30,
+        "pool_pre_ping": False,
+    }
+    print("🟢 Production Database Mode: Connected to Supabase PostgreSQL")
 else:
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
+    # Local development: Use fast local SQLite
+    instance_db_path = os.path.join(app.instance_path, "mentors_connect.db")
+    root_db_path = os.path.join(app.root_path, "mentors_connect.db")
+
+    if os.path.exists(instance_db_path):
+        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
+    elif os.path.exists(root_db_path):
+        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{root_db_path}"
+    else:
+        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
+
+    print("🟢 Local Development Mode: Connected to Local SQLite + Background Supabase Sync")
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
@@ -277,12 +319,13 @@ db = SQLAlchemy(app)
 
 migrate = Migrate(app, db)
 
-# Start periodic background cloud backup to Supabase (Every 60 seconds)
-try:
-    import supabase_sync
-    supabase_sync.start_periodic_sync(interval_seconds=60)
-except Exception as sync_err:
-    print("Background Supabase backup notice:", sync_err)
+# Start periodic background cloud backup to Supabase on local dev
+if not PRODUCTION:
+    try:
+        import supabase_sync
+        supabase_sync.start_periodic_sync(interval_seconds=60)
+    except Exception as sync_err:
+        print("Background Supabase backup notice:", sync_err)
 
 # Configure Flask-Caching in memory (SimpleCache for 0ms RAM caching)
 from flask_caching import Cache
@@ -1784,11 +1827,7 @@ def google_login():
             else:
                 return redirect(url_for("select_user_type"))
     
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRETS_FILE,
-        scopes=LOGIN_SCOPES,  # Use login scopes only
-        redirect_uri=REDIRECT_URI
-    )
+    flow = get_google_flow(LOGIN_SCOPES, REDIRECT_URI)
     authorization_url, state = flow.authorization_url(
         access_type='offline',
         include_granted_scopes='true',
@@ -1810,13 +1849,8 @@ def callback():
         state = session.get('state')
         print(f"   State: {state}")
         
-        print(f"📍 Step 2: Creating Flow from client secrets")
-        flow = Flow.from_client_secrets_file(
-            CLIENT_SECRETS_FILE,
-            scopes=LOGIN_SCOPES,  # Use login scopes
-            state=state,
-            redirect_uri=REDIRECT_URI
-        )
+        print(f"📍 Step 2: Creating Flow from client secrets or env vars")
+        flow = get_google_flow(LOGIN_SCOPES, REDIRECT_URI, state=state)
         print(f"   ✅ Flow created")
         
         print(f"📍 Step 3: Getting authorization response")
