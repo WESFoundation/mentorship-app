@@ -282,50 +282,31 @@ def get_google_flow(scopes, redirect_uri, state=None):
         raise FileNotFoundError(f"Neither {CLIENT_SECRETS_FILE} file nor GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET environment variables were found.")
 
 # ============================================================
-# DATABASE CONFIGURATION (Production Supabase vs Local SQLite)
+# DATABASE CONFIGURATION (SQLite Database EVERYWHERE)
 # ============================================================
-db_url = os.environ.get("DATABASE_URL", "").strip()
-if db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql://", 1)
+instance_db_path = os.path.join(app.instance_path, "mentors_connect.db")
+root_db_path = os.path.join(app.root_path, "mentors_connect.db")
 
-# In Production (Coolify), connect directly to Supabase PostgreSQL so data persists
-if PRODUCTION and db_url:
-    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
-    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-        "pool_size": 20,
-        "max_overflow": 30,
-        "pool_recycle": 1800,
-        "pool_timeout": 30,
-        "pool_pre_ping": False,
-    }
-    print("🟢 Production Database Mode: Connected to Supabase PostgreSQL")
+if os.path.exists(instance_db_path):
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
+elif os.path.exists(root_db_path):
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{root_db_path}"
 else:
-    # Local development: Use fast local SQLite
-    instance_db_path = os.path.join(app.instance_path, "mentors_connect.db")
-    root_db_path = os.path.join(app.root_path, "mentors_connect.db")
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
 
-    if os.path.exists(instance_db_path):
-        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
-    elif os.path.exists(root_db_path):
-        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{root_db_path}"
-    else:
-        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
-
-    print("🟢 Local Development Mode: Connected to Local SQLite + Background Supabase Sync")
+print(f"🟢 Database Mode: Connected to SQLite ({app.config['SQLALCHEMY_DATABASE_URI']})")
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
-
 migrate = Migrate(app, db)
 
-# Start periodic background cloud backup to Supabase on local dev
-if not PRODUCTION:
-    try:
-        import supabase_sync
-        supabase_sync.start_periodic_sync(interval_seconds=60)
-    except Exception as sync_err:
-        print("Background Supabase backup notice:", sync_err)
+# Optional Background Supabase Cloud Backup Sync
+try:
+    import supabase_sync
+    supabase_sync.start_periodic_sync(interval_seconds=60)
+except Exception as sync_err:
+    print("Background Supabase backup notice:", sync_err)
 
 # Configure Flask-Caching in memory (SimpleCache for 0ms RAM caching)
 from flask_caching import Cache
