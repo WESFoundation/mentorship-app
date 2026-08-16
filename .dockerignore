@@ -14,3 +14,4 @@ zextra/
 *.db
 *.sqlite
 instance/
+!instance/mentors_connect.db

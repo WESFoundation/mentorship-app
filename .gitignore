@@ -60,6 +60,7 @@ htmlcov/
 *.sqlite
 *.sqlite3
 instance/
+!instance/mentors_connect.db
 
 # Editor temp files
 .~lock.*

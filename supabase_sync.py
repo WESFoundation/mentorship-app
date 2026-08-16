@@ -70,8 +70,16 @@ def sync_sqlite_to_supabase():
                 col_names = ", ".join([f'"{c}"' for c in cols])
                 placeholders = ", ".join(["%s"] * len(cols))
 
-                p_cur.execute(f'TRUNCATE TABLE "{t}" CASCADE;')
-                insert_sql = f'INSERT INTO "{t}" ({col_names}) VALUES ({placeholders})'
+                if "id" in cols:
+                    update_cols = ", ".join([f'"{c}" = EXCLUDED."{c}"' for c in cols if c != "id"])
+                    if update_cols:
+                        insert_sql = f'INSERT INTO "{t}" ({col_names}) VALUES ({placeholders}) ON CONFLICT ("id") DO UPDATE SET {update_cols}'
+                    else:
+                        insert_sql = f'INSERT INTO "{t}" ({col_names}) VALUES ({placeholders}) ON CONFLICT ("id") DO NOTHING'
+                else:
+                    p_cur.execute(f'DELETE FROM "{t}";')
+                    insert_sql = f'INSERT INTO "{t}" ({col_names}) VALUES ({placeholders})'
+
                 p_cur.executemany(insert_sql, formatted_rows)
                 synced[t] = len(rows)
             except Exception as table_err:
