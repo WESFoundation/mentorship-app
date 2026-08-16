@@ -258,32 +258,31 @@ SCOPES = LOGIN_SCOPES
 # -------------mantee = "2"--------------------------
 
 # ============================================================
-# DATABASE CONFIGURATION (Supabase PostgreSQL)
+# HYBRID DATABASE CONFIGURATION (SQLite Main + Supabase Cloud Backup)
 # ============================================================
-db_url = os.environ.get("DATABASE_URL", "").strip()
+# Main web app reads and writes from local SQLite for 0ms lightning fast speed!
+instance_db_path = os.path.join(app.instance_path, "mentors_connect.db")
+root_db_path = os.path.join(app.root_path, "mentors_connect.db")
 
-if not db_url:
-    raise ValueError("❌ DATABASE_URL environment variable is missing! Please set DATABASE_URL in your .env file.")
+if os.path.exists(instance_db_path):
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
+elif os.path.exists(root_db_path):
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{root_db_path}"
+else:
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
 
-# Fix protocol prefix for SQLAlchemy 1.4+ / 2.0+ if Supabase provides postgres://
-if db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql://", 1)
-
-app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-# Optimize connection pooling for PostgreSQL (Supabase)
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_size": 20,
-    "max_overflow": 30,
-    "pool_recycle": 1800,
-    "pool_timeout": 30,
-    "pool_pre_ping": False,
-}
 
 db = SQLAlchemy(app)
 
 migrate = Migrate(app, db)
+
+# Start periodic background cloud backup to Supabase (Every 60 seconds)
+try:
+    import supabase_sync
+    supabase_sync.start_periodic_sync(interval_seconds=60)
+except Exception as sync_err:
+    print("Background Supabase backup notice:", sync_err)
 
 # Configure Flask-Caching in memory (SimpleCache for 0ms RAM caching)
 from flask_caching import Cache
@@ -3833,11 +3832,12 @@ def my_mentors():
 
     # Fetch current mentee
     mentee = User.query.filter_by(email=session["email"]).first()
-    profile_complete = check_profile_complete(mentee.id, "2")
 
     if not mentee:
         flash("Mentee profile not found.", "error")
         return redirect(url_for("signin"))
+
+    profile_complete = check_profile_complete(mentee.id, "2")
 
     # A fully approved request means: Mentor accepted AND Supervisor approved AND system final approval is done.
     accepted_requests = MentorshipRequest.query.filter_by(
