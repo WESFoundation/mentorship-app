@@ -39,7 +39,7 @@ load_dotenv(override=True)
 # ============================================================
 # Set to True for production, False for local development
 # Can be overridden via env var: PRODUCTION=false python app.py
-PRODUCTION = os.environ.get("PRODUCTION", "true").lower() in ("1", "true", "yes")
+PRODUCTION = os.environ.get("PRODUCTION", "false").lower() in ("1", "true", "yes")
 
 app = Flask(__name__)
 
