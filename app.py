@@ -59,13 +59,12 @@ def load_env_file():
 
 load_env_file()
 
-
 # ============================================================
 # PRODUCTION CONFIGURATION
 # ============================================================
 # Set to True for production, False for local development
 # Can be overridden via env var: PRODUCTION=false python app.py
-PRODUCTION = os.environ.get("PRODUCTION", "true").lower() in ("1", "true", "yes")
+PRODUCTION = os.environ.get("PRODUCTION", "false").lower() in ("1", "true", "yes")
 
 app = Flask(__name__)
 
@@ -236,7 +235,15 @@ login_manager.login_view = "signin"
 # --- User Loader ---
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    if not user_id:
+        return None
+    try:
+        return User.query.options(
+            joinedload(User.mentor_profile),
+            joinedload(User.mentee_profile)
+        ).filter_by(id=int(user_id)).first()
+    except Exception:
+        return None
 
 
 # ============================================================
@@ -268,29 +275,69 @@ CALENDAR_SCOPES = [
 # Combined scopes (for backward compatibility)
 SCOPES = LOGIN_SCOPES
 
-
-
-#--------------User_type Code------------------------
-# -------------supervisor = "0"----------------------
-# -------------mentor = "1"--------------------------
-# -------------mantee = "2"--------------------------
+def get_google_flow(scopes, redirect_uri, state=None):
+    """Create Google OAuth Flow using client_secret.json or env vars"""
+    client_id = os.environ.get("GOOGLE_CLIENT_ID")
+    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
+    
+    if os.path.exists(CLIENT_SECRETS_FILE):
+        return Flow.from_client_secrets_file(
+            CLIENT_SECRETS_FILE,
+            scopes=scopes,
+            state=state,
+            redirect_uri=redirect_uri
+        )
+    elif client_id and client_secret:
+        client_config = {
+            "web": {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [redirect_uri]
+            }
+        }
+        return Flow.from_client_config(
+            client_config,
+            scopes=scopes,
+            state=state,
+            redirect_uri=redirect_uri
+        )
+    else:
+        raise FileNotFoundError(f"Neither {CLIENT_SECRETS_FILE} file nor GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET environment variables were found.")
 
 # ============================================================
-# DATABASE CONFIGURATION
+# DATABASE CONFIGURATION (SQLite Database EVERYWHERE)
 # ============================================================
-if PRODUCTION:
-    # Production database - Use PostgreSQL or MySQL
-    # Example: app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
-    # For now, using SQLite (not recommended for production with multiple workers)
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///mentors_connect.db")
+instance_db_path = os.path.join(app.instance_path, "mentors_connect.db")
+root_db_path = os.path.join(app.root_path, "mentors_connect.db")
+
+if os.path.exists(instance_db_path):
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
+elif os.path.exists(root_db_path):
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{root_db_path}"
 else:
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///mentors_connect.db"
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
+
+print(f"🟢 Database Mode: Connected to SQLite ({app.config['SQLALCHEMY_DATABASE_URI']})")
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
-
 migrate = Migrate(app, db)
+
+# Optional Background Supabase Cloud Backup Sync
+try:
+    import supabase_sync
+    supabase_sync.start_periodic_sync(interval_seconds=60)
+except Exception as sync_err:
+    print("Background Supabase backup notice:", sync_err)
+
+# Configure Flask-Caching in memory (SimpleCache for 0ms RAM caching)
+from flask_caching import Cache
+from sqlalchemy.orm import joinedload
+
+cache = Cache(app, config={"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": 300})
 
 # ============================================================
 # JINJA2 CUSTOM FILTERS
@@ -483,7 +530,7 @@ class User(db.Model):
     # OAuth fields
     google_id = db.Column(db.String(200), unique=True, nullable=True)
     oauth_provider = db.Column(db.String(50), nullable=True)  # 'google', 'facebook', etc.
-    profile_picture_url = db.Column(db.String(500), nullable=True)  # OAuth profile picture
+    profile_picture_url = db.Column(db.Text, nullable=True)  # OAuth profile picture
     oauth_created_at = db.Column(db.DateTime, nullable=True)
     
     # Registration timestamp
@@ -1322,16 +1369,13 @@ def inject_profile_complete():
 
 
 # ---------- Profile Completion Check Function ----------
-def check_profile_complete(user_id, user_type):
+def check_profile_complete(user_id, user_type, profile_obj=None):
     """
     Check if user profile is FULLY complete with ALL mandatory fields
     Returns True only if ALL required fields are filled, False otherwise
     """
-    print(f"🔍 Checking profile completion for user_id: {user_id}, user_type: {user_type}")
-    
     if user_type == "1":  # Mentor
-        profile = MentorProfile.query.filter_by(user_id=user_id).first()
-        print(f"📊 Mentor profile found: {profile is not None}")
+        profile = profile_obj if profile_obj is not None else MentorProfile.query.filter_by(user_id=user_id).first()
         if profile:
             # Check if ALL mandatory fields are filled (including profile picture)
             # Use 'or' with empty string to handle None values gracefully
@@ -1358,13 +1402,11 @@ def check_profile_complete(user_id, user_type):
                 profile.mentorship_motto,
                 profile.profile_picture  # Profile picture is now mandatory
             ])
-            print(f"✅ Mentor profile complete: {has_all_required}")
             return has_all_required
-        print("❌ No mentor profile found")
         return False
     
     elif user_type == "2":  # Mentee
-        profile = MenteeProfile.query.filter_by(user_id=user_id).first()
+        profile = profile_obj if profile_obj is not None else MenteeProfile.query.filter_by(user_id=user_id).first()
         print(f"📊 Mentee profile found: {profile is not None}")
         if profile:
             # Check if ALL mandatory fields are filled (including profile picture)
@@ -1799,11 +1841,7 @@ def google_login():
             else:
                 return redirect(url_for("select_user_type"))
     
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRETS_FILE,
-        scopes=LOGIN_SCOPES,  # Use login scopes only
-        redirect_uri=REDIRECT_URI
-    )
+    flow = get_google_flow(LOGIN_SCOPES, REDIRECT_URI)
     authorization_url, state = flow.authorization_url(
         access_type='offline',
         include_granted_scopes='true',
@@ -1825,13 +1863,8 @@ def callback():
         state = session.get('state')
         print(f"   State: {state}")
         
-        print(f"📍 Step 2: Creating Flow from client secrets")
-        flow = Flow.from_client_secrets_file(
-            CLIENT_SECRETS_FILE,
-            scopes=LOGIN_SCOPES,  # Use login scopes
-            state=state,
-            redirect_uri=REDIRECT_URI
-        )
+        print(f"📍 Step 2: Creating Flow from client secrets or env vars")
+        flow = get_google_flow(LOGIN_SCOPES, REDIRECT_URI, state=state)
         print(f"   ✅ Flow created")
         
         print(f"📍 Step 3: Getting authorization response")
@@ -2061,7 +2094,7 @@ def select_user_type():
     return render_template("auth/select_user_type.html", user=user)
 
 # Helper function to calculate mentor profile completion percentage
-def calculate_mentor_profile_completion(mentor_id):
+def calculate_mentor_profile_completion(mentor_id, profile_obj=None):
     """
     Calculate profile completion percentage and return missing fields
     Includes all meaningful profile fields for accurate completion tracking
@@ -2072,7 +2105,7 @@ def calculate_mentor_profile_completion(mentor_id):
         'total_fields': int
     }
     """
-    profile = MentorProfile.query.filter_by(user_id=mentor_id).first()
+    profile = profile_obj if profile_obj is not None else MentorProfile.query.filter_by(user_id=mentor_id).first()
     
     # Define all profile fields for completion calculation
     all_fields = {
@@ -2328,33 +2361,28 @@ def mentor_mentorship_request():
 @profile_required
 def menteedashboard():
     if "email" in session and session.get("user_type") == "2":
-        # Fetch current mentee
-        user = User.query.filter_by(email=session["email"]).first()
+        # Fetch current mentee and profile
+        user = User.query.options(joinedload(User.mentee_profile)).filter_by(email=session["email"]).first()
+        mentee_profile = user.mentee_profile if user else None
+        profile_complete = check_profile_complete(user.id, "2", profile_obj=mentee_profile) if user else False
 
-        profile_complete = check_profile_complete(user.id, "2")
+        all_mentors = MentorProfile.query.options(joinedload(MentorProfile.user)).all()
 
-        all_mentors = MentorProfile.query.filter_by().all()
+        # unique filter values from db
+        professions = sorted({row.profession for row in all_mentors if row.profession})
+        locations = sorted({row.location for row in all_mentors if row.location})
+        educations = sorted({row.education for row in all_mentors if row.education})
+        experiences = sorted({row.years_of_experience for row in all_mentors if row.years_of_experience})
 
-        all_mentors = MentorProfile.query.filter_by().all()
-
-        # unique filter value from db
-        professions = [row.profession for row in MentorProfile.query.with_entities(MentorProfile.profession).distinct() if row]
-        locations = [row.location for row in MentorProfile.query.with_entities(MentorProfile.location).distinct() if row.location]
-        educations = [row.education for row in MentorProfile.query.with_entities(MentorProfile.education).distinct() if row.education]
-        experiences = [row.years_of_experience for row in MentorProfile.query.with_entities(MentorProfile.years_of_experience).distinct() if row.years_of_experience]
-
-        # Fetch mentee profile to get career goal
-        mentee_profile = MenteeProfile.query.filter_by(user_id=user.id).first()
         career_goal = mentee_profile.goal if mentee_profile else None
-        
-        # Get parent consent status and email for under-18 mentees
         parent_consent_status = mentee_profile.parent_consent_status if mentee_profile else None
         parent_email = mentee_profile.parent_email if mentee_profile else None
 
         # Fetch the mentee's connected mentors (fully approved requests)
-        connected_requests = MentorshipRequest.query.filter_by(
+        connected_requests = MentorshipRequest.query.options(
+            joinedload(MentorshipRequest.mentor).joinedload(User.mentor_profile)
+        ).filter_by(
             mentee_id=user.id,
-            
             supervisor_status="approved",
             final_status="approved"
         ).all()
@@ -2364,17 +2392,14 @@ def menteedashboard():
             if req.mentor and req.mentor.mentor_profile:
                 my_mentors.append(req.mentor.mentor_profile)
 
-        # Optionally, fetch mentors already assigned to this mentee
-        # This depends if you have a "mentorship" table, for now we just show all mentors
-    
         return render_template(
             "mentee/menteedashboard.html",
             all_mentors=all_mentors,
             my_mentors=my_mentors,
-            professions=[row.profession for row in MentorProfile.query.with_entities(MentorProfile.profession).distinct() if row.profession],
-            locations=[row.location for row in MentorProfile.query.with_entities(MentorProfile.location).distinct() if row.location],
-            educations=[row.education for row in MentorProfile.query.with_entities(MentorProfile.education).distinct() if row.education],
-            experiences=[row.years_of_experience for row in MentorProfile.query.with_entities(MentorProfile.years_of_experience).distinct() if row.years_of_experience],
+            professions=professions,
+            locations=locations,
+            educations=educations,
+            experiences=experiences,
             show_sidebar=True,
             profile_complete=profile_complete,
             career_goal=career_goal,
@@ -3520,6 +3545,7 @@ def editinstitutionprofile():
 
 #-------- find function------------
 @app.route("/find_mentor", methods=["GET"])
+@cache.cached(timeout=60, query_string=True)
 def find_mentor():
     # Get current mentee's profile for suggestions
     current_user_id = None
@@ -3537,13 +3563,13 @@ def find_mentor():
     education = request.args.get("education")
     experience = request.args.get("experience")
 
-    # Get ALL users with user_type = "1" (mentors) - including those without complete profiles
-    all_mentor_users = User.query.filter_by(user_type="1").all()
+    # Get ALL users with user_type = "1" (mentors) - eager load mentor_profile in 1 single query
+    all_mentor_users = User.query.filter_by(user_type="1").options(joinedload(User.mentor_profile)).all()
     
     # Create enriched mentor objects combining User and MentorProfile data
     all_mentors = []
     for user in all_mentor_users:
-        mentor_profile = MentorProfile.query.filter_by(user_id=user.id).first()
+        mentor_profile = user.mentor_profile
         
         # Create enriched object with user data as fallback
         mentor = type('MentorData', (), {})()
@@ -3584,7 +3610,7 @@ def find_mentor():
             mentor.research_work = mentor_profile.research_work
             mentor.mentorship_philosophy = mentor_profile.mentorship_philosophy
             mentor.mentorship_motto = mentor_profile.mentorship_motto
-            mentor.is_profile_complete = check_profile_complete(user.id, "1")
+            mentor.is_profile_complete = check_profile_complete(user.id, "1", profile_obj=mentor_profile)
         else:
             # Use basic user data as fallback for incomplete profiles
             mentor.id = user.id
@@ -3761,6 +3787,7 @@ def calculate_mentor_suggestions(mentee_profile, all_mentors, current_user_id):
     return suggestions[:10]
 
 @app.route("/find_mentees", methods=["GET"])
+@cache.cached(timeout=60, query_string=True)
 def find_mentees():
     if "email" not in session or session.get("user_type") != "1": 
         return redirect(url_for("signin"))
@@ -3853,11 +3880,12 @@ def my_mentors():
 
     # Fetch current mentee
     mentee = User.query.filter_by(email=session["email"]).first()
-    profile_complete = check_profile_complete(mentee.id, "2")
 
     if not mentee:
         flash("Mentee profile not found.", "error")
         return redirect(url_for("signin"))
+
+    profile_complete = check_profile_complete(mentee.id, "2")
 
     # A fully approved request means: Mentor accepted AND Supervisor approved AND system final approval is done.
     accepted_requests = MentorshipRequest.query.filter_by(
@@ -3897,9 +3925,10 @@ def my_mentees():
         flash("Mentor profile not found.", "error")
         return redirect(url_for("signin"))
 
-    accepted_requests = MentorshipRequest.query.filter_by(
+    accepted_requests = MentorshipRequest.query.options(
+        joinedload(MentorshipRequest.mentee).joinedload(User.mentee_profile)
+    ).filter_by(
         mentor_id=mentor.id,
-        
         supervisor_status="approved",
         final_status="approved"
     ).all()
@@ -3907,7 +3936,7 @@ def my_mentees():
     my_mentees_data = []
     for req in accepted_requests:
         if req.mentee:
-            mentee_profile = MenteeProfile.query.filter_by(user_id=req.mentee.id).first()
+            mentee_profile = req.mentee.mentee_profile
             if mentee_profile:
                 # Use the check_profile_complete function instead of accessing non-existent attribute
                 mentee_profile_complete = check_profile_complete(req.mentee.id, "2")
@@ -8049,11 +8078,11 @@ def get_allowed_contacts():
 
 # ==================== PROFILE COMPLETION REMINDER SYSTEM ====================
 
-def calculate_mentee_profile_completion(mentee_id):
+def calculate_mentee_profile_completion(mentee_id, profile_obj=None):
     """
     Calculate profile completion percentage for mentees - tracks meaningful profile fields
     """
-    profile = MenteeProfile.query.filter_by(user_id=mentee_id).first()
+    profile = profile_obj if profile_obj is not None else MenteeProfile.query.filter_by(user_id=mentee_id).first()
     
     if not profile:
         return {
