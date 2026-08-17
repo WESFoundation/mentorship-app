@@ -31,6 +31,35 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 
 
+# Load the local .env file into the environment (if present).
+# Never overrides variables already set in the real environment.
+# DATABASE_URL from .env is intentionally ignored here so local
+# development keeps using the existing SQLite database.
+def load_env_file():
+    try:
+        env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+        if not os.path.exists(env_path):
+            return
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if not key:
+                    continue
+                if key == "DATABASE_URL":
+                    continue
+                if key not in os.environ:
+                    os.environ[key] = value
+    except Exception as e:
+        print(f"Warning: could not load .env: {e}")
+
+load_env_file()
+
+
 # ============================================================
 # PRODUCTION CONFIGURATION
 # ============================================================
@@ -292,6 +321,14 @@ SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 SMTP_EMAIL = os.environ.get("SMTP_EMAIL", "mentorship@wazireducationsociety.com")  # Change this
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "kmbiechgqjxtfoef")  # Gmail App Password
+
+# ------------------------------------------------------------
+# EXTERNAL EXPORT API CONFIG
+# ------------------------------------------------------------
+# Key used to authenticate external callers of POST /api/export_mentee_work.
+# Set EXPORT_API_KEY in .env (or environment). A secure default is provided
+# so the API works out of the box, but you should change it for production.
+EXPORT_API_KEY = os.environ.get("EXPORT_API_KEY", "b579c3db0781ce16211911ccc806bd6ba0db1092cba48c539b8e1429ea109a4e")
 
 def send_otp_email(to_email, otp):
     """Send OTP to user's email"""
@@ -4713,123 +4750,16 @@ def mentor_tasks():
         profile_complete=profile_complete
     )
 
-@app.route("/export_mentee_work", methods=["GET"])
-def export_mentee_work():
-    """Export all tasks (master + personal) of mentees as an Excel file.
-    Usable by both the mentee themselves and their mentors."""
+def build_mentee_work_book(rows, file_label):
+    """Build the styled Excel workbook bytes for a set of mentee work rows.
+    Shared by the manual export button and the external API endpoint.
+
+    Returns a (BytesIO buffer, download_filename) tuple. Never throws."""
     from io import BytesIO
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
-    if "email" not in session:
-        return redirect(url_for("signin"))
-
-    user = User.query.filter_by(email=session["email"]).first()
-    if not user:
-        return redirect(url_for("signin"))
-
-    user_type = session.get("user_type")
-    if user_type not in ["1", "2"]:
-        return jsonify({"error": "Only mentees and mentors can export tasks."}), 403
-
-    rows = []
-
-    if user_type == "2":
-        # Mentee: all their own work (master tasks assigned + personal tasks)
-        master_tasks = MenteeTask.query.filter_by(mentee_id=user.id)\
-            .join(MasterTask, MenteeTask.task_id == MasterTask.id)\
-            .order_by(MenteeTask.meeting_number)\
-            .all()
-        personal_tasks = PersonalTask.query.filter_by(mentee_id=user.id)\
-            .order_by(PersonalTask.created_date.desc())\
-            .all()
-
-        mentee_name = user.name or "N/A"
-        for t in master_tasks:
-            rows.append({
-                "mentee": mentee_name,
-                "mentee_email": user.email or "",
-                "mentor": t.mentor.name if t.mentor else "N/A",
-                "task_type": "Mentorship Task",
-                "title": t.master_task.mentee_focus if t.master_task else "",
-                "description": t.master_task.purpose_of_call if t.master_task else "",
-                "month": t.month or (t.master_task.month if t.master_task else ""),
-                "meeting_number": t.meeting_number,
-                "assigned_date": t.assigned_date,
-                "due_date": t.due_date,
-                "completed_date": t.completed_date,
-                "status": t.status,
-                "progress": t.progress or 0,
-                "priority": "N/A"
-            })
-        for t in personal_tasks:
-            rows.append({
-                "mentee": mentee_name,
-                "mentee_email": user.email or "",
-                "mentor": t.mentor.name if t.mentor else "N/A",
-                "task_type": "Personal Task",
-                "title": t.title,
-                "description": t.description or "",
-                "month": "",
-                "meeting_number": "N/A",
-                "assigned_date": t.created_date,
-                "due_date": t.due_date,
-                "completed_date": t.completed_date,
-                "status": t.status,
-                "progress": t.progress or 0,
-                "priority": t.priority or "medium"
-            })
-
-    else:
-        # Mentor: all work of their mentees (master + personal tasks they assigned)
-        mentor_name = user.name or "N/A"
-
-        master_tasks = MenteeTask.query.filter(
-            MenteeTask.mentor_id == user.id
-        ).order_by(MenteeTask.meeting_number).all()
-        personal_tasks = PersonalTask.query.filter_by(mentor_id=user.id)\
-            .order_by(PersonalTask.created_date.desc())\
-            .all()
-
-        for t in master_tasks:
-            mentee_user = t.mentee
-            rows.append({
-                "mentee": mentee_user.name if mentee_user else "N/A",
-                "mentee_email": mentee_user.email if mentee_user else "",
-                "mentor": mentor_name,
-                "task_type": "Mentorship Task",
-                "title": t.master_task.mentee_focus if t.master_task else "",
-                "description": t.master_task.purpose_of_call if t.master_task else "",
-                "month": t.month or (t.master_task.month if t.master_task else ""),
-                "meeting_number": t.meeting_number,
-                "assigned_date": t.assigned_date,
-                "due_date": t.due_date,
-                "completed_date": t.completed_date,
-                "status": t.status,
-                "progress": t.progress or 0,
-                "priority": "N/A"
-            })
-        for t in personal_tasks:
-            mentee_user = t.mentee
-            rows.append({
-                "mentee": mentee_user.name if mentee_user else "N/A",
-                "mentee_email": mentee_user.email if mentee_user else "",
-                "mentor": mentor_name,
-                "task_type": "Personal Task",
-                "title": t.title,
-                "description": t.description or "",
-                "month": "",
-                "meeting_number": "N/A",
-                "assigned_date": t.created_date,
-                "due_date": t.due_date,
-                "completed_date": t.completed_date,
-                "status": t.status,
-                "progress": t.progress or 0,
-                "priority": t.priority or "medium"
-            })
-
-    # Build the workbook
     wb = Workbook()
     ws = wb.active
     ws.title = "Mentee Work"
@@ -4903,10 +4833,182 @@ def export_mentee_work():
     wb.save(buffer)
     buffer.seek(0)
 
-    file_label = "Mentee_Work_All" if user_type == "1" else "My_Work"
     filename = f"{file_label}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return buffer, filename
+
+def collect_mentor_work_rows(user):
+    """Collect all mentee work rows (master + personal tasks) for a mentor."""
+    rows = []
+    mentor_name = user.name or "N/A"
+
+    master_tasks = MenteeTask.query.filter(
+        MenteeTask.mentor_id == user.id
+    ).order_by(MenteeTask.meeting_number).all()
+    personal_tasks = PersonalTask.query.filter_by(mentor_id=user.id)\
+        .order_by(PersonalTask.created_date.desc())\
+        .all()
+
+    for t in master_tasks:
+        mentee_user = t.mentee
+        rows.append({
+            "mentee": mentee_user.name if mentee_user else "N/A",
+            "mentee_email": mentee_user.email if mentee_user else "",
+            "mentor": mentor_name,
+            "task_type": "Mentorship Task",
+            "title": t.master_task.mentee_focus if t.master_task else "",
+            "description": t.master_task.purpose_of_call if t.master_task else "",
+            "month": t.month or (t.master_task.month if t.master_task else ""),
+            "meeting_number": t.meeting_number,
+            "assigned_date": t.assigned_date,
+            "due_date": t.due_date,
+            "completed_date": t.completed_date,
+            "status": t.status,
+            "progress": t.progress or 0,
+            "priority": "N/A"
+        })
+    for t in personal_tasks:
+        mentee_user = t.mentee
+        rows.append({
+            "mentee": mentee_user.name if mentee_user else "N/A",
+            "mentee_email": mentee_user.email if mentee_user else "",
+            "mentor": mentor_name,
+            "task_type": "Personal Task",
+            "title": t.title,
+            "description": t.description or "",
+            "month": "",
+            "meeting_number": "N/A",
+            "assigned_date": t.created_date,
+            "due_date": t.due_date,
+            "completed_date": t.completed_date,
+            "status": t.status,
+            "progress": t.progress or 0,
+            "priority": t.priority or "medium"
+        })
+    return rows
+
+def collect_mentee_own_rows(user):
+    """Collect all work rows (master + personal tasks) for a mentee themselves."""
+    rows = []
+
+    master_tasks = MenteeTask.query.filter_by(mentee_id=user.id)\
+        .join(MasterTask, MenteeTask.task_id == MasterTask.id)\
+        .order_by(MenteeTask.meeting_number)\
+        .all()
+    personal_tasks = PersonalTask.query.filter_by(mentee_id=user.id)\
+        .order_by(PersonalTask.created_date.desc())\
+        .all()
+
+    mentee_name = user.name or "N/A"
+    for t in master_tasks:
+        rows.append({
+            "mentee": mentee_name,
+            "mentee_email": user.email or "",
+            "mentor": t.mentor.name if t.mentor else "N/A",
+            "task_type": "Mentorship Task",
+            "title": t.master_task.mentee_focus if t.master_task else "",
+            "description": t.master_task.purpose_of_call if t.master_task else "",
+            "month": t.month or (t.master_task.month if t.master_task else ""),
+            "meeting_number": t.meeting_number,
+            "assigned_date": t.assigned_date,
+            "due_date": t.due_date,
+            "completed_date": t.completed_date,
+            "status": t.status,
+            "progress": t.progress or 0,
+            "priority": "N/A"
+        })
+    for t in personal_tasks:
+        rows.append({
+            "mentee": mentee_name,
+            "mentee_email": user.email or "",
+            "mentor": t.mentor.name if t.mentor else "N/A",
+            "task_type": "Personal Task",
+            "title": t.title,
+            "description": t.description or "",
+            "month": "",
+            "meeting_number": "N/A",
+            "assigned_date": t.created_date,
+            "due_date": t.due_date,
+            "completed_date": t.completed_date,
+            "status": t.status,
+            "progress": t.progress or 0,
+            "priority": t.priority or "medium"
+        })
+    return rows
+
+@app.route("/export_mentee_work", methods=["GET"])
+def export_mentee_work():
+    """Export all tasks (master + personal) of mentees as an Excel file.
+    Usable by both the mentee themselves and their mentors."""
+    if "email" not in session:
+        return redirect(url_for("signin"))
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return redirect(url_for("signin"))
+
+    user_type = session.get("user_type")
+    if user_type not in ["1", "2"]:
+        return jsonify({"error": "Only mentees and mentors can export tasks."}), 403
+
+    if user_type == "2":
+        rows = collect_mentee_own_rows(user)
+        file_label = "My_Work"
+    else:
+        rows = collect_mentor_work_rows(user)
+        file_label = "Mentee_Work_All"
 
     from flask import send_file
+    buffer, filename = build_mentee_work_book(rows, file_label)
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+@app.route("/api/export_mentee_work", methods=["POST"])
+def api_export_mentee_work():
+    """External API: export a mentor's mentee work as an Excel file.
+
+    Authentication: header  X-API-Key: <key>  (see EXPORT_API_KEY in .env).
+    Request body (JSON):
+        {
+          "mentor_id": 123
+        }
+    The mentor is looked up by id (or "mentor_email" if provided instead).
+    Returns the same styled .xlsx the manual button produces.
+    """
+    import hmac
+
+    # 1) Authenticate via API key header
+    supplied_key = request.headers.get("X-API-Key") or request.headers.get("x-api-key")
+    if not supplied_key or not hmac.compare_digest(str(supplied_key), str(EXPORT_API_KEY)):
+        return jsonify({"error": "Invalid or missing API key."}), 401
+
+    # 2) Determine the mentor
+    data = request.get_json(silent=True) or {}
+    mentor_id = data.get("mentor_id")
+    mentor_email = data.get("mentor_email")
+
+    if mentor_id is None and not mentor_email:
+        return jsonify({"error": "Provide 'mentor_id' (or 'mentor_email') in the JSON body."}), 400
+
+    if mentor_email:
+        mentor_user = User.query.filter_by(email=mentor_email, user_type="1").first()
+    else:
+        try:
+            mentor_user = User.query.filter_by(id=int(mentor_id), user_type="1").first()
+        except (TypeError, ValueError):
+            return jsonify({"error": "'mentor_id' must be an integer."}), 400
+
+    if not mentor_user:
+        return jsonify({"error": "Mentor not found."}), 404
+
+    # 3) Build the same report as the manual export button
+    rows = collect_mentor_work_rows(mentor_user)
+    from flask import send_file
+    buffer, filename = build_mentee_work_book(rows, "Mentee_Work_All")
+
     return send_file(
         buffer,
         as_attachment=True,
