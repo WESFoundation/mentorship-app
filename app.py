@@ -3448,7 +3448,7 @@ def institution_all_tasks():
     ).all()
 
     for task in personal_tasks_self:
-        mentee = User.query.get(task.mentee_id)
+        mentee = db.session.get(User, task.mentee_id)
         all_institution_tasks.append({
             "id": f"personal_{task.id}",
             "serial": f"P-{task.id}",
@@ -3458,14 +3458,14 @@ def institution_all_tasks():
             "status": task.status or "pending",
             "progress": task.progress or 0,
             "priority": task.priority or "medium",
-            "category": task.category or "Personal",
+            "category": getattr(task, 'category', None) or "Personal",
             "mentor_id": None,
             "mentor_name": "Self-assigned",
             "mentee_id": task.mentee_id,
             "mentee_name": mentee.name if mentee else "Unknown",
             "mentee_email": mentee.email if mentee else "",
             "type": "personal",
-            "rating": task.rating or 0,
+            "rating": getattr(task, 'rating', 0) or 0,
             "isCritical": task.is_critical if hasattr(task, 'is_critical') else False,
             "comments": task.comments if hasattr(task, 'comments') else None
         })
@@ -3477,8 +3477,8 @@ def institution_all_tasks():
     ).all()
 
     for task in personal_tasks_by_mentors:
-        mentee = User.query.get(task.mentee_id)
-        mentor = User.query.get(task.mentor_id)
+        mentee = db.session.get(User, task.mentee_id)
+        mentor = db.session.get(User, task.mentor_id)
         
         # Check if mentor belongs to same institution
         if mentor and (mentor.institution == institution_name or mentor.institution_id == institution_id):
@@ -3491,7 +3491,7 @@ def institution_all_tasks():
                 "status": task.status or "pending",
                 "progress": task.progress or 0,
                 "priority": task.priority or "medium",
-                "category": task.category or "Personal",
+                "category": getattr(task, 'category', None) or "Personal",
                 "mentor_id": task.mentor_id,
                 "mentor_name": mentor.name if mentor else "Unknown",
                 "mentor_email": mentor.email if mentor else "",
@@ -3499,6 +3499,7 @@ def institution_all_tasks():
                 "mentee_name": mentee.name if mentee else "Unknown",
                 "mentee_email": mentee.email if mentee else "",
                 "type": "personal",
+                "rating": getattr(task, 'rating', 0) or 0,
                 "isCritical": task.is_critical if hasattr(task, 'is_critical') else False,
                 "comments": task.comments if hasattr(task, 'comments') else None
             })
@@ -3584,8 +3585,8 @@ def get_institution_tasks_data():
     ).all()
     
     for task in personal_tasks:
-        mentee = User.query.get(task.mentee_id)
-        mentor = User.query.get(task.mentor_id) if task.mentor_id else None
+        mentee = db.session.get(User, task.mentee_id)
+        mentor = db.session.get(User, task.mentor_id) if task.mentor_id else None
         
         tasks_data.append({
             "id": f"personal_{task.id}",
@@ -3596,12 +3597,13 @@ def get_institution_tasks_data():
             "status": task.status or "pending",
             "progress": task.progress or 0,
             "priority": task.priority or "medium",
-            "category": task.category or "Personal",
+            "category": getattr(task, 'category', None) or "Personal",
             "mentorId": task.mentor_id,
             "mentorName": mentor.name if mentor else "Self-assigned",
             "menteeId": task.mentee_id,
             "menteeName": mentee.name if mentee else "Unknown",
             "type": "personal",
+            "rating": getattr(task, 'rating', 0) or 0,
             "isCritical": task.is_critical if hasattr(task, 'is_critical') else False
         })
     
