@@ -124,98 +124,83 @@
   </div>
 
   {% if all_requests and all_requests|length > 0 %}
-  <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-    {% for request in all_requests %}
-    <div class="request-card bg-white rounded-xl p-5">
-      <!-- Header with Connection Flow -->
-      <div class="flex items-center justify-between mb-4">
-        <!-- Mentee -->
-        <div class="flex items-center gap-3">
-          {% if request.mentee.mentee_profile and request.mentee.mentee_profile.profile_picture %}
-          <img src="{{ url_for('static', filename='uploads/' ~ request.mentee.mentee_profile.profile_picture) }}" 
-               alt="{{ request.mentee.name }}" 
-               class="user-avatar mentee-avatar">
-          {% else %}
-          <div class="user-avatar mentee-avatar bg-blue-100 flex items-center justify-center text-blue-600">
-            <span class="text-sm font-semibold">{{ request.mentee.name[0] }}</span>
-          </div>
-          {% endif %}
-          <div>
-            <p class="font-semibold text-gray-800 text-sm">{{ request.mentee.name }}</p>
-            <p class="text-xs text-gray-500">Mentee</p>
-          </div>
-        </div>
+  <div class="overflow-x-auto rounded-xl border border-gray-200">
+    <table class="min-w-full divide-y divide-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Connection</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purpose</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor Status</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Your Decision</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="bg-white divide-y divide-gray-200">
+        {% for request in all_requests %}
+        <tr class="request-row hover:bg-gray-50 transition-colors">
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="flex items-center">
+              <!-- Mentee -->
+              <div class="flex items-center">
+                {% if request.mentee.mentee_profile and request.mentee.mentee_profile.profile_picture %}
+                <img src="{{ url_for('static', filename='uploads/' ~ request.mentee.mentee_profile.profile_picture) }}"
+                     alt="{{ request.mentee.name }}"
+                     class="w-10 h-10 rounded-full object-cover mr-3 mentee-avatar">
+                {% else %}
+                <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3">
+                  <span class="text-sm font-semibold">{{ request.mentee.name[0] }}</span>
+                </div>
+                {% endif %}
+                <div>
+                  <p class="font-semibold text-gray-800 text-sm">{{ request.mentee.name }}</p>
+                  <p class="text-xs text-gray-500">Mentee</p>
+                </div>
+              </div>
 
-        <!-- Connection Arrow -->
-        <div class="mx-2 text-gray-300">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
-          </svg>
-        </div>
+              <!-- Connection Arrow -->
+              <div class="mx-2 text-gray-300">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                </svg>
+              </div>
 
-        <!-- Mentor -->
-        <div class="flex items-center gap-3">
-          <div class="text-right">
-            <p class="font-semibold text-gray-800 text-sm">{{ request.mentor.name }}</p>
-            <p class="text-xs text-gray-500">Mentor</p>
-          </div>
-          {% if request.mentor.mentor_profile and request.mentor.mentor_profile.profile_picture %}
-          <img src="{{ url_for('static', filename='uploads/' ~ request.mentor.mentor_profile.profile_picture) }}" 
-               alt="{{ request.mentor.name }}" 
-               class="user-avatar mentor-avatar">
-          {% else %}
-          <div class="user-avatar mentor-avatar bg-green-100 flex items-center justify-center text-green-600">
-            <span class="text-sm font-semibold">{{ request.mentor.name[0] }}</span>
-          </div>
-          {% endif %}
-        </div>
-      </div>
+              <!-- Mentor -->
+              <div class="flex items-center">
+                <div class="text-right">
+                  <p class="font-semibold text-gray-800 text-sm">{{ request.mentor.name }}</p>
+                  <p class="text-xs text-gray-500">Mentor</p>
+                </div>
+                {% if request.mentor.mentor_profile and request.mentor.mentor_profile.profile_picture %}
+                <img src="{{ url_for('static', filename='uploads/' ~ request.mentor.mentor_profile.profile_picture) }}"
+                     alt="{{ request.mentor.name }}"
+                     class="w-10 h-10 rounded-full object-cover ml-3 mentor-avatar">
+                {% else %}
+                <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 ml-3">
+                  <span class="text-sm font-semibold">{{ request.mentor.name[0] }}</span>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td class="px-6 py-4 max-w-[280px] min-w-[160px] break-words">
+            <div class="text-sm font-medium text-gray-800">{{ request.purpose }}</div>
+            <div class="text-xs text-gray-500 mt-1">Type: {{ request.mentor_type|title }} &middot; Duration: {{ request.duration_months }} months</div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="status-badge {% if request.mentor_status == 'accepted' %}status-approved{% elif request.mentor_status == 'rejected' %}status-rejected{% else %}status-pending{% endif %} text-xs">
+              {{ request.mentor_status }}
+            </span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="status-badge {% if request.supervisor_status == 'approved' %}status-approved{% elif request.supervisor_status == 'rejected' %}status-rejected{% else %}status-pending{% endif %} text-xs">
+              {{ request.supervisor_status }}
+            </span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-right">
 
-      <!-- Request Details -->
-      <div class="mb-4 p-3 bg-gray-50 rounded-lg">
-        <div class="space-y-2 text-sm">
-          <div class="flex justify-between">
-            <span class="text-gray-600">Purpose:</span>
-            <span class="font-medium text-gray-800 text-right">{{ request.purpose }}</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-gray-600">Type:</span>
-            <span class="font-medium text-gray-800">{{ request.mentor_type|title }}</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-gray-600">Duration:</span>
-            <span class="font-medium text-gray-800">{{ request.duration_months }} months</span>
-          </div>
-        </div>
-        
-        {% if request.why_need_mentor %}
-        <div class="mt-3 pt-3 border-t border-gray-200">
-          <span class="text-gray-600 text-sm block mb-1">Reason for mentorship:</span>
-          <p class="text-gray-700 text-sm bg-white p-2 rounded border">{{ request.why_need_mentor }}</p>
-        </div>
-        {% endif %}
-      </div>
-
-      <!-- Status Indicators -->
-      <div class="flex justify-between items-center mb-4">
-        <div class="flex flex-col gap-1">
-          <span class="text-xs text-gray-600">Mentor:</span>
-          <span class="status-badge {% if request.mentor_status == 'accepted' %}status-approved{% elif request.mentor_status == 'rejected' %}status-rejected{% else %}status-pending{% endif %} text-xs">
-            {{ request.mentor_status }}
-          </span>
-        </div>
-        <div class="flex flex-col gap-1 items-end">
-          <span class="text-xs text-gray-600">Your decision:</span>
-          <span class="status-badge {% if request.supervisor_status == 'approved' %}status-approved{% elif request.supervisor_status == 'rejected' %}status-rejected{% else %}status-pending{% endif %} text-xs">
-            {{ request.supervisor_status }}
-          </span>
-        </div>
-      </div>
-
-      <!-- Action Buttons -->
-      {% if request.supervisor_status == 'pending' %}
-      <div class="flex gap-2 mb-4">
-        <button class="view-mentee-profile-btn flex-1 px-3 py-2 bg-blue-100 text-blue-700 text-xs font-medium rounded-lg hover:bg-blue-200 transition duration-200" 
+            {% if request.supervisor_status == 'pending' %}
+            <div class="flex gap-2 justify-end mb-2">
+              <button class="view-mentee-profile-btn px-3 py-2 bg-blue-100 text-blue-700 text-xs font-medium rounded-lg hover:bg-blue-200 transition duration-200"
           data-mentee-id="{{ request.mentee.id }}"
           data-mentee-name="{{ request.mentee.name }}"
           data-mentee-email="{{ request.mentee.email }}"
@@ -280,7 +265,7 @@
           {% endif %}>
           View Mentee Profile
         </button>
-        <button class="view-mentor-profile-btn flex-1 px-3 py-2 bg-green-100 text-green-700 text-xs font-medium rounded-lg hover:bg-green-200 transition duration-200"
+              <button class="view-mentor-profile-btn px-3 py-2 bg-green-100 text-green-700 text-xs font-medium rounded-lg hover:bg-green-200 transition duration-200"
           data-mentor-id="{{ request.mentor.id }}"
           data-mentor-name="{{ request.mentor.name }}"
           data-mentor-email="{{ request.mentor.email }}"
@@ -321,9 +306,9 @@
           {% endif %}>
           View Mentor Profile
         </button>
-      </div>
-      <div class="flex gap-2">
-        <form action="{{ url_for('supervisor_response') }}" method="POST" class="flex-1">
+            </div>
+            <div class="flex gap-2 justify-end">
+        <form action="{{ url_for('supervisor_response') }}" method="POST">
           <input type="hidden" name="request_id" value="{{ request.id }}">
           <input type="hidden" name="action" value="approve">
           <button type="submit" class="w-full px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition duration-200 flex items-center justify-center gap-2">
@@ -334,7 +319,7 @@
           </button>
         </form>
 
-        <form action="{{ url_for('supervisor_response') }}" method="POST" class="flex-1">
+        <form action="{{ url_for('supervisor_response') }}" method="POST">
           <input type="hidden" name="request_id" value="{{ request.id }}">
           <input type="hidden" name="action" value="reject">
           <button type="submit" class="w-full px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition duration-200 flex items-center justify-center gap-2">
@@ -345,15 +330,16 @@
           </button>
         </form>
       </div>
-      {% else %}
-      <div class="text-center py-2">
-        <span class="text-sm font-medium {% if request.supervisor_status == 'approved' %}text-green-600{% else %}text-red-600{% endif %}">
-          You have {{ request.supervisor_status }} this request
-        </span>
-      </div>
-      {% endif %}
-    </div>
-    {% endfor %}
+            {% else %}
+            <span class="text-sm font-medium {% if request.supervisor_status == 'approved' %}text-green-600{% else %}text-red-600{% endif %}">
+              You have {{ request.supervisor_status }} this request
+            </span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
   
   {% else %}

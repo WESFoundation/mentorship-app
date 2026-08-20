@@ -170,9 +170,9 @@
       </form>
 
       {% if mentors and mentors|length > 0 %}
-      <div class="grid p-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="mentorsGrid">
+      <div class="grid p-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr" id="mentorsGrid">
         {% for mentor in mentors %}
-        <div class="mentor-card bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-md">
+        <div class="mentor-card bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-md flex flex-col h-full">
           <div class="flex items-center gap-4 mb-4">
             {% if mentor.profile_picture %}
             <img src="{{ url_for('static', filename='uploads/' ~ mentor.profile_picture) }}"
@@ -183,36 +183,36 @@
               <span class="text-xl font-semibold">{{ mentor.user.name[0] if mentor.user.name else '?' }}</span>
             </div>
             {% endif %}
-            <div>
-              <h3 class="text-lg font-bold text-gray-800 mentor-name">{{ mentor.user.name }}</h3>
-              <p class="text-sm text-gray-600 mentor-profession">{{ mentor.profession }} at {{ mentor.organisation }}
+            <div class="min-w-0">
+              <h3 class="text-lg font-bold text-gray-800 mentor-name break-words">{{ mentor.user.name }}</h3>
+              <p class="text-sm text-gray-600 mentor-profession break-words">{{ mentor.profession }} at {{ mentor.organisation }}
               </p>
             </div>
           </div>
 
           <div class="space-y-2 mb-4">
-            <div class="flex items-center text-sm text-gray-600 mentor-location">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24"
+            <div class="flex items-start text-sm text-gray-600 mentor-location min-w-0">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-              <span>{{ mentor.location if mentor.location else 'Not specified' }}</span>
+              <span class="break-words min-w-0">{{ mentor.location if mentor.location else 'Not specified' }}</span>
             </div>
 
-            <div class="flex items-center text-sm text-gray-600 mentor-email">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24"
+            <div class="flex items-start text-sm text-gray-600 mentor-email min-w-0">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              <span>{{ mentor.user.email }}</span>
+              <span class="break-all min-w-0">{{ mentor.user.email }}</span>
             </div>
           </div>
 
-          <div class="flex space-x-2">
+          <div class="flex space-x-2 mt-auto pt-4">
             <button
               class="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
               View Profile
@@ -300,9 +300,9 @@
       </form>
 
       {% if mentees and mentees|length > 0 %}
-      <div class="grid p-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="menteesGrid">
+      <div class="grid p-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr" id="menteesGrid">
         {% for mentee in mentees %}
-        <div class="mentee-card bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-md">
+        <div class="mentee-card bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-md flex flex-col h-full">
           <div class="flex items-center gap-4 mb-4">
             {% if mentee.profile_picture %}
             <img src="{{ url_for('static', filename='uploads/' ~ mentee.profile_picture) }}"
@@ -313,33 +313,33 @@
               <span class="text-xl font-semibold">{{ mentee.user.name[0] if mentee.user.name else '?' }}</span>
             </div>
             {% endif %}
-            <div>
-              <h3 class="text-lg font-bold text-gray-800 mentee-name">{{ mentee.user.name }}</h3>
-              <p class="text-sm text-gray-600 mentee-school">{{ mentee.school_college_name }}</p>
+            <div class="min-w-0">
+              <h3 class="text-lg font-bold text-gray-800 mentee-name break-words">{{ mentee.user.name }}</h3>
+              <p class="text-sm text-gray-600 mentee-school break-words">{{ mentee.school_college_name }}</p>
             </div>
           </div>
 
           <div class="space-y-2 mb-4">
-            <div class="flex items-center text-sm text-gray-600 mentee-goal">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24"
+            <div class="flex items-start text-sm text-gray-600 mentee-goal min-w-0">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M12 6.253v13.5m0-13.5C10.835 5.86 9.539 5.378 8 5.255 5.8 4.75 4 6.777 4 9v6a4 4 0 004 4h8a4 4 0 004-4v-6c0-2.223-1.8-4.25-4-3.745-1.539.123-2.835.605-4 1.148z" />
               </svg>
-              <span>Goal: {{ mentee.goal if mentee.goal else 'Not specified' }}</span>
+              <span class="break-words min-w-0">Goal: {{ mentee.goal if mentee.goal else 'Not specified' }}</span>
             </div>
 
-            <div class="flex items-center text-sm text-gray-600 mentee-email">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24"
+            <div class="flex items-start text-sm text-gray-600 mentee-email min-w-0">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              <span>{{ mentee.user.email }}</span>
+              <span class="break-all min-w-0">{{ mentee.user.email }}</span>
             </div>
           </div>
 
-          <div class="flex space-x-2">
+          <div class="flex space-x-2 mt-auto pt-4">
             <button
               class="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
               View Profile
@@ -512,7 +512,7 @@
           {% for mentor in mentor_requests %}
           <div class="bg-gray-50 rounded-xl border border-gray-200 p-5">
             <h4 class="font-bold text-gray-800">{{ mentor.user.name }}</h4>
-            <p class="text-sm text-gray-600 mt-1">{{ mentor.profession }} at {{ mentor.organisation }}</p>
+            <p class="text-sm text-gray-600 mt-1 break-words">{{ mentor.profession }} at {{ mentor.organisation }}</p>
             <div class="flex items-center text-sm text-gray-500 mt-2">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor">
@@ -553,14 +553,14 @@
           {% for mentee in mentee_requests %}
           <div class="bg-gray-50 rounded-xl border border-gray-200 p-5">
             <h4 class="font-bold text-gray-800">{{ mentee.user.name }}</h4>
-            <p class="text-sm text-gray-600 mt-1">{{ mentee.school_college_name }}</p>
-            <div class="flex items-center text-sm text-gray-500 mt-2">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24"
+            <p class="text-sm text-gray-600 mt-1 break-words">{{ mentee.school_college_name }}</p>
+            <div class="flex items-start text-sm text-gray-500 mt-2 min-w-0">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 shrink-0" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M12 6.253v13.5m0-13.5C10.835 5.86 9.539 5.378 8 5.255 5.8 4.75 4 6.777 4 9v6a4 4 0 004 4h8a4 4 0 004-4v-6c0-2.223-1.8-4.25-4-3.745-1.539.123-2.835.605-4 1.148z" />
               </svg>
-              <span>Goal: {{ mentee.goal }}</span>
+              <span class="break-words min-w-0">Goal: {{ mentee.goal }}</span>
             </div>
             <div class="mt-4 flex space-x-2">
               <form action="{{ url_for('supervisor_response') }}" method="POST" class="flex-1">

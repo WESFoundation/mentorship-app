@@ -18,90 +18,86 @@
     </div>
 
     {% if mentors and mentors|length > 0 %}
-    <div class="grid p-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="mentorsGrid">
-      {% for mentor in mentors %}
-      <div class="mentor-card bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-md hover:border-blue-200" data-mentor-id="{{ mentor.id }}">
-        <div class="flex items-center gap-4 mb-4">
-          {% if mentor.mentor_profile and mentor.mentor_profile.profile_picture %}
-          <img src="{{ url_for('static', filename='uploads/' ~ mentor.mentor_profile.profile_picture) }}" alt="{{ mentor.name }}"
-            class="w-16 h-16 rounded-full object-cover border-2 border-white shadow">
-          {% else %}
-          <div
-            class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 border-2 border-white shadow">
-            <span class="text-xl font-semibold">{{ mentor.name[0] if mentor.name else '?' }}</span>
-          </div>
-          {% endif %}
-          <div>
-            <h3 class="text-lg font-bold text-gray-800 mentor-name">{{ mentor.name }}</h3>
-            <p class="text-sm text-gray-600 mentor-profession">{{ mentor.mentor_profile.profession if mentor.mentor_profile else 'Not specified' }}</p>
-            <p class="text-xs text-gray-500">{{ mentor.mentor_profile.organisation if mentor.mentor_profile else 'Not specified' }}</p>
-          </div>
-        </div>
-
-        <div class="space-y-2 mb-4">
-          <div class="flex items-center text-sm text-gray-600 mentor-location">
-            <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <span>{{ mentor.mentor_profile.location if mentor.mentor_profile else 'Not specified' }}</span>
-          </div>
-
-          <div class="flex items-center text-sm text-gray-600 mentor-email">
-            <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <span class="truncate">{{ mentor.email }}</span>
-          </div>
-        </div>
-
-        <div class="flex space-x-2">
-          <button class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition view-profile-btn" 
-            data-mentor-id="{{ mentor.id }}"
-            data-name="{{ mentor.name }}"
-            data-email="{{ mentor.email }}"
-            data-profession="{{ mentor.mentor_profile.profession if mentor.mentor_profile else '' }}"
-            data-organisation="{{ mentor.mentor_profile.organisation if mentor.mentor_profile else '' }}"
-            data-location="{{ mentor.mentor_profile.location if mentor.mentor_profile else '' }}"
-            data-experience="{{ mentor.mentor_profile.years_of_experience if mentor.mentor_profile else '' }}"
-            data-profile-picture="{{ mentor.mentor_profile.profile_picture if mentor.mentor_profile else '' }}"
-            data-education="{{ mentor.mentor_profile.education if mentor.mentor_profile else '' }}"
-            data-language="{{ mentor.mentor_profile.language if mentor.mentor_profile else '' }}"
-            data-communication="{{ mentor.mentor_profile.preferred_communication if mentor.mentor_profile else '' }}"
-            data-why-mentor="{{ mentor.mentor_profile.why_mentor if mentor.mentor_profile else '' }}"
-            data-role="{{ mentor.mentor_profile.role if mentor.mentor_profile else '' }}"
-            data-industry="{{ mentor.mentor_profile.industry_sector if mentor.mentor_profile else '' }}"
-            data-skills="{{ mentor.mentor_profile.skills if mentor.mentor_profile else '' }}"
-            data-availability="{{ mentor.mentor_profile.availability if mentor.mentor_profile else '' }}"
-            data-mentorship-topics="{{ mentor.mentor_profile.mentorship_topics if mentor.mentor_profile else '' }}"
-            data-linkedin="{{ mentor.mentor_profile.linkedin_link if mentor.mentor_profile else '' }}"
-            data-github="{{ mentor.mentor_profile.github_link if mentor.mentor_profile else '' }}"
-            data-portfolio="{{ mentor.mentor_profile.portfolio_link if mentor.mentor_profile else '' }}"
-            data-preferred-duration="{{ mentor.mentor_profile.preferred_duration if mentor.mentor_profile else '' }}"
-            data-mentorship-type="{{ mentor.mentor_profile.mentorship_type_preference if mentor.mentor_profile else '' }}"
-            data-connect-frequency="{{ mentor.mentor_profile.connect_frequency if mentor.mentor_profile else '' }}"
-            data-whatsapp="{{ mentor.mentor_profile.whatsapp if mentor.mentor_profile else '' }}"
-            data-whatsapp-code="{{ mentor.mentor_profile.whatsapp_country_code if mentor.mentor_profile else '' }}"
-            data-highest-qualification="{{ mentor.mentor_profile.highest_qualification if mentor.mentor_profile else '' }}"
-            data-degree-name="{{ mentor.mentor_profile.degree_name if mentor.mentor_profile else '' }}"
-            data-field-of-study="{{ mentor.mentor_profile.field_of_study if mentor.mentor_profile else '' }}"
-            data-university-name="{{ mentor.mentor_profile.university_name if mentor.mentor_profile else '' }}"
-            data-graduation-year="{{ mentor.mentor_profile.graduation_year if mentor.mentor_profile else '' }}"
-            data-academic-status="{{ mentor.mentor_profile.academic_status if mentor.mentor_profile else '' }}"
-            data-certifications="{{ mentor.mentor_profile.certifications if mentor.mentor_profile else '' }}"
-            data-research-work="{{ mentor.mentor_profile.research_work if mentor.mentor_profile else '' }}"
-            data-mentorship-philosophy="{{ mentor.mentor_profile.mentorship_philosophy if mentor.mentor_profile else '' }}"
-            data-mentorship-motto="{{ mentor.mentor_profile.mentorship_motto if mentor.mentor_profile else '' }}"
-            data-other-social="{{ mentor.mentor_profile.other_social_link if mentor.mentor_profile else '' }}"
-            data-criminal-certificate="{{ mentor.mentor_profile.criminal_certificate if mentor.mentor_profile else '' }}">
-            View Profile
-          </button>
-        </div>
-      </div>
-      {% endfor %}
+    <div class="overflow-x-auto rounded-xl border border-gray-200">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profession</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {% for mentor in mentors %}
+          <tr class="mentor-row hover:bg-gray-50 transition-colors" data-mentor-id="{{ mentor.id }}">
+            <td class="px-6 py-4 whitespace-nowrap max-w-[280px]">
+              <div class="flex items-center">
+                {% if mentor.mentor_profile and mentor.mentor_profile.profile_picture %}
+                <img src="{{ url_for('static', filename='uploads/' ~ mentor.mentor_profile.profile_picture) }}" alt="{{ mentor.name }}"
+                  class="w-10 h-10 rounded-full object-cover mr-3">
+                {% else %}
+                <div
+                  class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 mr-3">
+                  <span class="font-semibold">{{ mentor.name[0] if mentor.name else '?' }}</span>
+                </div>
+                {% endif %}
+                <div>
+                  <div class="text-sm font-semibold text-gray-900 mentor-name">{{ mentor.name }}</div>
+                  <div class="text-xs text-gray-500 truncate max-w-[220px]">{{ mentor.mentor_profile.organisation if mentor.mentor_profile else 'Not specified' }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 mentor-profession max-w-[200px] truncate">{{ mentor.mentor_profile.profession if mentor.mentor_profile else 'Not specified' }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentor-location max-w-[160px] truncate">{{ mentor.mentor_profile.location if mentor.mentor_profile else 'Not specified' }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentor-email max-w-[200px] truncate">{{ mentor.email }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right">
+              <button class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition view-profile-btn"
+                data-mentor-id="{{ mentor.id }}"
+                data-name="{{ mentor.name }}"
+                data-email="{{ mentor.email }}"
+                data-profession="{{ mentor.mentor_profile.profession if mentor.mentor_profile else '' }}"
+                data-organisation="{{ mentor.mentor_profile.organisation if mentor.mentor_profile else '' }}"
+                data-location="{{ mentor.mentor_profile.location if mentor.mentor_profile else '' }}"
+                data-experience="{{ mentor.mentor_profile.years_of_experience if mentor.mentor_profile else '' }}"
+                data-profile-picture="{{ mentor.mentor_profile.profile_picture if mentor.mentor_profile else '' }}"
+                data-education="{{ mentor.mentor_profile.education if mentor.mentor_profile else '' }}"
+                data-language="{{ mentor.mentor_profile.language if mentor.mentor_profile else '' }}"
+                data-communication="{{ mentor.mentor_profile.preferred_communication if mentor.mentor_profile else '' }}"
+                data-why-mentor="{{ mentor.mentor_profile.why_mentor if mentor.mentor_profile else '' }}"
+                data-role="{{ mentor.mentor_profile.role if mentor.mentor_profile else '' }}"
+                data-industry="{{ mentor.mentor_profile.industry_sector if mentor.mentor_profile else '' }}"
+                data-skills="{{ mentor.mentor_profile.skills if mentor.mentor_profile else '' }}"
+                data-availability="{{ mentor.mentor_profile.availability if mentor.mentor_profile else '' }}"
+                data-mentorship-topics="{{ mentor.mentor_profile.mentorship_topics if mentor.mentor_profile else '' }}"
+                data-linkedin="{{ mentor.mentor_profile.linkedin_link if mentor.mentor_profile else '' }}"
+                data-github="{{ mentor.mentor_profile.github_link if mentor.mentor_profile else '' }}"
+                data-portfolio="{{ mentor.mentor_profile.portfolio_link if mentor.mentor_profile else '' }}"
+                data-preferred-duration="{{ mentor.mentor_profile.preferred_duration if mentor.mentor_profile else '' }}"
+                data-mentorship-type="{{ mentor.mentor_profile.mentorship_type_preference if mentor.mentor_profile else '' }}"
+                data-connect-frequency="{{ mentor.mentor_profile.connect_frequency if mentor.mentor_profile else '' }}"
+                data-whatsapp="{{ mentor.mentor_profile.whatsapp if mentor.mentor_profile else '' }}"
+                data-whatsapp-code="{{ mentor.mentor_profile.whatsapp_country_code if mentor.mentor_profile else '' }}"
+                data-highest-qualification="{{ mentor.mentor_profile.highest_qualification if mentor.mentor_profile else '' }}"
+                data-degree-name="{{ mentor.mentor_profile.degree_name if mentor.mentor_profile else '' }}"
+                data-field-of-study="{{ mentor.mentor_profile.field_of_study if mentor.mentor_profile else '' }}"
+                data-university-name="{{ mentor.mentor_profile.university_name if mentor.mentor_profile else '' }}"
+                data-graduation-year="{{ mentor.mentor_profile.graduation_year if mentor.mentor_profile else '' }}"
+                data-academic-status="{{ mentor.mentor_profile.academic_status if mentor.mentor_profile else '' }}"
+                data-certifications="{{ mentor.mentor_profile.certifications if mentor.mentor_profile else '' }}"
+                data-research-work="{{ mentor.mentor_profile.research_work if mentor.mentor_profile else '' }}"
+                data-mentorship-philosophy="{{ mentor.mentor_profile.mentorship_philosophy if mentor.mentor_profile else '' }}"
+                data-mentorship-motto="{{ mentor.mentor_profile.mentorship_motto if mentor.mentor_profile else '' }}"
+                data-other-social="{{ mentor.mentor_profile.other_social_link if mentor.mentor_profile else '' }}"
+                data-criminal-certificate="{{ mentor.mentor_profile.criminal_certificate if mentor.mentor_profile else '' }}">
+                View Profile
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
     {% else %}
     <div class="text-center py-12">
@@ -403,18 +399,18 @@
   // Client-side filtering for Mentors
   function filterMentors() {
     const input = document.getElementById('mentorSearch').value.toLowerCase();
-    const cards = document.querySelectorAll('.mentor-card');
+    const rows = document.querySelectorAll('.mentor-row');
 
-    cards.forEach(card => {
-      const name = card.querySelector('.mentor-name').innerText.toLowerCase();
-      const profession = card.querySelector('.mentor-profession').innerText.toLowerCase();
-      const email = card.querySelector('.mentor-email').innerText.toLowerCase();
-      const location = card.querySelector('.mentor-location').innerText.toLowerCase();
+    rows.forEach(row => {
+      const name = row.querySelector('.mentor-name').innerText.toLowerCase();
+      const profession = row.querySelector('.mentor-profession').innerText.toLowerCase();
+      const email = row.querySelector('.mentor-email').innerText.toLowerCase();
+      const location = row.querySelector('.mentor-location').innerText.toLowerCase();
 
       if (name.includes(input) || profession.includes(input) || email.includes(input) || location.includes(input)) {
-        card.style.display = 'block';
+        row.style.display = '';
       } else {
-        card.style.display = 'none';
+        row.style.display = 'none';
       }
     });
   }

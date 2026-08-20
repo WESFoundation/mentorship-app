@@ -1,0 +1,379 @@
+{% extends "base2.html" %}
+{% block title %}Institution - All Meetings{% endblock %}
+{% block user %}Institution{% endblock %}
+{% block profiledrop %}{% endblock %}
+{% block content %}
+
+<!-- Back Button -->
+
+
+<div class="p-6 bg-white rounded-xl shadow-md">
+  <div class="flex justify-between items-center mb-6">
+    <h2 class="text-2xl font-bold text-gray-800">📊 All Meetings</h2>
+    <div class="text-sm text-gray-500">
+      Total Meetings: <span class="font-semibold">{{ meetings|length }}</span>
+    </div>
+  </div>
+
+  <!-- Statistics Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+      <div class="text-blue-800 font-bold text-xl">{{ meetings|length }}</div>
+      <div class="text-blue-600 text-sm">Total Meetings</div>
+    </div>
+    <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+      <div class="text-green-800 font-bold text-xl" id="upcomingCount">0</div>
+      <div class="text-green-600 text-sm">Upcoming</div>
+    </div>
+    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+      <div class="text-gray-800 font-bold text-xl" id="pastCount">0</div>
+      <div class="text-gray-600 text-sm">Past</div>
+    </div>
+  </div>
+
+  <!-- Search Only -->
+  <div class="mb-6 bg-gray-50 p-4 rounded-lg">
+    <div class="flex flex-wrap gap-4 items-end">
+      <!-- Search -->
+      <div class="flex-1 min-w-[300px]">
+        <label for="searchInput" class="block text-sm font-medium text-gray-700 mb-2">Search Meetings:</label>
+        <input type="text" id="searchInput" placeholder="Search by title, mentee, or mentor..." 
+               class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+      </div>
+      
+      <!-- Reset Filters -->
+      <div>
+        <button id="resetFilters" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors">
+          Reset Search
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {% if meetings and meetings|length > 0 %}
+    <!-- Upcoming Meetings Section -->
+    <div class="mb-10">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold text-gray-800 border-b pb-2">🟢 Upcoming Meetings</h3>
+        <span class="text-sm text-gray-500" id="upcomingVisibleCount">0 meetings</span>
+      </div>
+      
+      <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-green-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-green-700 uppercase tracking-wider">Meeting Details</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-green-700 uppercase tracking-wider">Mentee</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-green-700 uppercase tracking-wider">Mentor</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-green-700 uppercase tracking-wider">Date & Time</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-green-700 uppercase tracking-wider">Duration</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-green-700 uppercase tracking-wider">Meeting Link</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-green-700 uppercase tracking-wider">Created</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200" id="upcomingMeetingsBody">
+              {% for meeting in meetings|sort(attribute='datetime_obj') %}
+              {% if meeting.is_upcoming %}
+              <tr class="meeting-row hover:bg-green-50 transition-colors upcoming-meeting" 
+                  data-search="{{ meeting.title|lower }} {{ meeting.mentee_name|lower }} {{ meeting.mentee_email|lower }} {{ meeting.mentor_name|lower }} {{ meeting.mentor_email|lower }}">
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="flex items-center">
+                    <div class="flex-shrink-0 h-10 w-10 bg-green-100 rounded-lg flex items-center justify-center">
+                      <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                      </svg>
+                    </div>
+                    <div class="ml-4">
+                      <div class="text-sm font-medium text-gray-900">{{ meeting.title }}</div>
+                      {% if meeting.description %}
+                      <div class="text-xs text-gray-400 mt-1">{{ meeting.description[:60] }}{% if meeting.description|length > 60 %}...{% endif %}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </td>
+                
+                <!-- Mentee Details -->
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm font-medium text-gray-900">{{ meeting.mentee_name }}</div>
+                  <div class="text-sm text-gray-500">{{ meeting.mentee_email }}</div>
+                  <div class="text-xs text-blue-600 font-medium mt-1">Mentee</div>
+                </td>
+                
+                <!-- Mentor Details -->
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm font-medium text-gray-900">{{ meeting.mentor_name }}</div>
+                  <div class="text-sm text-gray-500">{{ meeting.mentor_email }}</div>
+                  <div class="text-xs text-green-600 font-medium mt-1">Mentor</div>
+                </td>
+                
+                <!-- Date & Time -->
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm font-medium text-gray-900">{{ meeting.date }}</div>
+                  <div class="text-sm text-gray-500">{{ meeting.time }}</div>
+                </td>
+                
+                <!-- Duration -->
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {{ meeting.duration }} minutes
+                </td>
+                
+                <!-- Meeting Link -->
+                <td class="px-6 py-4 whitespace-nowrap">
+                  {% if meeting.meet_link %}
+                  <a href="{{ meeting.meet_link }}" target="_blank" 
+                     class="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium hover:bg-blue-200 transition-colors">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                    </svg>
+                    Join Meeting
+                  </a>
+                  {% else %}
+                  <span class="inline-flex items-center px-3 py-1 bg-gray-100 text-gray-500 rounded-full text-sm font-medium">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    No Link
+                  </span>
+                  {% endif %}
+                </td>
+                
+                <!-- Created At -->
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {{ meeting.created_at }}
+                </td>
+              </tr>
+              {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <div id="noUpcomingMeetings" class="text-center py-10 bg-green-50 rounded-lg border border-green-200 hidden">
+        <svg class="mx-auto h-12 w-12 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <h3 class="mt-2 text-lg font-medium text-green-900">No upcoming meetings</h3>
+        <p class="mt-1 text-sm text-green-700">All meetings are in the past.</p>
+      </div>
+    </div>
+    
+    <!-- Past Meetings Section -->
+    <div>
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold text-gray-800 border-b pb-2">🔴 Past Meetings</h3>
+        <span class="text-sm text-gray-500" id="pastVisibleCount">0 meetings</span>
+      </div>
+      
+      <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Meeting Details</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Mentee</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Mentor</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Date & Time</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Duration</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Meeting Link</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Created</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200" id="pastMeetingsBody">
+              {% for meeting in meetings|sort(attribute='datetime_obj') %}
+              {% if not meeting.is_upcoming %}
+              <tr class="meeting-row hover:bg-gray-50 transition-colors past-meeting" 
+                  data-search="{{ meeting.title|lower }} {{ meeting.mentee_name|lower }} {{ meeting.mentee_email|lower }} {{ meeting.mentor_name|lower }} {{ meeting.mentor_email|lower }}">
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="flex items-center">
+                    <div class="flex-shrink-0 h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <svg class="h-6 w-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                      </svg>
+                    </div>
+                    <div class="ml-4">
+                      <div class="text-sm font-medium text-gray-900">{{ meeting.title }}</div>
+                      {% if meeting.description %}
+                      <div class="text-xs text-gray-400 mt-1">{{ meeting.description[:60] }}{% if meeting.description|length > 60 %}...{% endif %}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </td>
+                
+                <!-- Mentee Details -->
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm font-medium text-gray-900">{{ meeting.mentee_name }}</div>
+                  <div class="text-sm text-gray-500">{{ meeting.mentee_email }}</div>
+                  <div class="text-xs text-blue-600 font-medium mt-1">Mentee</div>
+                </td>
+                
+                <!-- Mentor Details -->
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm font-medium text-gray-900">{{ meeting.mentor_name }}</div>
+                  <div class="text-sm text-gray-500">{{ meeting.mentor_email }}</div>
+                  <div class="text-xs text-green-600 font-medium mt-1">Mentor</div>
+                </td>
+                
+                <!-- Date & Time -->
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm font-medium text-gray-900">{{ meeting.date }}</div>
+                  <div class="text-sm text-gray-500">{{ meeting.time }}</div>
+                </td>
+                
+                <!-- Duration -->
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {{ meeting.duration }} minutes
+                </td>
+                
+                <!-- Meeting Link -->
+                <td class="px-6 py-4 whitespace-nowrap">
+                  {% if meeting.meet_link %}
+                  <a href="{{ meeting.meet_link }}" target="_blank" 
+                     class="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium hover:bg-blue-200 transition-colors">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                    </svg>
+                    Join Meeting
+                  </a>
+                  {% else %}
+                  <span class="inline-flex items-center px-3 py-1 bg-gray-100 text-gray-500 rounded-full text-sm font-medium">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    No Link
+                  </span>
+                  {% endif %}
+                </td>
+                
+                <!-- Created At -->
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {{ meeting.created_at }}
+                </td>
+              </tr>
+              {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <div id="noPastMeetings" class="text-center py-10 bg-gray-50 rounded-lg border border-gray-200 hidden">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <h3 class="mt-2 text-lg font-medium text-gray-900">No past meetings</h3>
+        <p class="mt-1 text-sm text-gray-700">All meetings are upcoming.</p>
+      </div>
+    </div>
+
+  {% else %}
+    <!-- Empty State -->
+    <div class="text-center py-12">
+      <svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+      </svg>
+      <h3 class="mt-4 text-lg font-medium text-gray-900">No meetings found</h3>
+      <p class="mt-2 text-sm text-gray-500">There are no meetings involving your institution's members yet.</p>
+    </div>
+  {% endif %}
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const resetFilters = document.getElementById('resetFilters');
+    const upcomingMeetingsBody = document.getElementById('upcomingMeetingsBody');
+    const pastMeetingsBody = document.getElementById('pastMeetingsBody');
+    const noUpcomingMeetings = document.getElementById('noUpcomingMeetings');
+    const noPastMeetings = document.getElementById('noPastMeetings');
+    const upcomingVisibleCount = document.getElementById('upcomingVisibleCount');
+    const pastVisibleCount = document.getElementById('pastVisibleCount');
+    const upcomingCount = document.getElementById('upcomingCount');
+    const pastCount = document.getElementById('pastCount');
+    
+    const upcomingMeetings = document.querySelectorAll('.upcoming-meeting');
+    const pastMeetings = document.querySelectorAll('.past-meeting');
+    
+    // Initialize statistics
+    function initializeStatistics() {
+      upcomingCount.textContent = upcomingMeetings.length;
+      pastCount.textContent = pastMeetings.length;
+      upcomingVisibleCount.textContent = `${upcomingMeetings.length} meetings`;
+      pastVisibleCount.textContent = `${pastMeetings.length} meetings`;
+    }
+    
+    // Apply search filter
+    function applySearch() {
+      const searchTerm = searchInput.value.toLowerCase();
+      
+      let upcomingVisible = 0;
+      let pastVisible = 0;
+      
+      // Filter upcoming meetings
+      upcomingMeetings.forEach(row => {
+        const searchData = row.getAttribute('data-search');
+        const matchesSearch = searchTerm === '' || searchData.includes(searchTerm);
+        
+        row.style.display = matchesSearch ? '' : 'none';
+        if (matchesSearch) upcomingVisible++;
+      });
+      
+      // Filter past meetings
+      pastMeetings.forEach(row => {
+        const searchData = row.getAttribute('data-search');
+        const matchesSearch = searchTerm === '' || searchData.includes(searchTerm);
+        
+        row.style.display = matchesSearch ? '' : 'none';
+        if (matchesSearch) pastVisible++;
+      });
+      
+      // Show/hide no results messages
+      if (upcomingVisible === 0) {
+        noUpcomingMeetings.classList.remove('hidden');
+        upcomingMeetingsBody.parentElement.parentElement.classList.add('hidden');
+      } else {
+        noUpcomingMeetings.classList.add('hidden');
+        upcomingMeetingsBody.parentElement.parentElement.classList.remove('hidden');
+      }
+      
+      if (pastVisible === 0) {
+        noPastMeetings.classList.remove('hidden');
+        pastMeetingsBody.parentElement.parentElement.classList.add('hidden');
+      } else {
+        noPastMeetings.classList.add('hidden');
+        pastMeetingsBody.parentElement.parentElement.classList.remove('hidden');
+      }
+      
+      // Update visible counts
+      upcomingVisibleCount.textContent = `${upcomingVisible} meeting${upcomingVisible !== 1 ? 's' : ''}`;
+      pastVisibleCount.textContent = `${pastVisible} meeting${pastVisible !== 1 ? 's' : ''}`;
+    }
+    
+    // Reset search
+    function resetSearch() {
+      searchInput.value = '';
+      applySearch();
+    }
+    
+    // Event listeners
+    searchInput.addEventListener('input', applySearch);
+    resetFilters.addEventListener('click', resetSearch);
+    
+    // Initialize
+    initializeStatistics();
+  });
+</script>
+
+<style>
+  .meeting-row {
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .meeting-row:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+</style>
+
+{% endblock %}

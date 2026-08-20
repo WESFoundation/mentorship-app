@@ -17,105 +17,107 @@
     </div>
 
     {% if mentees and mentees|length > 0 %}
-    <div class="grid p-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="menteesGrid">
-      {% for mentee in mentees %}
-      <div class="mentee-card bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-md hover:border-blue-200">
-        <div class="flex items-center gap-4 mb-4">
-          {% if mentee.mentee_profile and mentee.mentee_profile.profile_picture %}
-          <img src="{{ url_for('static', filename='uploads/' ~ mentee.mentee_profile.profile_picture) }}" alt="{{ mentee.name }}"
-            class="w-16 h-16 rounded-full object-cover border-2 border-white shadow">
-          {% else %}
-          <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 border-2 border-white shadow">
-            <span class="text-xl font-semibold">{{ mentee.name[0] if mentee.name else '?' }}</span>
-          </div>
-          {% endif %}
-          <div>
-            <h3 class="text-lg font-bold text-gray-800 mentee-name">{{ mentee.name }}</h3>
-            <p class="text-sm text-gray-600 mentee-school">{{ mentee.mentee_profile.school_college_name if mentee.mentee_profile else 'Not specified' }}</p>
-            <p class="text-xs text-gray-500">{{ mentee.mentee_profile.stream if mentee.mentee_profile else '' }}</p>
-          </div>
-        </div>
-
-        <div class="space-y-2 mb-4">
-          <div class="flex items-center text-sm text-gray-600 mentee-goal">
-            <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13.5m0-13.5C10.835 5.86 9.539 5.378 8 5.255 5.8 4.75 4 6.777 4 9v6a4 4 0 004 4h8a4 4 0 004-4v-6c0-2.223-1.8-4.25-4-3.745-1.539.123-2.835.605-4 1.148z" />
-            </svg>
-            <span>Goal: {{ mentee.mentee_profile.goal if mentee.mentee_profile else 'Not specified' }}</span>
-          </div>
-
-          <div class="flex items-center text-sm text-gray-600 mentee-email">
-            <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <span class="truncate">{{ mentee.email }}</span>
-          </div>
-        </div>
-
-        <button class="view-profile-btn w-full px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition"
-          data-mentee='{{ {
-              "id": mentee.id or "",
-              "name": mentee.name or "",
-              "email": mentee.email or "",
-              "stream": mentee.mentee_profile.stream if mentee.mentee_profile else "",
-              "school": mentee.mentee_profile.school_college_name if mentee.mentee_profile else "",
-              "goal": mentee.mentee_profile.goal if mentee.mentee_profile else "",
-              "dob": mentee.mentee_profile.dob if mentee.mentee_profile else "",
-              "mobileNumber": mentee.mentee_profile.mobile_number if mentee.mentee_profile else "",
-              "mobileCountryCode": mentee.mentee_profile.mobile_country_code if mentee.mentee_profile else "",
-              "whatsappNumber": mentee.mentee_profile.whatsapp_number if mentee.mentee_profile else "",
-              "whatsappCountryCode": mentee.mentee_profile.whatsapp_country_code if mentee.mentee_profile else "",
-              "parentName": mentee.mentee_profile.parent_name if mentee.mentee_profile else "",
-              "parentMobile": mentee.mentee_profile.parent_mobile if mentee.mentee_profile else "",
-              "parentMobileCountryCode": mentee.mentee_profile.parent_mobile_country_code if mentee.mentee_profile else "",
-              "comments": mentee.mentee_profile.comments if mentee.mentee_profile else "",
-              "profilePic": mentee.mentee_profile.profile_picture if mentee.mentee_profile else "",
-              "classYear": mentee.mentee_profile.class_year if mentee.mentee_profile else "",
-              "favouriteSubject": mentee.mentee_profile.favourite_subject if mentee.mentee_profile else "",
-              "whoAmI": mentee.mentee_profile.who_am_i if mentee.mentee_profile else "",
-              "fatherName": mentee.mentee_profile.father_name if mentee.mentee_profile else "",
-              "addressLine1": mentee.mentee_profile.address_line1 if mentee.mentee_profile else "",
-              "addressLine2": mentee.mentee_profile.address_line2 if mentee.mentee_profile else "",
-              "city": mentee.mentee_profile.city if mentee.mentee_profile else "",
-              "state": mentee.mentee_profile.state if mentee.mentee_profile else "",
-              "postalCode": mentee.mentee_profile.postal_code if mentee.mentee_profile else "",
-              "country": mentee.mentee_profile.country if mentee.mentee_profile else "",
-              "govtPrivate": mentee.mentee_profile.govt_private if mentee.mentee_profile else "",
-              "educationLevel": mentee.mentee_profile.education_level if mentee.mentee_profile else "",
-              "institutionName": mentee.mentee_profile.institution_name if mentee.mentee_profile else "",
-              "boardUniversity": mentee.mentee_profile.board_university if mentee.mentee_profile else "",
-              "courseStream": mentee.mentee_profile.course_stream if mentee.mentee_profile else "",
-              "schoolName": mentee.mentee_profile.school_name if mentee.mentee_profile else "",
-              "schoolBoard": mentee.mentee_profile.school_board if mentee.mentee_profile else "",
-              "schoolPassingYear": mentee.mentee_profile.school_passing_year if mentee.mentee_profile else "",
-              "careerInterest": mentee.mentee_profile.career_interest if mentee.mentee_profile else "",
-              "currentRole": mentee.mentee_profile.current_role if mentee.mentee_profile else "",
-              "industry": mentee.mentee_profile.industry if mentee.mentee_profile else "",
-              "yearsExperience": mentee.mentee_profile.years_experience if mentee.mentee_profile else "",
-              "currentOrganization": mentee.mentee_profile.current_organization if mentee.mentee_profile else "",
-              "keySkills": mentee.mentee_profile.key_skills if mentee.mentee_profile else "",
-              "careerGoal": mentee.mentee_profile.career_goal if mentee.mentee_profile else "",
-              "startupStage": mentee.mentee_profile.startup_stage if mentee.mentee_profile else "",
-              "startupName": mentee.mentee_profile.startup_name if mentee.mentee_profile else "",
-              "startupIndustry": mentee.mentee_profile.startup_industry if mentee.mentee_profile else "",
-              "teamSize": mentee.mentee_profile.team_size if mentee.mentee_profile else "",
-              "mainChallenge": mentee.mentee_profile.main_challenge if mentee.mentee_profile else "",
-              "mentorshipType": mentee.mentee_profile.mentorship_type if mentee.mentee_profile else "",
-              "freelanceSkill": mentee.mentee_profile.freelance_skill if mentee.mentee_profile else "",
-              "freelanceExperience": mentee.mentee_profile.freelance_experience if mentee.mentee_profile else "",
-              "freelancePlatforms": mentee.mentee_profile.freelance_platforms if mentee.mentee_profile else "",
-              "freelanceChallenge": mentee.mentee_profile.freelance_challenge if mentee.mentee_profile else "",
-              "lastRole": mentee.mentee_profile.last_role if mentee.mentee_profile else "",
-              "careerBreakReason": mentee.mentee_profile.career_break_reason if mentee.mentee_profile else "",
-              "restartField": mentee.mentee_profile.restart_field if mentee.mentee_profile else "",
-              "supportExpected": mentee.mentee_profile.support_expected if mentee.mentee_profile else "",
-              "mentorshipExpectations": mentee.mentee_profile.mentorship_expectations if mentee.mentee_profile else "",
-              "status": mentee.mentee_profile.status if mentee.mentee_profile else ""
-          }|tojson }}'>
-          View Profile
-        </button>
-      </div>
-      {% endfor %}
+    <div class="overflow-x-auto rounded-xl border border-gray-200">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentee</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stream</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Goal</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {% for mentee in mentees %}
+          <tr class="mentee-row hover:bg-gray-50 transition-colors">
+            <td class="px-6 py-4 whitespace-nowrap max-w-[280px]">
+              <div class="flex items-center">
+                {% if mentee.mentee_profile and mentee.mentee_profile.profile_picture %}
+                <img src="{{ url_for('static', filename='uploads/' ~ mentee.mentee_profile.profile_picture) }}" alt="{{ mentee.name }}"
+                  class="w-10 h-10 rounded-full object-cover mr-3">
+                {% else %}
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 mr-3">
+                  <span class="font-semibold">{{ mentee.name[0] if mentee.name else '?' }}</span>
+                </div>
+                {% endif %}
+                <div>
+                  <div class="text-sm font-semibold text-gray-900 mentee-name">{{ mentee.name }}</div>
+                  <div class="text-xs text-gray-500">{{ mentee.mentee_profile.class_year if mentee.mentee_profile else '' }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 mentee-stream max-w-[150px] truncate">{{ mentee.mentee_profile.stream if mentee.mentee_profile else 'Not specified' }}</td>
+            <td class="px-6 py-4 text-sm text-gray-600 mentee-goal min-w-[160px] max-w-[260px] break-words">{{ mentee.mentee_profile.goal if mentee.mentee_profile else 'Not specified' }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentee-email max-w-[220px] truncate">{{ mentee.email }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right">
+              <button class="view-profile-btn px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition"
+                data-mentee='{{ {
+                    "id": mentee.id or "",
+                    "name": mentee.name or "",
+                    "email": mentee.email or "",
+                    "stream": mentee.mentee_profile.stream if mentee.mentee_profile else "",
+                    "school": mentee.mentee_profile.school_college_name if mentee.mentee_profile else "",
+                    "goal": mentee.mentee_profile.goal if mentee.mentee_profile else "",
+                    "dob": mentee.mentee_profile.dob if mentee.mentee_profile else "",
+                    "mobileNumber": mentee.mentee_profile.mobile_number if mentee.mentee_profile else "",
+                    "mobileCountryCode": mentee.mentee_profile.mobile_country_code if mentee.mentee_profile else "",
+                    "whatsappNumber": mentee.mentee_profile.whatsapp_number if mentee.mentee_profile else "",
+                    "whatsappCountryCode": mentee.mentee_profile.whatsapp_country_code if mentee.mentee_profile else "",
+                    "parentName": mentee.mentee_profile.parent_name if mentee.mentee_profile else "",
+                    "parentMobile": mentee.mentee_profile.parent_mobile if mentee.mentee_profile else "",
+                    "parentMobileCountryCode": mentee.mentee_profile.parent_mobile_country_code if mentee.mentee_profile else "",
+                    "comments": mentee.mentee_profile.comments if mentee.mentee_profile else "",
+                    "profilePic": mentee.mentee_profile.profile_picture if mentee.mentee_profile else "",
+                    "classYear": mentee.mentee_profile.class_year if mentee.mentee_profile else "",
+                    "favouriteSubject": mentee.mentee_profile.favourite_subject if mentee.mentee_profile else "",
+                    "whoAmI": mentee.mentee_profile.who_am_i if mentee.mentee_profile else "",
+                    "fatherName": mentee.mentee_profile.father_name if mentee.mentee_profile else "",
+                    "addressLine1": mentee.mentee_profile.address_line1 if mentee.mentee_profile else "",
+                    "addressLine2": mentee.mentee_profile.address_line2 if mentee.mentee_profile else "",
+                    "city": mentee.mentee_profile.city if mentee.mentee_profile else "",
+                    "state": mentee.mentee_profile.state if mentee.mentee_profile else "",
+                    "postalCode": mentee.mentee_profile.postal_code if mentee.mentee_profile else "",
+                    "country": mentee.mentee_profile.country if mentee.mentee_profile else "",
+                    "govtPrivate": mentee.mentee_profile.govt_private if mentee.mentee_profile else "",
+                    "educationLevel": mentee.mentee_profile.education_level if mentee.mentee_profile else "",
+                    "institutionName": mentee.mentee_profile.institution_name if mentee.mentee_profile else "",
+                    "boardUniversity": mentee.mentee_profile.board_university if mentee.mentee_profile else "",
+                    "courseStream": mentee.mentee_profile.course_stream if mentee.mentee_profile else "",
+                    "schoolName": mentee.mentee_profile.school_name if mentee.mentee_profile else "",
+                    "schoolBoard": mentee.mentee_profile.school_board if mentee.mentee_profile else "",
+                    "schoolPassingYear": mentee.mentee_profile.school_passing_year if mentee.mentee_profile else "",
+                    "careerInterest": mentee.mentee_profile.career_interest if mentee.mentee_profile else "",
+                    "currentRole": mentee.mentee_profile.current_role if mentee.mentee_profile else "",
+                    "industry": mentee.mentee_profile.industry if mentee.mentee_profile else "",
+                    "yearsExperience": mentee.mentee_profile.years_experience if mentee.mentee_profile else "",
+                    "currentOrganization": mentee.mentee_profile.current_organization if mentee.mentee_profile else "",
+                    "keySkills": mentee.mentee_profile.key_skills if mentee.mentee_profile else "",
+                    "careerGoal": mentee.mentee_profile.career_goal if mentee.mentee_profile else "",
+                    "startupStage": mentee.mentee_profile.startup_stage if mentee.mentee_profile else "",
+                    "startupName": mentee.mentee_profile.startup_name if mentee.mentee_profile else "",
+                    "startupIndustry": mentee.mentee_profile.startup_industry if mentee.mentee_profile else "",
+                    "teamSize": mentee.mentee_profile.team_size if mentee.mentee_profile else "",
+                    "mainChallenge": mentee.mentee_profile.main_challenge if mentee.mentee_profile else "",
+                    "mentorshipType": mentee.mentee_profile.mentorship_type if mentee.mentee_profile else "",
+                    "freelanceSkill": mentee.mentee_profile.freelance_skill if mentee.mentee_profile else "",
+                    "freelanceExperience": mentee.mentee_profile.freelance_experience if mentee.mentee_profile else "",
+                    "freelancePlatforms": mentee.mentee_profile.freelance_platforms if mentee.mentee_profile else "",
+                    "freelanceChallenge": mentee.mentee_profile.freelance_challenge if mentee.mentee_profile else "",
+                    "lastRole": mentee.mentee_profile.last_role if mentee.mentee_profile else "",
+                    "careerBreakReason": mentee.mentee_profile.career_break_reason if mentee.mentee_profile else "",
+                    "restartField": mentee.mentee_profile.restart_field if mentee.mentee_profile else "",
+                    "supportExpected": mentee.mentee_profile.support_expected if mentee.mentee_profile else "",
+                    "mentorshipExpectations": mentee.mentee_profile.mentorship_expectations if mentee.mentee_profile else "",
+                    "status": mentee.mentee_profile.status if mentee.mentee_profile else ""
+                }|tojson }}'>
+                View Profile
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
     {% else %}
     <div class="text-center py-12">
@@ -458,18 +460,18 @@
 <script>
   function filterMentees() {
     const input = document.getElementById('menteeSearch').value.toLowerCase();
-    const cards = document.querySelectorAll('.mentee-card');
+    const rows = document.querySelectorAll('.mentee-row');
 
-    cards.forEach(card => {
-      const name = card.querySelector('.mentee-name').innerText.toLowerCase();
-      const school = card.querySelector('.mentee-school').innerText.toLowerCase();
-      const goal = card.querySelector('.mentee-goal').innerText.toLowerCase();
-      const email = card.querySelector('.mentee-email').innerText.toLowerCase();
+    rows.forEach(row => {
+      const name = row.querySelector('.mentee-name').innerText.toLowerCase();
+      const stream = row.querySelector('.mentee-stream').innerText.toLowerCase();
+      const goal = row.querySelector('.mentee-goal').innerText.toLowerCase();
+      const email = row.querySelector('.mentee-email').innerText.toLowerCase();
 
-      if (name.includes(input) || school.includes(input) || goal.includes(input) || email.includes(input)) {
-        card.style.display = 'block';
+      if (name.includes(input) || stream.includes(input) || goal.includes(input) || email.includes(input)) {
+        row.style.display = '';
       } else {
-        card.style.display = 'none';
+        row.style.display = 'none';
       }
     });
   }

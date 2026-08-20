@@ -3039,6 +3039,11 @@ def institutiondashboard():
         )\
         .all()
 
+    # Notes written by the institution in the Resources Hub
+    institution_notes = ResourceNote.query.filter(
+        ResourceNote.mentee_id == user.id
+    ).count()
+
     return render_template(
         "institution/institutiondashboard.html",
         show_sidebar=True,
@@ -3047,6 +3052,7 @@ def institutiondashboard():
         institution_mentors=institution_mentors,
         institution_mentees=institution_mentees,
         mentorship_requests=institution_mentorship_requests,
+        institution_notes=institution_notes,
         profile_complete=profile_complete
     )
 
@@ -3102,22 +3108,310 @@ def institution_mentorships():
         return redirect(url_for("signin"))
     
     user = User.query.filter_by(email=session["email"]).first()
-    institution_name = user.institution
-    
-    # Get all mentorships involving institution members (by ID or name)
-    institution_mentorships = MentorshipRequest.query\
-        .join(User, MentorshipRequest.mentee_id == User.id)\
-        .filter(
-            (User.institution_id == user.institution_id) |
-            (User.institution == institution_name)
-        )\
-        .all()
+    institution = None
+    if user.institution_id:
+        institution = Institution.query.filter_by(id=user.institution_id).first()
+    if not institution:
+        institution = Institution.query.filter_by(name=user.institution).first()
+    institution_name = institution.name if institution else user.institution
+
+    # Get all approved mentorships where either the mentee OR the mentor
+    # belongs to this institution (by ID or by name)
+    all_mentorships = MentorshipRequest.query.filter(
+        MentorshipRequest.final_status == "approved"
+    ).filter(
+        (
+            MentorshipRequest.mentee_id.in_(
+                db.session.query(User.id).filter(
+                    (User.user_type == "2") & (
+                        (User.institution_id == user.institution_id) |
+                        (User.institution == institution_name)
+                    )
+                )
+            )
+        ) |
+        (
+            MentorshipRequest.mentor_id.in_(
+                db.session.query(User.id).filter(
+                    (User.user_type == "1") & (
+                        (User.institution_id == user.institution_id) |
+                        (User.institution == institution_name)
+                    )
+                )
+            )
+        )
+    ).order_by(MentorshipRequest.created_at.desc()).all()
+
+    # Get additional data for each mentorship (mirrors supervisor_all_mentorships)
+    mentorships_data = []
+    for mentorship in all_mentorships:
+        mentor = mentorship.mentor
+        mentee = mentorship.mentee
+
+        mentor_profile = mentor.mentor_profile if mentor else None
+        mentee_profile = mentee.mentee_profile if mentee else None
+
+        tasks = MenteeTask.query.filter_by(
+            mentee_id=mentee.id if mentee else None,
+            mentor_id=mentor.id if mentor else None
+        ).all()
+
+        meetings = MeetingRequest.query.filter(
+            ((MeetingRequest.requester_id == mentee.id) & (MeetingRequest.requested_to_id == mentor.id)) |
+            ((MeetingRequest.requester_id == mentor.id) & (MeetingRequest.requested_to_id == mentee.id))
+        ).all()
+
+        mentorships_data.append({
+            "request": mentorship,
+            "mentor": mentor,
+            "mentor_profile": mentor_profile,
+            "mentee": mentee,
+            "mentee_profile": mentee_profile,
+            "tasks": tasks,
+            "meetings": meetings,
+            "tasks_completed": len([t for t in tasks if t.status == "completed"]),
+            "tasks_total": len(tasks),
+            "meetings_completed": len([m for m in meetings if m.status == "approved"]),
+            "meetings_total": len(meetings)
+        })
     
     return render_template(
         "institution/institution_mentorships.html",
         show_sidebar=True,
-        mentorships=institution_mentorships
+        user=user,
+        institution=institution,
+        mentorships_data=mentorships_data,
+        active_section="mentorships"
     )
+
+@app.route("/institution_requests")
+def institution_requests():
+    if "email" not in session or session.get("user_type") != "3":
+        return redirect(url_for("signin"))
+    
+    user = User.query.filter_by(email=session["email"]).first()
+    institution = None
+    if user.institution_id:
+        institution = Institution.query.filter_by(id=user.institution_id).first()
+    if not institution:
+        institution = Institution.query.filter_by(name=user.institution).first()
+    institution_name = institution.name if institution else user.institution
+
+    # Mentorship requests where either the mentee OR the mentor belongs to this institution,
+    # prioritised so pending ones appear first.
+    from sqlalchemy.orm import joinedload
+    mentorship_requests = MentorshipRequest.query.options(
+        joinedload(MentorshipRequest.mentee).joinedload(User.mentee_profile),
+        joinedload(MentorshipRequest.mentor).joinedload(User.mentor_profile)
+    ).filter(
+        (
+            (MentorshipRequest.mentee_id.in_(
+                db.session.query(User.id).filter(
+                    (User.user_type == "2") & (
+                        (User.institution_id == user.institution_id) |
+                        (User.institution == institution_name)
+                    )
+                )
+            )) |
+            (MentorshipRequest.mentor_id.in_(
+                db.session.query(User.id).filter(
+                    (User.user_type == "1") & (
+                        (User.institution_id == user.institution_id) |
+                        (User.institution == institution_name)
+                    )
+                )
+            ))
+        )
+    ).order_by(
+        (MentorshipRequest.supervisor_status == "pending").desc(),
+        MentorshipRequest.created_at.desc()
+    ).all()
+
+    return render_template(
+        "institution/institution_requests.html",
+        show_sidebar=True,
+        user=user,
+        institution=institution,
+        mentorship_requests=mentorship_requests,
+        pending_mentorship_requests=[r for r in mentorship_requests if r.supervisor_status == "pending"],
+        approved_mentorships=[r for r in mentorship_requests if r.final_status == "approved"],
+        active_section="requests"
+    )
+
+@app.route("/institution_all_meetings")
+def institution_all_meetings():
+    """All Meetings tab for the Institution — mirrors the supervisor's meeting details page,
+    but scoped to meetings involving this institution's mentors and mentees."""
+    if "email" not in session or session.get("user_type") != "3":
+        return redirect(url_for("signin"))
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return redirect(url_for("signin"))
+
+    institution = None
+    if user.institution_id:
+        institution = Institution.query.filter_by(id=user.institution_id).first()
+    if not institution:
+        institution = Institution.query.filter_by(name=user.institution).first()
+    institution_name = institution.name if institution else user.institution
+
+    # All meetings involving the institution's mentors or mentees (by ID or by name)
+    meetings = (
+        MeetingRequest.query
+        .join(User, db.or_(MeetingRequest.requester_id == User.id, MeetingRequest.requested_to_id == User.id))
+        .filter(
+            (User.user_type.in_(["1", "2"])) &
+            (
+                (User.institution_id == user.institution_id) |
+                (User.institution == institution_name)
+            )
+        )
+        .order_by(MeetingRequest.meeting_date.desc(), MeetingRequest.meeting_time.desc())
+        .all()
+    )
+
+    from datetime import datetime, date
+    now = datetime.now()
+
+    # Prepare formatted meeting data with mentee & mentor info
+    meeting_data = []
+    for meeting in meetings:
+        mentee = User.query.get(meeting.requester_id)
+        mentor = User.query.get(meeting.requested_to_id)
+
+        meeting_datetime = datetime.combine(meeting.meeting_date, meeting.meeting_time)
+        is_upcoming = meeting_datetime > now
+
+        meeting_data.append({
+            "id": meeting.id,
+            "title": meeting.meeting_title,
+            "description": meeting.meeting_description,
+            "date": meeting.meeting_date.strftime("%d-%m-%Y"),
+            "time": meeting.meeting_time.strftime("%I:%M %p"),
+            "datetime_obj": meeting_datetime,
+            "duration": meeting.meeting_duration,
+            "status": meeting.status,
+            "mentee_name": mentee.name if mentee else "Unknown",
+            "mentee_email": mentee.email if mentee else "N/A",
+            "mentor_name": mentor.name if mentor else "Unknown",
+            "mentor_email": mentor.email if mentor else "N/A",
+            "created_at": meeting.created_at.strftime("%d-%m-%Y %I:%M %p") if meeting.created_at else "",
+            "is_upcoming": is_upcoming,
+            "meet_link": meeting.meet_link,
+        })
+
+    return render_template(
+        "institution/institution_all_meetings.html",
+        show_sidebar=True,
+        user=user,
+        institution=institution,
+        meetings=meeting_data
+    )
+
+@app.route("/institution_response", methods=["POST"])
+def institution_response():
+    """Approve or reject a mentorship request from the institution dashboard,
+    mirroring the supervisor's approve/reject flow."""
+    if "email" not in session or session.get("user_type") != "3":
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    user = User.query.filter_by(email=session["email"]).first()
+    institution = None
+    if user.institution_id:
+        institution = Institution.query.filter_by(id=user.institution_id).first()
+    if not institution:
+        institution = Institution.query.filter_by(name=user.institution).first()
+    institution_name = institution.name if institution else user.institution
+
+    request_id = request.form.get("request_id")
+    action = request.form.get("action")
+
+    if not request_id or not action:
+        flash("Invalid request!", "error")
+        return redirect(url_for("institution_requests"))
+
+    mentorship_request = MentorshipRequest.query.get(int(request_id))
+    if not mentorship_request:
+        flash("Request not found!", "error")
+        return redirect(url_for("institution_requests"))
+
+    # Only allow institutions to manage requests involving their members
+    mentee_in_inst = (
+        mentorship_request.mentee_id in [
+            u.id for u in User.query.filter(
+                (User.user_type == "2") & (
+                    (User.institution_id == user.institution_id) |
+                    (User.institution == institution_name)
+                )
+            ).all()
+        ]
+    ) if mentorship_request.mentee_id else False
+    mentor_in_inst = (
+        mentorship_request.mentor_id in [
+            u.id for u in User.query.filter(
+                (User.user_type == "1") & (
+                    (User.institution_id == user.institution_id) |
+                    (User.institution == institution_name)
+                )
+            ).all()
+        ]
+    ) if mentorship_request.mentor_id else False
+
+    if not (mentee_in_inst or mentor_in_inst):
+        flash("This request does not belong to your institution.", "error")
+        return redirect(url_for("institution_requests"))
+
+    # Update status based on action
+    if action == "approve":
+        mentorship_request.supervisor_status = "approved"
+        mentorship_request.final_status = "approved"
+        flash("Mentorship request approved!", "success")
+        if mentorship_request.duration_months == 12:
+            assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
+            if assigned_tasks:
+                flash(f"Mentorship approved! {len(assigned_tasks)} tasks assigned.", "success")
+            else:
+                flash("Mentorship approved! But no tasks were assigned.", "warning")
+        else:
+            flash("Mentorship request approved!", "success")
+
+    elif action == "reject":
+        mentorship_request.supervisor_status = "rejected"
+        mentorship_request.final_status = "rejected"
+        flash("Mentorship request rejected!", "success")
+
+        if mentorship_request.mentee:
+            create_notification(
+                mentorship_request.mentee.id,
+                "Your mentorship request was rejected by your institution.",
+                url_for("my_mentors")
+            )
+        if mentorship_request.mentor:
+            create_notification(
+                mentorship_request.mentor.id,
+                "A mentorship with a mentee was rejected by your institution.",
+                url_for("my_mentees")
+            )
+    else:
+        flash("Invalid action!", "error")
+        return redirect(url_for("institution_requests"))
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        flash("Something went wrong while updating the request.", "error")
+        print("DB Commit Error:", e)
+
+    # If connection is now complete (mentor accepted + institution approved),
+    # notify both sides and send the connection emails.
+    if action == "approve":
+        notify_mentorship_connection(mentorship_request)
+        send_mentorship_connected_email(mentorship_request)
+
+    return redirect(url_for("institution_requests"))
+
 from sqlalchemy.orm import aliased
 from sqlalchemy import and_, or_
 from datetime import datetime
@@ -8759,7 +9053,7 @@ def get_reminder_content(reminder_id):
 def get_mentor_options_for_mentee(mentee_user):
     """
     Return a list of mentor dicts a mentee can call/tag in a note.
-    Shows accepted (active) mentors first, then all other mentors.
+    Shows ONLY the active (accepted) mentors connected to this mentee.
     """
     mentors = []
     seen = set()
@@ -8779,16 +9073,6 @@ def get_mentor_options_for_mentee(mentee_user):
                 "name": req.mentor.name,
                 "email": req.mentor.email,
                 "is_active": True
-            })
-
-    for mentor_user in User.query.filter_by(user_type="1").all():
-        if mentor_user.id not in seen:
-            seen.add(mentor_user.id)
-            mentors.append({
-                "id": mentor_user.id,
-                "name": mentor_user.name,
-                "email": mentor_user.email,
-                "is_active": False
             })
 
     return mentors
@@ -8834,8 +9118,14 @@ def resources_hub():
             combined[n.id] = n
         notes = sorted(combined.values(), key=lambda n: n.updated_at or n.created_at, reverse=True)
 
+    elif user_type == "3":
+        # Institution: their own notes, and they can write/manage them (like mentees)
+        notes = ResourceNote.query.filter(
+            ResourceNote.mentee_id == user.id
+        ).order_by(ResourceNote.updated_at.desc()).all()
+
     else:
-        # Supervisor / Institution: see everything
+        # Supervisor: see everything
         notes = ResourceNote.query.order_by(ResourceNote.updated_at.desc()).all()
 
     return render_template(
@@ -8843,6 +9133,7 @@ def resources_hub():
         notes=notes,
         tag_options=tag_options,
         user_type=user_type,
+        can_write=user_type in ("2", "3"),
         current_user=user,
         now=datetime.utcnow(),
         show_sidebar=True,
@@ -8856,8 +9147,8 @@ def create_note():
         return jsonify({"error": "Please sign in first."}), 401
 
     user_type = session.get("user_type")
-    if user_type != "2":
-        return jsonify({"error": "Only mentees can write notes in the Resources Hub."}), 403
+    if user_type not in ("2", "3"):
+        return jsonify({"error": "Only mentees and institutions can write notes in the Resources Hub."}), 403
 
     user = User.query.filter_by(email=session["email"]).first()
     if not user:
@@ -8905,7 +9196,7 @@ def update_note(note_id):
 
     user = User.query.filter_by(email=session["email"]).first()
     user_type = session.get("user_type")
-    if not user or (user_type != "2" or note.mentee_id != user.id):
+    if not user or (user_type not in ("2", "3") or note.mentee_id != user.id):
         return jsonify({"error": "You can only edit your own notes."}), 403
 
     title = (request.form.get("title") or "").strip()
@@ -8916,6 +9207,9 @@ def update_note(note_id):
         return jsonify({"error": "Note title is required."}), 400
     if not content:
         return jsonify({"error": "Note content is required."}), 400
+
+    if user_type == "3":
+        mentor_id = None
 
     if mentor_id:
         mentor = User.query.get(int(mentor_id))
@@ -8943,7 +9237,7 @@ def delete_note(note_id):
 
     user = User.query.filter_by(email=session["email"]).first()
     user_type = session.get("user_type")
-    if not user or (user_type != "2" or note.mentee_id != user.id):
+    if not user or (user_type not in ("2", "3") or note.mentee_id != user.id):
         return jsonify({"error": "You can only delete your own notes."}), 403
 
     db.session.delete(note)

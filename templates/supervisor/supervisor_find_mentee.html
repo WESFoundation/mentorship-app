@@ -72,113 +72,113 @@
     </div>
 
     {% if mentees and mentees|length > 0 %}
-    <div class="grid p-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="menteesGrid">
-      {% for mentee in mentees %}
-      <div class="mentee-card bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-md hover:border-blue-200">
-        <div class="flex items-center gap-4 mb-4">
-          {% if mentee.profile_picture %}
-          <img src="{{ url_for('static', filename='uploads/' ~ mentee.profile_picture) }}" alt="{{ mentee.user.name }}"
-            class="w-16 h-16 rounded-full object-cover border-2 border-white shadow">
-          {% else %}
-          <div
-            class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 border-2 border-white shadow">
-            <span class="text-xl font-semibold">{{ mentee.user.name[0] if mentee.user.name else '?' }}</span>
-          </div>
-          {% endif %}
-          <div>
-            <h3 class="text-lg font-bold text-gray-800 mentee-name">{{ mentee.user.name }}</h3>
-            <p class="text-sm text-gray-600 mentee-school">{{ mentee.school_college_name }}</p>
-            <p class="text-xs text-gray-500">{{ mentee.stream or '' }}</p>
-          </div>
-        </div>
-
-        <div class="space-y-2 mb-4">
-          <div class="flex items-center text-sm text-gray-600 mentee-goal">
-            <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M12 6.253v13.5m0-13.5C10.835 5.86 9.539 5.378 8 5.255 5.8 4.75 4 6.777 4 9v6a4 4 0 004 4h8a4 4 0 004-4v-6c0-2.223-1.8-4.25-4-3.745-1.539.123-2.835.605-4 1.148z" />
-            </svg>
-            <span>Goal: {{ mentee.goal if mentee.goal else 'Not specified' }}</span>
-          </div>
-
-          <div class="flex items-center text-sm text-gray-600 mentee-email">
-            <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <span class="truncate">{{ mentee.user.email }}</span>
-          </div>
-        </div>
-
-        <div class="flex space-x-2">
-          <button
-            class="view-profile-btn w-full px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition"
-            data-mentee='{{ {
-                "id": mentee.id or "",
-                "userId": mentee.user_id or "",
-                "name": mentee.user.name or "",
-                "email": mentee.user.email or "",
-                "stream": mentee.stream or "",
-                "school": mentee.school_college_name or "",
-                "goal": mentee.goal or "",
-                "dob": mentee.dob or "",
-                "mobileNumber": mentee.mobile_number or "",
-                "mobileCountryCode": mentee.mobile_country_code or "",
-                "whatsappNumber": mentee.whatsapp_number or "",
-                "whatsappCountryCode": mentee.whatsapp_country_code or "",
-                "parentName": mentee.parent_name or "",
-                "parentMobile": mentee.parent_mobile or "",
-                "parentMobileCountryCode": mentee.parent_mobile_country_code or "",
-                "comments": mentee.comments or "",
-                "profilePic": mentee.profile_picture or "",
-                "classYear": mentee.class_year or "",
-                "favouriteSubject": mentee.favourite_subject or "",
-                "whoAmI": mentee.who_am_i or "",
-                "fatherName": mentee.father_name or "",
-                "addressLine1": mentee.address_line1 or "",
-                "addressLine2": mentee.address_line2 or "",
-                "city": mentee.city or "",
-                "state": mentee.state or "",
-                "postalCode": mentee.postal_code or "",
-                "country": mentee.country or "",
-                "govtPrivate": mentee.govt_private or "",
-                "educationLevel": mentee.education_level or "",
-                "institutionName": mentee.institution_name or "",
-                "boardUniversity": mentee.board_university or "",
-                "courseStream": mentee.course_stream or "",
-                "schoolName": mentee.school_name or "",
-                "schoolBoard": mentee.school_board or "",
-                "schoolPassingYear": mentee.school_passing_year or "",
-                "careerInterest": mentee.career_interest or "",
-                "currentRole": mentee.current_role or "",
-                "industry": mentee.industry or "",
-                "yearsExperience": mentee.years_experience or "",
-                "currentOrganization": mentee.current_organization or "",
-                "keySkills": mentee.key_skills or "",
-                "careerGoal": mentee.career_goal or "",
-                "startupStage": mentee.startup_stage or "",
-                "startupName": mentee.startup_name or "",
-                "startupIndustry": mentee.startup_industry or "",
-                "teamSize": mentee.team_size or "",
-                "mainChallenge": mentee.main_challenge or "",
-                "mentorshipType": mentee.mentorship_type or "",
-                "freelanceSkill": mentee.freelance_skill or "",
-                "freelanceExperience": mentee.freelance_experience or "",
-                "freelancePlatforms": mentee.freelance_platforms or "",
-                "freelanceChallenge": mentee.freelance_challenge or "",
-                "lastRole": mentee.last_role or "",
-                "careerBreakReason": mentee.career_break_reason or "",
-                "restartField": mentee.restart_field or "",
-                "supportExpected": mentee.support_expected or "",
-                "mentorshipExpectations": mentee.mentorship_expectations or "",
-                "termsAgreement": mentee.terms_agreement or "",
-                "status": mentee.status or ""
-            }|tojson }}'>
-            View Profile
-          </button>
-        </div>
-      </div>
-      {% endfor %}
+    <div class="overflow-x-auto rounded-xl border border-gray-200">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentee</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">School</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stream</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Goal</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {% for mentee in mentees %}
+          <tr class="mentee-row hover:bg-gray-50 transition-colors">
+            <td class="px-6 py-4 whitespace-nowrap max-w-[280px]">
+              <div class="flex items-center">
+                {% if mentee.profile_picture %}
+                <img src="{{ url_for('static', filename='uploads/' ~ mentee.profile_picture) }}" alt="{{ mentee.user.name }}"
+                  class="w-10 h-10 rounded-full object-cover mr-3">
+                {% else %}
+                <div
+                  class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 mr-3">
+                  <span class="font-semibold">{{ mentee.user.name[0] if mentee.user.name else '?' }}</span>
+                </div>
+                {% endif %}
+                <div>
+                  <div class="text-sm font-semibold text-gray-900 mentee-name">{{ mentee.user.name }}</div>
+                  <div class="text-xs text-gray-500">{{ mentee.class_year or '' }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-700 mentee-school max-w-[200px] break-words">{{ mentee.school_college_name or 'Not specified' }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 max-w-[150px] truncate">{{ mentee.stream or '—' }}</td>
+            <td class="px-6 py-4 text-sm text-gray-600 mentee-goal min-w-[160px] max-w-[260px] break-words">{{ mentee.goal or 'Not specified' }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentee-email max-w-[220px] truncate">{{ mentee.user.email }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right">
+              <button
+                class="view-profile-btn px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition"
+                data-mentee='{{ {
+                    "id": mentee.id or "",
+                    "userId": mentee.user_id or "",
+                    "name": mentee.user.name or "",
+                    "email": mentee.user.email or "",
+                    "stream": mentee.stream or "",
+                    "school": mentee.school_college_name or "",
+                    "goal": mentee.goal or "",
+                    "dob": mentee.dob or "",
+                    "mobileNumber": mentee.mobile_number or "",
+                    "mobileCountryCode": mentee.mobile_country_code or "",
+                    "whatsappNumber": mentee.whatsapp_number or "",
+                    "whatsappCountryCode": mentee.whatsapp_country_code or "",
+                    "parentName": mentee.parent_name or "",
+                    "parentMobile": mentee.parent_mobile or "",
+                    "parentMobileCountryCode": mentee.parent_mobile_country_code or "",
+                    "comments": mentee.comments or "",
+                    "profilePic": mentee.profile_picture or "",
+                    "classYear": mentee.class_year or "",
+                    "favouriteSubject": mentee.favourite_subject or "",
+                    "whoAmI": mentee.who_am_i or "",
+                    "fatherName": mentee.father_name or "",
+                    "addressLine1": mentee.address_line1 or "",
+                    "addressLine2": mentee.address_line2 or "",
+                    "city": mentee.city or "",
+                    "state": mentee.state or "",
+                    "postalCode": mentee.postal_code or "",
+                    "country": mentee.country or "",
+                    "govtPrivate": mentee.govt_private or "",
+                    "educationLevel": mentee.education_level or "",
+                    "institutionName": mentee.institution_name or "",
+                    "boardUniversity": mentee.board_university or "",
+                    "courseStream": mentee.course_stream or "",
+                    "schoolName": mentee.school_name or "",
+                    "schoolBoard": mentee.school_board or "",
+                    "schoolPassingYear": mentee.school_passing_year or "",
+                    "careerInterest": mentee.career_interest or "",
+                    "currentRole": mentee.current_role or "",
+                    "industry": mentee.industry or "",
+                    "yearsExperience": mentee.years_experience or "",
+                    "currentOrganization": mentee.current_organization or "",
+                    "keySkills": mentee.key_skills or "",
+                    "careerGoal": mentee.career_goal or "",
+                    "startupStage": mentee.startup_stage or "",
+                    "startupName": mentee.startup_name or "",
+                    "startupIndustry": mentee.startup_industry or "",
+                    "teamSize": mentee.team_size or "",
+                    "mainChallenge": mentee.main_challenge or "",
+                    "mentorshipType": mentee.mentorship_type or "",
+                    "freelanceSkill": mentee.freelance_skill or "",
+                    "freelanceExperience": mentee.freelance_experience or "",
+                    "freelancePlatforms": mentee.freelance_platforms or "",
+                    "freelanceChallenge": mentee.freelance_challenge or "",
+                    "lastRole": mentee.last_role or "",
+                    "careerBreakReason": mentee.career_break_reason or "",
+                    "restartField": mentee.restart_field or "",
+                    "supportExpected": mentee.support_expected or "",
+                    "mentorshipExpectations": mentee.mentorship_expectations or "",
+                    "termsAgreement": mentee.terms_agreement or "",
+                    "status": mentee.status or ""
+                }|tojson }}'>
+                View Profile
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
     {% else %}
     <div class="text-center py-12">
@@ -578,18 +578,18 @@
 
   function filterMentees() {
     const input = document.getElementById('menteeSearch').value.toLowerCase();
-    const cards = document.querySelectorAll('.mentee-card');
+    const rows = document.querySelectorAll('.mentee-row');
 
-    cards.forEach(card => {
-      const name = card.querySelector('.mentee-name').innerText.toLowerCase();
-      const school = card.querySelector('.mentee-school').innerText.toLowerCase();
-      const goal = card.querySelector('.mentee-goal').innerText.toLowerCase();
-      const email = card.querySelector('.mentee-email').innerText.toLowerCase();
+    rows.forEach(row => {
+      const name = row.querySelector('.mentee-name').innerText.toLowerCase();
+      const school = row.querySelector('.mentee-school').innerText.toLowerCase();
+      const goal = row.querySelector('.mentee-goal').innerText.toLowerCase();
+      const email = row.querySelector('.mentee-email').innerText.toLowerCase();
 
       if (name.includes(input) || school.includes(input) || goal.includes(input) || email.includes(input)) {
-        card.style.display = 'block';
+        row.style.display = '';
       } else {
-        card.style.display = 'none';
+        row.style.display = 'none';
       }
     });
   }
