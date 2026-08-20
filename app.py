@@ -3175,6 +3175,7 @@ def institution_mentorships():
             "meetings_total": len(meetings)
         })
     
+    
     return render_template(
         "institution/institution_mentorships.html",
         show_sidebar=True,
