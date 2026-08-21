@@ -357,7 +357,7 @@ async function createMeeting() {
           <p>${data.start} → ${data.end}</p>
           <p><strong>Time Zone:</strong> ${data.timezone}</p>
           <p>Mentee: ${data.mentee_email}<br>Mentor: ${data.mentor_email}</p>
-          ${data.meet_link ? `<a href="${data.meet_link}" target="_blank">${data.meet_link}</a>` : '<p class="text-gray-500">No Google Meet link was generated.</p>'}
+          ${data.meet_link ? `<a href="${data.meet_link}" target="_blank">${data.meet_link}</a>` : (data.calendar_add_link ? `<p style="margin-top:8px;"><a href="${data.calendar_add_link}" target="_blank" style="color:#2563eb;font-weight:600;">📅 Add to Google Calendar</a></p><p class="text-gray-500" style="font-size:12px;">Open the event in Google Calendar and click "Join with Google Meet" to get your meeting link.</p>` : '<p class="text-gray-500">No Google Meet link was generated.</p>')}
           ${data.warning ? `<p style="color:#b45309;margin-top:8px;">${data.warning}</p>` : ''}
         `,
         icon: "success",

@@ -9,6 +9,7 @@ from functools import wraps
 from sqlalchemy.orm import Session
 import os
 import json 
+from urllib.parse import urlencode
 from google_auth_oauthlib.flow import Flow
 from google.oauth2 import id_token
 from google.auth.transport import requests as grequests
@@ -7639,6 +7640,18 @@ def create_meeting_ajax():
         calendar_warning = ("Meeting request saved without a Google Meet link because "
                             "calendar integration is not configured.")
 
+    calendar_add_link = (
+        "https://calendar.google.com/calendar/render?"
+        + urlencode({
+            "action": "TEMPLATE",
+            "text": title,
+            "dates": f"{start_datetime.strftime('%Y%m%dT%H%M%S')}/{end_datetime.strftime('%Y%m%dT%H%M%S')}",
+            "details": f"Mentorship meeting scheduled via Mentor Connect. Mentee: {mentee.email} | Mentor: {mentor.email}",
+            "add": f"{mentee.email},{mentor.email}",
+            "ctz": timezone,
+        })
+    )
+
     try:
         meeting = MeetingRequest(
                 requester_id=mentee.id,
@@ -7662,6 +7675,7 @@ def create_meeting_ajax():
     payload = {
         "message": "Meeting Created ✅",
         "meet_link": meet_link,
+        "calendar_add_link": calendar_add_link,
         "title": title,
         "start": start_str,
         "end": end_str,
