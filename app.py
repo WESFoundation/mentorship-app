@@ -7482,13 +7482,54 @@ SERVICE_ACCOUNT_FILE = "service_account.json"
 DELEGATED_EMAIL = "info@wazireducationsociety.com"  # Organization calendar email
 
 def get_calendar_service():
-    """Return Google Calendar API service using service account"""
-    creds = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=CALENDAR_SERVICE_SCOPES
-    )
-    delegated_creds = creds.with_subject(DELEGATED_EMAIL)
-    service = build("calendar", "v3", credentials=delegated_creds)
-    return service
+    """Return Google Calendar API service, or None if credentials are unavailable.
+
+    Tries service_account.json first, then falls back to the GOOGLE_* variables
+    loaded from .env. Never raises: callers treat None as "calendar unavailable"
+    so meeting scheduling keeps working without Google Calendar integration.
+    """
+    try:
+        if os.path.exists(SERVICE_ACCOUNT_FILE):
+            creds = service_account.Credentials.from_service_account_file(
+                SERVICE_ACCOUNT_FILE, scopes=CALENDAR_SERVICE_SCOPES
+            )
+        else:
+            private_key = os.environ.get("GOOGLE_PRIVATE_KEY", "")
+            client_email = os.environ.get("GOOGLE_CLIENT_EMAIL", "")
+            if not private_key or not client_email:
+                app.logger.warning(
+                    "Google Calendar unavailable: service_account.json not found and "
+                    "GOOGLE_CLIENT_EMAIL/GOOGLE_PRIVATE_KEY missing from environment"
+                )
+                return None
+            service_account_info = {
+                "type": "service_account",
+                "project_id": os.environ.get("GOOGLE_PROJECT_ID", ""),
+                "private_key_id": os.environ.get("GOOGLE_PRIVATE_KEY_ID", ""),
+                "private_key": private_key.replace("\\n", "\n"),
+                "client_email": client_email,
+                "client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
+                "auth_uri": os.environ.get(
+                    "GOOGLE_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"
+                ),
+                "token_uri": os.environ.get(
+                    "GOOGLE_TOKEN_URI", "https://oauth2.googleapis.com/token"
+                ),
+                "auth_provider_x509_cert_url": os.environ.get(
+                    "GOOGLE_AUTH_PROVIDER_CERT_URL",
+                    "https://www.googleapis.com/oauth2/v1/certs",
+                ),
+                "client_x509_cert_url": os.environ.get("GOOGLE_CLIENT_CERT_URL", ""),
+            }
+            creds = service_account.Credentials.from_service_account_info(
+                service_account_info, scopes=CALENDAR_SERVICE_SCOPES
+            )
+        delegated_creds = creds.with_subject(DELEGATED_EMAIL)
+        service = build("calendar", "v3", credentials=delegated_creds)
+        return service
+    except Exception as e:
+        app.logger.error(f"Could not initialize Google Calendar service: {e}")
+        return None
  
 #-------------------creat meeting request---------------------------------
 @app.route("/mentee_create_meeting_request/<int:mentor_id>", methods=["GET"])
@@ -7534,77 +7575,100 @@ def create_meeting_ajax():
         return jsonify({"error": "Mentee or Mentor not found"}), 404
 
     # Calculate start and end datetime
-    start_datetime = dt.datetime.strptime(f"{date} {start_time}", "%Y-%m-%d %H:%M")
-    
+    try:
+        start_datetime = dt.datetime.strptime(f"{date} {start_time}", "%Y-%m-%d %H:%M")
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid date or time. Please check your selection."}), 400
+
+    try:
+        duration_minutes = int(duration)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid duration selected."}), 400
+
     # ✅ VALIDATION: Check if meeting date/time is in the past
     current_datetime = dt.datetime.now()
     if start_datetime <= current_datetime:
         return jsonify({"error": "Cannot create meeting for past or current date/time. Please select a future date and time."}), 400
     
-    end_datetime = start_datetime + dt.timedelta(minutes=int(duration))
+    end_datetime = start_datetime + dt.timedelta(minutes=duration_minutes)
 
     start_str = start_datetime.isoformat()
     end_str = end_datetime.isoformat()
 
+    meet_link = None
+    gcal_event_id = None
+    calendar_warning = None
+
     service = get_calendar_service()
-    event = {
-        "summary": title,
-        "description": f"Meeting created by {mentee.name} ({mentee.email}) in {timezone} timezone",
-        "start": {"dateTime": start_str, "timeZone": timezone},
-        "end": {"dateTime": end_str, "timeZone": timezone},
-        "attendees": [
-            {"email": mentee.email},
-            {"email": mentor.email}
-        ],
-        "conferenceData": {
-            "createRequest": {
-                "conferenceSolutionKey": {"type": "hangoutsMeet"},
-                "requestId": f"meet-{int(dt.datetime.utcnow().timestamp())}"
+    if service:
+        try:
+            event = {
+                "summary": title,
+                "description": f"Meeting created by {mentee.name} ({mentee.email}) in {timezone} timezone",
+                "start": {"dateTime": start_str, "timeZone": timezone},
+                "end": {"dateTime": end_str, "timeZone": timezone},
+                "attendees": [
+                    {"email": mentee.email},
+                    {"email": mentor.email}
+                ],
+                "conferenceData": {
+                    "createRequest": {
+                        "conferenceSolutionKey": {"type": "hangoutsMeet"},
+                        "requestId": f"meet-{int(dt.datetime.utcnow().timestamp())}"
+                    }
+                }
             }
-        }
-    }
 
+            event = service.events().insert(
+                calendarId="primary",
+                body=event,
+                conferenceDataVersion=1,
+                sendUpdates="all"
+            ).execute()
 
+            meet_link = event.get("hangoutLink")
+            gcal_event_id = event.get("id")
+        except Exception as e:
+            app.logger.error(f"Google Calendar event creation failed: {e}")
+            calendar_warning = ("Meeting request saved, but the Google Meet link could "
+                                "not be generated due to a calendar integration error.")
+    else:
+        calendar_warning = ("Meeting request saved without a Google Meet link because "
+                            "calendar integration is not configured.")
 
+    try:
+        meeting = MeetingRequest(
+                requester_id=mentee.id,
+                requested_to_id=mentor.id,
+                meeting_title=title,
+                meeting_date=start_datetime.date(),
+                meeting_time=start_datetime.time(),
+                meeting_duration=duration_minutes,
+                meet_link=meet_link,
+                gcal_event_id=gcal_event_id,
+                status="pending"
+        )
 
-    event = service.events().insert(
-        calendarId="primary",
-        body=event,
-        conferenceDataVersion=1,
-        sendUpdates="all"
-    ).execute()
+        db.session.add(meeting)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Failed to save meeting request: {e}")
+        return jsonify({"error": "Could not save the meeting request. Please try again."}), 500
 
-    meet_link = event.get("hangoutLink")
-    gcal_event_id = event.get("id")
-
-    # save in db 
-    meeting = MeetingRequest(
-            requester_id=mentee.id,
-            requested_to_id=mentor.id,
-            meeting_title=title,
-            meeting_date=start_datetime.date(),
-            meeting_time=start_datetime.time(),
-            meeting_duration=int(duration),
-            meet_link=meet_link,
-            gcal_event_id=gcal_event_id,
-            status="pending"
-    )
-
-    db.session.add(meeting)
-    db.session.commit()
-
-
-
-    return jsonify({
+    payload = {
         "message": "Meeting Created ✅",
-        "meet_link": event.get("hangoutLink"),
+        "meet_link": meet_link,
         "title": title,
         "start": start_str,
         "end": end_str,
         "timezone": timezone,
         "mentee_email": mentee.email,
         "mentor_email": mentor.email
-    })
+    }
+    if calendar_warning:
+        payload["warning"] = calendar_warning
+    return jsonify(payload)
 
 @app.route("/debug_oauth")
 def debug_oauth():

@@ -346,9 +346,10 @@ async function createMeeting() {
       body: JSON.stringify({ title, date, start_time, duration, timezone, mentor_id })
     });
 
-    const data = await response.json();
+    let data = null;
+    try { data = await response.json(); } catch (e) { data = null; }
 
-    if (response.ok) {
+    if (response.ok && data) {
       Swal.fire({
         title: "✅ Meeting Created!",
         html: `
@@ -356,17 +357,18 @@ async function createMeeting() {
           <p>${data.start} → ${data.end}</p>
           <p><strong>Time Zone:</strong> ${data.timezone}</p>
           <p>Mentee: ${data.mentee_email}<br>Mentor: ${data.mentor_email}</p>
-          <a href="${data.meet_link}" target="_blank">${data.meet_link}</a>
+          ${data.meet_link ? `<a href="${data.meet_link}" target="_blank">${data.meet_link}</a>` : '<p class="text-gray-500">No Google Meet link was generated.</p>'}
+          ${data.warning ? `<p style="color:#b45309;margin-top:8px;">${data.warning}</p>` : ''}
         `,
         icon: "success",
         confirmButtonText: "OK"
       });
     } else {
-      Swal.fire("Error", data.error || "Something went wrong!", "error");
+      Swal.fire("Error", (data && data.error) || `Server error (${response.status}). Please try again.`, "error");
     }
 
   } catch (error) {
-    Swal.fire("Error", "Network or server issue!", "error");
+    Swal.fire("Error", "Network issue! Please check your connection and try again.", "error");
     console.error(error);
   }
 }
