@@ -3116,11 +3116,10 @@ def institution_mentorships():
         institution = Institution.query.filter_by(name=user.institution).first()
     institution_name = institution.name if institution else user.institution
 
-    # Get all approved mentorships where either the mentee OR the mentor
-    # belongs to this institution (by ID or by name)
+    # Get ALL mentorship requests where either the mentee OR the mentor
+    # belongs to this institution (by ID or by name) — pending first so the
+    # institution can approve/reject them right from this tab
     all_mentorships = MentorshipRequest.query.filter(
-        MentorshipRequest.final_status == "approved"
-    ).filter(
         (
             MentorshipRequest.mentee_id.in_(
                 db.session.query(User.id).filter(
@@ -3141,7 +3140,11 @@ def institution_mentorships():
                 )
             )
         )
-    ).order_by(MentorshipRequest.created_at.desc()).all()
+    ).order_by(
+        (MentorshipRequest.final_status == "pending").desc(),
+        (MentorshipRequest.final_status == "approved").desc(),
+        MentorshipRequest.created_at.desc()
+    ).all()
 
     # Get additional data for each mentorship (mirrors supervisor_all_mentorships)
     mentorships_data = []
@@ -3329,14 +3332,19 @@ def institution_response():
     request_id = request.form.get("request_id")
     action = request.form.get("action")
 
+    # Allow the caller to specify which tab to return to (e.g. the
+    # institution Mentorships tab). Only same-site relative paths allowed.
+    next_url = request.form.get("next") or ""
+    redirect_target = next_url if next_url.startswith("/") else url_for("institution_requests")
+
     if not request_id or not action:
         flash("Invalid request!", "error")
-        return redirect(url_for("institution_requests"))
+        return redirect(redirect_target)
 
     mentorship_request = MentorshipRequest.query.get(int(request_id))
     if not mentorship_request:
         flash("Request not found!", "error")
-        return redirect(url_for("institution_requests"))
+        return redirect(redirect_target)
 
     # Only allow institutions to manage requests involving their members
     mentee_in_inst = (
@@ -3362,7 +3370,7 @@ def institution_response():
 
     if not (mentee_in_inst or mentor_in_inst):
         flash("This request does not belong to your institution.", "error")
-        return redirect(url_for("institution_requests"))
+        return redirect(redirect_target)
 
     # Update status based on action
     if action == "approve":
@@ -3397,7 +3405,7 @@ def institution_response():
             )
     else:
         flash("Invalid action!", "error")
-        return redirect(url_for("institution_requests"))
+        return redirect(redirect_target)
 
     try:
         db.session.commit()
@@ -3412,7 +3420,7 @@ def institution_response():
         notify_mentorship_connection(mentorship_request)
         send_mentorship_connected_email(mentorship_request)
 
-    return redirect(url_for("institution_requests"))
+    return redirect(redirect_target)
 
 from sqlalchemy.orm import aliased
 from sqlalchemy import and_, or_
@@ -7431,8 +7439,13 @@ def supervisor_all_mentorships():
     user = User.query.filter_by(email=session["email"]).first()
     profile_complete = check_profile_complete(user.id, "0")
     
-    # Get all approved mentorship requests
-    all_mentorships = MentorshipRequest.query.filter_by(final_status="approved").all()
+    # Get ALL mentorship requests — pending ones surface first so new
+    # requests are immediately visible to supervisors
+    all_mentorships = MentorshipRequest.query.order_by(
+        (MentorshipRequest.final_status == "pending").desc(),
+        (MentorshipRequest.final_status == "approved").desc(),
+        MentorshipRequest.created_at.desc()
+    ).all()
     
     # Get additional data for each mentorship
     mentorships_data = []
@@ -7552,10 +7565,21 @@ def mentee_create_meeting_request(mentor_id):
         flash("Mentor not found", "error")
         return redirect(url_for("mentors_list"))  # change to your actual route
 
+    # Tasks currently being worked on in this mentorship (not completed yet),
+    # so the mentee can pick one to discuss during the meeting
+    running_tasks = []
+    if mentee:
+        running_tasks = MenteeTask.query.filter(
+            MenteeTask.mentee_id == mentee.id,
+            MenteeTask.mentor_id == mentor.id,
+            MenteeTask.status.in_(["pending", "in-progress"])
+        ).order_by(MenteeTask.meeting_number.asc()).all()
+
     return render_template(
         "mentee/mentee_create_meeting_request.html",
         mentee=mentee,
-        mentor=mentor
+        mentor=mentor,
+        running_tasks=running_tasks
     )
 
 @app.route("/create_meeting_ajax", methods=["POST"])

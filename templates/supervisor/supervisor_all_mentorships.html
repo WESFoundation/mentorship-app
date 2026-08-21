@@ -40,7 +40,7 @@
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
         <h1 class="text-2xl font-bold text-gray-800 mb-2">All Connected Mentorships</h1>
-        <p class="text-gray-600">View and monitor all active mentorship connections in the system.</p>
+        <p class="text-gray-600">View all mentorship requests and active connections in the system.</p>
       </div>
       <div class="flex items-center gap-3">
         <div class="bg-blue-50 px-4 py-2 rounded-lg">
@@ -49,6 +49,24 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Search + Filter -->
+  <div class="bg-white rounded-xl shadow-sm p-4 mb-4 flex flex-col sm:flex-row gap-3">
+    <div class="relative flex-1">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+      <input id="mentorshipSearch" type="text" placeholder="Search by mentor, mentee, profession or purpose…"
+        class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+    </div>
+    <select id="statusFilter"
+      class="w-full sm:w-56 px-4 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+      <option value="">All Statuses</option>
+      <option value="pending">Pending Approval</option>
+      <option value="approved">Active</option>
+      <option value="rejected">Rejected</option>
+    </select>
   </div>
 
   <!-- Mentorships Table -->
@@ -67,7 +85,7 @@
       </thead>
       <tbody class="bg-white divide-y divide-gray-200">
         {% for mentorship in mentorships_data %}
-        <tr class="mentorship-row hover:bg-gray-50 transition-colors">
+        <tr class="mentorship-row hover:bg-gray-50 transition-colors" data-status="{{ mentorship.request.final_status|default('') }}">
           <td class="px-6 py-4">
             <div class="text-sm font-semibold text-gray-900">
               {{ mentorship.mentor.name if mentorship.mentor else 'Unknown Mentor' }}
@@ -111,9 +129,23 @@
             </div>
           </td>
           <td class="px-6 py-4">
+            {% if mentorship.request.final_status == 'approved' %}
             <span class="inline-block bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
               Active
             </span>
+            {% elif mentorship.request.final_status == 'pending' %}
+            <span class="inline-block bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+              Pending Approval
+            </span>
+            {% elif mentorship.request.final_status == 'rejected' %}
+            <span class="inline-block bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">
+              Rejected
+            </span>
+            {% else %}
+            <span class="inline-block bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
+              {{ mentorship.request.final_status|title if mentorship.request.final_status else 'Unknown' }}
+            </span>
+            {% endif %}
           </td>
           <td class="px-6 py-4 text-right">
             <div class="flex flex-wrap justify-end gap-2">
@@ -136,6 +168,9 @@
       </tbody>
     </table>
   </div>
+  <div id="filterEmptyMessage" class="hidden bg-white rounded-xl shadow-sm p-8 text-center text-gray-500 mt-4">
+    No mentorships match your search or filter.
+  </div>
   {% else %}
   <!-- Empty State -->
   <div class="bg-white rounded-xl shadow-sm p-12 text-center">
@@ -146,8 +181,8 @@
                 d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
         </svg>
       </div>
-      <h3 class="text-lg font-medium text-gray-900 mb-2">No Active Mentorships</h3>
-      <p class="text-gray-500 mb-6">There are no active mentorship connections in the system yet.</p>
+      <h3 class="text-lg font-medium text-gray-900 mb-2">No Mentorships Found</h3>
+      <p class="text-gray-500 mb-6">There are no mentorship requests or connections in the system yet.</p>
       <a href="{{ url_for('supervisordashboard') }}" 
          class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
         Go to Dashboard
@@ -193,6 +228,24 @@
     }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
+
+  // Search + status filter for mentorship rows
+  function filterMentorships() {
+    const term = (document.getElementById('mentorshipSearch').value || '').toLowerCase();
+    const status = document.getElementById('statusFilter').value;
+    let visible = 0;
+    document.querySelectorAll('.mentorship-row').forEach(row => {
+      const textMatch = row.textContent.toLowerCase().includes(term);
+      const statusMatch = !status || row.getAttribute('data-status') === status;
+      const show = textMatch && statusMatch;
+      row.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+    const emptyMsg = document.getElementById('filterEmptyMessage');
+    if (emptyMsg) emptyMsg.classList.toggle('hidden', visible > 0);
+  }
+  document.getElementById('mentorshipSearch').addEventListener('input', filterMentorships);
+  document.getElementById('statusFilter').addEventListener('change', filterMentorships);
 
   // Make navigation buttons active on click
   document.addEventListener('DOMContentLoaded', function() {
