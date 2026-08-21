@@ -5990,12 +5990,12 @@ def reschedule_meeting(meeting_id):
                 new_end_datetime = new_start_datetime + timedelta(minutes=meeting.meeting_duration)
                 
                 event_update = {
-                    "start": {"dateTime": new_start_datetime.isoformat(), "timeZone": "Asia/Kolkata"},
-                    "end": {"dateTime": new_end_datetime.isoformat(), "timeZone": "Asia/Kolkata"},
+                    "start": {"dateTime": new_start_datetime.isoformat(), "timeZone": MEETING_TIMEZONE},
+                    "end": {"dateTime": new_end_datetime.isoformat(), "timeZone": MEETING_TIMEZONE},
                 }
                 
                 service.events().patch(
-                    calendarId="primary",
+                    calendarId=CALENDAR_ID,
                     eventId=meeting.gcal_event_id,
                     body=event_update,
                     sendUpdates="all"
@@ -7482,8 +7482,10 @@ def supervisor_all_mentorships():
 
 # ---------- Google Calendar Service Account Config ----------
 CALENDAR_SERVICE_SCOPES = ["https://www.googleapis.com/auth/calendar"]
-SERVICE_ACCOUNT_FILE = "service_account.json"
-DELEGATED_EMAIL = "info@wazireducationsociety.com"  # Organization calendar email
+SERVICE_ACCOUNT_FILE = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE", "service_account.json")
+DELEGATED_EMAIL = os.environ.get("GOOGLE_DELEGATED_EMAIL", "info@wazireducationsociety.com")  # Organization calendar email
+CALENDAR_ID = os.environ.get("GOOGLE_CALENDAR_ID", DELEGATED_EMAIL)  # Calendar where meetings are created
+MEETING_TIMEZONE = os.environ.get("GOOGLE_MEETING_TIMEZONE", "Asia/Kolkata")  # Fallback timezone for calendar events
 
 def get_calendar_service():
     """Return Google Calendar API service, or None if credentials are unavailable.
@@ -7615,6 +7617,16 @@ def create_meeting_ajax():
                     {"email": mentee.email},
                     {"email": mentor.email}
                 ],
+                "reminders": {
+                    "useDefault": False,
+                    "overrides": [
+                        {"method": "email", "minutes": 60},
+                        {"method": "popup", "minutes": 10}
+                    ]
+                },
+                "guestsCanSeeOtherGuests": True,
+                "guestsCanInviteOthers": False,
+                "guestsCanModify": False,
                 "conferenceData": {
                     "createRequest": {
                         "conferenceSolutionKey": {"type": "hangoutsMeet"},
@@ -7624,7 +7636,7 @@ def create_meeting_ajax():
             }
 
             event = service.events().insert(
-                calendarId="primary",
+                calendarId=CALENDAR_ID,
                 body=event,
                 conferenceDataVersion=1,
                 sendUpdates="all"
