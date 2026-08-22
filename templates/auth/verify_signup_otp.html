@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Verify Your Email | Mentor Connect{% endblock %}
+{% block content %}
+
+<section class="flex justify-center items-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
+
+    <div class="w-full max-w-md">
+        <div class="bg-white rounded-xl shadow-2xl p-8">
+
+            <!-- Header -->
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M3 19v-6a9 9 0 0118 0v6M5 21a2 2 0 01-2-2v-1a2 2 0 012-2h1m13 5a2 2 0 002-2v-1a2 2 0 00-2-2h-1m-10 5h8m-11-5V9m14 7V9M9 21v-4m6 4v-4" />
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800 mb-2">Verify your email</h1>
+                <p class="text-gray-600 text-sm">
+                    We sent a 6-digit code to
+                    <span class="font-semibold text-gray-800">{{ masked_email }}</span>
+                    <br>Enter it below to create your Mentor Connect account.
+                </p>
+            </div>
+
+            <!-- Verified Google identity chip -->
+            <div class="flex items-center gap-3 p-3 mb-6 bg-gray-50 border border-gray-200 rounded-lg">
+                {% if picture_url %}
+                <img src="{{ picture_url }}" alt="" class="w-10 h-10 rounded-full object-cover">
+                {% else %}
+                <div class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">
+                    {{ (user_name[:1]|upper) if user_name else 'G' }}
+                </div>
+                {% endif %}
+                <div class="min-w-0">
+                    <p class="text-sm font-semibold text-gray-800 truncate">{{ user_name or full_email }}</p>
+                    <p class="text-xs text-green-600 flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Verified via Google
+                    </p>
+                </div>
+                <a href="{{ url_for('google_login') }}" class="ml-auto text-xs text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap">Change</a>
+            </div>
+
+            <!-- OTP Form -->
+            <form method="POST" class="space-y-5" autocomplete="off">
+                <div>
+                    <label for="otp" class="block text-sm font-medium text-gray-700 mb-2 text-center">Enter verification code</label>
+                    <input type="text" id="otp" name="otp" inputmode="numeric" pattern="[0-9]*" maxlength="6"
+                           placeholder="••••••" required autofocus
+                           class="w-full px-4 py-3 text-center text-2xl tracking-[0.6em] font-semibold border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                </div>
+
+                <button type="submit"
+                        class="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium">
+                    Verify &amp; Continue
+                </button>
+            </form>
+
+            <!-- Resend -->
+            <form method="POST" action="{{ url_for('resend_signup_otp') }}" class="mt-5 text-center">
+                <button type="submit" class="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                    Didn't get the code? Resend
+                </button>
+            </form>
+
+            <!-- Info Box -->
+            <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p class="text-xs text-blue-800">
+                    <strong>Secure sign-up:</strong> your account is created only after Google confirms your
+                    identity and you enter this code. The code expires in 10 minutes.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+    // Digits only + auto-submit when complete
+    const otpInput = document.getElementById('otp');
+    otpInput.addEventListener('input', function () {
+        this.value = this.value.replace(/\D/g, '').slice(0, 6);
+        if (this.value.length === 6) {
+            this.form.submit();
+        }
+    });
+</script>
+
+{% endblock %}

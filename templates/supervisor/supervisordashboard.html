@@ -281,8 +281,8 @@
           </div>
 
           <!-- Goal -->
-          <div class="relative">
-            <select name="goal" class="appearance-none pl-4 pr-10 py-2 border rounded-full text-gray-700 bg-white">
+          <div class="relative w-56 max-w-full min-w-0">
+            <select name="goal" class="w-full appearance-none pl-4 pr-10 py-2 border rounded-full text-gray-700 bg-white truncate">
               <option value="" {% if not request.args.get('goal') %}selected{% endif %}>All Goals</option>
               {% for goal in mentee_goals %}
               <option value="{{ goal }}" {% if request.args.get('goal')==goal %}selected{% endif %}>

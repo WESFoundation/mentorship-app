@@ -34,7 +34,7 @@
         class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" onkeyup="filterMentees()">
 
       <form method="GET" action="{{ url_for('supervisor_find_mentee') }}" class="flex flex-wrap items-center gap-3">
-        <select name="stream" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+        <select name="stream" class="max-w-full sm:max-w-[220px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
           <option value="" {% if not request.args.get('stream') %}selected{% endif %}>All Streams</option>
           {% for stream in mentee_streams %}
           <option value="{{ stream }}" {% if request.args.get('stream')==stream %}selected{% endif %}>
@@ -43,7 +43,7 @@
           {% endfor %}
         </select>
 
-        <select name="school" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+        <select name="school" class="max-w-full sm:max-w-[220px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
           <option value="" {% if not request.args.get('school') %}selected{% endif %}>All Schools</option>
           {% for school in mentee_schools %}
           <option value="{{ school }}" {% if request.args.get('school')==school %}selected{% endif %}>
@@ -52,7 +52,7 @@
           {% endfor %}
         </select>
 
-        <select name="goal" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+        <select name="goal" class="max-w-full sm:max-w-[220px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
           <option value="" {% if not request.args.get('goal') %}selected{% endif %}>All Goals</option>
           {% for goal in mentee_goals %}
           <option value="{{ goal }}" {% if request.args.get('goal')==goal %}selected{% endif %}>

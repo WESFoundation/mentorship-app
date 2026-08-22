@@ -18,6 +18,8 @@ from googleapiclient.discovery import build
 import datetime as dt
 from flask_migrate import Migrate
 import random
+import secrets
+import hashlib
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -412,6 +414,42 @@ def send_otp_email(to_email, otp):
         return True
     except Exception as e:
         print(f"Error sending email: {e}")
+        return False
+
+def send_signup_otp_email(to_email, otp):
+    """Send account-verification OTP during Google sign-up"""
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = SMTP_EMAIL
+        msg['To'] = to_email
+        msg['Subject'] = "Verify your email - Mentor Connect Sign Up"
+
+        body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2 style="color: #2563eb;">Verify your Mentor Connect account</h2>
+            <p>You are creating a Mentor Connect account with this email via Google.</p>
+            <p>Your verification code is:</p>
+            <h1 style="color: #2563eb; font-size: 32px; letter-spacing: 5px;">{otp}</h1>
+            <p>This code will expire in <strong>10 minutes</strong>.</p>
+            <p>If you did not start this sign-up, please ignore this email.</p>
+            <hr>
+            <p style="color: #666; font-size: 12px;">Mentor Connect - Wazir Education Society</p>
+        </body>
+        </html>
+        """
+
+        msg.attach(MIMEText(body, 'html'))
+
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_EMAIL, SMTP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+
+        return True
+    except Exception as e:
+        print(f"Error sending signup OTP email: {e}")
         return False
 
 def send_welcome_email(to_email, user_name, signup_method="traditional"):
@@ -1507,93 +1545,15 @@ def home():
 #--------------SIGNUP----------------
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
+    """Account creation is Google-only: every signup entry point starts the
+    Google OAuth flow so accounts are always tied to a verified Google identity.
+    Manual email/password registration is disabled."""
     if request.method == "POST":
-        name = request.form.get("name")
-        email = request.form.get("email")
-        user_type = request.form.get("user-type")
-        password = request.form.get("password")
-        confirm_password = request.form.get("confirm-password")
-        institution_name = request.form.get("institution", "")
+        flash("Account creation is only available through Google sign-up.", "info")
+        return redirect(url_for("google_login"))
 
-        # Password check
-        if password != confirm_password:
-            flash("Passwords do not match!", "error")
-            return redirect(url_for("signup"))
-
-        # Check if user already exists
-        existing_user = User.query.filter_by(email=email).first()
-        if existing_user:
-            flash("User already exists! Please sign in.", "error")
-            return redirect(url_for("signin"))
-
-        # Hash password
-        hashed_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=8)
-        
-        # Create new user first
-        new_user = User(
-            name=name, 
-            email=email, 
-            password=hashed_password, 
-            user_type=user_type, 
-            institution=institution_name
-        )
-        db.session.add(new_user)
-        db.session.flush()  # Get user ID
-        
-        # For institution admin (user_type = "3"), create/link institution profile
-        if user_type == "3":
-            # Check if institution exists
-            institution = Institution.query.filter_by(name=institution_name).first()
-            if not institution:
-                # Create new institution with admin user link
-                institution = Institution(
-                    user_id=new_user.id,
-                    name=institution_name, 
-                    contact_person=name,
-                    contact_email=email,
-                    status="active"
-                )
-                db.session.add(institution)
-                db.session.flush()
-            
-            # Link user to institution
-            new_user.institution_id = institution.id
-        
-        db.session.commit()
-
-        # Send welcome email (non-blocking - don't stop signup if email fails)
-        try:
-            send_welcome_email(email, name, signup_method="traditional")
-        except Exception as e:
-            print(f"⚠️ Welcome email failed but signup successful: {e}")
-
-        # Store in session
-        session["email"] = email
-        session["user_type"] = user_type
-        session["user_id"] = new_user.id
-        session["user_name"] = name
-
-        # Redirect to profile completion (mandatory)
-        if user_type == "1":
-            flash("Welcome! Please complete your profile to continue.", "info")
-            return redirect(url_for("editmentorprofile"))
-        elif user_type == "2":
-            flash("Welcome! Please complete your profile to continue.", "info")
-            return redirect(url_for("editmenteeprofile"))
-        elif user_type == "0":
-            flash("Welcome! Please complete your profile to continue.", "info")
-            return redirect(url_for("editsupervisorprofile"))
-        elif user_type == "3":  # Institution admin
-            flash("Welcome! Please complete your profile to continue.", "info")
-            return redirect(url_for("editinstitutionprofile"))
-        
-        return redirect(url_for("signin"))
-
-    # Show signup form with active institutions
-    institutions = Institution.query.filter_by(status="active").all()
-    return render_template("auth/signup.html", institutions=institutions)
-
-    return render_template("auth/signup.html")
+    # GET → jump straight into the Google OAuth signup/login flow
+    return redirect(url_for("google_login"))
 
 #--------------SIGNIN----------------
 @app.route("/signin", methods=["GET", "POST"])
@@ -1905,7 +1865,7 @@ def callback():
         print(f"   ✅ User info retrieved")
         
         google_id = user_info.get('id')
-        email = user_info.get('email')
+        email = (user_info.get('email') or "").strip().lower()
         name = user_info.get('name', email.split('@')[0] if email else 'User')
         picture_url = user_info.get('picture')
         
@@ -1921,9 +1881,23 @@ def callback():
             return redirect(url_for("signin"))
         
         print(f"\n📍 Step 7: Checking if user exists in database")
-        user = User.query.filter_by(email=email).first()
+        user = User.query.filter(db.func.lower(User.email) == email).first()
+        
+        # Duplicate-identity guard: Gmail ignores dots and '+tag' suffixes, so
+        # 'nida.p+x@gmail.com' is the SAME mailbox as 'nidap@gmail.com'. Match
+        # variants too so nobody can create a second account for one email.
+        if not user:
+            canonical = _canonical_email(email)
+            for candidate in User.query.all():
+                if _canonical_email(candidate.email) == canonical:
+                    user = candidate
+                    break
         
         if user:
+            if user.email != email:
+                print(f"   ⛔ Duplicate blocked: '{email}' is a variant of existing account '{user.email}'")
+                flash("An account already exists with this email address. Please sign in with your existing Mentor Connect account instead of creating a new one.", "error")
+                return redirect(url_for("signin"))
             print(f"   ✅ Existing user found: {user.email}")
             print(f"   User ID: {user.id}")
             print(f"   User Type: {user.user_type}")
@@ -1964,53 +1938,43 @@ def callback():
                 print(f"   ➡️ No user type set, redirecting to select_user_type")
                 return redirect(url_for("select_user_type"))
         else:
-            print(f"   ❌ User not found, creating new account")
+            print(f"   ❌ User not found — starting verified sign-up flow (Google + OTP)")
             
-            print(f"\n📍 Step 8: Creating new user object")
-            new_user = User(
-                name=name,
-                email=email,
-                google_id=google_id,
-                oauth_provider='google',
-                profile_picture_url=picture_url,
-                oauth_created_at=datetime.utcnow()
-            )
-            print(f"   ✅ User object created")
-            print(f"      Name: {new_user.name}")
-            print(f"      Email: {new_user.email}")
-            print(f"      Google ID: {new_user.google_id}")
-            
-            print(f"\n📍 Step 9: Adding user to database session")
-            db.session.add(new_user)
-            print(f"   ✅ User added to session")
-            
-            print(f"\n📍 Step 10: Committing to database")
-            db.session.commit()
-            print(f"   ✅ Committed successfully")
-            print(f"   New User ID: {new_user.id}")
-            
-            # Send welcome email for new OAuth user (non-blocking)
-            print(f"\n📍 Step 10.5: Sending welcome email")
-            try:
-                send_welcome_email(email, name, signup_method="oauth")
-                print(f"   ✅ Welcome email sent")
-            except Exception as e:
-                print(f"   ⚠️ Welcome email failed but signup successful: {e}")
-            
-            print(f"\n📍 Step 11: Setting session for new user")
+            # Store the Google-verified identity in the session. The account is
+            # NOT created yet: it will only be created after the user enters
+            # the OTP sent to this Gmail address (see /signup/verify).
             session.permanent = True
-            session["email"] = email
-            session["user_id"] = new_user.id
-            session["oauth_user"] = True
-            session["user_name"] = new_user.name
-            print(f"   ✅ Session set")
-            print(f"      Email: {session.get('email')}")
-            print(f"      ID: {session.get('user_id')}")
+            session["pending_google"] = {
+                "google_id": google_id,
+                "email": email,
+                "name": name,
+                "picture": picture_url or ""
+            }
+            # Clear any stale login values so the visitor is NOT logged in yet
+            for key in ("email", "user_id", "user_type", "user_name"):
+                session.pop(key, None)
             
-            print(f"\n📍 Step 12: Redirecting to select_user_type")
-            print(f"   ➡️ Redirecting to select_user_type")
+            print(f"\n📍 Step 8: Issuing signup OTP")
+            otp = f"{secrets.randbelow(1000000):06d}"
+            session["signup_otp_hash"] = hashlib.sha256(
+                (otp + app.config.get("SECRET_KEY", "")).encode()
+            ).hexdigest()
+            session["signup_otp_expiry"] = (
+                dt.datetime.utcnow() + dt.timedelta(minutes=10)
+            ).isoformat()
+            session["signup_otp_attempts"] = 0
+            
+            print(f"\n📍 Step 9: Sending OTP email to {email}")
+            if not send_signup_otp_email(email, otp):
+                print(f"   ❌ Failed to send OTP email - aborting signup")
+                for key in ("pending_google", "signup_otp_hash", "signup_otp_expiry", "signup_otp_attempts"):
+                    session.pop(key, None)
+                flash("We could not send the verification email. Please try again in a few minutes.", "error")
+                return redirect(url_for("signin"))
+            print(f"   ✅ OTP email sent")
+            
             print("="*60 + "\n")
-            return redirect(url_for("select_user_type"))
+            return redirect(url_for("verify_signup_otp"))
     
     except Exception as e:
         print(f"\n❌ ERROR in callback: {str(e)}")
@@ -2021,9 +1985,247 @@ def callback():
         flash("Error during Google login. Please try again.", "error")
         return redirect(url_for("signin"))
 
+# ------------------- GOOGLE SIGNUP OTP VERIFICATION -------------------
+SIGNUP_OTP_MAX_ATTEMPTS = 5
+
+def _signup_otp_hash(otp):
+    """Hash the OTP together with the Flask secret key so a readable session
+    cookie never exposes the usable code."""
+    return hashlib.sha256((str(otp) + app.config.get("SECRET_KEY", "")).encode()).hexdigest()
+
+def _issue_signup_otp():
+    """Generate a fresh OTP, store only its hash + expiry in the session and
+    return the plaintext code (for emailing)."""
+    otp = f"{secrets.randbelow(1000000):06d}"
+    session["signup_otp_hash"] = _signup_otp_hash(otp)
+    session["signup_otp_expiry"] = (
+        dt.datetime.utcnow() + dt.timedelta(minutes=10)
+    ).isoformat()
+    session["signup_otp_attempts"] = 0
+    return otp
+
+def _canonical_email(email):
+    """Canonical identity of an email for duplicate detection.
+
+    Lowercases the address; for Gmail/Googlemail mailboxes it removes dots and
+    anything after a '+', because Gmail delivers 'first.last+tag@gmail.com',
+    'firstlast@gmail.com' etc. to the same inbox. Two different-looking
+    addresses that resolve to the same canonical value are treated as ONE
+    email, so only one Mentor Connect account can exist for them.
+    """
+    email = (email or "").strip().lower()
+    local, sep, domain = email.partition("@")
+    if not sep:
+        return email
+    if domain in ("gmail.com", "googlemail.com"):
+        local = local.split("+")[0].replace(".", "")
+        return f"{local}@gmail.com"
+    return email
+
+def _mask_email(email):
+    local, _, domain = email.partition("@")
+    if len(local) <= 2:
+        shown = local[:1] + "*"
+    else:
+        shown = local[:2] + "*" * max(len(local) - 2, 2)
+    return f"{shown}@{domain}"
+
+@app.route("/signup/verify", methods=["GET", "POST"])
+def verify_signup_otp():
+    """Verify the OTP sent to the user's Gmail before the account is created."""
+    pending = session.get("pending_google")
+    if not pending:
+        flash("Please start sign-up with your Google account first.", "info")
+        return redirect(url_for("signin"))
+
+    masked = _mask_email(pending["email"])
+
+    if request.method == "POST":
+        # Support both a single input and six separate digit boxes
+        code = (request.form.get("otp") or "").strip()
+        if not code:
+            code = "".join((request.form.get(f"otp_{i}") or "").strip() for i in range(6))
+
+        expiry = session.get("signup_otp_expiry")
+        expired = (
+            not expiry
+            or "signup_otp_hash" not in session
+            or dt.datetime.fromisoformat(expiry) < dt.datetime.utcnow()
+        )
+        if expired:
+            otp = _issue_signup_otp()
+            send_signup_otp_email(pending["email"], otp)
+            flash("Your code expired. A fresh code has been sent to your email.", "warning")
+            return redirect(url_for("verify_signup_otp"))
+
+        attempts = session.get("signup_otp_attempts", 0)
+        if attempts >= SIGNUP_OTP_MAX_ATTEMPTS:
+            for key in ("pending_google", "signup_otp_hash", "signup_otp_expiry", "signup_otp_attempts"):
+                session.pop(key, None)
+            flash("Too many incorrect attempts. Please sign up with Google again.", "error")
+            return redirect(url_for("signin"))
+
+        if not code or _signup_otp_hash(code) != session["signup_otp_hash"]:
+            session["signup_otp_attempts"] = attempts + 1
+            remaining = SIGNUP_OTP_MAX_ATTEMPTS - (attempts + 1)
+            flash(f"Incorrect code. {remaining} attempt(s) remaining.", "error")
+            return redirect(url_for("verify_signup_otp"))
+
+        # ✅ OTP verified — mark verified and move on to role selection
+        session["otp_verified"] = True
+        session["email"] = pending["email"]
+        session["user_name"] = pending.get("name") or ""
+        for key in ("signup_otp_hash", "signup_otp_expiry", "signup_otp_attempts"):
+            session.pop(key, None)
+        flash("Email verified successfully!", "success")
+        return redirect(url_for("select_user_type"))
+
+    return render_template(
+        "auth/verify_signup_otp.html",
+        masked_email=masked,
+        full_email=pending["email"],
+        user_name=pending.get("name") or "",
+        picture_url=pending.get("picture") or ""
+    )
+
+@app.route("/signup/resend_otp", methods=["POST"])
+def resend_signup_otp():
+    """Resend a fresh signup OTP to the pending Google email."""
+    pending = session.get("pending_google")
+    if not pending:
+        return redirect(url_for("signin"))
+
+    otp = _issue_signup_otp()
+    if send_signup_otp_email(pending["email"], otp):
+        flash(f"A new verification code was sent to {_mask_email(pending['email'])}.", "success")
+    else:
+        flash("Could not resend the email right now. Please try again shortly.", "error")
+    return redirect(url_for("verify_signup_otp"))
+
+# ------------------- ROLE SELECTION / ACCOUNT CREATION -------------------
 @app.route("/select_user_type", methods=["GET", "POST"])
 def select_user_type():
-    """Allow OAuth users to select their user type"""
+    """Allow OAuth users to select their user type.
+
+    Two paths:
+    1. Pending Google sign-up (account NOT yet created): requires the Gmail OTP
+       to be verified, then the account is created here with the chosen role.
+    2. Legacy OAuth user whose account exists without a role yet.
+    """
+    pending = session.get("pending_google")
+
+    if pending:
+        if not session.get("otp_verified"):
+            print("❌ Pending signup present but OTP not verified - redirecting")
+            return redirect(url_for("verify_signup_otp"))
+
+        # If an account with this email appeared meanwhile, drop the pending flow
+        existing = User.query.filter_by(email=pending["email"]).first()
+        if existing:
+            session.pop("pending_google", None)
+            session.pop("otp_verified", None)
+        else:
+            if request.method == "POST":
+                user_type = request.form.get("user_type")
+                institution_name = (request.form.get("institution_name") or "").strip()
+
+                if user_type not in ["0", "1", "2", "3"]:
+                    flash("Invalid role selected", "error")
+                    return redirect(url_for("select_user_type"))
+
+                if user_type == "3" and not institution_name:
+                    flash("Please enter your institution name.", "error")
+                    return redirect(url_for("select_user_type"))
+
+                # Final one-account-per-email guard (covers Gmail variants and
+                # accounts created between OTP verification and this moment).
+                canonical_new = _canonical_email(pending["email"])
+                duplicate = None
+                for candidate in User.query.all():
+                    if _canonical_email(candidate.email) == canonical_new:
+                        duplicate = candidate
+                        break
+                if duplicate:
+                    print(f"⛔ Duplicate signup blocked: '{pending['email']}' matches existing account '{duplicate.email}'")
+                    for key in ("pending_google", "otp_verified"):
+                        session.pop(key, None)
+                    flash(f"An account already exists with this email address. Please sign in with your existing account instead.", "error")
+                    return redirect(url_for("signin"))
+
+                try:
+                    new_user = User(
+                        name=(pending.get("name") or pending["email"].split("@")[0]).strip(),
+                        email=pending["email"],
+                        google_id=pending.get("google_id"),
+                        oauth_provider="google",
+                        profile_picture_url=pending.get("picture") or None,
+                        oauth_created_at=datetime.utcnow(),
+                        user_type=user_type
+                    )
+                    db.session.add(new_user)
+                    db.session.flush()
+
+                    if user_type == "3":
+                        institution = Institution.query.filter_by(name=institution_name).first()
+                        if not institution:
+                            institution = Institution(
+                                user_id=new_user.id,
+                                name=institution_name,
+                                contact_person=new_user.name,
+                                contact_email=new_user.email,
+                                status="active"
+                            )
+                            db.session.add(institution)
+                            db.session.flush()
+                        new_user.institution_id = institution.id
+
+                    db.session.commit()
+                    print(f"✅ Verified signup complete - new {user_type} account id={new_user.id}")
+                except Exception as e:
+                    db.session.rollback()
+                    app.logger.error(f"Pending signup account creation failed: {e}")
+                    flash("Could not create your account. Please try again.", "error")
+                    return redirect(url_for("select_user_type"))
+
+                # Welcome email (non-blocking)
+                try:
+                    send_welcome_email(new_user.email, new_user.name, signup_method="oauth")
+                except Exception as e:
+                    print(f"⚠️ Welcome email failed but signup successful: {e}")
+
+                # Log the user in
+                session.permanent = True
+                session["email"] = new_user.email
+                session["user_id"] = new_user.id
+                session["user_type"] = user_type
+                session["user_name"] = new_user.name
+                session["oauth_user"] = True
+
+                for key in ("pending_google", "otp_verified"):
+                    session.pop(key, None)
+
+                flash("Your account has been created and your email verified!", "success")
+
+                if user_type == "1":
+                    flash("Welcome! Please complete your mentor profile to continue.", "info")
+                    return redirect(url_for("editmentorprofile"))
+                elif user_type == "2":
+                    flash("Welcome! Please complete your mentee profile to continue.", "info")
+                    return redirect(url_for("editmenteeprofile"))
+                elif user_type == "0":
+                    flash("Welcome! Please complete your supervisor profile to continue.", "info")
+                    return redirect(url_for("editsupervisorprofile"))
+                elif user_type == "3":
+                    flash("Welcome! Please complete your institution profile to continue.", "info")
+                    return redirect(url_for("editinstitutionprofile"))
+
+            # GET — show the role selection page for a verified pending signup
+            return render_template(
+                "auth/select_user_type.html",
+                user={"name": pending.get("name") or "", "email": pending["email"]},
+                pending=True
+            )
+
     if "email" not in session:
         print("❌ No email in session - redirecting to signin")
         return redirect(url_for("signin"))
@@ -2393,6 +2595,42 @@ def menteedashboard():
             if req.mentor and req.mentor.mentor_profile:
                 my_mentors.append(req.mentor.mentor_profile)
 
+        spotlight_tasks = []
+        master_active = MenteeTask.query.filter(
+            MenteeTask.mentee_id == user.id,
+            MenteeTask.status.in_(["pending", "in-progress"])
+        ).order_by(MenteeTask.meeting_number.asc()).all()
+        for t in master_active:
+            spotlight_tasks.append({
+                "id": t.id,
+                "type": "master",
+                "serial": t.meeting_number,
+                "title": (t.master_task.journey_phase if t.master_task else "Mentorship Task"),
+                "detail": (t.master_task.purpose_of_call if t.master_task else ""),
+                "status": t.status,
+                "progress": t.progress or 0,
+                "due_date": t.due_date
+            })
+
+        personal_active = PersonalTask.query.filter(
+            PersonalTask.mentee_id == user.id,
+            PersonalTask.status.in_(["pending", "in-progress"])
+        ).order_by(PersonalTask.created_date.desc()).all()
+        for t in personal_active:
+            spotlight_tasks.append({
+                "id": t.id,
+                "type": "personal",
+                "serial": None,
+                "title": t.title,
+                "detail": (t.description or ""),
+                "status": t.status,
+                "progress": t.progress or 0,
+                "due_date": t.due_date
+            })
+
+        today = datetime.utcnow().date()
+        spotlight_tasks.sort(key=lambda x: 0 if (x["due_date"] and x["due_date"].date() < today) else 1)
+
         return render_template(
             "mentee/menteedashboard.html",
             all_mentors=all_mentors,
@@ -2405,7 +2643,9 @@ def menteedashboard():
             profile_complete=profile_complete,
             career_goal=career_goal,
             parent_consent_status=parent_consent_status,
-            parent_email=parent_email
+            parent_email=parent_email,
+            spotlight_tasks=spotlight_tasks,
+            today_date=today
         )
 
     return redirect(url_for("signin"))
@@ -7625,68 +7865,111 @@ def create_meeting_ajax():
     start_str = start_datetime.isoformat()
     end_str = end_datetime.isoformat()
 
+    platform = (data.get("platform") or "google").strip().lower()
+    if platform not in ("google", "teams"):
+        platform = "google"
+
     meet_link = None
     gcal_event_id = None
     calendar_warning = None
+    calendar_add_link = None
+    teams_calendar_link = None
 
-    service = get_calendar_service()
-    if service:
-        try:
-            event = {
-                "summary": title,
-                "description": f"Meeting created by {mentee.name} ({mentee.email}) in {timezone} timezone",
-                "start": {"dateTime": start_str, "timeZone": timezone},
-                "end": {"dateTime": end_str, "timeZone": timezone},
-                "attendees": [
-                    {"email": mentee.email},
-                    {"email": mentor.email}
-                ],
-                "reminders": {
-                    "useDefault": False,
-                    "overrides": [
-                        {"method": "email", "minutes": 60},
-                        {"method": "popup", "minutes": 10}
-                    ]
-                },
-                "guestsCanSeeOtherGuests": True,
-                "guestsCanInviteOthers": False,
-                "guestsCanModify": False,
-                "conferenceData": {
-                    "createRequest": {
-                        "conferenceSolutionKey": {"type": "hangoutsMeet"},
-                        "requestId": f"meet-{int(dt.datetime.utcnow().timestamp())}"
+    if platform == "google":
+        service = get_calendar_service()
+        if service:
+            try:
+                event = {
+                    "summary": title,
+                    "description": f"Meeting created by {mentee.name} ({mentee.email}) in {timezone} timezone",
+                    "start": {"dateTime": start_str, "timeZone": timezone},
+                    "end": {"dateTime": end_str, "timeZone": timezone},
+                    "attendees": [
+                        {"email": mentee.email},
+                        {"email": mentor.email}
+                    ],
+                    "reminders": {
+                        "useDefault": False,
+                        "overrides": [
+                            {"method": "email", "minutes": 60},
+                            {"method": "popup", "minutes": 10}
+                        ]
+                    },
+                    "guestsCanSeeOtherGuests": True,
+                    "guestsCanInviteOthers": False,
+                    "guestsCanModify": False,
+                    "conferenceData": {
+                        "createRequest": {
+                            "conferenceSolutionKey": {"type": "hangoutsMeet"},
+                            "requestId": f"meet-{int(dt.datetime.utcnow().timestamp())}"
+                        }
                     }
                 }
-            }
 
-            event = service.events().insert(
-                calendarId=CALENDAR_ID,
-                body=event,
-                conferenceDataVersion=1,
-                sendUpdates="all"
-            ).execute()
+                event = service.events().insert(
+                    calendarId=CALENDAR_ID,
+                    body=event,
+                    conferenceDataVersion=1,
+                    sendUpdates="all"
+                ).execute()
 
-            meet_link = event.get("hangoutLink")
-            gcal_event_id = event.get("id")
-        except Exception as e:
-            app.logger.error(f"Google Calendar event creation failed: {e}")
-            calendar_warning = ("Meeting request saved, but the Google Meet link could "
-                                "not be generated due to a calendar integration error.")
+                meet_link = event.get("hangoutLink")
+                gcal_event_id = event.get("id")
+            except Exception as e:
+                app.logger.error(f"Google Calendar event creation failed: {e}")
+                calendar_warning = ("Meeting request saved, but the Google Meet link could "
+                                    "not be generated due to a calendar integration error.")
+        else:
+            calendar_warning = ("Meeting request saved without a Google Meet link because "
+                                "calendar integration is not configured.")
+
+        calendar_add_link = (
+            "https://calendar.google.com/calendar/render?"
+            + urlencode({
+                "action": "TEMPLATE",
+                "text": title,
+                "dates": f"{start_datetime.strftime('%Y%m%dT%H%M%S')}/{end_datetime.strftime('%Y%m%dT%H%M%S')}",
+                "details": f"Mentorship meeting scheduled via Mentor Connect. Mentee: {mentee.email} | Mentor: {mentor.email}",
+                "add": f"{mentee.email},{mentor.email}",
+                "ctz": timezone,
+            })
+        )
     else:
-        calendar_warning = ("Meeting request saved without a Google Meet link because "
-                            "calendar integration is not configured.")
+        tzobj = dt.timezone.utc
+        try:
+            from zoneinfo import ZoneInfo
+            try:
+                tzobj = ZoneInfo(timezone)
+            except Exception:
+                tzobj = dt.timezone.utc
+        except ImportError:
+            tzobj = dt.timezone.utc
 
-    calendar_add_link = (
-        "https://calendar.google.com/calendar/render?"
-        + urlencode({
-            "action": "TEMPLATE",
-            "text": title,
-            "dates": f"{start_datetime.strftime('%Y%m%dT%H%M%S')}/{end_datetime.strftime('%Y%m%dT%H%M%S')}",
-            "details": f"Mentorship meeting scheduled via Mentor Connect. Mentee: {mentee.email} | Mentor: {mentor.email}",
-            "add": f"{mentee.email},{mentor.email}",
-            "ctz": timezone,
-        })
-    )
+        start_utc = start_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
+        end_utc = end_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
+
+        teams_body = (
+            "Mentorship meeting scheduled via Mentor Connect.\n\n"
+            f"Mentee: {mentee.email}\n"
+            f"Mentor: {mentor.email}\n"
+            f"Original timezone: {timezone}\n\n"
+            "Turn on the Teams meeting toggle in Outlook and send the invite "
+            "to generate your Microsoft Teams join link."
+        )
+
+        teams_calendar_link = (
+            "https://outlook.office.com/calendar/0/deeplink/compose?"
+            + urlencode({
+                "path": "/calendar/action/compose",
+                "rru": "addevent",
+                "subject": title,
+                "startdt": start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "enddt": end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "to": f"{mentee.email};{mentor.email}",
+                "body": teams_body,
+                "location": "Microsoft Teams Meeting",
+            })
+        )
 
     try:
         meeting = MeetingRequest(
@@ -7712,6 +7995,8 @@ def create_meeting_ajax():
         "message": "Meeting Created ✅",
         "meet_link": meet_link,
         "calendar_add_link": calendar_add_link,
+        "teams_calendar_link": teams_calendar_link,
+        "platform": platform,
         "title": title,
         "start": start_str,
         "end": end_str,
