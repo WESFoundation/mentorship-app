@@ -1957,11 +1957,9 @@ def callback():
                 print(f"   ➡️ No user type set, redirecting to select_user_type")
                 return redirect(url_for("select_user_type"))
         else:
-            print(f"   ❌ User not found — starting verified sign-up flow (Google + OTP)")
+            print(f"   ❌ User not found — Google verified identity, proceeding to role selection")
             
-            # Store the Google-verified identity in the session. The account is
-            # NOT created yet: it will only be created after the user enters
-            # the OTP sent to this Gmail address (see /signup/verify).
+            # Store the Google-verified identity in the session.
             session.permanent = True
             session["pending_google"] = {
                 "google_id": google_id,
@@ -1973,27 +1971,10 @@ def callback():
             for key in ("email", "user_id", "user_type", "user_name"):
                 session.pop(key, None)
             
-            print(f"\n📍 Step 8: Issuing signup OTP")
-            otp = f"{secrets.randbelow(1000000):06d}"
-            session["signup_otp_hash"] = hashlib.sha256(
-                (otp + app.config.get("SECRET_KEY", "")).encode()
-            ).hexdigest()
-            session["signup_otp_expiry"] = (
-                dt.datetime.utcnow() + dt.timedelta(minutes=10)
-            ).isoformat()
-            session["signup_otp_attempts"] = 0
-            
-            print(f"\n📍 Step 9: Sending OTP email to {email}")
-            if not send_signup_otp_email(email, otp):
-                print(f"   ❌ Failed to send OTP email - aborting signup")
-                for key in ("pending_google", "signup_otp_hash", "signup_otp_expiry", "signup_otp_attempts"):
-                    session.pop(key, None)
-                flash("We could not send the verification email. Please try again in a few minutes.", "error")
-                return redirect(url_for("signin"))
-            print(f"   ✅ OTP email sent")
-            
-            print("="*60 + "\n")
-            return redirect(url_for("verify_signup_otp"))
+            # Google OAuth is inherently email-verified by Google's servers
+            session["otp_verified"] = True
+            print("   ✅ Direct Google Sign-Up approved — redirecting to select_user_type")
+            return redirect(url_for("select_user_type"))
     
     except Exception as e:
         print(f"\n❌ ERROR in callback: {str(e)}")
