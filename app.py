@@ -1219,7 +1219,7 @@ class ChatMessage(db.Model):
 class ResourceNote(db.Model):
     """
     Notes written by the mentee in the Resources Hub.
-    A mentee can call/tag a mentor on a note.
+    A mentee can call/tag a mentor and tag their institution on a note.
     """
     __tablename__ = "resource_notes"
 
@@ -1231,6 +1231,9 @@ class ResourceNote(db.Model):
     # Called/tagged mentor
     mentor_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=True)
 
+    # Tagged institution
+    institution_id = db.Column(db.Integer, db.ForeignKey("institutions.id"), nullable=True)
+
     title = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text, nullable=False)
 
@@ -1241,6 +1244,7 @@ class ResourceNote(db.Model):
     # Relationships
     mentee = db.relationship("User", foreign_keys=[mentee_id], backref="note_about_me")
     mentor = db.relationship("User", foreign_keys=[mentor_id], backref="tagged_notes")
+    institution = db.relationship("Institution", foreign_keys=[institution_id], backref="tagged_notes")
 
     def __repr__(self):
         return f"<ResourceNote {self.id}: {self.title}>"
@@ -9500,6 +9504,12 @@ def resources_hub():
             ResourceNote.mentee_id == user.id
         ).order_by(ResourceNote.updated_at.desc()).all()
         tag_options = get_mentor_options_for_mentee(user)
+        # Add mentee's institution as tag option if they have one
+        institution_options = []
+        if user.institution_id:
+            inst = Institution.query.get(user.institution_id)
+            if inst:
+                institution_options = [{"id": inst.id, "name": inst.name}]
 
     elif user_type == "1":
         # Mentor: notes calling them, or notes about their mentees
@@ -9534,6 +9544,7 @@ def resources_hub():
         "resources_hub.html",
         notes=notes,
         tag_options=tag_options,
+        institution_options=institution_options if 'institution_options' in locals() else [],
         user_type=user_type,
         can_write=user_type in ("2", "3"),
         current_user=user,
@@ -9559,6 +9570,7 @@ def create_note():
     title = (request.form.get("title") or "").strip()
     content = (request.form.get("content") or "").strip()
     mentor_id = request.form.get("mentor_id") or request.form.get("tag_mentor_id")
+    institution_id = request.form.get("institution_id")
 
     if not title:
         return jsonify({"error": "Note title is required."}), 400
@@ -9571,9 +9583,18 @@ def create_note():
         if not mentor or mentor.user_type != "1":
             return jsonify({"error": "Selected mentor is not valid."}), 400
 
+    institution = None
+    if institution_id:
+        institution = Institution.query.get(int(institution_id))
+        if not institution:
+            return jsonify({"error": "Selected institution is not valid."}), 400
+        if user.institution_id != institution.id:
+            return jsonify({"error": "You can only tag your own institution."}), 403
+
     note = ResourceNote(
         mentee_id=user.id,
         mentor_id=mentor.id if mentor else None,
+        institution_id=institution.id if institution else None,
         title=title,
         content=content
     )
@@ -9583,6 +9604,8 @@ def create_note():
     message = "Note saved."
     if mentor:
         message = f"Note saved. {mentor.name} has been called/tagged."
+    if institution:
+        message += f" Institution {institution.name} tagged."
 
     return jsonify({"success": True, "message": message})
 
@@ -9604,6 +9627,7 @@ def update_note(note_id):
     title = (request.form.get("title") or "").strip()
     content = (request.form.get("content") or "").strip()
     mentor_id = request.form.get("mentor_id")
+    institution_id = request.form.get("institution_id")
 
     if not title:
         return jsonify({"error": "Note title is required."}), 400
@@ -9620,6 +9644,17 @@ def update_note(note_id):
         note.mentor_id = mentor.id
     else:
         note.mentor_id = None
+
+    institution = None
+    if institution_id:
+        institution = Institution.query.get(int(institution_id))
+        if not institution:
+            return jsonify({"error": "Selected institution is not valid."}), 400
+        if user.institution_id != institution.id:
+            return jsonify({"error": "You can only tag your own institution."}), 403
+        note.institution_id = institution.id
+    elif institution_id == "":
+        note.institution_id = None
 
     note.title = title
     note.content = content

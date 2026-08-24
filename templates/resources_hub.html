@@ -107,6 +107,12 @@
             Called: {{ note.mentor.name }}
           </span>
           {% endif %}
+          {% if note.institution %}
+          <span class="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+            Institution: {{ note.institution.name }}
+          </span>
+          {% endif %}
         </div>
       </div>
       {% endfor %}
@@ -180,6 +186,24 @@
           The selected mentor will be called and can view this note.
         </p>
       </div>
+      {% if institution_options %}
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5 flex items-center gap-2">
+          Tag your institution
+          <span class="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">optional</span>
+        </label>
+        <select id="noteInstitution" name="institution_id" class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white">
+          <option value="">Don't tag institution</option>
+          {% for inst in institution_options %}
+          <option value="{{ inst.id }}">{{ inst.name }}</option>
+          {% endfor %}
+        </select>
+        <p class="mt-2 text-xs text-emerald-600 font-semibold flex items-center gap-1">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+          Tag your active institution to associate this note with your program.
+        </p>
+      </div>
+      {% endif %}
       {% endif %}
 
       <div class="flex justify-end gap-3 pt-2">
@@ -233,6 +257,7 @@
         'content': note.content,
         'author_name': note.mentee.name if note.mentee else 'Unknown',
         'mentor_name': note.mentor.name if note.mentor else None,
+        'institution_name': note.institution.name if note.institution else None,
         'date': (note.updated_at or note.created_at).strftime('%b %d, %Y') if (note.updated_at or note.created_at) else ''
       }|to_json|safe
     }}{% if not loop.last %},{% endif %}
@@ -250,9 +275,16 @@
       (n.author_name ? n.author_name[0].toUpperCase() : '?') + '</div>' +
       '<div><p class="text-sm font-semibold text-slate-800">' + (n.author_name || '') + '</p>' +
       '<p class="text-xs text-slate-400">' + (n.date || '') + '</p></div>';
-    const mentorHtml = n.mentor_name
-      ? '<div class="flex items-center gap-2 text-sm text-purple-700"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span></span><span class="font-semibold">Called mentor:</span> ' + n.mentor_name + '</div>'
-      : '<p class="text-xs text-slate-400">No mentor was called for this note.</p>';
+    let mentorHtml = '';
+    if (n.mentor_name) {
+      mentorHtml += '<div class="flex items-center gap-2 text-sm text-purple-700 mb-2"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span></span><span class="font-semibold">Called mentor:</span> ' + n.mentor_name + '</div>';
+    }
+    if (n.institution_name) {
+      mentorHtml += '<div class="flex items-center gap-2 text-sm text-emerald-700"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg><span class="font-semibold">Institution:</span> ' + n.institution_name + '</div>';
+    }
+    if (!mentorHtml) {
+      mentorHtml = '<p class="text-xs text-slate-400">No mentor or institution was tagged for this note.</p>';
+    }
     document.getElementById('viewNoteMentor').innerHTML = mentorHtml;
     document.getElementById('viewModal').classList.remove('hidden');
   }
@@ -280,11 +312,21 @@
         const hint = document.getElementById('callHint');
         if (hint) hint.classList.toggle('hidden', !sel.value);
       }
+      const instSel = document.getElementById('noteInstitution');
+      if (instSel) {
+        const instName = notesStore[id].institution_name;
+        instSel.value = '';
+        for (const opt of instSel.options) {
+          if (instName && opt.text.includes(instName)) { instSel.value = opt.value; break; }
+        }
+      }
     } else {
       document.getElementById('noteModalTitle').textContent = 'Add a Note';
       noteForm.reset();
       const hint = document.getElementById('callHint');
       if (hint) hint.classList.add('hidden');
+      const instSel = document.getElementById('noteInstitution');
+      if (instSel) instSel.value = '';
     }
     document.getElementById('noteModal').classList.remove('hidden');
   }
