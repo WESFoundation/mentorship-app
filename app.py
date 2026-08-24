@@ -1545,15 +1545,11 @@ def home():
 #--------------SIGNUP----------------
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
-    """Account creation is Google-only: every signup entry point starts the
-    Google OAuth flow so accounts are always tied to a verified Google identity.
-    Manual email/password registration is disabled."""
+    """Account creation page: renders the signup page featuring Google Sign-Up."""
     if request.method == "POST":
-        flash("Account creation is only available through Google sign-up.", "info")
         return redirect(url_for("google_login"))
 
-    # GET → jump straight into the Google OAuth signup/login flow
-    return redirect(url_for("google_login"))
+    return render_template("auth/signup.html")
 
 #--------------SIGNIN----------------
 @app.route("/signin", methods=["GET", "POST"])

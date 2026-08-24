@@ -2,446 +2,77 @@
 {% block title %}Sign Up{% endblock %}
 {% block content %}
 
-<section class="min-h-[calc(100vh-80px)] bg-white flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-    <div class="w-full max-w-lg">
-        <div class="bg-white p-8 sm:p-10 rounded-2xl shadow-md border border-gray-100">
+<section class="min-h-[calc(100vh-80px)] bg-gradient-to-b from-slate-50 to-slate-100/50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="w-full max-w-md">
+        <!-- Card -->
+        <div class="bg-white p-8 sm:p-10 rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-100 transition-all duration-300">
+            <!-- Header Icon & Title -->
             <div class="text-center mb-8">
-                <h2 class="text-3xl font-bold text-gray-900 tracking-tight">Create Account</h2>
-                <p class="mt-2 text-sm text-gray-600">Join our community today</p>
+                <div class="mx-auto w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-inner ring-4 ring-blue-50/50">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                            d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                    </svg>
+                </div>
+                <h2 class="text-3xl font-bold text-slate-900 tracking-tight">Create Account</h2>
+                <p class="mt-2 text-sm text-slate-500 max-w-xs mx-auto">
+                    Join Mentor Connect today with your verified Google account
+                </p>
             </div>
 
             <!-- Display Flash Messages -->
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             {% for category, message in messages %}
-            <div class="mb-6 p-4 rounded-lg {% if category == 'error' %}bg-red-50 text-red-800 border border-red-200{% else %}bg-green-50 text-green-800 border border-green-200{% endif %}">
-                {{ message }}
+            <div class="mb-6 p-4 rounded-xl text-sm font-medium {% if category == 'error' %}bg-rose-50 text-rose-800 border border-rose-200{% else %}bg-emerald-50 text-emerald-800 border border-emerald-200{% endif %} flex items-center gap-3">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{{ message }}</span>
             </div>
             {% endfor %}
             {% endif %}
             {% endwith %}
 
-            <form id="signup-form" class="space-y-5" method="POST" action="/signup" onsubmit="return validateSignupForm()">
-
-                <!-- Name -->
-                <div>
-                    <label for="signup-name" class="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-                    <input type="text" id="signup-name" name="name" placeholder="Enter your full name"
-                        class="w-full px-4 py-3 border border-gray-200 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                        required minlength="2" maxlength="50" pattern="[A-Za-z\s]{2,50}"
-                        title="Name should be 2-50 characters long and contain only letters and spaces">
-                    <div id="name-error" class="text-red-600 text-xs mt-1 hidden bg-red-50 p-2 rounded">
-                        Please enter a valid name
-                    </div>
+            <!-- Single Option: Google Sign Up Button -->
+            <div class="space-y-6">
+                <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 mb-2">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                        Secure Verification
+                    </span>
+                    <p class="text-xs text-slate-500">
+                        Account creation is available exclusively via Google to ensure verified profile identities.
+                    </p>
                 </div>
 
-                <!-- Email -->
-                <div>
-                    <label for="signup-email" class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-                    <input type="email" id="signup-email" name="email" placeholder="Enter your email"
-                        class="w-full px-4 py-3 border border-gray-200 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                        required>
-                    <div id="email-error" class="text-red-600 text-xs mt-1 hidden bg-red-50 p-2 rounded">
-                        Please enter a valid email address
-                    </div>
-                </div>
+                <a href="{{ url_for('google_login') }}"
+                    class="w-full flex items-center justify-center gap-3 px-6 py-4 border-2 border-slate-200 rounded-2xl shadow-sm text-base font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 hover:shadow-md transition-all duration-200 active:scale-[0.99] group">
+                    <svg class="h-6 w-6 transition-transform group-hover:scale-110" viewBox="0 0 24 24">
+                        <path fill="#4285F4"
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                        <path fill="#34A853"
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                        <path fill="#FBBC05"
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                        <path fill="#EA4335"
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                    </svg>
+                    <span>Sign up with Google</span>
+                </a>
+            </div>
 
-                <!-- User Type -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-3">I am a:</label>
-                    <div class="grid grid-cols-2 gap-4">
-                        <label class="user-type-option relative flex flex-col items-center justify-center p-4 rounded-lg cursor-pointer border-2 border-gray-200 bg-white hover:border-blue-500 hover:bg-blue-50 transition-all">
-                            <input type="radio" name="user-type" value="1" class="absolute opacity-0 inset-0 cursor-pointer">
-                            <div class="icon-circle w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 mb-2 transition-colors pointer-events-none">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                </svg>
-                            </div>
-                            <span class="text-gray-900 font-medium pointer-events-none">Mentor</span>
-                        </label>
-
-                        <label class="user-type-option relative flex flex-col items-center justify-center p-4 rounded-lg cursor-pointer border-2 border-gray-200 bg-white hover:border-blue-500 hover:bg-blue-50 transition-all">
-                            <input type="radio" name="user-type" value="2" class="absolute opacity-0 inset-0 cursor-pointer">
-                            <div class="icon-circle w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 mb-2 transition-colors pointer-events-none">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M12 6.253v13m0-13C6.5 6.253 2 10.998 2 17s4.5 10.747 10 10.747c5.5 0 10-4.998 10-10.747S17.5 6.253 12 6.253z" />
-                                </svg>
-                            </div>
-                            <span class="text-gray-900 font-medium pointer-events-none">Mentee</span>
-                        </label>
-                    </div>
-                    <div id="user-type-error" class="text-red-600 text-xs mt-2 hidden bg-red-50 p-2 rounded">
-                        Please select your role
-                    </div>
-                </div>
-
-                <!-- Institution Field (Hidden) -->
-                <div class="form-group slide-down hidden" id="other_institution">
-                    <label for="other_institution_name" class="block text-sm font-medium text-gray-700 mb-2">
-                        Specify Your Institution
-                    </label>
-                    <input type="text" name="other_institution_name" id="other_institution_name"
-                        class="w-full px-4 py-3 border border-gray-200 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
-                </div>
-
-                <!-- Password -->
-                <div class="relative">
-                    <label for="signup-password" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                    <div class="relative">
-                        <input type="password" id="signup-password" name="password" placeholder="Create a password"
-                            class="w-full px-4 py-3 pr-10 border border-gray-200 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                            required>
-                        <button type="button" id="toggle-password"
-                            class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors">
-                            <svg id="eye-icon" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z">
-                                </path>
-                            </svg>
-                            <svg id="eye-slash-icon" class="h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21">
-                                </path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Real-time Password Requirements -->
-                    <div id="password-requirements" class="mt-3 space-y-2 hidden">
-                        <div id="req-length" class="flex items-center gap-2 text-sm">
-                            <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                            <span class="text-gray-600">At least 6 characters</span>
-                        </div>
-                        <div id="req-uppercase" class="flex items-center gap-2 text-sm">
-                            <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                            <span class="text-gray-600">One uppercase letter (A-Z)</span>
-                        </div>
-                        <div id="req-lowercase" class="flex items-center gap-2 text-sm">
-                            <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                            <span class="text-gray-600">One lowercase letter (a-z)</span>
-                        </div>
-                        <div id="req-number" class="flex items-center gap-2 text-sm">
-                            <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                            <span class="text-gray-600">One number (0-9)</span>
-                        </div>
-                        <div id="req-special" class="flex items-center gap-2 text-sm">
-                            <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                            <span class="text-gray-600">One special character (@$!%*?&)</span>
-                        </div>
-                    </div>
-                    <div id="password-error" class="text-red-600 text-xs mt-1 hidden bg-red-50 p-2 rounded"></div>
-                </div>
-
-                <!-- Password Requirements Popup -->
-                <div id="password-popup" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-                    <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 border border-gray-200">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-lg font-bold text-gray-900">Password Requirements</h3>
-                            <button type="button" id="close-popup" class="text-gray-400 hover:text-gray-600 transition-colors">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                </svg>
-                            </button>
-                        </div>
-                        <ul class="space-y-3 text-sm text-gray-600 mb-6">
-                            <li id="popup-req-length" class="flex items-center gap-3">
-                                <svg class="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                </svg>
-                                At least 6 characters
-                            </li>
-                            <li id="popup-req-uppercase" class="flex items-center gap-3">
-                                <svg class="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                </svg>
-                                One uppercase letter
-                            </li>
-                            <li id="popup-req-lowercase" class="flex items-center gap-3">
-                                <svg class="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                </svg>
-                                One lowercase letter
-                            </li>
-                            <li id="popup-req-number" class="flex items-center gap-3">
-                                <svg class="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                </svg>
-                                One number
-                            </li>
-                            <li id="popup-req-special" class="flex items-center gap-3">
-                                <svg class="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                </svg>
-                                One special character
-                            </li>
-                        </ul>
-                        <button type="button" id="understand-btn" 
-                            class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-all">
-                            Got it
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Confirm Password -->
-                <div class="relative">
-                    <label for="signup-confirm-password" class="block text-sm font-medium text-gray-700 mb-2">
-                        Confirm Password
-                    </label>
-                    <div class="relative">
-                        <input type="password" id="signup-confirm-password" name="confirm-password"
-                            placeholder="Confirm your password"
-                            class="w-full px-4 py-3 pr-10 border border-gray-200 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                            required>
-                        <button type="button" id="toggle-confirm-password"
-                            class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors">
-                            <svg id="eye-icon-confirm" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z">
-                                </path>
-                            </svg>
-                            <svg id="eye-slash-icon-confirm" class="h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21">
-                                </path>
-                            </svg>
-                        </button>
-                    </div>
-                    <div id="confirm-password-error" class="text-red-600 text-xs mt-1 hidden bg-red-50 p-2 rounded">
-                        Passwords do not match
-                    </div>
-                </div>
-
-                <!-- Terms -->
-                <div class="flex items-start">
-                    <div class="flex items-center h-5">
-                        <input type="checkbox" id="terms" name="terms"
-                            class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" required>
-                    </div>
-                    <div class="ml-3 text-sm">
-                        <label for="terms" class="font-medium text-gray-700">
-                            I agree to the <a href="#" class="text-blue-600 hover:text-blue-700 underline">Terms and Conditions</a>
-                        </label>
-                        <div id="terms-error" class="text-red-600 text-xs mt-1 hidden">required</div>
-                    </div>
-                </div>
-
-                <button type="submit" id="signup-button"
-                    class="w-full py-3 px-4 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2">
-                    Create Account
-                </button>
-            </form>
-
-            <div class="mt-8 text-center text-sm text-gray-600">
+            <!-- Footer Link -->
+            <div class="mt-8 text-center text-sm text-slate-500 border-t border-slate-100 pt-6">
                 Already have an account?
-                <a href="{{ url_for('signin') }}" class="font-semibold text-blue-600 hover:text-blue-700 transition-colors">Sign in</a>
+                <a href="{{ url_for('signin') }}" class="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors ml-1">
+                    Sign in
+                </a>
             </div>
         </div>
     </div>
 </section>
-
-<!-- Include Javascript Logic -->
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const passwordInput = document.getElementById('signup-password');
-        const confirmPasswordInput = document.getElementById('signup-confirm-password');
-        const passwordPopup = document.getElementById('password-popup');
-        const closePopup = document.getElementById('close-popup');
-        const understandBtn = document.getElementById('understand-btn');
-        let popupShown = false;
-
-        // Handle user type selection visual feedback
-        const userTypeOptions = document.querySelectorAll('.user-type-option');
-        userTypeOptions.forEach(option => {
-            const radio = option.querySelector('input[type="radio"]');
-            const iconCircle = option.querySelector('.icon-circle');
-            
-            radio.addEventListener('change', function() {
-                // Reset all options
-                userTypeOptions.forEach(opt => {
-                    opt.classList.remove('border-blue-500', 'bg-blue-50');
-                    opt.classList.add('border-gray-200', 'bg-white');
-                    const circle = opt.querySelector('.icon-circle');
-                    circle.classList.remove('bg-blue-500', 'text-white');
-                    circle.classList.add('bg-gray-100', 'text-gray-600');
-                });
-                
-                // Highlight selected option
-                if (this.checked) {
-                    option.classList.remove('border-gray-200', 'bg-white');
-                    option.classList.add('border-blue-500', 'bg-blue-50');
-                    iconCircle.classList.remove('bg-gray-100', 'text-gray-600');
-                    iconCircle.classList.add('bg-blue-500', 'text-white');
-                }
-            });
-        });
-
-        passwordInput.addEventListener('focus', function () {
-            document.getElementById('password-requirements').classList.remove('hidden');
-        });
-
-        passwordInput.addEventListener('blur', function () {
-            if (passwordInput.value === '') {
-                document.getElementById('password-requirements').classList.add('hidden');
-            }
-        });
-
-        function setupPasswordToggle(input, toggleBtn, eyeIcon, eyeSlashIcon) {
-            toggleBtn.addEventListener('click', function () {
-                const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
-                input.setAttribute('type', type);
-                eyeIcon.classList.toggle('hidden');
-                eyeSlashIcon.classList.toggle('hidden');
-            });
-        }
-
-        setupPasswordToggle(passwordInput, document.getElementById('toggle-password'), document.getElementById('eye-icon'), document.getElementById('eye-slash-icon'));
-        setupPasswordToggle(confirmPasswordInput, document.getElementById('toggle-confirm-password'), document.getElementById('eye-icon-confirm'), document.getElementById('eye-slash-icon-confirm'));
-
-        passwordInput.addEventListener('input', function () {
-            validatePassword();
-            updatePasswordRequirements(passwordInput.value);
-        });
-
-        confirmPasswordInput.addEventListener('input', validateConfirmPassword);
-
-        function showPasswordPopup() {
-            passwordPopup.classList.remove('hidden');
-            updatePopupRequirements(passwordInput.value);
-        }
-        
-        function hidePasswordPopup() {
-            passwordPopup.classList.add('hidden');
-            passwordInput.focus();
-        }
-        
-        if (closePopup) closePopup.addEventListener('click', hidePasswordPopup);
-        if (understandBtn) understandBtn.addEventListener('click', hidePasswordPopup);
-
-        function updatePasswordRequirements(password) {
-            const requirements = {
-                'req-length': password.length >= 6,
-                'req-uppercase': /(?=.*[A-Z])/.test(password),
-                'req-lowercase': /(?=.*[a-z])/.test(password),
-                'req-number': /(?=.*\d)/.test(password),
-                'req-special': /(?=.*[@$!%*?&])/.test(password)
-            };
-
-            for (const [id, passed] of Object.entries(requirements)) {
-                const el = document.getElementById(id);
-                const icon = el.querySelector('svg');
-                const span = el.querySelector('span');
-                
-                if (passed) {
-                    icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>';
-                    icon.classList.remove('text-gray-300');
-                    icon.classList.add('text-green-500');
-                    span.classList.remove('text-gray-600');
-                    span.classList.add('text-green-600', 'font-medium');
-                } else {
-                    icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>';
-                    icon.classList.remove('text-green-500');
-                    icon.classList.add('text-gray-300');
-                    span.classList.remove('text-green-600', 'font-medium');
-                    span.classList.add('text-gray-600');
-                }
-            }
-        }
-
-        function updatePopupRequirements(password) {
-            const rules = {
-                'popup-req-length': password.length >= 6,
-                'popup-req-uppercase': /(?=.*[A-Z])/.test(password),
-                'popup-req-lowercase': /(?=.*[a-z])/.test(password),
-                'popup-req-number': /(?=.*\d)/.test(password),
-                'popup-req-special': /(?=.*[@$!%*?&])/.test(password)
-            };
-
-            for (const [id, passed] of Object.entries(rules)) {
-                const el = document.getElementById(id);
-                const icon = el.querySelector('svg');
-                if (passed) {
-                    icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>';
-                    icon.classList.remove('text-gray-300');
-                    icon.classList.add('text-green-500');
-                } else {
-                    icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>';
-                    icon.classList.remove('text-green-500');
-                    icon.classList.add('text-gray-300');
-                }
-            }
-        }
-
-        function validatePassword() {
-            const password = passwordInput.value;
-            let isValid = true;
-
-            if (password.length < 6) isValid = false;
-            else if (!/(?=.*[A-Z])/.test(password)) isValid = false;
-            else if (!/(?=.*[a-z])/.test(password)) isValid = false;
-            else if (!/(?=.*\d)/.test(password)) isValid = false;
-            else if (!/(?=.*[@$!%*?&])/.test(password)) isValid = false;
-
-            const errorEl = document.getElementById('password-error');
-            if (!isValid && password.length > 0) {
-                errorEl.textContent = "Checking requirements...";
-                errorEl.classList.remove('hidden');
-                passwordInput.classList.add('border-red-400');
-            } else {
-                errorEl.classList.add('hidden');
-                passwordInput.classList.remove('border-red-400');
-            }
-            validateConfirmPassword();
-            return isValid;
-        }
-
-        function validateConfirmPassword() {
-            const p1 = passwordInput.value;
-            const p2 = confirmPasswordInput.value;
-            const err = document.getElementById('confirm-password-error');
-            if (p2 && p1 !== p2) {
-                err.classList.remove('hidden');
-                confirmPasswordInput.classList.add('border-red-400');
-                return false;
-            } else {
-                err.classList.add('hidden');
-                confirmPasswordInput.classList.remove('border-red-400');
-                return true;
-            }
-        }
-
-        window.validateSignupForm = function () {
-            const isPw = validatePassword();
-            const isCp = validateConfirmPassword();
-            const ut = document.querySelector('input[name="user-type"]:checked');
-            document.getElementById('user-type-error').classList.toggle('hidden', !!ut);
-
-            const terms = document.getElementById('terms').checked;
-            document.getElementById('terms-error').classList.toggle('hidden', !!terms);
-
-            if (!isPw && !popupShown) {
-                showPasswordPopup();
-                popupShown = true;
-                return false;
-            }
-            return isPw && isCp && !!ut && !!terms;
-        };
-    });
-</script>
 
 {% endblock %}
