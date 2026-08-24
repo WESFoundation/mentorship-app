@@ -256,12 +256,21 @@ if PRODUCTION:
     # Production settings - HTTPS required
     # Remove OAUTHLIB_INSECURE_TRANSPORT in production
     CLIENT_SECRETS_FILE = "client_secret.json"
-    REDIRECT_URI = "https://mentorship.weslux.lu/callback"
+    REDIRECT_URI = os.environ.get("REDIRECT_URI", "https://mentorship.weslux.lu/callback")
 else:
     # Development settings - HTTP allowed
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # ONLY for local dev (http)
     CLIENT_SECRETS_FILE = "client_secret.json"
-    REDIRECT_URI = "http://127.0.0.1:5000/callback"
+    REDIRECT_URI = os.environ.get("REDIRECT_URI", "http://127.0.0.1:5000/callback")
+
+def get_current_redirect_uri():
+    """Dynamically construct redirect URI matching the current host/domain"""
+    if os.environ.get("REDIRECT_URI"):
+        return os.environ.get("REDIRECT_URI")
+    try:
+        return url_for("callback", _external=True)
+    except Exception:
+        return REDIRECT_URI
 
 # Scopes for Google OAuth Login (user info only)
 LOGIN_SCOPES = [
@@ -1798,7 +1807,8 @@ def google_login():
             else:
                 return redirect(url_for("select_user_type"))
     
-    flow = get_google_flow(LOGIN_SCOPES, REDIRECT_URI)
+    redirect_uri = get_current_redirect_uri()
+    flow = get_google_flow(LOGIN_SCOPES, redirect_uri)
     authorization_url, state = flow.authorization_url(
         access_type='offline',
         include_granted_scopes='true',
@@ -1821,7 +1831,8 @@ def callback():
         print(f"   State: {state}")
         
         print(f"📍 Step 2: Creating Flow from client secrets or env vars")
-        flow = get_google_flow(LOGIN_SCOPES, REDIRECT_URI, state=state)
+        redirect_uri = get_current_redirect_uri()
+        flow = get_google_flow(LOGIN_SCOPES, redirect_uri, state=state)
         print(f"   ✅ Flow created")
         
         print(f"📍 Step 3: Getting authorization response")
