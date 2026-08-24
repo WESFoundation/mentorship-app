@@ -69,7 +69,10 @@ load_env_file()
 # Can be overridden via env var: PRODUCTION=false python app.py
 PRODUCTION = os.environ.get("PRODUCTION", "false").lower() in ("1", "true", "yes")
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 # Secret key - USE A STRONG RANDOM KEY IN PRODUCTION!
 # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
@@ -268,8 +271,17 @@ def get_current_redirect_uri():
     if os.environ.get("REDIRECT_URI"):
         return os.environ.get("REDIRECT_URI")
     try:
-        return url_for("callback", _external=True)
-    except Exception:
+        host = request.host.split(":")[0]  # strip port if present
+        # Google OAuth requires HTTPS scheme for all non-localhost domains
+        if host not in ("127.0.0.1", "localhost", "0.0.0.0"):
+            scheme = "https"
+        else:
+            scheme = request.headers.get("X-Forwarded-Proto", request.scheme)
+        uri = url_for("callback", _external=True, _scheme=scheme)
+        print(f"🔗 Dynamically generated Redirect URI: {uri}")
+        return uri
+    except Exception as e:
+        print(f"⚠️ Dynamic URI fallback used ({e}): {REDIRECT_URI}")
         return REDIRECT_URI
 
 # Scopes for Google OAuth Login (user info only)
