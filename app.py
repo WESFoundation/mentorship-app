@@ -2127,14 +2127,8 @@ def select_user_type():
         else:
             if request.method == "POST":
                 user_type = request.form.get("user_type")
-                institution_name = (request.form.get("institution_name") or "").strip()
-
-                if user_type not in ["0", "1", "2", "3"]:
-                    flash("Invalid role selected", "error")
-                    return redirect(url_for("select_user_type"))
-
-                if user_type == "3" and not institution_name:
-                    flash("Please enter your institution name.", "error")
+                if user_type not in ["1", "2"]:
+                    flash("Invalid role selected. Please choose Mentor or Mentee.", "error")
                     return redirect(url_for("select_user_type"))
 
                 # Final one-account-per-email guard (covers Gmail variants and
