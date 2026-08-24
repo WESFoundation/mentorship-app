@@ -69,7 +69,10 @@ load_env_file()
 # Can be overridden via env var: PRODUCTION=false python app.py
 PRODUCTION = os.environ.get("PRODUCTION", "false").lower() in ("1", "true", "yes")
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 # Secret key - USE A STRONG RANDOM KEY IN PRODUCTION!
 # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
@@ -256,12 +259,30 @@ if PRODUCTION:
     # Production settings - HTTPS required
     # Remove OAUTHLIB_INSECURE_TRANSPORT in production
     CLIENT_SECRETS_FILE = "client_secret.json"
-    REDIRECT_URI = "https://mentorship.weslux.lu/callback"
+    REDIRECT_URI = os.environ.get("REDIRECT_URI", "https://mentorship.weslux.lu/callback")
 else:
     # Development settings - HTTP allowed
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # ONLY for local dev (http)
     CLIENT_SECRETS_FILE = "client_secret.json"
-    REDIRECT_URI = "http://127.0.0.1:5000/callback"
+    REDIRECT_URI = os.environ.get("REDIRECT_URI", "http://127.0.0.1:5000/callback")
+
+def get_current_redirect_uri():
+    """Dynamically construct redirect URI matching the current host/domain"""
+    if os.environ.get("REDIRECT_URI"):
+        return os.environ.get("REDIRECT_URI")
+    try:
+        host = request.host.split(":")[0]  # strip port if present
+        # Google OAuth requires HTTPS scheme for all non-localhost domains
+        if host not in ("127.0.0.1", "localhost", "0.0.0.0"):
+            scheme = "https"
+        else:
+            scheme = request.headers.get("X-Forwarded-Proto", request.scheme)
+        uri = url_for("callback", _external=True, _scheme=scheme)
+        print(f"🔗 Dynamically generated Redirect URI: {uri}")
+        return uri
+    except Exception as e:
+        print(f"⚠️ Dynamic URI fallback used ({e}): {REDIRECT_URI}")
+        return REDIRECT_URI
 
 # Scopes for Google OAuth Login (user info only)
 LOGIN_SCOPES = [
@@ -1549,15 +1570,11 @@ def home():
 #--------------SIGNUP----------------
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
-    """Account creation is Google-only: every signup entry point starts the
-    Google OAuth flow so accounts are always tied to a verified Google identity.
-    Manual email/password registration is disabled."""
+    """Account creation page: renders the signup page featuring Google Sign-Up."""
     if request.method == "POST":
-        flash("Account creation is only available through Google sign-up.", "info")
         return redirect(url_for("google_login"))
 
-    # GET → jump straight into the Google OAuth signup/login flow
-    return redirect(url_for("google_login"))
+    return render_template("auth/signup.html")
 
 #--------------SIGNIN----------------
 @app.route("/signin", methods=["GET", "POST"])
@@ -1806,7 +1823,8 @@ def google_login():
             else:
                 return redirect(url_for("select_user_type"))
     
-    flow = get_google_flow(LOGIN_SCOPES, REDIRECT_URI)
+    redirect_uri = get_current_redirect_uri()
+    flow = get_google_flow(LOGIN_SCOPES, redirect_uri)
     authorization_url, state = flow.authorization_url(
         access_type='offline',
         include_granted_scopes='true',
@@ -1829,7 +1847,8 @@ def callback():
         print(f"   State: {state}")
         
         print(f"📍 Step 2: Creating Flow from client secrets or env vars")
-        flow = get_google_flow(LOGIN_SCOPES, REDIRECT_URI, state=state)
+        redirect_uri = get_current_redirect_uri()
+        flow = get_google_flow(LOGIN_SCOPES, redirect_uri, state=state)
         print(f"   ✅ Flow created")
         
         print(f"📍 Step 3: Getting authorization response")
@@ -1942,11 +1961,9 @@ def callback():
                 print(f"   ➡️ No user type set, redirecting to select_user_type")
                 return redirect(url_for("select_user_type"))
         else:
-            print(f"   ❌ User not found — starting verified sign-up flow (Google + OTP)")
+            print(f"   ❌ User not found — Google verified identity, proceeding to role selection")
             
-            # Store the Google-verified identity in the session. The account is
-            # NOT created yet: it will only be created after the user enters
-            # the OTP sent to this Gmail address (see /signup/verify).
+            # Store the Google-verified identity in the session.
             session.permanent = True
             session["pending_google"] = {
                 "google_id": google_id,
@@ -1958,27 +1975,10 @@ def callback():
             for key in ("email", "user_id", "user_type", "user_name"):
                 session.pop(key, None)
             
-            print(f"\n📍 Step 8: Issuing signup OTP")
-            otp = f"{secrets.randbelow(1000000):06d}"
-            session["signup_otp_hash"] = hashlib.sha256(
-                (otp + app.config.get("SECRET_KEY", "")).encode()
-            ).hexdigest()
-            session["signup_otp_expiry"] = (
-                dt.datetime.utcnow() + dt.timedelta(minutes=10)
-            ).isoformat()
-            session["signup_otp_attempts"] = 0
-            
-            print(f"\n📍 Step 9: Sending OTP email to {email}")
-            if not send_signup_otp_email(email, otp):
-                print(f"   ❌ Failed to send OTP email - aborting signup")
-                for key in ("pending_google", "signup_otp_hash", "signup_otp_expiry", "signup_otp_attempts"):
-                    session.pop(key, None)
-                flash("We could not send the verification email. Please try again in a few minutes.", "error")
-                return redirect(url_for("signin"))
-            print(f"   ✅ OTP email sent")
-            
-            print("="*60 + "\n")
-            return redirect(url_for("verify_signup_otp"))
+            # Google OAuth is inherently email-verified by Google's servers
+            session["otp_verified"] = True
+            print("   ✅ Direct Google Sign-Up approved — redirecting to select_user_type")
+            return redirect(url_for("select_user_type"))
     
     except Exception as e:
         print(f"\n❌ ERROR in callback: {str(e)}")
@@ -2131,14 +2131,8 @@ def select_user_type():
         else:
             if request.method == "POST":
                 user_type = request.form.get("user_type")
-                institution_name = (request.form.get("institution_name") or "").strip()
-
-                if user_type not in ["0", "1", "2", "3"]:
-                    flash("Invalid role selected", "error")
-                    return redirect(url_for("select_user_type"))
-
-                if user_type == "3" and not institution_name:
-                    flash("Please enter your institution name.", "error")
+                if user_type not in ["1", "2"]:
+                    flash("Invalid role selected. Please choose Mentor or Mentee.", "error")
                     return redirect(url_for("select_user_type"))
 
                 # Final one-account-per-email guard (covers Gmail variants and
