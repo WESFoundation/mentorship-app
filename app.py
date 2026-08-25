@@ -331,19 +331,25 @@ def get_google_flow(scopes, redirect_uri, state=None):
         raise FileNotFoundError(f"Neither {CLIENT_SECRETS_FILE} file nor GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET environment variables were found.")
 
 # ============================================================
-# DATABASE CONFIGURATION (SQLite Database EVERYWHERE)
+# DATABASE CONFIGURATION
 # ============================================================
-instance_db_path = os.path.join(app.instance_path, "mentors_connect.db")
-root_db_path = os.path.join(app.root_path, "mentors_connect.db")
-
-if os.path.exists(instance_db_path):
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
-elif os.path.exists(root_db_path):
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{root_db_path}"
+db_url = os.environ.get("DATABASE_URL", "").strip()
+if db_url:
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+    print(f"🟢 Database Mode: Connected to External Database ({app.config['SQLALCHEMY_DATABASE_URI']})")
 else:
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
+    instance_db_path = os.path.join(app.instance_path, "mentors_connect.db")
+    root_db_path = os.path.join(app.root_path, "mentors_connect.db")
 
-print(f"🟢 Database Mode: Connected to SQLite ({app.config['SQLALCHEMY_DATABASE_URI']})")
+    if os.path.exists(instance_db_path):
+        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
+    elif os.path.exists(root_db_path):
+        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{root_db_path}"
+    else:
+        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{instance_db_path}"
+    print(f"🟢 Database Mode: Connected to SQLite ({app.config['SQLALCHEMY_DATABASE_URI']})")
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 

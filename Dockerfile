@@ -32,6 +32,9 @@ RUN mkdir -p static/uploads instance && \
 RUN sed -i 's/\r$//' /app/entrypoint.sh && \
     chmod +x /app/entrypoint.sh
 
+# Declare persistent volumes for database and user uploads
+VOLUME ["/app/instance", "/app/static/uploads"]
+
 # Expose app port
 EXPOSE 5000
 
