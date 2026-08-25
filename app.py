@@ -335,6 +335,10 @@ db_url = os.environ.get("DATABASE_URL", "").strip()
 if db_url:
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
+    if "?pgbouncer=true" in db_url:
+        db_url = db_url.replace("?pgbouncer=true", "")
+    if "&pgbouncer=true" in db_url:
+        db_url = db_url.replace("&pgbouncer=true", "")
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     print(f"🟢 Database Mode: Connected to External Database ({app.config['SQLALCHEMY_DATABASE_URI']})")
 else:
