@@ -53,8 +53,6 @@ def load_env_file():
                 value = value.strip().strip('"').strip("'")
                 if not key:
                     continue
-                if key == "DATABASE_URL":
-                    continue
                 if key not in os.environ:
                     os.environ[key] = value
     except Exception as e:
@@ -352,6 +350,10 @@ else:
     print(f"🟢 Database Mode: Connected to SQLite ({app.config['SQLALCHEMY_DATABASE_URI']})")
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 300,
+}
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
