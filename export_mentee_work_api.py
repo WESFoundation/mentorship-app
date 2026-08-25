@@ -8,7 +8,6 @@ The script only READS data through the API. It never writes to the database.
 API key is read from the .env file (EXPORT_API_KEY) or passed via --api-key.
 """
 
-
 import argparse
 import json
 import os
