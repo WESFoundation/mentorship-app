@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+    volumes:
+      - mentorship_db_data:/app/instance
+      - mentorship_uploads_data:/app/static/uploads
+    restart: always
+
+volumes:
+  mentorship_db_data:
+    driver: local
+  mentorship_uploads_data:
+    driver: local
