@@ -362,12 +362,12 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-# Optional Background Supabase Cloud Backup Sync
-try:
-    import supabase_sync
-    supabase_sync.start_periodic_sync(interval_seconds=60)
-except Exception as sync_err:
-    print("Background Supabase backup notice:", sync_err)
+# Background Supabase Cloud Backup Sync (Disabled by request)
+# try:
+#     import supabase_sync
+#     supabase_sync.start_periodic_sync(interval_seconds=60)
+# except Exception as sync_err:
+#     print("Background Supabase backup notice:", sync_err)
 
 # Configure Flask-Caching in memory (SimpleCache for 0ms RAM caching)
 from flask_caching import Cache
