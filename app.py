@@ -2696,7 +2696,11 @@ def supervisordashboard():
         elif experience == "10+":
             mentor_query = mentor_query.filter(cast(MentorProfile.years_of_experience, Integer) >= 10)
 
-    mentors = mentor_query.all()
+    mentors = mentor_query.join(User, MentorProfile.user_id == User.id).order_by(User.created_at.asc()).all()
+
+    # Add serial numbers based on timestamp order
+    for idx, m in enumerate(mentors, 1):
+        m.serial = idx
 
     options = {
         "professions": sorted({row[0] for row in MentorProfile.query.with_entities(MentorProfile.profession).distinct() if row[0]}),
@@ -2727,7 +2731,11 @@ def supervisordashboard():
     if goal_filter:
         mentee_query = mentee_query.filter(MenteeProfile.goal == goal_filter)
 
-    all_mentees = mentee_query.all()
+    all_mentees = mentee_query.order_by(User.created_at.asc()).all()
+
+    # Add serial numbers based on timestamp order
+    for idx, m in enumerate(all_mentees, 1):
+        m.serial = idx
 
     # ----------------- Mentee dropdowns -----------------
     mentee_streams = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.stream).distinct() if row[0]})
@@ -4692,6 +4700,11 @@ def supervisor_find_mentor():
         elif experience == "10+":
             filtered_mentors = [m for m in filtered_mentors if int(m.get('years_of_experience', 0)) >= 10]
 
+    # Sort by user creation timestamp (oldest first) and add serial numbers
+    filtered_mentors.sort(key=lambda m: m['user'].created_at if m['user'].created_at else datetime.min)
+    for idx, m in enumerate(filtered_mentors, 1):
+        m['serial'] = idx
+
     # Get unique filter options from all enriched mentors
     professions = sorted({m.get('profession') for m in enriched_mentors if m.get('profession')})
     locations = sorted({m.get('location') for m in enriched_mentors if m.get('location')})
@@ -4718,7 +4731,12 @@ def supervisor_find_mentee():
     search_query = request.args.get("search", "").lower()
     stream_filter = request.args.get("stream", "")
     school_filter = request.args.get("school", "")
-    goal_filter = request.args.get("goal", "")
+    who_am_i_filter = request.args.get("who_am_i", "")
+    consent_filter = request.args.get("consent_status", "")
+    city_filter = request.args.get("city", "")
+    state_filter = request.args.get("state", "")
+    govt_private_filter = request.args.get("govt_private", "")
+    education_level_filter = request.args.get("education_level", "")
 
     if search_query:
         mentee_query = mentee_query.filter(
@@ -4732,24 +4750,47 @@ def supervisor_find_mentee():
         mentee_query = mentee_query.filter(MenteeProfile.stream == stream_filter)
     if school_filter:
         mentee_query = mentee_query.filter(MenteeProfile.school_college_name == school_filter)
-    if goal_filter:
-        mentee_query = mentee_query.filter(MenteeProfile.goal == goal_filter)
+    if who_am_i_filter:
+        mentee_query = mentee_query.filter(MenteeProfile.who_am_i == who_am_i_filter)
+    if consent_filter:
+        mentee_query = mentee_query.filter(MenteeProfile.parent_consent_status == consent_filter)
+    if city_filter:
+        mentee_query = mentee_query.filter(MenteeProfile.city == city_filter)
+    if state_filter:
+        mentee_query = mentee_query.filter(MenteeProfile.state == state_filter)
+    if govt_private_filter:
+        mentee_query = mentee_query.filter(MenteeProfile.govt_private == govt_private_filter)
+    if education_level_filter:
+        mentee_query = mentee_query.filter(MenteeProfile.education_level == education_level_filter)
 
+    # Order by user creation timestamp and add serial numbers
+    mentee_query = mentee_query.order_by(User.created_at.asc())
     all_mentees = mentee_query.all()
+    for idx, m in enumerate(all_mentees, 1):
+        m.serial = idx
 
     mentee_streams = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.stream).distinct() if row[0]})
     mentee_schools = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.school_college_name).distinct() if row[0]})
-    mentee_goals = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.goal).distinct() if row[0]})
+    mentee_who_am_i = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.who_am_i).distinct() if row[0]})
+    mentee_consent_statuses = ["pending", "approved", "rejected"]
+    mentee_cities = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.city).distinct() if row[0]})
+    mentee_states = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.state).distinct() if row[0]})
+    mentee_govt_private = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.govt_private).distinct() if row[0]})
+    mentee_education_levels = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.education_level).distinct() if row[0]})
 
     return render_template(
         "supervisor/supervisor_find_mentee.html",
         mentees=all_mentees,
         mentee_streams=mentee_streams,
         mentee_schools=mentee_schools,
-        mentee_goals=mentee_goals,
+        mentee_who_am_i=mentee_who_am_i,
+        mentee_consent_statuses=mentee_consent_statuses,
+        mentee_cities=mentee_cities,
+        mentee_states=mentee_states,
+        mentee_govt_private=mentee_govt_private,
+        mentee_education_levels=mentee_education_levels,
         active_section="mentees",
         show_sidebar=True
-
     )
 
 # supervisor view requests
@@ -7620,13 +7661,13 @@ def supervisor_response():
     
     if not request_id or not action:
         flash("Invalid request!", "error")
-        return redirect(url_for("supervisor_response"))
+        return redirect(url_for("supervisor_request"))
     
     # Fetch mentorship request
     mentorship_request = MentorshipRequest.query.get(int(request_id))
     if not mentorship_request:
         flash("Request not found!", "error")
-        return redirect(url_for("supervisor_response"))
+        return redirect(url_for("supervisor_request"))
     
     # Update status based on action
     if action == "approve":
@@ -7663,7 +7704,7 @@ def supervisor_response():
             )
     else:
         flash("Invalid action!", "error")
-        return redirect(url_for("supervisor_response"))
+        return redirect(url_for("supervisor_request"))
     
     try:
         db.session.commit()
@@ -7678,7 +7719,7 @@ def supervisor_response():
         notify_mentorship_connection(mentorship_request)
         send_mentorship_connected_email(mentorship_request)
     
-    return redirect(url_for("supervisordashboard"))
+    return redirect(url_for("supervisor_request"))
 
 # ------------------ ALL MENTORSHIPS PAGE ------------------
 @app.route("/supervisor_all_mentorships")

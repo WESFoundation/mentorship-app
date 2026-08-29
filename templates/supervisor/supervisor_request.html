@@ -86,6 +86,22 @@
 
 <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="mb-6">
+    {% for category, message in messages %}
+    <div class="mb-3 p-4 rounded-lg {% if category == 'error' %}bg-red-50 text-red-700 border border-red-200{% elif category == 'success' %}bg-green-50 text-green-700 border border-green-200{% elif category == 'warning' %}bg-yellow-50 text-yellow-700 border border-yellow-200{% else %}bg-blue-50 text-blue-700 border border-blue-200{% endif %} flex items-center gap-3">
+      <div class="flex-1">{{ message }}</div>
+      <button onclick="this.parentElement.remove()" class="text-gray-400 hover:text-gray-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}
+
 <!-- Header Section -->
 <div class="mb-8">
   <h1 class="text-3xl font-bold text-gray-900">Supervisor Dashboard</h1>

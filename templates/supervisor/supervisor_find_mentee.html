@@ -34,7 +34,9 @@
         class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" onkeyup="filterMentees()">
 
       <form method="GET" action="{{ url_for('supervisor_find_mentee') }}" class="flex flex-wrap items-center gap-3">
-        <select name="stream" class="max-w-full sm:max-w-[220px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+        
+        <!-- Stream -->
+        <select name="stream" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
           <option value="" {% if not request.args.get('stream') %}selected{% endif %}>All Streams</option>
           {% for stream in mentee_streams %}
           <option value="{{ stream }}" {% if request.args.get('stream')==stream %}selected{% endif %}>
@@ -43,7 +45,8 @@
           {% endfor %}
         </select>
 
-        <select name="school" class="max-w-full sm:max-w-[220px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+        <!-- School/College -->
+        <select name="school" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
           <option value="" {% if not request.args.get('school') %}selected{% endif %}>All Schools</option>
           {% for school in mentee_schools %}
           <option value="{{ school }}" {% if request.args.get('school')==school %}selected{% endif %}>
@@ -52,11 +55,62 @@
           {% endfor %}
         </select>
 
-        <select name="goal" class="max-w-full sm:max-w-[220px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
-          <option value="" {% if not request.args.get('goal') %}selected{% endif %}>All Goals</option>
-          {% for goal in mentee_goals %}
-          <option value="{{ goal }}" {% if request.args.get('goal')==goal %}selected{% endif %}>
-            {{ goal }}
+        <!-- Who Am I -->
+        <select name="who_am_i" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+          <option value="" {% if not request.args.get('who_am_i') %}selected{% endif %}>All Types</option>
+          {% for w in mentee_who_am_i %}
+          <option value="{{ w }}" {% if request.args.get('who_am_i')==w %}selected{% endif %}>
+            {{ w.replace('_', ' ').title() }}
+          </option>
+          {% endfor %}
+        </select>
+
+        <!-- Parent Consent Status -->
+        <select name="consent_status" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+          <option value="" {% if not request.args.get('consent_status') %}selected{% endif %}>Consent Status</option>
+          {% for status in mentee_consent_statuses %}
+          <option value="{{ status }}" {% if request.args.get('consent_status')==status %}selected{% endif %}>
+            {{ status.title() }}
+          </option>
+          {% endfor %}
+        </select>
+
+        <!-- Institution Type -->
+        <select name="govt_private" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+          <option value="" {% if not request.args.get('govt_private') %}selected{% endif %}>Inst. Type</option>
+          {% for gp in mentee_govt_private %}
+          <option value="{{ gp }}" {% if request.args.get('govt_private')==gp %}selected{% endif %}>
+            {{ gp }}
+          </option>
+          {% endfor %}
+        </select>
+
+        <!-- Education Level -->
+        <select name="education_level" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+          <option value="" {% if not request.args.get('education_level') %}selected{% endif %}>Edu. Level</option>
+          {% for el in mentee_education_levels %}
+          <option value="{{ el }}" {% if request.args.get('education_level')==el %}selected{% endif %}>
+            {{ el }}
+          </option>
+          {% endfor %}
+        </select>
+
+        <!-- City -->
+        <select name="city" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+          <option value="" {% if not request.args.get('city') %}selected{% endif %}>City</option>
+          {% for city in mentee_cities %}
+          <option value="{{ city }}" {% if request.args.get('city')==city %}selected{% endif %}>
+            {{ city }}
+          </option>
+          {% endfor %}
+        </select>
+
+        <!-- State -->
+        <select name="state" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+          <option value="" {% if not request.args.get('state') %}selected{% endif %}>State</option>
+          {% for state in mentee_states %}
+          <option value="{{ state }}" {% if request.args.get('state')==state %}selected{% endif %}>
+            {{ state }}
           </option>
           {% endfor %}
         </select>
@@ -65,7 +119,7 @@
           Filter
         </button>
         
-        <a href="{{ url_for('supervisordashboard') }}" class="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition">
+        <a href="{{ url_for('supervisor_find_mentee') }}" class="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition">
           Reset
         </a>
       </form>
@@ -76,6 +130,7 @@
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
           <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S.No</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentee</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">School</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stream</th>
@@ -87,6 +142,7 @@
         <tbody class="bg-white divide-y divide-gray-200">
           {% for mentee in mentees %}
           <tr class="mentee-row hover:bg-gray-50 transition-colors">
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-500">{{ mentee.serial }}</td>
             <td class="px-6 py-4 whitespace-nowrap max-w-[280px]">
               <div class="flex items-center">
                 {% if mentee.profile_picture %}
