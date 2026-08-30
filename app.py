@@ -53,6 +53,8 @@ def load_env_file():
                 value = value.strip().strip('"').strip("'")
                 if not key:
                     continue
+                if key in ("DATABASE_URL",):
+                    continue
                 if key not in os.environ:
                     os.environ[key] = value
     except Exception as e:
@@ -3142,6 +3144,14 @@ def manage_created_accounts():
     mentors = [u for u in all_users if u.user_type == "1"]
     mentees = [u for u in all_users if u.user_type == "2"]
     institutions = [u for u in all_users if u.user_type == "3"]
+    
+    # Add serial numbers (no DB changes)
+    for idx, mentor in enumerate(mentors, 1):
+        mentor.serial = idx
+    for idx, mentee in enumerate(mentees, 1):
+        mentee.serial = idx
+    for idx, institution in enumerate(institutions, 1):
+        institution.serial = idx
     
     return render_template(
         "supervisor/manage_created_accounts.html",
