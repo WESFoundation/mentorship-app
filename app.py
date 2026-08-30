@@ -4822,8 +4822,7 @@ def view_requests():
 
     if status_filter == "pending":
         mentorship_query = mentorship_query.filter(
-            (MentorshipRequest.supervisor_status == "pending") | 
-            (MentorshipRequest.mentor_status == "pending")
+            MentorshipRequest.supervisor_status == "pending"
         )
     elif status_filter == "approved":
         mentorship_query = mentorship_query.filter(
