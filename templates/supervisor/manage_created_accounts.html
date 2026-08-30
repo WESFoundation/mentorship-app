@@ -98,7 +98,7 @@
                         <th class="border p-3 text-left">Email</th>
                         <th class="border p-3 text-left">Created At</th>
                         <th class="border p-3 text-left">Institution Name</th>
-                        <th class="border p-3 text-center">Actions</th>
+                        <th class="border p-3 text-center"><i class="fas fa-cogs mr-1 opacity-70"></i> Actions</th>
                     </tr>
                 </thead>
                 <tbody id="mentorTable">
@@ -110,18 +110,19 @@
                         <td class="border p-3">{{ mentor.created_at.strftime('%Y-%m-%d %H:%M') if mentor.created_at else 'N/A' }}</td>
                         <td class="border p-3">{{ mentor.institution or 'N/A' }}</td>
                         <td class="border p-3 text-center">
-                            <div class="flex gap-2 justify-center">
-                                <a href="{{ url_for('edit_user', user_id=mentor.id) }}" class="inline-flex items-center justify-center w-9 h-9 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-all duration-150 active:scale-95 cursor-pointer" aria-label="Edit {{ mentor.name }}" title="Edit {{ mentor.name }}">
-                                    <i class="fas fa-edit" aria-hidden="true"></i>
-                                </a>
-                                <a href="{{ url_for('reset_user_password', user_id=mentor.id) }}" class="inline-flex items-center justify-center w-9 h-9 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 transition-all duration-150 active:scale-95 cursor-pointer" aria-label="Reset password for {{ mentor.name }}" title="Reset password for {{ mentor.name }}">
-                                    <i class="fas fa-key" aria-hidden="true"></i>
-                                </a>
-                                <form method="POST" action="{{ url_for('delete_user', user_id=mentor.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ mentor.name }}? This action cannot be undone.');">
-                                    <button type="submit" class="inline-flex items-center justify-center w-9 h-9 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 transition-all duration-150 active:scale-95 cursor-pointer" aria-label="Delete {{ mentor.name }}" title="Delete {{ mentor.name }}">
-                                        <i class="fas fa-trash" aria-hidden="true"></i>
-                                    </button>
-                                </form>
+                            <div class="relative inline-block text-left">
+                                <button type="button" class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 transition-all duration-150 text-xs font-medium shadow-sm" onclick="toggleDropdown('actions-{{ mentor.id }}', event)" aria-haspopup="true" aria-expanded="false" aria-label="Actions for {{ mentor.name }}" title="Actions">
+                                    <i class="fas fa-cog text-[11px]" aria-hidden="true"></i> Actions <i class="fas fa-chevron-down text-[8px] transition-transform duration-150" id="chevron-{{ mentor.id }}"></i>
+                                </button>
+                                <div id="actions-{{ mentor.id }}" class="hidden absolute right-0 z-10 mt-1 w-36 origin-top-right rounded-xl bg-white border border-slate-200 shadow-lg py-1 ring-1 ring-black/5 focus:outline-none" role="menu">
+                                    <a href="{{ url_for('edit_user', user_id=mentor.id) }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-blue-700 hover:bg-blue-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-{{ mentor.id }}')"><i class="fas fa-edit text-[10px] text-blue-500" aria-hidden="true"></i> Edit</a>
+                                    <a href="{{ url_for('reset_user_password', user_id=mentor.id) }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-purple-700 hover:bg-purple-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-{{ mentor.id }}')"><i class="fas fa-key text-[10px] text-purple-500" aria-hidden="true"></i> Password</a>
+                                    <form method="POST" action="{{ url_for('delete_user', user_id=mentor.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ mentor.name }}? This action cannot be undone.');">
+                                        <button type="submit" class="flex w-full items-center gap-2 px-4 py-2.5 text-xs font-medium text-red-700 hover:bg-red-50 transition text-left" role="menuitem">
+                                            <i class="fas fa-trash text-[10px] text-red-500" aria-hidden="true"></i> Delete
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         </td>
                     </tr>
@@ -149,7 +150,7 @@
                         <th class="border p-3 text-left">Email</th>
                         <th class="border p-3 text-left">Created At</th>
                         <th class="border p-3 text-left">Institution Name</th>
-                        <th class="border p-3 text-center">Actions</th>
+                        <th class="border p-3 text-center"><i class="fas fa-cogs mr-1 opacity-70"></i> Actions</th>
                     </tr>
                 </thead>
                 <tbody id="menteeTable">
@@ -161,18 +162,19 @@
                         <td class="border p-3">{{ mentee.created_at.strftime('%Y-%m-%d %H:%M') if mentee.created_at else 'N/A' }}</td>
                         <td class="border p-3">{{ mentee.institution or 'N/A' }}</td>
                         <td class="border p-3 text-center">
-                            <div class="flex gap-2 justify-center">
-                                <a href="{{ url_for('edit_user', user_id=mentee.id) }}" class="inline-flex items-center justify-center w-9 h-9 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-all duration-150 active:scale-95 cursor-pointer" aria-label="Edit {{ mentee.name }}" title="Edit {{ mentee.name }}">
-                                    <i class="fas fa-edit" aria-hidden="true"></i>
-                                </a>
-                                <a href="{{ url_for('reset_user_password', user_id=mentee.id) }}" class="inline-flex items-center justify-center w-9 h-9 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 transition-all duration-150 active:scale-95 cursor-pointer" aria-label="Reset password for {{ mentee.name }}" title="Reset password for {{ mentee.name }}">
-                                    <i class="fas fa-key" aria-hidden="true"></i>
-                                </a>
-                                <form method="POST" action="{{ url_for('delete_user', user_id=mentee.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ mentee.name }}? This action cannot be undone.');">
-                                    <button type="submit" class="inline-flex items-center justify-center w-9 h-9 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 transition-all duration-150 active:scale-95 cursor-pointer" aria-label="Delete {{ mentee.name }}" title="Delete {{ mentee.name }}">
-                                        <i class="fas fa-trash" aria-hidden="true"></i>
-                                    </button>
-                                </form>
+                            <div class="relative inline-block text-left">
+                                <button type="button" class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 transition-all duration-150 text-xs font-medium shadow-sm" onclick="toggleDropdown('actions-{{ mentee.id }}', event)" aria-haspopup="true" aria-expanded="false" aria-label="Actions for {{ mentee.name }}" title="Actions">
+                                    <i class="fas fa-cog text-[11px]" aria-hidden="true"></i> Actions <i class="fas fa-chevron-down text-[8px] transition-transform duration-150" id="chevron-{{ mentee.id }}"></i>
+                                </button>
+                                <div id="actions-{{ mentee.id }}" class="hidden absolute right-0 z-10 mt-1 w-36 origin-top-right rounded-xl bg-white border border-slate-200 shadow-lg py-1 ring-1 ring-black/5 focus:outline-none" role="menu">
+                                    <a href="{{ url_for('edit_user', user_id=mentee.id) }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-blue-700 hover:bg-blue-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-{{ mentee.id }}')"><i class="fas fa-edit text-[10px] text-blue-500" aria-hidden="true"></i> Edit</a>
+                                    <a href="{{ url_for('reset_user_password', user_id=mentee.id) }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-purple-700 hover:bg-purple-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-{{ mentee.id }}')"><i class="fas fa-key text-[10px] text-purple-500" aria-hidden="true"></i> Password</a>
+                                    <form method="POST" action="{{ url_for('delete_user', user_id=mentee.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ mentee.name }}? This action cannot be undone.');">
+                                        <button type="submit" class="flex w-full items-center gap-2 px-4 py-2.5 text-xs font-medium text-red-700 hover:bg-red-50 transition text-left" role="menuitem">
+                                            <i class="fas fa-trash text-[10px] text-red-500" aria-hidden="true"></i> Delete
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         </td>
                     </tr>
@@ -200,7 +202,7 @@
                         <th class="border p-3 text-left">Email</th>
                         <th class="border p-3 text-left">Created At</th>
                         <th class="border p-3 text-left">Coordinator Name </th>
-                        <th class="border p-3 text-center">Actions</th>
+                        <th class="border p-3 text-center"><i class="fas fa-cogs mr-1 opacity-70"></i> Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -212,18 +214,19 @@
                         <td class="border p-3">{{ institution.created_at.strftime('%Y-%m-%d %H:%M') if institution.created_at else 'N/A' }}</td>
                         <td class="border p-3">{{ institution.institution or 'N/A' }}</td>
                         <td class="border p-3 text-center">
-                            <div class="flex gap-2 justify-center">
-                                <a href="{{ url_for('edit_user', user_id=institution.id) }}" class="inline-flex items-center justify-center w-9 h-9 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-all duration-150 active:scale-95 cursor-pointer" aria-label="Edit {{ institution.name }}" title="Edit {{ institution.name }}">
-                                    <i class="fas fa-edit" aria-hidden="true"></i>
-                                </a>
-                                <a href="{{ url_for('reset_user_password', user_id=institution.id) }}" class="inline-flex items-center justify-center w-9 h-9 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 transition-all duration-150 active:scale-95 cursor-pointer" aria-label="Reset password for {{ institution.name }}" title="Reset password for {{ institution.name }}">
-                                    <i class="fas fa-key" aria-hidden="true"></i>
-                                </a>
-                                <form method="POST" action="{{ url_for('delete_user', user_id=institution.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ institution.name }}? This action cannot be undone.');">
-                                    <button type="submit" class="inline-flex items-center justify-center w-9 h-9 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 transition-all duration-150 active:scale-95 cursor-pointer" aria-label="Delete {{ institution.name }}" title="Delete {{ institution.name }}">
-                                        <i class="fas fa-trash" aria-hidden="true"></i>
-                                    </button>
-                                </form>
+                            <div class="relative inline-block text-left">
+                                <button type="button" class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 transition-all duration-150 text-xs font-medium shadow-sm" onclick="toggleDropdown('actions-{{ institution.id }}', event)" aria-haspopup="true" aria-expanded="false" aria-label="Actions for {{ institution.name }}" title="Actions">
+                                    <i class="fas fa-cog text-[11px]" aria-hidden="true"></i> Actions <i class="fas fa-chevron-down text-[8px] transition-transform duration-150" id="chevron-{{ institution.id }}"></i>
+                                </button>
+                                <div id="actions-{{ institution.id }}" class="hidden absolute right-0 z-10 mt-1 w-36 origin-top-right rounded-xl bg-white border border-slate-200 shadow-lg py-1 ring-1 ring-black/5 focus:outline-none" role="menu">
+                                    <a href="{{ url_for('edit_user', user_id=institution.id) }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-blue-700 hover:bg-blue-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-{{ institution.id }}')"><i class="fas fa-edit text-[10px] text-blue-500" aria-hidden="true"></i> Edit</a>
+                                    <a href="{{ url_for('reset_user_password', user_id=institution.id) }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-purple-700 hover:bg-purple-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-{{ institution.id }}')"><i class="fas fa-key text-[10px] text-purple-500" aria-hidden="true"></i> Password</a>
+                                    <form method="POST" action="{{ url_for('delete_user', user_id=institution.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ institution.name }}? This action cannot be undone.');">
+                                        <button type="submit" class="flex w-full items-center gap-2 px-4 py-2.5 text-xs font-medium text-red-700 hover:bg-red-50 transition text-left" role="menuitem">
+                                            <i class="fas fa-trash text-[10px] text-red-500" aria-hidden="true"></i> Delete
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         </td>
                     </tr>
@@ -290,5 +293,32 @@ function resetFilters() {
     document.getElementById('mentorCount').textContent = mentorCount;
     document.getElementById('menteeCount').textContent = menteeCount;
 }
+
+function toggleDropdown(dropdownId, event) {
+    event.stopPropagation();
+    const dropdown = document.getElementById(dropdownId);
+    const chevron = document.getElementById('chevron-' + dropdownId.split('-')[1]);
+    const isHidden = dropdown.classList.contains('hidden');
+    // Close all other dropdowns first
+    document.querySelectorAll('[id^="actions-"]').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('[id^="chevron-"]').forEach(el => el.classList.remove('rotate-180'));
+    if (isHidden) {
+        dropdown.classList.remove('hidden');
+        if (chevron) chevron.classList.add('rotate-180');
+        const btn = dropdown.previousElementSibling; if (btn) btn.setAttribute('aria-expanded', 'true');
+    }
+}
+function closeOtherDropdown(dropdownId) {
+    document.querySelectorAll('[id^="actions-"]').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('[id^="chevron-"]').forEach(el => el.classList.remove('rotate-180'));
+    const btn = document.getElementById(dropdownId); if (btn) { const trigger = btn.parentElement.previousElementSibling; if (trigger) trigger.setAttribute('aria-expanded', 'false'); }
+}
+
+// Close all dropdowns on outside click
+document.addEventListener('click', function() {
+    document.querySelectorAll('[id^="actions-"]').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('[id^="chevron-"]').forEach(el => el.classList.remove('rotate-180'));
+    document.querySelectorAll('[aria-expanded]').forEach(el => el.setAttribute('aria-expanded', 'false'));
+});
 </script>
 {% endblock %}
