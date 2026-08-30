@@ -92,6 +92,14 @@
                     Today
                 </button>
             </div>
+            
+            <!-- Schedule Meeting Button -->
+            <div class="ml-4">
+                <a href="{{ url_for('institution_find_mentor') if my_mentors else url_for('institution_find_mentor') }}"
+                  class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
+                  Schedule Meeting
+                </a>
+            </div>
         </div>
     </div>
 

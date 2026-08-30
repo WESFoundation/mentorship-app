@@ -280,6 +280,10 @@
     <div class="mt-8 p-4 bg-blue-50 rounded-lg">
       <h3 class="font-medium text-blue-800 mb-2">Supervisor Actions</h3>
       <div class="flex flex-wrap gap-3">
+        <a href="{{ url_for('mentee_create_meeting_request', mentor_id=my_mentors[0].id) if my_mentors else url_for('find_mentor') }}"
+          class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition">
+          Schedule Meeting
+        </a>
         <a href="{{ url_for('supervisor_find_mentor') }}" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition">
           View All Mentors
         </a>

@@ -1335,10 +1335,10 @@ def assign_master_tasks_to_mentorship(mentorship_request):
             db.session.add(mentee_task)
             assigned_tasks.append(mentee_task)
         
-        # Commit se pehle
-        print(f"\n💾 Committing {len(assigned_tasks)} tasks to database...")
-        db.session.commit()
-        print("✅ Database commit successful!")
+        # Flush se pehle - let outer function handle commit
+        print(f"\n💾 Flushing {len(assigned_tasks)} tasks to database...")
+        db.session.flush()
+        print("✅ Database flush successful!")
         
         return assigned_tasks
         
@@ -4799,25 +4799,43 @@ def view_requests():
     if "email" not in session or session.get("user_type") != "0":
         return redirect(url_for("signin"))
 
+    # Get status filter from query params (default: pending)
+    status_filter = request.args.get("status", "pending")
+
     # Fetch mentorship requests with proper eager loading of profile relationships
     from sqlalchemy.orm import joinedload
     
-    pending_mentorship_requests = MentorshipRequest.query.options(
+    mentorship_query = MentorshipRequest.query.options(
         joinedload(MentorshipRequest.mentee).joinedload(User.mentee_profile),
         joinedload(MentorshipRequest.mentor).joinedload(User.mentor_profile)
-    ).filter(
-        (MentorshipRequest.supervisor_status == "pending") | 
-        (MentorshipRequest.mentor_status == "pending")
-    ).all()
+    )
+
+    if status_filter == "pending":
+        mentorship_query = mentorship_query.filter(
+            (MentorshipRequest.supervisor_status == "pending") | 
+            (MentorshipRequest.mentor_status == "pending")
+        )
+    elif status_filter == "approved":
+        mentorship_query = mentorship_query.filter(
+            MentorshipRequest.final_status == "approved"
+        )
+    elif status_filter == "rejected":
+        mentorship_query = mentorship_query.filter(
+            MentorshipRequest.final_status == "rejected"
+        )
+    # "all" shows everything (no additional filter)
+
+    all_mentorship_requests = mentorship_query.order_by(MentorshipRequest.created_at.desc()).all()
     
     mentor_requests = MentorProfile.query.filter_by(status="pending").all()
     mentee_requests = MenteeProfile.query.filter_by(status="pending").all()
 
     return render_template(
         "supervisor/supervisor_request.html",
-        all_requests=pending_mentorship_requests,
+        all_requests=all_mentorship_requests,
         mentor_requests=mentor_requests,
         mentee_requests=mentee_requests,
+        status_filter=status_filter,
         active_section="requests",
         show_sidebar=True
     )
@@ -4868,7 +4886,8 @@ def mentee_calendar():
     return render_template(
         "mentee/mentee_calendar.html",
         show_sidebar=True,
-        meetings=calendar_meetings  # Pass real meetings to template
+        meetings=calendar_meetings,  # Pass real meetings to template
+        current_date=datetime.utcnow()  # For month/year display in header
     )
 
 
@@ -7661,25 +7680,32 @@ def supervisor_response():
     
     if not request_id or not action:
         flash("Invalid request!", "error")
-        return redirect(url_for("supervisor_request"))
+        return redirect(url_for("view_requests"))
     
     # Fetch mentorship request
     mentorship_request = MentorshipRequest.query.get(int(request_id))
     if not mentorship_request:
         flash("Request not found!", "error")
-        return redirect(url_for("supervisor_request"))
+        return redirect(url_for("view_requests"))
     
     # Update status based on action
     if action == "approve":
         mentorship_request.supervisor_status = "approved"
         mentorship_request.final_status = "approved"
         flash("Mentorship request approved!", "success")
+        
+        # Assign tasks if 12-month duration
+        assigned_tasks = []
         if mentorship_request.duration_months == 12:
-            assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
-            if assigned_tasks:
-                flash(f"Mentorship approved! {len(assigned_tasks)} tasks assigned.", "success")
-            else:
-                flash("Mentorship approved! But no tasks were assigned.", "warning")
+            try:
+                assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
+                if assigned_tasks:
+                    flash(f"Mentorship approved! {len(assigned_tasks)} tasks assigned.", "success")
+                else:
+                    flash("Mentorship approved! But no tasks were assigned.", "warning")
+            except Exception as e:
+                flash(f"Mentorship approved but task assignment failed: {str(e)}", "warning")
+                print("Task assignment error:", e)
         else:
             flash("Mentorship request approved!", "success")
 
@@ -7689,22 +7715,24 @@ def supervisor_response():
         flash("Mentorship request rejected!", "success")
 
         # Notify the mentee about the rejection
-        if mentorship_request.mentee:
-            create_notification(
-                mentorship_request.mentee.id,
-                "Your mentorship request was rejected by the supervisor.",
-                url_for("my_mentors")
-            )
-        if mentorship_request.mentor:
-            mentor_name = mentorship_request.mentor.name
-            create_notification(
-                mentorship_request.mentor.id,
-                f"Mentorship with a mentee was rejected by the supervisor.",
-                url_for("my_mentees")
-            )
+        try:
+            if mentorship_request.mentee:
+                create_notification(
+                    mentorship_request.mentee.id,
+                    "Your mentorship request was rejected by the supervisor.",
+                    url_for("my_mentors")
+                )
+            if mentorship_request.mentor:
+                create_notification(
+                    mentorship_request.mentor.id,
+                    f"Mentorship with a mentee was rejected by the supervisor.",
+                    url_for("my_mentees")
+                )
+        except Exception as e:
+            print("Notification error:", e)
     else:
         flash("Invalid action!", "error")
-        return redirect(url_for("supervisor_request"))
+        return redirect(url_for("view_requests"))
     
     try:
         db.session.commit()
@@ -7712,14 +7740,20 @@ def supervisor_response():
         db.session.rollback()
         flash("Something went wrong while updating the request.", "error")
         print("DB Commit Error:", e)
+        return redirect(url_for("view_requests"))
 
-    # If connection is now complete (mentor already accepted + supervisor approves),
-    # notify both sides and send the connection emails.
+    # Post-commit notifications (wrapped in try-except so they don't crash the request)
     if action == "approve":
-        notify_mentorship_connection(mentorship_request)
-        send_mentorship_connected_email(mentorship_request)
+        try:
+            notify_mentorship_connection(mentorship_request)
+        except Exception as e:
+            print("notify_mentorship_connection error:", e)
+        try:
+            send_mentorship_connected_email(mentorship_request)
+        except Exception as e:
+            print("send_mentorship_connected_email error:", e)
     
-    return redirect(url_for("supervisor_request"))
+    return redirect(url_for("view_requests"))
 
 # ------------------ ALL MENTORSHIPS PAGE ------------------
 @app.route("/supervisor_all_mentorships")
@@ -7730,37 +7764,76 @@ def supervisor_all_mentorships():
     user = User.query.filter_by(email=session["email"]).first()
     profile_complete = check_profile_complete(user.id, "0")
     
-    # Get ALL mentorship requests — pending ones surface first so new
-    # requests are immediately visible to supervisors
-    all_mentorships = MentorshipRequest.query.order_by(
+    # Get ALL mentorship requests with eager loading to avoid N+1 queries
+    all_mentorships = MentorshipRequest.query.options(
+        joinedload(MentorshipRequest.mentor).joinedload(User.mentor_profile),
+        joinedload(MentorshipRequest.mentee).joinedload(User.mentee_profile)
+    ).order_by(
         (MentorshipRequest.final_status == "pending").desc(),
         (MentorshipRequest.final_status == "approved").desc(),
         MentorshipRequest.created_at.desc()
     ).all()
     
-    # Get additional data for each mentorship
+    # Pre-fetch all tasks and meetings for these mentorships to avoid N+1 queries
+    mentorship_ids = [m.id for m in all_mentorships]
+    
+    # Fetch all tasks for these mentorships
+    tasks = MenteeTask.query.filter(
+        MenteeTask.mentorship_request_id.in_(mentorship_ids)
+    ).all() if mentorship_ids else []
+    
+    # Group tasks by mentorship_id
+    tasks_by_mentorship = {}
+    for task in tasks:
+        tasks_by_mentorship.setdefault(task.mentorship_request_id, []).append(task)
+    
+    # Fetch all meetings for these mentorships
+    meetings = MeetingRequest.query.filter(
+        MeetingRequest.mentorship_request_id.in_(mentorship_ids)
+    ).all() if mentorship_ids else []
+    
+    # Group meetings by mentorship_id
+    meetings_by_mentorship = {}
+    for meeting in meetings:
+        meetings_by_mentorship.setdefault(meeting.mentorship_request_id, []).append(meeting)
+    
+    # Get all mentor/mentee IDs for profile queries
+    mentor_ids = [m.mentor_id for m in all_mentorships]
+    mentee_ids = [m.mentee_id for m in all_mentorships]
+    
+    # Fetch all profiles in bulk
+    mentor_profiles = {p.user_id: p for p in MentorProfile.query.filter(MentorProfile.user_id.in_(mentor_ids)).all()} if mentor_ids else {}
+    mentee_profiles = {p.user_id: p for p in MenteeProfile.query.filter(MenteeProfile.user_id.in_(mentee_ids)).all()} if mentee_ids else {}
+    
+    # Get all mentors and mentees in bulk
+    mentors = {u.id: u for u in User.query.filter(User.id.in_(mentor_ids)).all()} if mentor_ids else {}
+    mentees = {u.id: u for u in User.query.filter(User.id.in_(mentee_ids)).all()} if mentee_ids else {}
+    
+    # Get all tasks and meetings grouped by mentorship_id
+    all_tasks = MenteeTask.query.filter(
+        MenteeTask.mentorship_request_id.in_(mentorship_ids)
+    ).all() if mentorship_ids else []
+    
+    all_meetings = MeetingRequest.query.filter(
+        MeetingRequest.mentorship_request_id.in_(mentorship_ids)
+    ).all() if mentorship_ids else []
+    
+    tasks_by_mentorship = {}
+    for task in all_tasks:
+        tasks_by_mentorship.setdefault(task.mentorship_request_id, []).append(task)
+    
+    meetings_by_mentorship = {}
+    for meeting in all_meetings:
+        meetings_by_mentorship.setdefault(meeting.mentorship_request_id, []).append(meeting)
+    
     mentorships_data = []
     for mentorship in all_mentorships:
-        mentor = User.query.get(mentorship.mentor_id)
-        mentee = User.query.get(mentorship.mentee_id)
-        
-        # Get mentor profile
-        mentor_profile = MentorProfile.query.filter_by(user_id=mentor.id).first() if mentor else None
-        
-        # Get mentee profile
-        mentee_profile = MenteeProfile.query.filter_by(user_id=mentee.id).first() if mentee else None
-        
-        # Get tasks for this mentorship
-        tasks = MenteeTask.query.filter_by(
-            mentee_id=mentee.id if mentee else None,
-            mentor_id=mentor.id if mentor else None
-        ).all()
-        
-        # Get meetings for this mentorship
-        meetings = MeetingRequest.query.filter(
-            ((MeetingRequest.requester_id == mentee.id) & (MeetingRequest.requested_to_id == mentor.id)) |
-            ((MeetingRequest.requester_id == mentor.id) & (MeetingRequest.requested_to_id == mentee.id))
-        ).all()
+        mentor = mentors.get(mentorship.mentor_id)
+        mentee = mentees.get(mentorship.mentee_id)
+        mentor_profile = mentor_profiles.get(mentorship.mentor_id)
+        mentee_profile = mentee_profiles.get(mentorship.mentee_id)
+        tasks = tasks_by_mentorship.get(mentorship.id, [])
+        meetings = meetings_by_mentorship.get(mentorship.id, [])
         
         mentorships_data.append({
             "request": mentorship,

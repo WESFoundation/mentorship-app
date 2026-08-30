@@ -180,24 +180,79 @@
       <p class="text-gray-600">View and manage your scheduled sessions with mentors.</p>
     </div>
     
-    <!-- Filter Options -->
-    <div class="filter-options">
-      <button class="filter-btn active" data-type="all">All Sessions</button>
-      <button class="filter-btn" data-type="upcoming">Upcoming</button>
-      <button class="filter-btn" data-type="completed">Completed</button>
+    <!-- Enhanced Header with Filters, Legend, Quick Actions & Navigation -->
+    <div class="mb-6 bg-gradient-to-r from-indigo-600 via-blue-600 to-purple-600 rounded-2xl p-6 text-white relative overflow-hidden">
+      <div class="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full pointer-events-none"></div>
+      
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+        <!-- Left: Calendar Title -->
+        <div>
+          <h2 class="text-xl font-bold">My Mentorship Calendar</h2>
+          <p class="text-white/80 text-sm">View and manage your scheduled sessions with mentors</p>
+        </div>
+        
+        <!-- Right: Filters, Legend, Quick Actions & Navigation -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-wrap">
+          
+          <!-- Filter Options -->
+          <div class="flex flex-wrap gap-2">
+            <button class="filter-btn active px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-medium rounded-full backdrop-blur-sm" data-type="all">All</button>
+            <button class="filter-btn px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-medium rounded-full backdrop-blur-sm" data-type="upcoming">Upcoming</button>
+            <button class="filter-btn px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-medium rounded-full backdrop-blur-sm" data-type="completed">Completed</button>
+          </div>
+          
+          <!-- Legend -->
+          <div class="flex flex-wrap items-center gap-3 text-xs">
+            <div class="flex items-center gap-1.5">
+              <div class="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
+              <span class="text-white/90">Upcoming</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <div class="w-2.5 h-2.5 bg-green-500 rounded-full"></div>
+              <span class="text-white/90">Completed</span>
+            </div>
+          </div>
+          
+          <!-- Quick Actions Buttons -->
+          <div class="flex flex-wrap gap-2">
+            <a href="{{ url_for('mentee_create_meeting_request', mentor_id=my_mentors[0].id) if my_mentors else url_for('find_mentor') }}"
+              class="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs font-medium transition backdrop-blur-sm">
+              Schedule Meeting
+            </a>
+            <a href="{{ url_for('find_mentor') }}" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs font-medium transition backdrop-blur-sm">
+              Find Mentor
+            </a>
+            <a href="{{ url_for('my_mentors') }}" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs font-medium transition backdrop-blur-sm">
+              My Mentors
+            </a>
+            <a href="{{ url_for('mentee_meeting_details') }}" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs font-medium transition backdrop-blur-sm">
+              Meeting Details
+            </a>
+          </div>
+          
+          <!-- Calendar Navigation -->
+          <div class="flex items-center gap-2">
+            <button id="prev-month" class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-medium transition backdrop-blur-sm">
+              < Previous
+            </button>
+            <button id="today-btn" class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-medium transition backdrop-blur-sm">
+              Today
+            </button>
+            <button id="next-month" class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-medium transition backdrop-blur-sm">
+              Next >
+            </button>
+          </div>
+        </div>
+      </div>
+      
+<!-- Month/Year Display -->
+      <div class="mt-4 relative z-10">
+        <h3 id="current-month-year" class="text-2xl font-bold">{{ current_date.strftime('%B %Y') if current_date else '' }}</h3>
+      </div>
     </div>
     
     <!-- Calendar Container -->
     <div class="calendar-container">
-      <div class="calendar-header">
-        <h3 id="current-month-year" class="text-lg font-semibold">January 2023</h3>
-        <div class="calendar-navigation">
-          <button id="prev-month">&lt; Previous</button>
-          <button id="today-btn">Today</button>
-          <button id="next-month">Next &gt;</button>
-        </div>
-      </div>
-      
       <div class="calendar-grid">
         <!-- Day headers -->
         <div class="calendar-day-header">Sun</div>
@@ -212,36 +267,6 @@
         <div id="calendar-days" class="col-span-7 grid grid-cols-7 gap-1 bg-gray-200">
           <!-- Calendar days will be inserted here by JavaScript -->
         </div>
-      </div>
-    </div>
-    
-    <!-- Legend -->
-    <div class="mt-6 flex flex-wrap gap-4 text-sm">
-      <div class="flex items-center">
-        <div class="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
-        <span>Upcoming Sessions</span>
-      </div>
-      <div class="flex items-center">
-        <div class="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-        <span>Completed Sessions</span>
-      </div>
-
-
-    </div>
-    
-    <!-- Quick Actions -->
-    <div class="mt-8 p-4 bg-blue-50 rounded-lg">
-      <h3 class="font-medium text-blue-800 mb-2">Quick Actions</h3>
-      <div class="flex flex-wrap gap-3">
-        <a href="{{ url_for('find_mentor') }}" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition">
-          Find a Mentor
-        </a>
-        <a href="{{ url_for('my_mentors') }}" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 transition">
-          View My Mentors
-        </a>
-        <a href="{{ url_for('mentee_meeting_details') }}" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition">
-          View Meeting Details
-        </a>
       </div>
     </div>
   </section>
