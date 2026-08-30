@@ -89,13 +89,14 @@
     {% if mentors and mentors|length > 0 %}
     <div class="overflow-x-auto rounded-xl border border-gray-200">
       <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
+<thead class="bg-gray-50">
           <tr>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S.No</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profession</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
           </tr>
@@ -124,6 +125,7 @@
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 mentor-profession max-w-[200px] truncate">{{ mentor.profession or 'Not specified' }}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentor-location max-w-[160px] truncate">{{ mentor.location or 'Not specified' }}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentor-email max-w-[200px] truncate">{{ mentor.user.email }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ mentor.user.created_at.strftime('%d %b %Y, %I:%M %p') if mentor.user.created_at else 'N/A' }}</td>
             <td class="px-6 py-4 whitespace-nowrap">
               {% if not mentor.is_profile_complete %}
               <span class="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded-md">Profile Incomplete</span>
