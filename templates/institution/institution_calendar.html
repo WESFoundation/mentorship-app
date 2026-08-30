@@ -100,6 +100,14 @@
                   Schedule Meeting
                 </a>
             </div>
+            <!-- Institute Admin Schedule Meeting Button -->
+            <div class="ml-4">
+                <a href="#"
+                  onclick="openAdminScheduleModal()"
+                  class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition">
+                  Schedule Meeting (Admin)
+                </a>
+            </div>
         </div>
     </div>
 
@@ -774,6 +782,16 @@ function updateStats() {
     document.getElementById('completedMeetings').textContent = completed;
     document.getElementById('upcomingMeetings').textContent = upcoming;
     document.getElementById('cancelledMeetings').textContent = cancelled;
+}
+
+// Admin Schedule Meeting Modal
+function openAdminScheduleModal() {
+    // This would open a modal or navigate to scheduling page
+    // For now, we'll just show an alert and navigate
+    // In a full implementation, this would show a modal with mentor/mentee selection
+    alert('Admin Schedule Meeting functionality would open a modal to select mentor and mentee for the meeting');
+    // Navigate to the scheduling page or show a modal
+    // window.location.href = '/institution/schedule-meeting';
 }
 
 // Close modal when clicking outside
