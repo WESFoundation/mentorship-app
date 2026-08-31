@@ -4996,10 +4996,16 @@ def supervisor_calendar():
             "created_at": meeting.created_at
         })
     
+    # Fetch all mentors and institutions for the schedule meeting form
+    mentors = User.query.filter_by(user_type="1").all()
+    institutions = User.query.filter_by(user_type="3").all()
+
     return render_template(
         "supervisor/supervisor_calendar.html",
         show_sidebar=True,
-        meetings=calendar_meetings
+        meetings=calendar_meetings,
+        mentors=mentors,
+        institutions=institutions
     )
 
 

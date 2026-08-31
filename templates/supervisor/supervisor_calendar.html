@@ -280,10 +280,10 @@
     <div class="mt-8 p-4 bg-blue-50 rounded-lg">
       <h3 class="font-medium text-blue-800 mb-2">Supervisor Actions</h3>
       <div class="flex flex-wrap gap-3">
-        <a href="{{ url_for('mentee_create_meeting_request', mentor_id=my_mentors[0].id) if my_mentors else url_for('find_mentor') }}"
+        <button onclick="openScheduleMeetingModal()"
           class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition">
           Schedule Meeting
-        </a>
+        </button>
         <a href="{{ url_for('supervisor_find_mentor') }}" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition">
           View All Mentors
         </a>
@@ -344,6 +344,176 @@
       <button id="join-meeting-btn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">Join Meeting</button>
       <button id="view-details-btn" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">View Full Details</button>
     </div>
+  </div>
+</div>
+
+<!-- Schedule Meeting Modal -->
+<div id="schedule-meeting-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[60] hidden transition-opacity duration-300">
+  <div class="bg-white rounded-2xl p-8 w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div class="flex justify-between items-start mb-6">
+      <div>
+        <h3 class="text-xl font-semibold text-slate-900">Schedule Meeting</h3>
+        <p class="text-slate-600 mt-1">Create a meeting session with a mentor or institution</p>
+      </div>
+      <button onclick="closeScheduleMeetingModal()" class="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-50 rounded-full transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Participant Info Banner -->
+    <div id="sm-participant-banner" class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200 hidden">
+      <p class="text-sm text-blue-600 font-medium">Meeting with</p>
+      <p id="sm-participant-name" class="font-semibold text-gray-900"></p>
+      <p id="sm-participant-email" class="text-sm text-gray-600"></p>
+    </div>
+
+    <form id="schedule-meeting-form" class="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+      <!-- Participant Selection (Mentor or Institution) -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Select Participant *</label>
+        <select id="sm-mentor" name="mentor_id" required
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+          <option value="">Choose a mentor or institution...</option>
+          {% if mentors %}
+          <optgroup label="Mentors">
+            {% for mentor in mentors %}
+            <option value="{{ mentor.id }}" data-name="{{ mentor.name }}" data-email="{{ mentor.email }}">{{ mentor.name }} ({{ mentor.email }})</option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
+          {% if institutions %}
+          <optgroup label="Institutions">
+            {% for inst in institutions %}
+            <option value="{{ inst.id }}" data-name="{{ inst.name }}" data-email="{{ inst.email }}">{{ inst.name }} ({{ inst.email }})</option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
+        </select>
+      </div>
+
+      <!-- Meeting Title -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Meeting Title *</label>
+        <input type="text" id="sm-title" name="title" required maxlength="200"
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
+          placeholder="e.g., Career Guidance Session">
+      </div>
+
+      <!-- Date & Start Time -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+          <input type="date" id="sm-date" name="date" required
+            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+          <div class="flex gap-2">
+            <select id="sm-hour" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+              <option value="">Hr</option>
+              <option value="01">01</option><option value="02">02</option><option value="03">03</option>
+              <option value="04">04</option><option value="05">05</option><option value="06">06</option>
+              <option value="07">07</option><option value="08">08</option><option value="09">09</option>
+              <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+            </select>
+            <select id="sm-minute" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+              <option value="">Min</option>
+              <option value="00">00</option><option value="05">05</option><option value="10">10</option>
+              <option value="15">15</option><option value="20">20</option><option value="25">25</option>
+              <option value="30">30</option><option value="35">35</option><option value="40">40</option>
+              <option value="45">45</option><option value="50">50</option><option value="55">55</option>
+            </select>
+            <select id="sm-ampm" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+              <option value="">AM/PM</option>
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </div>
+          <input type="hidden" id="sm-start_time" name="start_time">
+        </div>
+      </div>
+
+      <!-- Duration + Platform Row -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Duration *</label>
+          <select id="sm-duration" name="duration" required
+            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+            <option value="">Select Duration</option>
+            <option value="15">15 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="45">45 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="90">1.5 hours</option>
+            <option value="120">2 hours</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Meeting Platform</label>
+          <select id="sm-platform" name="platform"
+            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+            <option value="google">Google Meet</option>
+            <option value="teams">Microsoft Teams</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Time Zone -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Time Zone *</label>
+        <select id="sm-timezone" name="timezone" required
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+          <option value="">Select Time Zone</option>
+          <optgroup label="Asia">
+            <option value="Asia/Kolkata" selected>India (IST, UTC+5:30)</option>
+            <option value="Asia/Dubai">Gulf Standard Time (GST, UTC+4)</option>
+            <option value="Asia/Singapore">Singapore (SGT, UTC+8)</option>
+            <option value="Asia/Shanghai">China (CST, UTC+8)</option>
+            <option value="Asia/Tokyo">Japan (JST, UTC+9)</option>
+            <option value="Asia/Seoul">Korea (KST, UTC+9)</option>
+            <option value="Asia/Kathmandu">Nepal (NPT, UTC+5:45)</option>
+            <option value="Asia/Colombo">Sri Lanka (IST, UTC+5:30)</option>
+          </optgroup>
+          <optgroup label="Europe">
+            <option value="Europe/London">UK (GMT/BST, UTC+0/+1)</option>
+            <option value="Europe/Paris">Central Europe (CET/CEST, UTC+1/+2)</option>
+            <option value="Europe/Berlin">Germany (CET/CEST, UTC+1/+2)</option>
+            <option value="Europe/Moscow">Russia (MSK, UTC+3)</option>
+          </optgroup>
+          <optgroup label="Americas">
+            <option value="America/New_York">US Eastern (ET, UTC-5/-4)</option>
+            <option value="America/Chicago">US Central (CT, UTC-6/-5)</option>
+            <option value="America/Denver">US Mountain (MT, UTC-7/-6)</option>
+            <option value="America/Los_Angeles">US Pacific (PT, UTC-8/-7)</option>
+            <option value="America/Toronto">Canada Eastern (ET, UTC-5/-4)</option>
+            <option value="America/Sao_Paulo">Brazil (BRT, UTC-3)</option>
+          </optgroup>
+          <optgroup label="Africa">
+            <option value="Africa/Cairo">Egypt (EET, UTC+2)</option>
+            <option value="Africa/Lagos">Nigeria (WAT, UTC+1)</option>
+            <option value="Africa/Nairobi">East Africa (EAT, UTC+3)</option>
+            <option value="Africa/Johannesburg">South Africa (SAST, UTC+2)</option>
+          </optgroup>
+          <optgroup label="Pacific">
+            <option value="Australia/Sydney">Australia Eastern (AEST/AEDT, UTC+10/+11)</option>
+            <option value="Pacific/Auckland">New Zealand (NZST/NZDT, UTC+12/+13)</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <!-- Status message -->
+      <p id="sm-status" class="text-sm hidden"></p>
+
+      <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+        <button type="button" onclick="closeScheduleMeetingModal()" class="px-5 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors">Cancel</button>
+        <button type="submit" id="sm-submit-btn" class="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/30 flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+          Create Meeting
+        </button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -622,7 +792,141 @@ document.addEventListener('DOMContentLoaded', function() {
       this.style.display = 'none';
     }
   });
+
+  // Schedule Meeting form submit
+  document.getElementById('schedule-meeting-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    handleScheduleMeeting();
+  });
 });
+
+// ===== Schedule Meeting Modal =====
+function openScheduleMeetingModal() {
+  var modal = document.getElementById('schedule-meeting-modal');
+  modal.classList.remove('hidden');
+  // Set min date to today
+  var today = new Date().toISOString().split('T')[0];
+  document.getElementById('sm-date').setAttribute('min', today);
+  document.getElementById('sm-date').value = '';
+  document.getElementById('sm-hour').value = '';
+  document.getElementById('sm-minute').value = '';
+  document.getElementById('sm-ampm').value = '';
+  document.getElementById('sm-title').value = '';
+  document.getElementById('sm-mentor').value = '';
+  document.getElementById('sm-duration').value = '';
+  document.getElementById('sm-platform').value = 'google';
+  // Auto-detect timezone
+  try {
+    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz === 'Asia/Calcutta') tz = 'Asia/Kolkata';
+    var tzSelect = document.getElementById('sm-timezone');
+    for (var i = 0; i < tzSelect.options.length; i++) {
+      if (tzSelect.options[i].value === tz) { tzSelect.selectedIndex = i; break; }
+    }
+  } catch(e) {}
+  // Hide banner
+  document.getElementById('sm-participant-banner').classList.add('hidden');
+  var status = document.getElementById('sm-status');
+  status.classList.add('hidden');
+  status.textContent = '';
+}
+
+function closeScheduleMeetingModal() {
+  document.getElementById('schedule-meeting-modal').classList.add('hidden');
+}
+
+// Participant banner update
+document.getElementById('sm-mentor').addEventListener('change', function() {
+  var opt = this.options[this.selectedIndex];
+  var banner = document.getElementById('sm-participant-banner');
+  if (this.value && opt.dataset.name) {
+    document.getElementById('sm-participant-name').textContent = opt.dataset.name;
+    document.getElementById('sm-participant-email').textContent = opt.dataset.email;
+    banner.classList.remove('hidden');
+  } else {
+    banner.classList.add('hidden');
+  }
+});
+
+async function handleScheduleMeeting() {
+  var mentorId = document.getElementById('sm-mentor').value;
+  var title = document.getElementById('sm-title').value.trim();
+  var date = document.getElementById('sm-date').value;
+  var hour = document.getElementById('sm-hour').value;
+  var minute = document.getElementById('sm-minute').value;
+  var ampm = document.getElementById('sm-ampm').value;
+  var duration = document.getElementById('sm-duration').value;
+  var platform = document.getElementById('sm-platform').value;
+  var timezone = document.getElementById('sm-timezone').value;
+  var statusEl = document.getElementById('sm-status');
+  var submitBtn = document.getElementById('sm-submit-btn');
+
+  // Validate
+  if (!mentorId || !title || !date || !hour || !minute || !ampm || !duration || !timezone) {
+    statusEl.textContent = 'Please fill in all required fields.';
+    statusEl.className = 'text-sm mt-2 text-amber-600';
+    statusEl.classList.remove('hidden');
+    return;
+  }
+
+  // Convert 12-hour to 24-hour
+  var h = parseInt(hour, 10);
+  if (ampm === 'PM' && h !== 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
+  var startTime = String(h).padStart(2, '0') + ':' + minute;
+  document.getElementById('sm-start_time').value = startTime;
+
+  // Validate future date/time
+  var selectedDT = new Date(date + 'T' + startTime);
+  if (selectedDT <= new Date()) {
+    statusEl.textContent = 'Please select a future date and time.';
+    statusEl.className = 'text-sm mt-2 text-amber-600';
+    statusEl.classList.remove('hidden');
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Scheduling...';
+
+  try {
+    var response = await fetch('/create_meeting_ajax', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: title,
+        date: date,
+        start_time: startTime,
+        duration: duration,
+        mentor_id: mentorId,
+        platform: platform,
+        timezone: timezone
+      })
+    });
+
+    var result = await response.json();
+
+    if (response.ok && result.message) {
+      statusEl.textContent = 'Meeting scheduled successfully!';
+      statusEl.className = 'text-sm mt-2 text-green-600';
+      statusEl.classList.remove('hidden');
+      setTimeout(function() {
+        closeScheduleMeetingModal();
+        window.location.reload();
+      }, 1200);
+    } else {
+      statusEl.textContent = result.error || 'Failed to schedule meeting. Please try again.';
+      statusEl.className = 'text-sm mt-2 text-red-600';
+      statusEl.classList.remove('hidden');
+    }
+  } catch (err) {
+    statusEl.textContent = 'Network error. Please check your connection and try again.';
+    statusEl.className = 'text-sm mt-2 text-red-600';
+    statusEl.classList.remove('hidden');
+  }
+
+  submitBtn.disabled = false;
+  submitBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg> Create Meeting';
+}
 </script>
 
 {% endblock %}
