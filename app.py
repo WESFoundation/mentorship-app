@@ -6206,10 +6206,15 @@ def institution_calendar():
             "created_at": meeting.created_at
         })
     
+    mentors = User.query.filter_by(user_type="1").all()
+    mentees = User.query.filter_by(user_type="2").all()
+
     return render_template(
         "institution/institution_calendar.html",
         show_sidebar=True,
-        meetings=calendar_meetings
+        meetings=calendar_meetings,
+        mentors=mentors,
+        mentees=mentees
     )
 
 

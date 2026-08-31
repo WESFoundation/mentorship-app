@@ -93,19 +93,10 @@
                 </button>
             </div>
             
-<!-- Schedule Meeting Button -->
             <div class="ml-4">
                 <button onclick="openAdminScheduleModal()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
-                  Schedule Meeting (Admin)
+                  Schedule Meeting
                 </button>
-            </div>
-            <!-- Institute Admin Schedule Meeting Button -->
-            <div class="ml-4">
-                <a href="#"
-                  onclick="openAdminScheduleModal()"
-                  class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition">
-                  Schedule Meeting (Admin)
-                </a>
             </div>
         </div>
     </div>
@@ -253,6 +244,144 @@
                 </button>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Schedule Meeting Modal -->
+<div id="scheduleMeetingModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h3 class="text-xl font-bold text-gray-800">Schedule Meeting</h3>
+                    <p class="text-sm text-gray-500 mt-1">Create a meeting session</p>
+                </div>
+                <button onclick="closeScheduleMeetingModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+        </div>
+        <form id="scheduleMeetingForm" class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentor *</label>
+                <select id="sched-mentor" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <option value="">Choose a mentor...</option>
+                    {% for mentor in mentors %}
+                    <option value="{{ mentor.id }}" data-name="{{ mentor.name }}">{{ mentor.name }} ({{ mentor.email }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentee <span class="text-gray-400 font-normal">(optional)</span></label>
+                <select id="sched-mentee" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <option value="">Choose a mentee...</option>
+                    {% for mentee in mentees %}
+                    <option value="{{ mentee.id }}" data-name="{{ mentee.name }}">{{ mentee.name }} ({{ mentee.email }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="sched-participant-banner" class="hidden p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p class="text-sm text-blue-600 font-medium">Meeting between</p>
+                <p id="sched-participant-names" class="font-semibold text-gray-900"></p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Meeting Title *</label>
+                <input type="text" id="sched-title" required maxlength="200" placeholder="e.g. Career Guidance Session" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                    <input type="date" id="sched-date" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+                    <div class="flex gap-2">
+                        <select id="sched-hour" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <option value="">Hr</option>
+                            <option value="01">01</option><option value="02">02</option><option value="03">03</option>
+                            <option value="04">04</option><option value="05">05</option><option value="06">06</option>
+                            <option value="07">07</option><option value="08">08</option><option value="09">09</option>
+                            <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+                        </select>
+                        <select id="sched-minute" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <option value="">Min</option>
+                            <option value="00">00</option><option value="05">05</option><option value="10">10</option>
+                            <option value="15">15</option><option value="20">20</option><option value="25">25</option>
+                            <option value="30">30</option><option value="35">35</option><option value="40">40</option>
+                            <option value="45">45</option><option value="50">50</option><option value="55">55</option>
+                        </select>
+                        <select id="sched-ampm" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <option value="">AM/PM</option>
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                        </select>
+                    </div>
+                    <input type="hidden" id="sched-start-time" name="start_time">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Duration *</label>
+                    <select id="sched-duration" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        <option value="15">15 minutes</option>
+                        <option value="30">30 minutes</option>
+                        <option value="45">45 minutes</option>
+                        <option value="60" selected>1 hour</option>
+                        <option value="90">1.5 hours</option>
+                        <option value="120">2 hours</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Platform</label>
+                    <select id="sched-platform" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        <option value="google">Google Meet</option>
+                        <option value="teams">Microsoft Teams</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Time Zone *</label>
+                <select id="sched-timezone" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <option value="">Select Time Zone</option>
+                    <optgroup label="Asia">
+                        <option value="Asia/Kolkata" selected>India (IST, UTC+5:30)</option>
+                        <option value="Asia/Dubai">Gulf (GST, UTC+4)</option>
+                        <option value="Asia/Singapore">Singapore (SGT, UTC+8)</option>
+                        <option value="Asia/Shanghai">China (CST, UTC+8)</option>
+                        <option value="Asia/Tokyo">Japan (JST, UTC+9)</option>
+                    </optgroup>
+                    <optgroup label="Europe">
+                        <option value="Europe/London">UK (GMT/BST)</option>
+                        <option value="Europe/Paris">Central Europe (CET)</option>
+                        <option value="Europe/Moscow">Russia (MSK, UTC+3)</option>
+                    </optgroup>
+                    <optgroup label="Americas">
+                        <option value="America/New_York">US Eastern (ET)</option>
+                        <option value="America/Chicago">US Central (CT)</option>
+                        <option value="America/Los_Angeles">US Pacific (PT)</option>
+                        <option value="America/Toronto">Canada Eastern (ET)</option>
+                    </optgroup>
+                    <optgroup label="Africa">
+                        <option value="Africa/Cairo">Egypt (EET, UTC+2)</option>
+                        <option value="Africa/Lagos">Nigeria (WAT, UTC+1)</option>
+                        <option value="Africa/Nairobi">East Africa (EAT, UTC+3)</option>
+                        <option value="Africa/Johannesburg">South Africa (SAST, UTC+2)</option>
+                    </optgroup>
+                    <optgroup label="Pacific">
+                        <option value="Australia/Sydney">Australia Eastern (AEST)</option>
+                        <option value="Pacific/Auckland">New Zealand (NZST)</option>
+                    </optgroup>
+                </select>
+            </div>
+            <div id="sched-status" class="text-sm hidden"></div>
+            <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button type="button" onclick="closeScheduleMeetingModal()" class="px-5 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors">Cancel</button>
+                <button type="submit" id="sched-submit" class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition shadow-lg shadow-indigo-500/30 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    Schedule Meeting
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -783,15 +912,112 @@ function updateStats() {
     document.getElementById('cancelledMeetings').textContent = cancelled;
 }
 
-// Admin Schedule Meeting Modal
+// Schedule Meeting
 function openAdminScheduleModal() {
-    // This would open a modal or navigate to scheduling page
-    // For now, we'll just show an alert and navigate
-    // In a full implementation, this would show a modal with mentor/mentee selection
-    alert('Admin Schedule Meeting functionality would open a modal to select mentor and mentee for the meeting');
-    // Navigate to the scheduling page or show a modal
-    // window.location.href = '/institution/schedule-meeting';
+    document.getElementById('scheduleMeetingModal').classList.remove('hidden');
+    document.getElementById('scheduleMeetingModal').classList.add('flex');
+    var today = new Date().toISOString().split('T')[0];
+    document.getElementById('sched-date').setAttribute('min', today);
+    document.getElementById('sched-date').value = '';
+    document.getElementById('sched-hour').value = '';
+    document.getElementById('sched-minute').value = '';
+    document.getElementById('sched-ampm').value = '';
+    document.getElementById('sched-title').value = '';
+    document.getElementById('sched-mentor').value = '';
+    document.getElementById('sched-mentee').value = '';
+    document.getElementById('sched-duration').value = '60';
+    document.getElementById('sched-platform').value = 'google';
+    try {
+        var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (tz === 'Asia/Calcutta') tz = 'Asia/Kolkata';
+        var sel = document.getElementById('sched-timezone');
+        for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === tz) { sel.selectedIndex = i; break; }
+        }
+    } catch(e) {}
+    document.getElementById('sched-participant-banner').classList.add('hidden');
+    var s = document.getElementById('sched-status'); s.classList.add('hidden'); s.textContent = '';
 }
+function closeScheduleMeetingModal() {
+    document.getElementById('scheduleMeetingModal').classList.add('hidden');
+    document.getElementById('scheduleMeetingModal').classList.remove('flex');
+}
+document.getElementById('sched-mentor').addEventListener('change', updateSchedBanner);
+document.getElementById('sched-mentee').addEventListener('change', updateSchedBanner);
+function updateSchedBanner() {
+    var mSel = document.getElementById('sched-mentor');
+    var eSel = document.getElementById('sched-mentee');
+    var banner = document.getElementById('sched-participant-banner');
+    var namesEl = document.getElementById('sched-participant-names');
+    var mOpt = mSel.options[mSel.selectedIndex];
+    var eOpt = eSel.options[eSel.selectedIndex];
+    var parts = [];
+    if (mSel.value && mOpt.dataset.name) parts.push(mOpt.dataset.name + ' (Mentor)');
+    if (eSel.value && eOpt.dataset.name) parts.push(eOpt.dataset.name + ' (Mentee)');
+    if (parts.length > 0) { namesEl.textContent = parts.join(' & '); banner.classList.remove('hidden'); }
+    else { banner.classList.add('hidden'); }
+}
+document.getElementById('scheduleMeetingForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var mentorId = document.getElementById('sched-mentor').value;
+    var title = document.getElementById('sched-title').value.trim();
+    var date = document.getElementById('sched-date').value;
+    var hour = document.getElementById('sched-hour').value;
+    var minute = document.getElementById('sched-minute').value;
+    var ampm = document.getElementById('sched-ampm').value;
+    var duration = document.getElementById('sched-duration').value;
+    var platform = document.getElementById('sched-platform').value;
+    var timezone = document.getElementById('sched-timezone').value;
+    var statusEl = document.getElementById('sched-status');
+    var submitBtn = document.getElementById('sched-submit');
+    if (!mentorId || !title || !date || !hour || !minute || !ampm || !duration || !timezone) {
+        statusEl.textContent = 'Please fill in all required fields.';
+        statusEl.className = 'text-sm text-amber-600';
+        statusEl.classList.remove('hidden');
+        return;
+    }
+    var h = parseInt(hour, 10);
+    if (ampm === 'PM' && h !== 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    var startTime = String(h).padStart(2, '0') + ':' + minute;
+    document.getElementById('sched-start-time').value = startTime;
+    var selectedDT = new Date(date + 'T' + startTime);
+    if (selectedDT <= new Date()) {
+        statusEl.textContent = 'Please select a future date and time.';
+        statusEl.className = 'text-sm text-amber-600';
+        statusEl.classList.remove('hidden');
+        return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Scheduling...';
+    try {
+        var res = await fetch('/create_meeting_ajax', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({title: title, date: date, start_time: startTime, duration: duration, mentor_id: mentorId, platform: platform, timezone: timezone})
+        });
+        var result = await res.json();
+        if (res.ok && result.message) {
+            statusEl.textContent = 'Meeting scheduled successfully!';
+            statusEl.className = 'text-sm text-green-600';
+            statusEl.classList.remove('hidden');
+            setTimeout(function() { closeScheduleMeetingModal(); window.location.reload(); }, 1200);
+        } else {
+            statusEl.textContent = result.error || 'Failed to schedule meeting. Please try again.';
+            statusEl.className = 'text-sm text-red-600';
+            statusEl.classList.remove('hidden');
+        }
+    } catch(err) {
+        statusEl.textContent = 'Network error. Please try again.';
+        statusEl.className = 'text-sm text-red-600';
+        statusEl.classList.remove('hidden');
+    }
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg> Schedule Meeting';
+});
+document.getElementById('scheduleMeetingModal').addEventListener('click', function(e) {
+    if (e.target === this) closeScheduleMeetingModal();
+});
 
 // Close modal when clicking outside
 document.getElementById('meetingModal').addEventListener('click', function(e) {
