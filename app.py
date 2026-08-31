@@ -3642,8 +3642,6 @@ def institution_response():
 
     # Update status based on action
     if action == "approve":
-        mentorship_request.supervisor_status = "approved"
-        mentorship_request.final_status = "approved"
         flash("Mentorship request approved!", "success")
         if mentorship_request.duration_months == 12:
             assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
@@ -3653,6 +3651,10 @@ def institution_response():
                 flash("Mentorship approved! But no tasks were assigned.", "warning")
         else:
             flash("Mentorship request approved!", "success")
+
+        # Re-set status AFTER task assignment (assign function may rollback session)
+        mentorship_request.supervisor_status = "approved"
+        mentorship_request.final_status = "approved"
 
     elif action == "reject":
         mentorship_request.supervisor_status = "rejected"
@@ -7710,8 +7712,6 @@ def supervisor_response():
     
     # Update status based on action
     if action == "approve":
-        mentorship_request.supervisor_status = "approved"
-        mentorship_request.final_status = "approved"
         flash("Mentorship request approved!", "success")
         
         # Assign tasks if 12-month duration
@@ -7728,6 +7728,10 @@ def supervisor_response():
                 print("Task assignment error:", e)
         else:
             flash("Mentorship request approved!", "success")
+
+        # Re-set status AFTER task assignment (assign function may rollback session)
+        mentorship_request.supervisor_status = "approved"
+        mentorship_request.final_status = "approved"
 
     elif action == "reject":
         mentorship_request.supervisor_status = "rejected"
@@ -7772,8 +7776,8 @@ def supervisor_response():
             send_mentorship_connected_email(mentorship_request)
         except Exception as e:
             print("send_mentorship_connected_email error:", e)
-    
-    return redirect(url_for("view_requests"))
+    return redirect(url_for("view_requests", status="approved" if action == "approve" else "rejected"))
+
 
 # ------------------ ALL MENTORSHIPS PAGE ------------------
 @app.route("/supervisor_all_mentorships")
