@@ -619,121 +619,88 @@
                     </div>
                 </div>
 
-                <!-- ✅ MY FEEDBACK SECTION — exactly like Mentor Rating layout (mentee format) with extra features -->
-                <div id="mentee-feedback-section" class="bg-slate-50/50 p-5 rounded-xl border border-slate-100">
-                    <h4 class="font-bold text-slate-800 text-lg mb-3 flex items-center gap-2">
-                        <span>💭</span> My Feedback
+                <!-- ✅ MY FEEDBACK SECTION — mirrors Mentor Rating layout exactly -->
+                <div id="mentee-feedback-section" class="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
+                    <h4 class="font-bold text-blue-800 text-lg mb-3 flex items-center gap-2">
+                        <span>💭</span> My Reflection
                     </h4>
-
-                    <!-- Quick mood tags (visible in both view and edit modes) -->
-                    <div id="mentee-mood-bar" class="hidden mb-4 flex flex-wrap gap-2">
-                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1 self-center">Mood:</span>
-                        <button type="button" class="mentee-mood-tag px-3 py-1 rounded-full text-xs font-medium border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:border-slate-300 transition" data-mood="on-track">📌 On Track</button>
-                        <button type="button" class="mentee-mood-tag px-3 py-1 rounded-full text-xs font-medium border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:border-slate-300 transition" data-mood="learned">📚 Learned</button>
-                        <button type="button" class="mentee-mood-tag px-3 py-1 rounded-full text-xs font-medium border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:border-slate-300 transition" data-mood="challenged">😅 Challenged</button>
-                        <button type="button" class="mentee-mood-tag px-3 py-1 rounded-full text-xs font-medium border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:border-slate-300 transition" data-mood="confident">💪 Confident</button>
-                        <button type="button" class="mentee-mood-tag px-3 py-1 rounded-full text-xs font-medium border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:border-slate-300 transition" data-mood="need-help">🆘 Need Help</button>
-                    </div>
 
                     <div id="mentee-rating-display">
                         <div id="mentee-no-rating-message" class="text-center py-6">
-                            <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-100 text-slate-400 mb-3">
+                            <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-500 mb-3">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
                                 </svg>
                             </div>
-                            <p class="text-slate-800 font-medium">No feedback yet</p>
-                            <p class="text-sm text-slate-500/80 mt-1">Add your reflection below.</p>
+                            <p class="text-blue-800 font-medium">No reflection yet</p>
+                            <p class="text-sm text-blue-600/80 mt-1 mb-3">Share your thoughts on this task.</p>
+                            <button onclick="openMenteeFeedbackModal()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition inline-flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                Add Reflection
+                            </button>
                         </div>
 
                         <div id="mentee-rating-details" class="hidden">
-                            <!-- Summary cards row -->
-                            <div class="grid grid-cols-3 gap-3 mb-5">
-                                <div class="bg-white rounded-xl border border-slate-100 p-3 text-center shadow-sm">
-                                    <div id="mentee-display-stars-sm" class="flex gap-0.5 justify-center text-sm text-slate-400 mb-1"></div>
-                                    <span id="mentee-display-score" class="font-bold text-slate-700 text-sm"></span>
+                            <!-- Mentee identity -->
+                            <div class="flex items-center gap-3 mb-4 pb-4 border-b border-blue-200/50">
+                                <div class="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center text-white font-bold text-sm shadow-sm">
+                                    <span id="mentee-initial">Y</span>
                                 </div>
-                                <div class="bg-white rounded-xl border border-slate-100 p-3 text-center shadow-sm">
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mood</p>
-                                    <p id="mentee-display-mood" class="text-xs font-semibold text-slate-700 mt-0.5">—</p>
+                                <div>
+                                    <p id="mentee-name-display" class="font-semibold text-slate-800 text-sm">You</p>
+                                    <p class="text-xs text-slate-500">Self-reflection</p>
                                 </div>
-                                <div class="bg-white rounded-xl border border-slate-100 p-3 text-center shadow-sm">
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Saved</p>
-                                    <p id="mentee-display-date" class="text-[10px] font-medium text-slate-500 mt-0.5"></p>
-                                </div>
+                                <span id="mentee-display-date" class="text-xs font-medium text-slate-400 ml-auto uppercase tracking-wide"></span>
                             </div>
 
-                            <!-- Reflection: What I Learned -->
-                            <div class="mb-4">
-                                <label class="text-xs font-bold text-emerald-700 uppercase tracking-wider block mb-1.5 flex items-center gap-1">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
-                                    What I Learned
-                                </label>
-                                <div class="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm">
-                                    <p id="mentee-display-learned" class="text-slate-600 text-sm leading-relaxed"></p>
+                            <!-- Overall rating banner -->
+                            <div class="flex items-center gap-3 mb-5 bg-white/70 rounded-xl px-4 py-3 border border-blue-100">
+                                <div id="mentee-display-stars-sm" class="flex gap-1 text-xl text-blue-400"></div>
+                                <span id="mentee-display-score" class="font-bold text-slate-700 text-xl bg-white px-3 py-1 rounded-lg border border-slate-100 shadow-sm"></span>
+                            </div>
+
+                            <div class="space-y-4">
+                                <!-- Remark (mood) -->
+                                <div>
+                                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2 flex items-center gap-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path></svg>
+                                        Mood
+                                    </label>
+                                    <div class="bg-blue-50/60 p-4 rounded-xl border border-blue-100 shadow-sm">
+                                        <p id="mentee-display-mood" class="text-slate-700 text-sm leading-relaxed"></p>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="text-xs font-bold text-emerald-600 uppercase tracking-wider block mb-2 flex items-center gap-1">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                            What I Learned
+                                        </label>
+                                        <div class="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 h-full">
+                                            <p id="mentee-display-learned" class="text-slate-600 text-sm"></p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-bold text-blue-600 uppercase tracking-wider block mb-2 flex items-center gap-1">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                            What I Will Do Next
+                                        </label>
+                                        <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100 h-full">
+                                            <p id="mentee-display-next" class="text-slate-600 text-sm"></p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <!-- Reflection: What Was Challenging -->
-                            <div class="mb-4">
-                                <label class="text-xs font-bold text-amber-700 uppercase tracking-wider block mb-1.5 flex items-center gap-1">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"></path></svg>
-                                    What Was Challenging
-                                </label>
-                                <div class="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm">
-                                    <p id="mentee-display-challenged" class="text-slate-600 text-sm leading-relaxed"></p>
-                                </div>
-                            </div>
-                            <!-- Reflection: What I Will Do Next -->
-                            <div class="mb-4">
-                                <label class="text-xs font-bold text-blue-700 uppercase tracking-wider block mb-1.5 flex items-center gap-1">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
-                                    What I Will Do Next
-                                </label>
-                                <div class="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm">
-                                    <p id="mentee-display-next" class="text-slate-600 text-sm leading-relaxed"></p>
-                                </div>
-                            </div>
-                            <div class="mt-4 pt-4 border-t border-slate-100 flex gap-2">
-                                <button onclick="editMenteeFeedback()" class="text-xs font-semibold text-slate-600 hover:text-slate-800 transition flex items-center gap-1">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            <div class="mt-4 pt-4 border-t border-blue-100 flex gap-2">
+                                <button onclick="openMenteeFeedbackModal()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                     Edit feedback
                                 </button>
-                                <button onclick="clearMenteeFeedback()" class="text-xs font-semibold text-red-500 hover:text-red-700 transition flex items-center gap-1">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                <button onclick="clearMenteeFeedback()" class="px-4 py-2 text-red-500 text-sm font-medium rounded-lg hover:bg-red-50 transition flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                     Clear
                                 </button>
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- Edit form -->
-                    <div id="mentee-feedback-form" class="hidden">
-                        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Your Reflection</label>
-                        <div class="flex gap-1 mb-3" id="mentee-star-picker" role="radiogroup" aria-label="Self rating">
-                            <button type="button" class="mentee-star text-2xl text-slate-200 hover:text-slate-400 transition" data-value="1" aria-label="1 star">★</button>
-                            <button type="button" class="mentee-star text-2xl text-slate-200 hover:text-slate-400 transition" data-value="2" aria-label="2 stars">★</button>
-                            <button type="button" class="mentee-star text-2xl text-slate-200 hover:text-slate-400 transition" data-value="3" aria-label="3 stars">★</button>
-                            <button type="button" class="mentee-star text-2xl text-slate-200 hover:text-slate-400 transition" data-value="4" aria-label="4 stars">★</button>
-                            <button type="button" class="mentee-star text-2xl text-slate-200 hover:text-slate-400 transition" data-value="5" aria-label="5 stars">★</button>
-                            <span id="mentee-star-label" class="text-xs font-medium text-slate-500 ml-2 self-center"></span>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
-                            <input type="text" id="mentee-learned-input" placeholder="What I learned…" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 text-xs text-slate-700 placeholder-slate-400 transition">
-                            <input type="text" id="mentee-challenged-input" placeholder="What was challenging…" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 text-xs text-slate-700 placeholder-slate-400 transition">
-                            <input type="text" id="mentee-next-input" placeholder="What I'll do next…" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 text-xs text-slate-700 placeholder-slate-400 transition">
-                        </div>
-                        <textarea id="mentee-feedback-input" rows="2" placeholder="Additional notes or any other reflection…" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-500 text-sm text-slate-700 placeholder-slate-400 transition mb-1"></textarea>
-                        <div class="flex items-center justify-between mt-1">
-                            <p id="mentee-char-count" class="text-[10px] text-slate-400">0 / 2000</p>
-                            <span id="mentee-draft-indicator" class="text-[10px] text-slate-400 hidden">💾 Draft saved</span>
-                        </div>
-                        <div class="flex gap-2 mt-3">
-                            <button onclick="saveMenteeFeedback()" class="px-4 py-2 bg-slate-700 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition shadow-sm">Save My Feedback</button>
-                            <button onclick="cancelMenteeFeedback()" class="px-4 py-2 bg-white text-slate-600 text-sm font-medium rounded-lg border border-slate-200 hover:bg-slate-50 transition">Cancel</button>
-                        </div>
-                        <p id="mentee-feedback-status" class="text-xs mt-2 hidden"></p>
-                    </div>
-                </div>
 
                 <!-- Actions -->
                 <div class="flex gap-3 pt-6 border-t border-slate-100">
@@ -766,6 +733,87 @@
     </div>
 
 </main>
+
+<!-- Mentee Reflection Modal (mirrors mentor rating modal) — placed outside task-details-modal to avoid transform stacking context -->
+<div id="mentee-feedback-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[60] hidden transition-opacity duration-300">
+    <div class="bg-white rounded-2xl p-8 w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-start mb-6">
+            <div>
+                <h3 class="text-xl font-semibold text-slate-900">My Reflection</h3>
+                <p class="text-slate-600 mt-1">Share your thoughts on this task</p>
+            </div>
+            <button onclick="closeMenteeFeedbackModal()" class="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-50 rounded-full transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <form id="mentee-feedback-form" class="space-y-6">
+            <!-- Star Rating -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-3">How would you rate your performance? *</label>
+                <div class="flex gap-2" id="mentee-star-picker" role="radiogroup" aria-label="Self rating">
+                    <button type="button" class="mentee-star text-3xl text-slate-200 hover:text-amber-400 transition" data-value="1" aria-label="1 star">★</button>
+                    <button type="button" class="mentee-star text-3xl text-slate-200 hover:text-amber-400 transition" data-value="2" aria-label="2 stars">★</button>
+                    <button type="button" class="mentee-star text-3xl text-slate-200 hover:text-amber-400 transition" data-value="3" aria-label="3 stars">★</button>
+                    <button type="button" class="mentee-star text-3xl text-slate-200 hover:text-amber-400 transition" data-value="4" aria-label="4 stars">★</button>
+                    <button type="button" class="mentee-star text-3xl text-slate-200 hover:text-amber-400 transition" data-value="5" aria-label="5 stars">★</button>
+                    <span id="mentee-star-label" class="text-sm font-medium text-slate-500 ml-2 self-center"></span>
+                </div>
+            </div>
+
+            <!-- Mood -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-3">How are you feeling about this task?</label>
+                <div class="flex flex-wrap gap-2" id="mentee-mood-picker">
+                    <button type="button" class="mentee-mood-tag px-4 py-2 rounded-full text-sm font-medium border border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition" data-mood="on-track">📌 On Track</button>
+                    <button type="button" class="mentee-mood-tag px-4 py-2 rounded-full text-sm font-medium border border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition" data-mood="learned">📚 Learned</button>
+                    <button type="button" class="mentee-mood-tag px-4 py-2 rounded-full text-sm font-medium border border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition" data-mood="challenged">😅 Challenged</button>
+                    <button type="button" class="mentee-mood-tag px-4 py-2 rounded-full text-sm font-medium border border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition" data-mood="confident">💪 Confident</button>
+                    <button type="button" class="mentee-mood-tag px-4 py-2 rounded-full text-sm font-medium border border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition" data-mood="need-help">🆘 Need Help</button>
+                </div>
+            </div>
+
+            <!-- What I Learned -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">What I Learned *</label>
+                <textarea id="mentee-learned-input" name="learned" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-slate-700 placeholder-slate-400" placeholder="What key concepts, skills, or insights did you gain from this task?" required></textarea>
+            </div>
+
+            <!-- What Was Challenging -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">What Was Challenging *</label>
+                <textarea id="mentee-challenged-input" name="challenged" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-slate-700 placeholder-slate-400" placeholder="What obstacles did you face? What was hard to understand?" required></textarea>
+            </div>
+
+            <!-- What I Will Do Next -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">What I Will Do Next *</label>
+                <textarea id="mentee-next-input" name="next" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-slate-700 placeholder-slate-400" placeholder="What are your action items or goals for the next session?" required></textarea>
+            </div>
+
+            <!-- Additional Notes -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Additional Notes</label>
+                <textarea id="mentee-feedback-input" name="text" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm text-slate-700 placeholder-slate-400" placeholder="Any other reflection, links, or thoughts..."></textarea>
+                <div class="flex items-center justify-between mt-1">
+                    <p id="mentee-char-count" class="text-xs text-slate-400">0 / 2000</p>
+                    <span id="mentee-draft-indicator" class="text-xs text-slate-400 hidden">💾 Draft saved</span>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button type="button" onclick="closeMenteeFeedbackModal()" class="px-4 py-2 text-slate-600 hover:text-slate-800 transition">Cancel</button>
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    Save Reflection
+                </button>
+            </div>
+            <p id="mentee-feedback-status" class="text-sm mt-2 hidden"></p>
+        </form>
+    </div>
+</div>
 
 <!-- Create Task Modal -->
 <div id="create-task-modal"
@@ -1109,167 +1157,139 @@
         // ===== MENTEE SELF-FEEDBACK (UI-only, localStorage — no DB/Github) =====
     let menteeSelfRating = 0;
     let menteeMood = '';
-    let menteeDraftTimer = null;
     const MENTEE_MOOD_LABELS = { 'on-track':'📌 On Track', 'learned':'📚 Learned', 'challenged':'😅 Challenged', 'confident':'💪 Confident', 'need-help':'🆘 Need Help' };
     function getMenteeFeedbackKey(taskId, taskType) { return 'menteeFeedback_' + taskType + '_' + taskId; }
+
+    function openMenteeFeedbackModal() {
+        if (!currentTaskId || !currentTaskType) return;
+        const modal = document.getElementById('mentee-feedback-modal');
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        const key = getMenteeFeedbackKey(currentTaskId, currentTaskType);
+        const raw = localStorage.getItem(key);
+        const data = raw ? JSON.parse(raw) : {};
+        menteeSelfRating = data.rating || 0;
+        menteeMood = data.mood || '';
+        updateMenteeStars(menteeSelfRating);
+        highlightMenteeMood(menteeMood);
+        var learned = document.getElementById('mentee-learned-input');
+        var challenged = document.getElementById('mentee-challenged-input');
+        var next = document.getElementById('mentee-next-input');
+        var notes = document.getElementById('mentee-feedback-input');
+        if (learned) learned.value = data.learned || '';
+        if (challenged) challenged.value = data.challenged || '';
+        if (next) next.value = data.next || '';
+        if (notes) notes.value = data.text || '';
+        var status = document.getElementById('mentee-feedback-status');
+        if (status) { status.classList.add('hidden'); status.textContent = ''; }
+        countMenteeChars();
+    }
+
+    function closeMenteeFeedbackModal() {
+        var modal = document.getElementById('mentee-feedback-modal');
+        if (modal) modal.classList.add('hidden');
+        loadMenteeFeedback(currentTaskId, currentTaskType);
+    }
+
     function loadMenteeFeedback(taskId, taskType) {
         try {
-            const key = getMenteeFeedbackKey(taskId, taskType);
-            const raw = localStorage.getItem(key);
-            const details = document.getElementById('mentee-rating-details');
-            const noMsg = document.getElementById('mentee-no-rating-message');
-            const form = document.getElementById('mentee-feedback-form');
-            const moodBar = document.getElementById('mentee-mood-bar');
-            const input = document.getElementById('mentee-feedback-input');
-            const learnedInput = document.getElementById('mentee-learned-input');
-            const challengedInput = document.getElementById('mentee-challenged-input');
-            const nextInput = document.getElementById('mentee-next-input');
-            const status = document.getElementById('mentee-feedback-status');
-            const charCount = document.getElementById('mentee-char-count');
-            const draftInd = document.getElementById('mentee-draft-indicator');
-            if (status) { status.classList.add('hidden'); status.textContent=''; }
-            if (charCount) charCount.textContent = '0 / 2000';
-            if (draftInd) draftInd.classList.add('hidden');
+            var key = getMenteeFeedbackKey(taskId, taskType);
+            var raw = localStorage.getItem(key);
+            var details = document.getElementById('mentee-rating-details');
+            var noMsg = document.getElementById('mentee-no-rating-message');
             if (!raw) {
                 menteeSelfRating = 0; menteeMood = '';
-                updateMenteeStars(0); clearMenteeMoodTags();
-                if (input) input.value = '';
-                if (learnedInput) learnedInput.value = '';
-                if (challengedInput) challengedInput.value = '';
-                if (nextInput) nextInput.value = '';
                 if (details) details.classList.add('hidden');
                 if (noMsg) noMsg.classList.remove('hidden');
-                if (form) form.classList.add('hidden');
-                if (moodBar) moodBar.classList.add('hidden');
                 return;
             }
-            const data = JSON.parse(raw);
+            var data = JSON.parse(raw);
             menteeSelfRating = data.rating || 0;
             menteeMood = data.mood || '';
             updateMenteeStars(menteeSelfRating);
             highlightMenteeMood(menteeMood);
-            if (input) input.value = data.text || '';
-            if (learnedInput) learnedInput.value = data.learned || '';
-            if (challengedInput) challengedInput.value = data.challenged || '';
-            if (nextInput) nextInput.value = data.next || '';
-            const starsEl = document.getElementById('mentee-display-stars-sm');
+            var starsEl = document.getElementById('mentee-display-stars-sm');
             if (starsEl) {
                 starsEl.innerHTML = '';
-                for (let i=1;i<=5;i++){ const s=document.createElement('span'); s.textContent='★'; s.className=i<=menteeSelfRating?'text-sky-400':'text-slate-200'; starsEl.appendChild(s); }
+                for (var i=1;i<=5;i++){ var s=document.createElement('span'); s.textContent='\u2605'; s.className=i<=menteeSelfRating?'text-amber-400':'text-slate-200'; starsEl.appendChild(s); }
             }
-            const scoreEl=document.getElementById('mentee-display-score'); if(scoreEl) scoreEl.textContent = menteeSelfRating ? (menteeSelfRating + '/5') : 'No rating';
-            const moodEl=document.getElementById('mentee-display-mood'); if(moodEl) moodEl.textContent = menteeMood ? (MENTEE_MOOD_LABELS[menteeMood]||menteeMood) : '—';
-            const dateEl=document.getElementById('mentee-display-date'); if(dateEl) dateEl.textContent = data.date ? new Date(data.date).toLocaleDateString() : '';
-            const learnedEl=document.getElementById('mentee-display-learned'); if(learnedEl) learnedEl.textContent = data.learned || '—';
-            const challengedEl=document.getElementById('mentee-display-challenged'); if(challengedEl) challengedEl.textContent = data.challenged || '—';
-            const nextEl=document.getElementById('mentee-display-next'); if(nextEl) nextEl.textContent = data.next || '—';
+            var scoreEl=document.getElementById('mentee-display-score'); if(scoreEl) scoreEl.textContent = menteeSelfRating ? (menteeSelfRating + '/5') : 'No rating';
+            var moodEl=document.getElementById('mentee-display-mood'); if(moodEl) moodEl.textContent = menteeMood ? (MENTEE_MOOD_LABELS[menteeMood]||menteeMood) : '\u2014';
+            var dateEl=document.getElementById('mentee-display-date'); if(dateEl) dateEl.textContent = data.date ? new Date(data.date).toLocaleDateString() : '';
+            var learnedEl=document.getElementById('mentee-display-learned'); if(learnedEl) learnedEl.textContent = data.learned || '\u2014';
+            var nextEl=document.getElementById('mentee-display-next'); if(nextEl) nextEl.textContent = data.next || '\u2014';
             if (details) details.classList.remove('hidden');
             if (noMsg) noMsg.classList.add('hidden');
-            if (form) form.classList.add('hidden');
-            if (moodBar) moodBar.classList.remove('hidden');
         } catch(e){ console.error('loadMenteeFeedback error',e); }
     }
     function highlightMenteeMood(mood) {
-        document.querySelectorAll('.mentee-mood-tag').forEach(btn=>{
-            const m=btn.dataset.mood;
-            if(m===mood){ btn.classList.add('bg-sky-100','border-sky-400','text-sky-700'); btn.classList.remove('border-slate-200','text-slate-500'); }
-            else { btn.classList.remove('bg-sky-100','border-sky-400','text-sky-700'); btn.classList.add('border-slate-200','text-slate-500'); }
+        document.querySelectorAll('.mentee-mood-tag').forEach(function(btn){
+            var m=btn.dataset.mood;
+            if(m===mood){ btn.classList.add('bg-blue-100','border-blue-400','text-blue-700'); btn.classList.remove('border-slate-200','text-slate-500'); }
+            else { btn.classList.remove('bg-blue-100','border-blue-400','text-blue-700'); btn.classList.add('border-slate-200','text-slate-500'); }
         });
     }
     function clearMenteeMoodTags() {
-        document.querySelectorAll('.mentee-mood-tag').forEach(btn=>{
-            btn.classList.remove('bg-sky-100','border-sky-400','text-sky-700');
+        document.querySelectorAll('.mentee-mood-tag').forEach(function(btn){
+            btn.classList.remove('bg-blue-100','border-blue-400','text-blue-700');
             btn.classList.add('border-slate-200','text-slate-500');
         });
     }
     function updateMenteeStars(val){
         menteeSelfRating = val;
-        document.querySelectorAll('#mentee-star-picker .mentee-star').forEach(btn=>{
-            const v=parseInt(btn.dataset.value); btn.classList.toggle('text-sky-400', v<=val); btn.classList.toggle('text-slate-200', v>val);
+        document.querySelectorAll('#mentee-star-picker .mentee-star').forEach(function(btn){
+            var v=parseInt(btn.dataset.value); btn.classList.toggle('text-amber-400', v<=val && val>0); btn.classList.toggle('text-slate-200', v>val || val===0);
         });
-        const label=document.getElementById('mentee-star-label');
-        const labels=['','Poor','Fair','Good','Very Good','Excellent'];
-        if(label) label.textContent = val ? (val + '/5 • ' + (labels[val] || '')) : '';
+        var label=document.getElementById('mentee-star-label');
+        var labels=['','Poor','Fair','Good','Very Good','Excellent'];
+        if(label) label.textContent = val ? (val + '/5 \u2022 ' + (labels[val] || '')) : '';
     }
     function countMenteeChars(){
-        const input=document.getElementById('mentee-feedback-input');
-        const charCount=document.getElementById('mentee-char-count');
-        if(input&&charCount){ const len=input.value.length; charCount.textContent = len + ' / 2000'; charCount.className=len>1800?'text-xs text-red-500':'text-[10px] text-slate-400'; }
-    }
-    function autoSaveMenteeDraft(){
-        if(!currentTaskId||!currentTaskType) return;
-        const key=getMenteeFeedbackKey(currentTaskId, currentTaskType);
-        const input=document.getElementById('mentee-feedback-input');
-        const learnedInput=document.getElementById('mentee-learned-input');
-        const challengedInput=document.getElementById('mentee-challenged-input');
-        const nextInput=document.getElementById('mentee-next-input');
-        const draftInd=document.getElementById('mentee-draft-indicator');
-        const payload={ rating:menteeSelfRating, text:input?input.value:'', learned:learnedInput?learnedInput.value:'', challenged:challengedInput?challengedInput.value:'', next:nextInput?nextInput.value:'', mood:menteeMood, date:new Date().toISOString() };
-        localStorage.setItem(key, JSON.stringify(payload));
-        if(draftInd){ draftInd.classList.remove('hidden'); setTimeout(function(){ draftInd.classList.add('hidden'); }, 1500); }
-    }
-    function scheduleMenteeDraftSave(){
-        if(menteeDraftTimer) clearTimeout(menteeDraftTimer);
-        menteeDraftTimer = setTimeout(autoSaveMenteeDraft, 800);
+        var input=document.getElementById('mentee-feedback-input');
+        var charCount=document.getElementById('mentee-char-count');
+        if(input&&charCount){ var len=input.value.length; charCount.textContent = len + ' / 2000'; charCount.className=len>1800?'text-xs text-red-500':'text-xs text-slate-400'; }
     }
     function saveMenteeFeedback(){
-        const input=document.getElementById('mentee-feedback-input');
-        const learnedInput=document.getElementById('mentee-learned-input');
-        const challengedInput=document.getElementById('mentee-challenged-input');
-        const nextInput=document.getElementById('mentee-next-input');
-        const text=input?input.value.trim():'';
-        const learned=learnedInput?learnedInput.value.trim():'';
-        const challenged=challengedInput?challengedInput.value.trim():'';
-        const nextVal=nextInput?nextInput.value.trim():'';
-        if(!text&&!menteeSelfRating&&!learned&&!challenged&&!nextVal){ const s=document.getElementById('mentee-feedback-status'); if(s){ s.textContent='Please add a rating or write a reflection.'; s.className='text-xs mt-2 text-slate-600'; s.classList.remove('hidden'); } return; }
+        var input=document.getElementById('mentee-feedback-input');
+        var learnedInput=document.getElementById('mentee-learned-input');
+        var challengedInput=document.getElementById('mentee-challenged-input');
+        var nextInput=document.getElementById('mentee-next-input');
+        var text=input?input.value.trim():'';
+        var learned=learnedInput?learnedInput.value.trim():'';
+        var challenged=challengedInput?challengedInput.value.trim():'';
+        var nextVal=nextInput?nextInput.value.trim():'';
+        if(!text&&!menteeSelfRating&&!learned&&!challenged&&!nextVal){ var s=document.getElementById('mentee-feedback-status'); if(s){ s.textContent='Please fill in at least one field or select a rating.'; s.className='text-sm mt-2 text-amber-600'; s.classList.remove('hidden'); } return; }
         if(!currentTaskId||!currentTaskType){ alert('No task selected'); return; }
-        const key=getMenteeFeedbackKey(currentTaskId, currentTaskType);
-        const payload={ rating:menteeSelfRating, text:text, learned:learned, challenged:challenged, next:nextVal, mood:menteeMood, date:new Date().toISOString() };
+        var key=getMenteeFeedbackKey(currentTaskId, currentTaskType);
+        var payload={ rating:menteeSelfRating, text:text, learned:learned, challenged:challenged, next:nextVal, mood:menteeMood, date:new Date().toISOString() };
         localStorage.setItem(key, JSON.stringify(payload));
-        const s=document.getElementById('mentee-feedback-status'); if(s){ s.textContent='Saved locally (browser only) ✓'; s.className='text-xs mt-2 text-emerald-600'; s.classList.remove('hidden'); }
-        loadMenteeFeedback(currentTaskId, currentTaskType);
+        closeMenteeFeedbackModal();
     }
-    function editMenteeFeedback(){
-        document.getElementById('mentee-rating-details')?.classList.add('hidden');
-        const noMsg=document.getElementById('mentee-no-rating-message'); if(noMsg) noMsg.classList.add('hidden');
-        document.getElementById('mentee-feedback-form')?.classList.remove('hidden');
-        const moodBar=document.getElementById('mentee-mood-bar'); if(moodBar) moodBar.classList.remove('hidden');
-        const s=document.getElementById('mentee-feedback-status'); if(s) s.classList.add('hidden');
-        const input=document.getElementById('mentee-feedback-input'); if(input) countMenteeChars();
-    }
-    function cancelMenteeFeedback(){
-        document.getElementById('mentee-feedback-form')?.classList.add('hidden');
-        const moodBar=document.getElementById('mentee-mood-bar'); if(moodBar) moodBar.classList.add('hidden');
-        loadMenteeFeedback(currentTaskId, currentTaskType);
-    }
+    function editMenteeFeedback(){ openMenteeFeedbackModal(); }
+    function cancelMenteeFeedback(){ closeMenteeFeedbackModal(); }
     function clearMenteeFeedback(){
         if(!currentTaskId||!currentTaskType) return;
         if(!confirm('Clear your self-feedback for this task? (Only removes from this browser)')) return;
         localStorage.removeItem(getMenteeFeedbackKey(currentTaskId, currentTaskType));
         menteeSelfRating=0; menteeMood='';
         updateMenteeStars(0); clearMenteeMoodTags();
-        const input=document.getElementById('mentee-feedback-input'); if(input) input.value='';
-        const learnedInput=document.getElementById('mentee-learned-input'); if(learnedInput) learnedInput.value='';
-        const challengedInput=document.getElementById('mentee-challenged-input'); if(challengedInput) challengedInput.value='';
-        const nextInput=document.getElementById('mentee-next-input'); if(nextInput) nextInput.value='';
-        const charCount=document.getElementById('mentee-char-count'); if(charCount) charCount.textContent='0 / 2000';
         loadMenteeFeedback(currentTaskId, currentTaskType);
     }
     document.addEventListener('click', function(e){
         if(e.target.classList.contains('mentee-star')){
-            const v=parseInt(e.target.dataset.value); updateMenteeStars(v);
+            var v=parseInt(e.target.dataset.value); updateMenteeStars(v);
         }
         if(e.target.classList.contains('mentee-mood-tag')){
             menteeMood=e.target.dataset.mood;
             highlightMenteeMood(menteeMood);
-            scheduleMenteeDraftSave();
         }
     });
     document.addEventListener('input', function(e){
-        if(e.target.id==='mentee-feedback-input'||e.target.id==='mentee-learned-input'||e.target.id==='mentee-challenged-input'||e.target.id==='mentee-next-input'){
-            if(e.target.id==='mentee-feedback-input') countMenteeChars();
-            scheduleMenteeDraftSave();
-        }
+        if(e.target.id==='mentee-feedback-input') countMenteeChars();
+    });
+    document.getElementById('mentee-feedback-form').addEventListener('submit', function(e){
+        e.preventDefault();
+        saveMenteeFeedback();
     });
 
     // Modal functions
