@@ -353,7 +353,7 @@
     <div class="flex justify-between items-start mb-6">
       <div>
         <h3 class="text-xl font-semibold text-slate-900">Schedule Meeting</h3>
-        <p class="text-slate-600 mt-1">Create a meeting session with a mentor or institution</p>
+        <p class="text-slate-600 mt-1">Create a meeting with a mentor, mentee, or institution</p>
       </div>
       <button onclick="closeScheduleMeetingModal()" class="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-50 rounded-full transition">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -370,27 +370,47 @@
     </div>
 
     <form id="schedule-meeting-form" class="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
-      <!-- Participant Selection (Mentor or Institution) -->
+      <!-- Mentor Selection -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Select Participant *</label>
-        <select id="sm-mentor" name="mentor_id" required
+        <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentor</label>
+        <select id="sm-mentor" name="mentor_id"
           class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
-          <option value="">Choose a mentor or institution...</option>
-          {% if mentors %}
-          <optgroup label="Mentors">
-            {% for mentor in mentors %}
-            <option value="{{ mentor.id }}" data-name="{{ mentor.name }}" data-email="{{ mentor.email }}">{{ mentor.name }} ({{ mentor.email }})</option>
-            {% endfor %}
-          </optgroup>
-          {% endif %}
-          {% if institutions %}
-          <optgroup label="Institutions">
-            {% for inst in institutions %}
-            <option value="{{ inst.id }}" data-name="{{ inst.name }}" data-email="{{ inst.email }}">{{ inst.name }} ({{ inst.email }})</option>
-            {% endfor %}
-          </optgroup>
-          {% endif %}
+          <option value="">Choose a mentor...</option>
+          {% for mentor in mentors %}
+          <option value="{{ mentor.id }}" data-name="{{ mentor.name }}" data-email="{{ mentor.email }}" data-type="Mentor">{{ mentor.name }} ({{ mentor.email }})</option>
+          {% endfor %}
         </select>
+      </div>
+
+      <!-- Mentee Selection -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentee</label>
+        <select id="sm-mentee" name="mentee_id"
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+          <option value="">Choose a mentee...</option>
+          {% for mentee in mentees %}
+          <option value="{{ mentee.id }}" data-name="{{ mentee.name }}" data-email="{{ mentee.email }}" data-type="Mentee">{{ mentee.name }} ({{ mentee.email }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Institution Selection -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Select Institution</label>
+        <select id="sm-institution" name="institution_id"
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+          <option value="">Choose an institution...</option>
+          {% for inst in institutions %}
+          <option value="{{ inst.id }}" data-name="{{ inst.name }}" data-email="{{ inst.email }}" data-type="Institution">{{ inst.name }} ({{ inst.email }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Participant Info Banner -->
+      <div id="sm-participant-banner" class="p-4 bg-blue-50 rounded-lg border border-blue-200 hidden">
+        <p class="text-sm text-blue-600 font-medium">Meeting with</p>
+        <p id="sm-participant-name" class="font-semibold text-gray-900"></p>
+        <p id="sm-participant-email" class="text-sm text-gray-600"></p>
       </div>
 
       <!-- Meeting Title -->
@@ -399,6 +419,31 @@
         <input type="text" id="sm-title" name="title" required maxlength="200"
           class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
           placeholder="e.g., Career Guidance Session">
+      </div>
+
+      <!-- Mentorship Selection -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Mentorship</label>
+        <select id="sm-mentorship" name="mentorship_id"
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+          <option value="">Select a mentorship connection...</option>
+          {% for m in mentorships %}
+          <option value="{{ m.id }}" data-mentor-id="{{ m.mentor_id }}" data-mentee-id="{{ m.mentee_id }}" data-mentor-name="{{ m.mentor_name }}" data-mentee-name="{{ m.mentee_name }}">
+            {{ m.mentor_name }} &harr; {{ m.mentee_name }}{% if m.purpose %} ({{ m.purpose }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        <p class="mt-1 text-xs text-slate-400">Selecting a mentorship auto-fills the mentor and mentee fields.</p>
+      </div>
+
+      <!-- Task Selection -->
+      <div id="sm-task-section" class="hidden">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Task Selection</label>
+        <select id="sm-task" name="task_id"
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+          <option value="">No task selected (general meeting)</option>
+        </select>
+        <p id="sm-task-hint" class="mt-1 text-xs text-slate-400 hidden">Choose a specific task to discuss in this meeting.</p>
       </div>
 
       <!-- Date & Start Time -->
@@ -813,8 +858,14 @@ function openScheduleMeetingModal() {
   document.getElementById('sm-ampm').value = '';
   document.getElementById('sm-title').value = '';
   document.getElementById('sm-mentor').value = '';
+  document.getElementById('sm-mentee').value = '';
+  document.getElementById('sm-institution').value = '';
+  document.getElementById('sm-mentorship').value = '';
   document.getElementById('sm-duration').value = '';
   document.getElementById('sm-platform').value = 'google';
+  // Reset task section
+  document.getElementById('sm-task-section').classList.add('hidden');
+  document.getElementById('sm-task').innerHTML = '<option value="">No task selected (general meeting)</option>';
   // Auto-detect timezone
   try {
     var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -835,21 +886,95 @@ function closeScheduleMeetingModal() {
   document.getElementById('schedule-meeting-modal').classList.add('hidden');
 }
 
-// Participant banner update
-document.getElementById('sm-mentor').addEventListener('change', function() {
-  var opt = this.options[this.selectedIndex];
+// Participant banner update — show whichever dropdown has a selection
+function updateParticipantBanner() {
+  var mentorSel = document.getElementById('sm-mentor');
+  var menteeSel = document.getElementById('sm-mentee');
+  var instSel = document.getElementById('sm-institution');
   var banner = document.getElementById('sm-participant-banner');
-  if (this.value && opt.dataset.name) {
-    document.getElementById('sm-participant-name').textContent = opt.dataset.name;
-    document.getElementById('sm-participant-email').textContent = opt.dataset.email;
+  var nameEl = document.getElementById('sm-participant-name');
+  var emailEl = document.getElementById('sm-participant-email');
+
+  var selected = null;
+  if (mentorSel.value) selected = mentorSel.options[mentorSel.selectedIndex];
+  else if (menteeSel.value) selected = menteeSel.options[menteeSel.selectedIndex];
+  else if (instSel.value) selected = instSel.options[instSel.selectedIndex];
+
+  if (selected && selected.dataset.name) {
+    nameEl.textContent = selected.dataset.name + ' (' + (selected.dataset.type || '') + ')';
+    emailEl.textContent = selected.dataset.email;
     banner.classList.remove('hidden');
   } else {
     banner.classList.add('hidden');
+  }
+}
+
+document.getElementById('sm-mentor').addEventListener('change', updateParticipantBanner);
+document.getElementById('sm-mentee').addEventListener('change', updateParticipantBanner);
+document.getElementById('sm-institution').addEventListener('change', updateParticipantBanner);
+
+// Mentorship selection — auto-fill mentor/mentee + load tasks
+document.getElementById('sm-mentorship').addEventListener('change', async function() {
+  var opt = this.options[this.selectedIndex];
+  var mentorSel = document.getElementById('sm-mentor');
+  var menteeSel = document.getElementById('sm-mentee');
+  var taskSection = document.getElementById('sm-task-section');
+  var taskSel = document.getElementById('sm-task');
+
+  if (!this.value) {
+    // Reset mentor/mentee if mentorship deselected
+    mentorSel.value = '';
+    menteeSel.value = '';
+    taskSection.classList.add('hidden');
+    taskSel.innerHTML = '<option value="">No task selected (general meeting)</option>';
+    updateParticipantBanner();
+    return;
+  }
+
+  var mentorId = opt.dataset.mentorId;
+  var menteeId = opt.dataset.menteeId;
+
+  // Auto-fill mentor dropdown
+  for (var i = 0; i < mentorSel.options.length; i++) {
+    if (mentorSel.options[i].value === mentorId) { mentorSel.selectedIndex = i; break; }
+  }
+  // Auto-fill mentee dropdown
+  for (var j = 0; j < menteeSel.options.length; j++) {
+    if (menteeSel.options[j].value === menteeId) { menteeSel.selectedIndex = j; break; }
+  }
+  updateParticipantBanner();
+
+  // Fetch tasks for this mentorship
+  try {
+    var resp = await fetch('/get_tasks_for_mentorship?mentee_id=' + menteeId + '&mentor_id=' + mentorId);
+    var data = await resp.json();
+    taskSel.innerHTML = '<option value="">No task selected (general meeting)</option>';
+    if (data.tasks && data.tasks.length > 0) {
+      data.tasks.forEach(function(t) {
+        var label = 'Meeting #' + t.meeting_number + ' — ' + t.month;
+        if (t.purpose) label += ' (' + t.purpose.substring(0, 60) + ')';
+        label += ' [' + t.status + ']';
+        var opt2 = document.createElement('option');
+        opt2.value = t.id;
+        opt2.textContent = label;
+        taskSel.appendChild(opt2);
+      });
+      taskSection.classList.remove('hidden');
+      document.getElementById('sm-task-hint').classList.remove('hidden');
+    } else {
+      taskSection.classList.add('hidden');
+    }
+  } catch(e) {
+    taskSection.classList.add('hidden');
   }
 });
 
 async function handleScheduleMeeting() {
   var mentorId = document.getElementById('sm-mentor').value;
+  var menteeId = document.getElementById('sm-mentee').value;
+  var institutionId = document.getElementById('sm-institution').value;
+  var mentorshipId = document.getElementById('sm-mentorship').value;
+  var taskId = document.getElementById('sm-task').value;
   var title = document.getElementById('sm-title').value.trim();
   var date = document.getElementById('sm-date').value;
   var hour = document.getElementById('sm-hour').value;
@@ -861,8 +986,15 @@ async function handleScheduleMeeting() {
   var statusEl = document.getElementById('sm-status');
   var submitBtn = document.getElementById('sm-submit-btn');
 
-  // Validate
-  if (!mentorId || !title || !date || !hour || !minute || !ampm || !duration || !timezone) {
+  // Validate — at least one participant required
+  if (!mentorId && !menteeId && !institutionId) {
+    statusEl.textContent = 'Please select at least one participant (mentor, mentee, or institution).';
+    statusEl.className = 'text-sm mt-2 text-amber-600';
+    statusEl.classList.remove('hidden');
+    return;
+  }
+
+  if (!title || !date || !hour || !minute || !ampm || !duration || !timezone) {
     statusEl.textContent = 'Please fill in all required fields.';
     statusEl.className = 'text-sm mt-2 text-amber-600';
     statusEl.classList.remove('hidden');
@@ -897,7 +1029,11 @@ async function handleScheduleMeeting() {
         date: date,
         start_time: startTime,
         duration: duration,
-        mentor_id: mentorId,
+        mentor_id: mentorId || '',
+        mentee_id: menteeId || '',
+        institution_id: institutionId || '',
+        mentorship_id: mentorshipId || '',
+        task_id: taskId || '',
         platform: platform,
         timezone: timezone
       })

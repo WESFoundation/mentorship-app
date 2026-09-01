@@ -388,20 +388,13 @@
                         </div>
                         
                         {% if task.status != 'completed' %}
-                        <div class="flex items-center gap-3">
-                            <div class="w-24">
-                                <div class="progress-bar">
-                                    <div class="progress-fill" style="width: {{ task.progress or 0 }}%"></div>
-                                </div>
-                            </div>
-                            <span class="text-sm font-medium">{{ task.progress or 0 }}%</span>
-                        </div>
+                        <span class="text-sm font-medium text-slate-500">Not Done</span>
                         {% else %}
                         <span class="text-green-600 text-sm font-medium flex items-center gap-1">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                             </svg>
-                            Completed
+                            Done
                         </span>
                         {% endif %}
                     </div>
@@ -481,20 +474,13 @@
                         </div>
                         
                         {% if task.status != 'completed' %}
-                        <div class="flex items-center gap-3">
-                            <div class="w-24">
-                                <div class="progress-bar">
-                                    <div class="progress-fill" style="width: {{ task.progress or 0 }}%"></div>
-                                </div>
-                            </div>
-                            <span class="text-sm font-medium">{{ task.progress or 0 }}%</span>
-                        </div>
+                        <span class="text-sm font-medium text-slate-500">Not Done</span>
                         {% else %}
                         <span class="text-green-600 text-sm font-medium flex items-center gap-1">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                             </svg>
-                            Completed
+                            Done
                         </span>
                         {% endif %}
                     </div>
@@ -647,60 +633,109 @@
             
 
             
-            <!-- Progress Section -->
+            <!-- Status -->
             <div>
                 <div class="flex justify-between items-center mb-3">
-                    <h4 class="font-semibold text-gray-700 text-lg">Progress</h4>
-                    <span id="detail-progress-text" class="text-sm font-medium bg-blue-100 text-blue-800 px-3 py-1 rounded-full">0% Complete</span>
-                </div>
-                <div class="progress-bar bg-gray-200 rounded-full h-3">
-                    <div id="detail-progress-fill" class="progress-fill h-3 rounded-full bg-blue-600 transition-all duration-500" style="width: 0%"></div>
+                    <h4 class="font-semibold text-gray-700 text-lg">Status</h4>
+                    <span id="detail-progress-text" class="text-sm font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full">Not Done</span>
                 </div>
             </div>
 
             <!-- Rating Section -->
-<!-- Add this to your task-details-modal -->
-<div id="rating-section" class="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mt-4">
-    <h4 class="font-semibold text-yellow-800 text-lg mb-3">Task Rating & Feedback</h4>
-    
-    <div id="rating-display">
-        <div id="no-rating-message" class="text-center text-yellow-600 py-4">
-            No rating provided yet for this task.
-        </div>
-        <div id="rating-details" class="hidden">
-            <div class="flex items-center gap-3 mb-4">
-                <div id="display-stars" class="flex gap-1 text-2xl"></div>
-                <span id="rating-score" class="font-semibold text-gray-700 text-lg"></span>
-                <span id="rating-date" class="text-sm text-gray-500 ml-auto"></span>
-            </div>
-            
-            <div class="space-y-3">
-                <div>
-                    <label class="text-sm font-medium text-gray-700">Overall Feedback:</label>
-                    <p id="display-feedback" class="text-gray-600 mt-1 bg-white p-3 rounded border text-sm"></p>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-sm font-medium text-green-700">Strengths:</label>
-                        <p id="display-strengths" class="text-gray-600 mt-1 bg-white p-3 rounded border text-sm"></p>
+            <div id="rating-section" class="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mt-4">
+                <h4 class="font-semibold text-yellow-800 text-lg mb-3">Task Rating & Feedback</h4>
+                
+                <div id="rating-display">
+                    <div id="no-rating-message" class="text-center text-yellow-600 py-4">
+                        No rating provided yet for this task.
                     </div>
-                    <div>
-                        <label class="text-sm font-medium text-blue-700">Areas for Improvement:</label>
-                        <p id="display-improvements" class="text-gray-600 mt-1 bg-white p-3 rounded border text-sm"></p>
+                    <div id="rating-details" class="hidden">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div id="display-stars" class="flex gap-1 text-2xl"></div>
+                            <span id="rating-score" class="font-semibold text-gray-700 text-lg"></span>
+                            <span id="rating-date" class="text-sm text-gray-500 ml-auto"></span>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <div>
+                                <label class="text-sm font-medium text-gray-700">Feedback:</label>
+                                <p id="display-feedback" class="text-gray-600 mt-1 bg-white p-3 rounded border text-sm"></p>
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium text-gray-700">Additional Notes:</label>
+                                <p id="display-strengths" class="text-gray-600 mt-1 bg-white p-3 rounded border text-sm"></p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-</div>
             
+            <!-- Mentor Reflection Section (mirrors mentee self-reflection) -->
+            <div id="mentor-feedback-section" class="bg-blue-50/50 p-5 rounded-xl border border-blue-100 mt-4">
+                <h4 class="font-bold text-blue-800 text-lg mb-3 flex items-center gap-2">
+                    <span>💭</span> My Reflection
+                </h4>
+
+                <div id="mentor-rating-display">
+                    <div id="mentor-no-rating-message" class="text-center py-6">
+                        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-500 mb-3">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                            </svg>
+                        </div>
+                        <p class="text-blue-800 font-medium">No reflection yet</p>
+                        <p class="text-sm text-blue-600/80 mt-1 mb-3">Share your thoughts on this mentoring session.</p>
+                        <button onclick="openMentorFeedbackModal()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition inline-flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                            Add Reflection
+                        </button>
+                    </div>
+
+                    <div id="mentor-rating-details" class="hidden">
+                        <div class="flex items-center gap-3 mb-4 pb-4 border-b border-blue-200/50">
+                            <div class="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center text-white font-bold text-sm shadow-sm">Y</div>
+                            <div>
+                                <p class="font-semibold text-slate-800 text-sm">You</p>
+                                <p class="text-xs text-slate-500">Self-reflection</p>
+                            </div>
+                            <span id="mentor-display-date" class="text-xs font-medium text-slate-400 ml-auto uppercase tracking-wide"></span>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Reflection</label>
+                                <div class="bg-white/70 p-4 rounded-xl border border-blue-100">
+                                    <p id="mentor-display-feedback" class="text-slate-700 text-sm leading-relaxed"></p>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Additional Notes</label>
+                                <div class="bg-white/70 p-4 rounded-xl border border-blue-100">
+                                    <p id="mentor-display-extra" class="text-slate-700 text-sm leading-relaxed"></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-4 border-t border-blue-100 flex gap-2">
+                            <button onclick="openMentorFeedbackModal()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                Edit
+                            </button>
+                            <button onclick="clearMentorFeedback()" class="px-4 py-2 text-red-500 text-sm font-medium rounded-lg hover:bg-red-50 transition flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
 <!-- Add this to your task details modal actions -->
 <div class="flex flex-wrap gap-3 pt-6 border-t border-gray-200">
     <button onclick="closeTaskDetailsModal()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition">
         Close
     </button>
     <!-- Add this button for rating -->
-    <button onclick="openRatingModal()" class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition flex items-center gap-2">
+    <button id="rate-task-btn" onclick="openRatingModal()" class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition flex items-center gap-2">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
         </svg>
@@ -708,6 +743,49 @@
     </button>
 </div>
         </div>
+    </div>
+</div>
+
+<!-- Mentor Reflection Modal (placed outside task-details-modal to avoid transform stacking context) -->
+<div id="mentor-feedback-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[60] hidden transition-opacity duration-300">
+    <div class="bg-white rounded-2xl p-8 w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-start mb-6">
+            <div>
+                <h3 class="text-xl font-semibold text-slate-900">My Reflection</h3>
+                <p class="text-slate-600 mt-1">Share your thoughts on this mentoring session</p>
+            </div>
+            <button onclick="closeMentorFeedbackModal()" class="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-50 rounded-full transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <form id="mentor-feedback-form" class="space-y-6">
+            <!-- Reflection -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Your Reflection *</label>
+                <textarea id="mentor-feedback-input" name="text" rows="5" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-slate-700 placeholder-slate-400" placeholder="How did this mentoring session go? What did you cover?" required></textarea>
+                <div class="flex items-center justify-between mt-1">
+                    <p id="mentor-char-count" class="text-xs text-slate-400">0 / 2000</p>
+                </div>
+            </div>
+
+            <!-- Additional Notes -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Additional Notes</label>
+                <textarea id="mentor-extra-input" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm text-slate-700 placeholder-slate-400" placeholder="Anything else to note about this session..."></textarea>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button type="button" onclick="closeMentorFeedbackModal()" class="px-4 py-2 text-slate-600 hover:text-slate-800 transition">Cancel</button>
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    Save Reflection
+                </button>
+            </div>
+            <p id="mentor-feedback-status" class="text-sm mt-2 hidden"></p>
+        </form>
     </div>
 </div>
 
@@ -738,28 +816,19 @@
             
             <!-- Feedback -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Overall Feedback</label>
-                <textarea id="rating-feedback" name="feedback" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Share your overall feedback about the task completion..."></textarea>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Feedback *</label>
+                <textarea id="rating-feedback" name="feedback" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Share your feedback about the task completion..." required></textarea>
             </div>
             
-            <!-- Strengths -->
+            <!-- Additional Notes -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">What went well? *</label>
-                <textarea id="rating-strengths" name="strengths" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="What did the mentee do particularly well?" required></textarea>
-            </div>
-            
-            <!-- Improvements -->
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Areas for Improvement *</label>
-                <textarea id="rating-improvements" name="improvements" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="What could be improved next time?" required></textarea>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Additional Notes</label>
+                <textarea id="rating-strengths" name="strengths" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Any other observations..."></textarea>
             </div>
             
             <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
                 <button type="button" onclick="closeRatingModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800 transition">Cancel</button>
                 <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
-                    </svg>
                     Submit Rating
                 </button>
             </div>
@@ -802,14 +871,15 @@ async function viewTaskDetails(taskId, taskType) {
         if (taskData.success) {
             populateTaskDetailsModal(taskData.task);
             await loadAndDisplayRating(taskId, taskType);
+            loadMentorFeedback(taskId, taskType);
         } else {
             alert('Error loading task details: ' + taskData.message);
             closeTaskDetailsModal();
         }
     } catch (error) {
         console.error('Error fetching task details:', error);
-        // Fallback: Try to get data from DOM
         populateFromDOM(taskId, taskType);
+        loadMentorFeedback(taskId, taskType);
     }
 }
 
@@ -882,12 +952,16 @@ function populateTaskDetailsModal(task) {
         }
         
         // Progress with null checks
-        const progress = task.progress || 0;
         const progressText = getElement('detail-progress-text');
-        const progressFill = getElement('detail-progress-fill');
-        
-        if (progressText) progressText.textContent = `${progress}% Complete`;
-        if (progressFill) progressFill.style.width = `${progress}%`;
+        if (progressText) {
+            if (task.status === 'completed') {
+                progressText.textContent = 'Done';
+                progressText.className = 'text-sm font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full';
+            } else {
+                progressText.textContent = 'Not Done';
+                progressText.className = 'text-sm font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full';
+            }
+        }
         
         // Additional fields for personal tasks
         if (currentTaskType === 'personal') {
@@ -1479,7 +1553,6 @@ async function loadAndDisplayRating(taskId, taskType) {
     try {
         const response = await fetch(`/get_task_rating/${taskType}/${taskId}`);
         
-        // ✅ ADD RESPONSE CHECKING
         if (!response.ok) {
             console.error('Rating fetch failed with status:', response.status);
             return;
@@ -1495,6 +1568,7 @@ async function loadAndDisplayRating(taskId, taskType) {
         
         const noRatingMsg = document.getElementById('no-rating-message');
         const ratingDetails = document.getElementById('rating-details');
+        const rateTaskBtn = document.getElementById('rate-task-btn');
         
         if (!noRatingMsg || !ratingDetails) {
             console.warn('Rating display elements not found');
@@ -1504,6 +1578,8 @@ async function loadAndDisplayRating(taskId, taskType) {
         if (result.success && result.rating) {
             noRatingMsg.classList.add('hidden');
             ratingDetails.classList.remove('hidden');
+            // Hide Rate Task button since rating already exists
+            if (rateTaskBtn) rateTaskBtn.classList.add('hidden');
             
             // Display stars
             const starsContainer = document.getElementById('display-stars');
@@ -1518,26 +1594,141 @@ async function loadAndDisplayRating(taskId, taskType) {
                 }
             }
             
-            // Display rating details with null checks
             const ratingScore = document.getElementById('rating-score');
             const ratingDate = document.getElementById('rating-date');
             const displayFeedback = document.getElementById('display-feedback');
             const displayStrengths = document.getElementById('display-strengths');
-            const displayImprovements = document.getElementById('display-improvements');
             
             if (ratingScore) ratingScore.textContent = `${result.rating.rating}/5`;
             if (ratingDate) ratingDate.textContent = `Rated on ${new Date(result.rating.rated_at).toLocaleDateString()}`;
-            if (displayFeedback) displayFeedback.textContent = result.rating.feedback || 'No overall feedback provided';
+            if (displayFeedback) displayFeedback.textContent = result.rating.feedback || 'No feedback provided';
             if (displayStrengths) displayStrengths.textContent = result.rating.strengths || 'Not specified';
-            if (displayImprovements) displayImprovements.textContent = result.rating.improvements || 'Not specified';
         } else {
             noRatingMsg.classList.remove('hidden');
             ratingDetails.classList.add('hidden');
+            // Show Rate Task button when no rating exists
+            if (rateTaskBtn) rateTaskBtn.classList.remove('hidden');
         }
     } catch (error) {
         console.error('Error loading rating:', error);
     }
 }
+
+// ===== MENTOR SELF-REFLECTION (UI-only, localStorage — no DB/Github) =====
+function getMentorReflectionKey(taskId, taskType) { return 'mentorReflection_' + taskType + '_' + taskId; }
+
+function openMentorFeedbackModal() {
+    if (!currentTaskId || !currentTaskType) return;
+    const modal = document.getElementById('mentor-feedback-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    const key = getMentorReflectionKey(currentTaskId, currentTaskType);
+    const raw = localStorage.getItem(key);
+    const data = raw ? JSON.parse(raw) : {};
+    var feedback = document.getElementById('mentor-feedback-input');
+    var extra = document.getElementById('mentor-extra-input');
+    if (feedback) feedback.value = data.text || '';
+    if (extra) extra.value = data.extra || '';
+    var status = document.getElementById('mentor-feedback-status');
+    if (status) { status.classList.add('hidden'); status.textContent = ''; }
+    countMentorChars();
+}
+
+function closeMentorFeedbackModal() {
+    var modal = document.getElementById('mentor-feedback-modal');
+    if (modal) modal.classList.add('hidden');
+    loadMentorFeedback(currentTaskId, currentTaskType);
+}
+
+function loadMentorFeedback(taskId, taskType) {
+    try {
+        var key = getMentorReflectionKey(taskId, taskType);
+        var raw = localStorage.getItem(key);
+        var details = document.getElementById('mentor-rating-details');
+        var noMsg = document.getElementById('mentor-no-rating-message');
+        var progressText = document.getElementById('detail-progress-text');
+        if (!raw) {
+            if (details) details.classList.add('hidden');
+            if (noMsg) noMsg.classList.remove('hidden');
+            // Reset status to "Not Done" if no feedback
+            if (progressText) {
+                progressText.textContent = 'Not Done';
+                progressText.className = 'text-sm font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full';
+            }
+            return;
+        }
+        var data = JSON.parse(raw);
+        // Show "Done" status when feedback exists
+        if (progressText) {
+            progressText.textContent = 'Done';
+            progressText.className = 'text-sm font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full';
+        }
+        var dateEl = document.getElementById('mentor-display-date');
+        if (dateEl) dateEl.textContent = data.date ? new Date(data.date).toLocaleDateString() : '';
+        var feedbackEl = document.getElementById('mentor-display-feedback');
+        if (feedbackEl) feedbackEl.textContent = data.text || '—';
+        var extraEl = document.getElementById('mentor-display-extra');
+        if (extraEl) extraEl.textContent = data.extra || '—';
+        if (details) details.classList.remove('hidden');
+        if (noMsg) noMsg.classList.add('hidden');
+    } catch(e) { console.error('loadMentorFeedback error', e); }
+}
+
+function countMentorChars() {
+    var input = document.getElementById('mentor-feedback-input');
+    var charCount = document.getElementById('mentor-char-count');
+    if (input && charCount) {
+        var len = input.value.length;
+        charCount.textContent = len + ' / 2000';
+        charCount.className = len > 1800 ? 'text-xs text-red-500' : 'text-xs text-slate-400';
+    }
+}
+
+function saveMentorFeedback() {
+    var input = document.getElementById('mentor-feedback-input');
+    var extraInput = document.getElementById('mentor-extra-input');
+    var text = input ? input.value.trim() : '';
+    var extra = extraInput ? extraInput.value.trim() : '';
+    if (!text) {
+        var s = document.getElementById('mentor-feedback-status');
+        if (s) { s.textContent = 'Please enter your reflection.'; s.className = 'text-sm mt-2 text-amber-600'; s.classList.remove('hidden'); }
+        return;
+    }
+    if (!currentTaskId || !currentTaskType) { alert('No task selected'); return; }
+    var key = getMentorReflectionKey(currentTaskId, currentTaskType);
+    var payload = { text: text, extra: extra, date: new Date().toISOString() };
+    localStorage.setItem(key, JSON.stringify(payload));
+    // Update status badge to "Done" after submitting reflection
+    var progressText = document.getElementById('detail-progress-text');
+    if (progressText) {
+        progressText.textContent = 'Done';
+        progressText.className = 'text-sm font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full';
+    }
+    closeMentorFeedbackModal();
+}
+
+function editMentorFeedback() { openMentorFeedbackModal(); }
+function cancelMentorFeedback() { closeMentorFeedbackModal(); }
+function clearMentorFeedback() {
+    if (!currentTaskId || !currentTaskType) return;
+    if (!confirm('Clear your reflection for this task?')) return;
+    localStorage.removeItem(getMentorReflectionKey(currentTaskId, currentTaskType));
+    // Reset status badge back to "Not Done"
+    var progressText = document.getElementById('detail-progress-text');
+    if (progressText) {
+        progressText.textContent = 'Not Done';
+        progressText.className = 'text-sm font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full';
+    }
+    loadMentorFeedback(currentTaskId, currentTaskType);
+}
+
+document.addEventListener('input', function(e) {
+    if (e.target.id === 'mentor-feedback-input') countMentorChars();
+});
+document.getElementById('mentor-feedback-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    saveMentorFeedback();
+});
 </script>
 
 {% endblock %}

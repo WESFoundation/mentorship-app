@@ -4998,16 +4998,42 @@ def supervisor_calendar():
             "created_at": meeting.created_at
         })
     
-    # Fetch all mentors and institutions for the schedule meeting form
+    # Fetch all mentors, mentees, and institutions for the schedule meeting form
     mentors = User.query.filter_by(user_type="1").all()
+    mentees = User.query.filter_by(user_type="2").all()
     institutions = User.query.filter_by(user_type="3").all()
+
+    # Fetch approved mentorships for the mentorship dropdown
+    from sqlalchemy.orm import joinedload
+    approved_mentorships = MentorshipRequest.query.options(
+        joinedload(MentorshipRequest.mentor),
+        joinedload(MentorshipRequest.mentee)
+    ).filter(
+        MentorshipRequest.final_status == "approved"
+    ).order_by(MentorshipRequest.created_at.desc()).all()
+
+    mentorships_list = []
+    for mr in approved_mentorships:
+        mentor_name = mr.mentor.name if mr.mentor else "Unknown"
+        mentee_name = mr.mentee.name if mr.mentee else "Unknown"
+        mentorships_list.append({
+            "id": mr.id,
+            "mentor_id": mr.mentor_id,
+            "mentee_id": mr.mentee_id,
+            "mentor_name": mentor_name,
+            "mentee_name": mentee_name,
+            "purpose": mr.purpose or "",
+            "duration": mr.duration_months or 0
+        })
 
     return render_template(
         "supervisor/supervisor_calendar.html",
         show_sidebar=True,
         meetings=calendar_meetings,
         mentors=mentors,
-        institutions=institutions
+        mentees=mentees,
+        institutions=institutions,
+        mentorships=mentorships_list
     )
 
 
@@ -6208,8 +6234,23 @@ def institution_calendar():
             "created_at": meeting.created_at
         })
     
-    mentors = User.query.filter_by(user_type="1").all()
-    mentees = User.query.filter_by(user_type="2").all()
+    # Filter mentors/mentees to only those with active mentorships
+    active_mentor_ids = set()
+    active_mentee_ids = set()
+    approved_requests = MentorshipRequest.query.filter_by(final_status="approved").all()
+    for req in approved_requests:
+        active_mentor_ids.add(req.mentor_id)
+        active_mentee_ids.add(req.mentee_id)
+
+    mentors = User.query.filter(
+        User.user_type == "1",
+        User.id.in_(active_mentor_ids)
+    ).all() if active_mentor_ids else []
+
+    mentees = User.query.filter(
+        User.user_type == "2",
+        User.id.in_(active_mentee_ids)
+    ).all() if active_mentee_ids else []
 
     return render_template(
         "institution/institution_calendar.html",
@@ -6509,17 +6550,28 @@ def request_mentorship():
 
 @app.route("/mentor_response", methods=["POST"])
 def mentor_response():
-    # Get form data
-    request_id = request.form.get("request_id")
-    action = request.form.get("action")
+    # Support both form POST and JSON AJAX
+    if request.is_json:
+        data = request.get_json()
+        request_id = data.get("request_id")
+        action = data.get("action")
+    else:
+        request_id = request.form.get("request_id")
+        action = request.form.get("action")
+
+    is_ajax = request.is_json
 
     if not request_id or not action:
+        if is_ajax:
+            return jsonify({"success": False, "message": "Invalid request!"}), 400
         flash("Invalid request!", "error")
         return redirect(url_for("mentordashboard"))
 
     # Fetch mentorship request
     mentorship_request = MentorshipRequest.query.get(int(request_id))
     if not mentorship_request:
+        if is_ajax:
+            return jsonify({"success": False, "message": "Request not found!"}), 404
         flash("Request not found!", "error")
         return redirect(url_for("mentordashboard"))
 
@@ -6529,6 +6581,8 @@ def mentor_response():
         mentor = User.query.filter_by(email=session["email"]).first()
 
     if not mentor or mentorship_request.mentor_id != mentor.id:
+        if is_ajax:
+            return jsonify({"success": False, "message": "Not your request!"}), 403
         flash("This is not your request or you are not logged in as mentor!", "error")
         return redirect(url_for("mentordashboard"))
 
@@ -6537,11 +6591,13 @@ def mentor_response():
 
     try:
         db.session.commit()
-        flash(f"Request {action}ed successfully!", "success")
     except Exception as e:
         db.session.rollback()
-        flash("Something went wrong while updating the request.", "error")
         print("DB Commit Error:", e)
+        if is_ajax:
+            return jsonify({"success": False, "message": "Something went wrong."}), 500
+        flash("Something went wrong while updating the request.", "error")
+        return redirect(url_for("mentordashboard"))
 
     # Notify the mentee about the mentor's response
     if mentorship_request.mentee:
@@ -6558,7 +6614,10 @@ def mentor_response():
                 url_for("my_mentors")
             )
 
-    # Always redirect to mentor dashboard
+    if is_ajax:
+        return jsonify({"success": True, "message": f"Request {action}ed successfully!"})
+
+    flash(f"Request {action}ed successfully!", "success")
     return redirect(url_for("mentor_mentorship_request"))
 
 #--------------x----- PROFILE PICTURE AT TOP ------------------
@@ -7970,6 +8029,39 @@ def mentee_create_meeting_request(mentor_id):
         running_tasks=running_tasks
     )
 
+@app.route("/get_tasks_for_mentorship")
+def get_tasks_for_mentorship():
+    """Return tasks for a given (mentee_id, mentor_id) pair as JSON."""
+    if "email" not in session or session.get("user_type") != "0":
+        return jsonify({"error": "Unauthorized"}), 401
+
+    mentee_id = request.args.get("mentee_id", type=int)
+    mentor_id = request.args.get("mentor_id", type=int)
+
+    if not mentee_id or not mentor_id:
+        return jsonify({"tasks": []})
+
+    tasks = MenteeTask.query.filter_by(
+        mentee_id=mentee_id,
+        mentor_id=mentor_id
+    ).all()
+
+    task_list = []
+    for t in tasks:
+        master = t.master_task
+        task_list.append({
+            "id": t.id,
+            "meeting_number": t.meeting_number,
+            "month": t.month,
+            "status": t.status,
+            "due_date": t.due_date.strftime("%b %d, %Y") if t.due_date else "",
+            "purpose": master.purpose_of_call if master else "",
+            "mentor_focus": master.mentor_focus if master else "",
+            "mentee_focus": master.mentee_focus if master else ""
+        })
+
+    return jsonify({"tasks": task_list})
+
 @app.route("/create_meeting_ajax", methods=["POST"])
 def create_meeting_ajax():
     if "email" not in session:
@@ -7982,15 +8074,34 @@ def create_meeting_ajax():
     duration = data.get("duration")  # duration in minutes
     timezone = data.get("timezone", "Asia/Kolkata")  # default to IST if not provided
     mentor_id = data.get("mentor_id")
+    mentee_id = data.get("mentee_id")
+    institution_id = data.get("institution_id")
+    task_id = data.get("task_id")
+    mentorship_id = data.get("mentorship_id")
 
-    if not all([title, date, start_time, duration, mentor_id]):
-        return jsonify({"error": "Please fill all fields"}), 400
+    # Determine the requested_to participant (mentor, mentee, or institution)
+    requested_to = None
+    requested_to_type = None
+    if mentor_id:
+        requested_to = User.query.get(int(mentor_id))
+        requested_to_type = "mentor"
+    elif mentee_id:
+        requested_to = User.query.get(int(mentee_id))
+        requested_to_type = "mentee"
+    elif institution_id:
+        requested_to = User.query.get(int(institution_id))
+        requested_to_type = "institution"
 
-    mentee = User.query.filter_by(email=session["email"]).first()
-    mentor = User.query.get(int(mentor_id))
+    if not all([title, date, start_time, duration]):
+        return jsonify({"error": "Please fill all required fields"}), 400
 
-    if not mentee or not mentor:
-        return jsonify({"error": "Mentee or Mentor not found"}), 404
+    if not requested_to:
+        return jsonify({"error": "Please select a participant (mentor, mentee, or institution)"}), 400
+
+    supervisor = User.query.filter_by(email=session["email"]).first()
+
+    if not supervisor:
+        return jsonify({"error": "Supervisor not found"}), 404
 
     # Calculate start and end datetime
     try:
@@ -8029,12 +8140,12 @@ def create_meeting_ajax():
             try:
                 event = {
                     "summary": title,
-                    "description": f"Meeting created by {mentee.name} ({mentee.email}) in {timezone} timezone",
+                    "description": f"Meeting created by {supervisor.name} ({supervisor.email}) in {timezone} timezone{task_context}",
                     "start": {"dateTime": start_str, "timeZone": timezone},
                     "end": {"dateTime": end_str, "timeZone": timezone},
                     "attendees": [
-                        {"email": mentee.email},
-                        {"email": mentor.email}
+                        {"email": supervisor.email},
+                        {"email": requested_to.email}
                     ],
                     "reminders": {
                         "useDefault": False,
@@ -8077,8 +8188,8 @@ def create_meeting_ajax():
                 "action": "TEMPLATE",
                 "text": title,
                 "dates": f"{start_datetime.strftime('%Y%m%dT%H%M%S')}/{end_datetime.strftime('%Y%m%dT%H%M%S')}",
-                "details": f"Mentorship meeting scheduled via Mentor Connect. Mentee: {mentee.email} | Mentor: {mentor.email}",
-                "add": f"{mentee.email},{mentor.email}",
+                "details": f"Meeting scheduled via Mentor Connect. Supervisor: {supervisor.email} | Participant: {requested_to.email}",
+                "add": f"{supervisor.email},{requested_to.email}",
                 "ctz": timezone,
             })
         )
@@ -8097,9 +8208,9 @@ def create_meeting_ajax():
         end_utc = end_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
 
         teams_body = (
-            "Mentorship meeting scheduled via Mentor Connect.\n\n"
-            f"Mentee: {mentee.email}\n"
-            f"Mentor: {mentor.email}\n"
+            "Meeting scheduled via Mentor Connect.\n\n"
+            f"Supervisor: {supervisor.email}\n"
+            f"Participant: {requested_to.email}\n"
             f"Original timezone: {timezone}\n\n"
             "Turn on the Teams meeting toggle in Outlook and send the invite "
             "to generate your Microsoft Teams join link."
@@ -8113,17 +8224,36 @@ def create_meeting_ajax():
                 "subject": title,
                 "startdt": start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "enddt": end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "to": f"{mentee.email};{mentor.email}",
+                "to": f"{supervisor.email};{requested_to.email}",
                 "body": teams_body,
                 "location": "Microsoft Teams Meeting",
             })
         )
 
+    # Build task context for description
+    task_context = ""
+    if task_id:
+        try:
+            mentee_task = MenteeTask.query.get(int(task_id))
+            if mentee_task and mentee_task.master_task:
+                mt = mentee_task.master_task
+                task_context = (
+                    f"\n\n--- Task to Discuss ---\n"
+                    f"Meeting #{mentee_task.meeting_number} ({mentee_task.month})\n"
+                    f"Purpose: {mt.purpose_of_call}\n"
+                    f"Mentor Focus: {mt.mentor_focus}\n"
+                    f"Mentee Focus: {mt.mentee_focus}\n"
+                    f"Status: {mentee_task.status}"
+                )
+        except Exception:
+            pass
+
     try:
         meeting = MeetingRequest(
-                requester_id=mentee.id,
-                requested_to_id=mentor.id,
+                requester_id=supervisor.id,
+                requested_to_id=requested_to.id,
                 meeting_title=title,
+                meeting_description=f"Meeting scheduled by Supervisor {supervisor.name}.{task_context}",
                 meeting_date=start_datetime.date(),
                 meeting_time=start_datetime.time(),
                 meeting_duration=duration_minutes,
@@ -8149,8 +8279,8 @@ def create_meeting_ajax():
         "start": start_str,
         "end": end_str,
         "timezone": timezone,
-        "mentee_email": mentee.email,
-        "mentor_email": mentor.email
+        "supervisor_email": supervisor.email,
+        "participant_email": requested_to.email
     }
     if calendar_warning:
         payload["warning"] = calendar_warning

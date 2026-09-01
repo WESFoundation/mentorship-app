@@ -960,6 +960,7 @@ function updateSchedBanner() {
 document.getElementById('scheduleMeetingForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     var mentorId = document.getElementById('sched-mentor').value;
+    var menteeId = document.getElementById('sched-mentee').value;
     var title = document.getElementById('sched-title').value.trim();
     var date = document.getElementById('sched-date').value;
     var hour = document.getElementById('sched-hour').value;
@@ -994,7 +995,7 @@ document.getElementById('scheduleMeetingForm').addEventListener('submit', async 
         var res = await fetch('/create_meeting_ajax', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({title: title, date: date, start_time: startTime, duration: duration, mentor_id: mentorId, platform: platform, timezone: timezone})
+            body: JSON.stringify({title: title, date: date, start_time: startTime, duration: duration, mentor_id: mentorId, mentee_id: menteeId, platform: platform, timezone: timezone})
         });
         var result = await res.json();
         if (res.ok && result.message) {

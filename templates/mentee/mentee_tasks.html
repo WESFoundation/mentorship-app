@@ -209,17 +209,6 @@
                             </svg>
                             View
                         </button>
-                        {% if task.status != 'completed' %}
-                        <button onclick="markTaskAsComplete({{ task.id }}, 'master')"
-                            class="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg hover:bg-emerald-100 transition-all"
-                            title="Mark Complete">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M5 13l4 4L19 7"></path>
-                            </svg>
-                            Complete
-                        </button>
-                        {% endif %}
                     </div>
                 </div>
 
@@ -247,24 +236,11 @@
                         <span>Meeting: #{{ task.meeting_number }}</span>
                     </div>
 
-                    {% if task.status != 'completed' %}
-                    <div class="flex items-center gap-3 w-full md:w-auto">
-                        <div class="w-full md:w-32 h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div class="h-full bg-blue-500 rounded-full transition-all duration-500"
-                                style="width: {{ task.progress or 0 }}%"></div>
-                        </div>
-                        <span class="text-xs font-bold text-slate-600 min-w-[30px]">{{ task.progress or 0 }}%</span>
-                    </div>
-                    {% else %}
-                    <span
-                        class="text-emerald-600 text-xs font-bold flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-lg">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        Completed
+                    <span class="text-xs font-bold px-2 py-1 rounded-lg
+                        {% if task.status == 'completed' %}bg-emerald-50 text-emerald-600
+                        {% else %}bg-slate-100 text-slate-500{% endif %}">
+                        {% if task.status == 'completed' %}Done{% else %}Not Done{% endif %}
                     </span>
-                    {% endif %}
                 </div>
             </div>
             {% endfor %}
@@ -348,17 +324,6 @@
                             </svg>
                             View
                         </button>
-                        {% if task.status != 'completed' %}
-                        <button onclick="markTaskAsComplete({{ task.id }}, 'personal')"
-                            class="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg hover:bg-emerald-100 transition-all"
-                            title="Mark Complete">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M5 13l4 4L19 7"></path>
-                            </svg>
-                            Complete
-                        </button>
-                        {% endif %}
                     </div>
                 </div>
 
@@ -393,24 +358,11 @@
                         {% endif %}
                     </div>
 
-                    {% if task.status != 'completed' %}
-                    <div class="flex items-center gap-3 w-full md:w-auto">
-                        <div class="w-full md:w-32 h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div class="h-full bg-green-500 rounded-full transition-all duration-500"
-                                style="width: {{ task.progress or 0 }}%"></div>
-                        </div>
-                        <span class="text-xs font-bold text-slate-600 min-w-[30px]">{{ task.progress or 0 }}%</span>
-                    </div>
-                    {% else %}
-                    <span
-                        class="text-emerald-600 text-xs font-bold flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-lg">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        Completed
+                    <span class="text-xs font-bold px-2 py-1 rounded-lg
+                        {% if task.status == 'completed' %}bg-emerald-50 text-emerald-600
+                        {% else %}bg-slate-100 text-slate-500{% endif %}">
+                        {% if task.status == 'completed' %}Done{% else %}Not Done{% endif %}
                     </span>
-                    {% endif %}
                 </div>
             </div>
             {% endfor %}
@@ -530,16 +482,11 @@
                     </div>
                 </div>
 
-                <!-- Progress -->
+                <!-- Status -->
                 <div>
                     <div class="flex justify-between items-center mb-2">
-                        <h4 class="text-sm font-bold text-slate-800">Progress</h4>
-                        <span id="detail-progress-text" class="text-sm font-bold text-blue-600">0%</span>
-                    </div>
-                    <div class="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div id="detail-progress-fill"
-                            class="h-full bg-blue-600 rounded-full transition-all duration-500 shadow-sm shadow-blue-500/30"
-                            style="width: 0%"></div>
+                        <h4 class="text-sm font-bold text-slate-800">Status</h4>
+                        <span id="detail-progress-text" class="text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600">Not Done</span>
                     </div>
                 </div>
 
@@ -641,60 +588,33 @@
                         </div>
 
                         <div id="mentee-rating-details" class="hidden">
-                            <!-- Mentee identity -->
                             <div class="flex items-center gap-3 mb-4 pb-4 border-b border-blue-200/50">
-                                <div class="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-                                    <span id="mentee-initial">Y</span>
-                                </div>
+                                <div class="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center text-white font-bold text-sm shadow-sm">Y</div>
                                 <div>
-                                    <p id="mentee-name-display" class="font-semibold text-slate-800 text-sm">You</p>
+                                    <p class="font-semibold text-slate-800 text-sm">You</p>
                                     <p class="text-xs text-slate-500">Self-reflection</p>
                                 </div>
                                 <span id="mentee-display-date" class="text-xs font-medium text-slate-400 ml-auto uppercase tracking-wide"></span>
                             </div>
 
-                            <!-- Overall rating banner -->
-                            <div class="flex items-center gap-3 mb-5 bg-white/70 rounded-xl px-4 py-3 border border-blue-100">
-                                <div id="mentee-display-stars-sm" class="flex gap-1 text-xl text-blue-400"></div>
-                                <span id="mentee-display-score" class="font-bold text-slate-700 text-xl bg-white px-3 py-1 rounded-lg border border-slate-100 shadow-sm"></span>
-                            </div>
-
                             <div class="space-y-4">
-                                <!-- Remark (mood) -->
                                 <div>
-                                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2 flex items-center gap-1">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path></svg>
-                                        Mood
-                                    </label>
-                                    <div class="bg-blue-50/60 p-4 rounded-xl border border-blue-100 shadow-sm">
-                                        <p id="mentee-display-mood" class="text-slate-700 text-sm leading-relaxed"></p>
+                                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Reflection</label>
+                                    <div class="bg-white/70 p-4 rounded-xl border border-blue-100">
+                                        <p id="mentee-display-feedback" class="text-slate-700 text-sm leading-relaxed"></p>
                                     </div>
                                 </div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="text-xs font-bold text-emerald-600 uppercase tracking-wider block mb-2 flex items-center gap-1">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                                            What I Learned
-                                        </label>
-                                        <div class="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 h-full">
-                                            <p id="mentee-display-learned" class="text-slate-600 text-sm"></p>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label class="text-xs font-bold text-blue-600 uppercase tracking-wider block mb-2 flex items-center gap-1">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                            What I Will Do Next
-                                        </label>
-                                        <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100 h-full">
-                                            <p id="mentee-display-next" class="text-slate-600 text-sm"></p>
-                                        </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Additional Notes</label>
+                                    <div class="bg-white/70 p-4 rounded-xl border border-blue-100">
+                                        <p id="mentee-display-extra" class="text-slate-700 text-sm leading-relaxed"></p>
                                     </div>
                                 </div>
                             </div>
                             <div class="mt-4 pt-4 border-t border-blue-100 flex gap-2">
                                 <button onclick="openMenteeFeedbackModal()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                                    Edit feedback
+                                    Edit
                                 </button>
                                 <button onclick="clearMenteeFeedback()" class="px-4 py-2 text-red-500 text-sm font-medium rounded-lg hover:bg-red-50 transition flex items-center gap-2">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
@@ -704,25 +624,6 @@
 
                 <!-- Actions -->
                 <div class="flex gap-3 pt-6 border-t border-slate-100">
-                    <button onclick="markTaskComplete()"
-                        class="px-5 py-2.5 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-500/30 flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                            </path>
-                        </svg>
-                        Mark Complete
-                    </button>
-                    <button onclick="startTaskProgress()"
-                        class="px-5 py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-500/30 flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z">
-                            </path>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        Start Progress
-                    </button>
                     <button onclick="closeTaskDetailsModal()"
                         class="px-5 py-2.5 bg-slate-100 text-slate-600 font-medium rounded-xl hover:bg-slate-200 transition ml-auto">
                         Close
@@ -750,57 +651,19 @@
         </div>
 
         <form id="mentee-feedback-form" class="space-y-6">
-            <!-- Star Rating -->
+            <!-- Reflection -->
             <div>
-                <label class="block text-sm font-medium text-slate-700 mb-3">How would you rate your performance? *</label>
-                <div class="flex gap-2" id="mentee-star-picker" role="radiogroup" aria-label="Self rating">
-                    <button type="button" class="mentee-star text-3xl text-slate-200 hover:text-amber-400 transition" data-value="1" aria-label="1 star">★</button>
-                    <button type="button" class="mentee-star text-3xl text-slate-200 hover:text-amber-400 transition" data-value="2" aria-label="2 stars">★</button>
-                    <button type="button" class="mentee-star text-3xl text-slate-200 hover:text-amber-400 transition" data-value="3" aria-label="3 stars">★</button>
-                    <button type="button" class="mentee-star text-3xl text-slate-200 hover:text-amber-400 transition" data-value="4" aria-label="4 stars">★</button>
-                    <button type="button" class="mentee-star text-3xl text-slate-200 hover:text-amber-400 transition" data-value="5" aria-label="5 stars">★</button>
-                    <span id="mentee-star-label" class="text-sm font-medium text-slate-500 ml-2 self-center"></span>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Your Reflection *</label>
+                <textarea id="mentee-feedback-input" name="text" rows="5" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-slate-700 placeholder-slate-400" placeholder="How did this task go? What did you learn or accomplish?" required></textarea>
+                <div class="flex items-center justify-between mt-1">
+                    <p id="mentee-char-count" class="text-xs text-slate-400">0 / 2000</p>
                 </div>
-            </div>
-
-            <!-- Mood -->
-            <div>
-                <label class="block text-sm font-medium text-slate-700 mb-3">How are you feeling about this task?</label>
-                <div class="flex flex-wrap gap-2" id="mentee-mood-picker">
-                    <button type="button" class="mentee-mood-tag px-4 py-2 rounded-full text-sm font-medium border border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition" data-mood="on-track">📌 On Track</button>
-                    <button type="button" class="mentee-mood-tag px-4 py-2 rounded-full text-sm font-medium border border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition" data-mood="learned">📚 Learned</button>
-                    <button type="button" class="mentee-mood-tag px-4 py-2 rounded-full text-sm font-medium border border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition" data-mood="challenged">😅 Challenged</button>
-                    <button type="button" class="mentee-mood-tag px-4 py-2 rounded-full text-sm font-medium border border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition" data-mood="confident">💪 Confident</button>
-                    <button type="button" class="mentee-mood-tag px-4 py-2 rounded-full text-sm font-medium border border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition" data-mood="need-help">🆘 Need Help</button>
-                </div>
-            </div>
-
-            <!-- What I Learned -->
-            <div>
-                <label class="block text-sm font-medium text-slate-700 mb-2">What I Learned *</label>
-                <textarea id="mentee-learned-input" name="learned" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-slate-700 placeholder-slate-400" placeholder="What key concepts, skills, or insights did you gain from this task?" required></textarea>
-            </div>
-
-            <!-- What Was Challenging -->
-            <div>
-                <label class="block text-sm font-medium text-slate-700 mb-2">What Was Challenging *</label>
-                <textarea id="mentee-challenged-input" name="challenged" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-slate-700 placeholder-slate-400" placeholder="What obstacles did you face? What was hard to understand?" required></textarea>
-            </div>
-
-            <!-- What I Will Do Next -->
-            <div>
-                <label class="block text-sm font-medium text-slate-700 mb-2">What I Will Do Next *</label>
-                <textarea id="mentee-next-input" name="next" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-slate-700 placeholder-slate-400" placeholder="What are your action items or goals for the next session?" required></textarea>
             </div>
 
             <!-- Additional Notes -->
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-2">Additional Notes</label>
-                <textarea id="mentee-feedback-input" name="text" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm text-slate-700 placeholder-slate-400" placeholder="Any other reflection, links, or thoughts..."></textarea>
-                <div class="flex items-center justify-between mt-1">
-                    <p id="mentee-char-count" class="text-xs text-slate-400">0 / 2000</p>
-                    <span id="mentee-draft-indicator" class="text-xs text-slate-400 hidden">💾 Draft saved</span>
-                </div>
+                <textarea id="mentee-extra-input" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm text-slate-700 placeholder-slate-400" placeholder="Anything else you'd like to share..."></textarea>
             </div>
 
             <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
@@ -978,36 +841,6 @@
     });
 
     // Mark task as complete
-    async function markTaskAsComplete(taskId, taskType) {
-        if (!confirm('Are you sure you want to mark this task as complete?')) return;
-
-        try {
-            const response = await fetch('/update_task_status', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    task_id: taskId,
-                    task_type: taskType,
-                    status: 'completed',
-                    progress: 100
-                })
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                location.reload();
-            } else {
-                alert('Error: ' + result.message);
-            }
-        } catch (error) {
-            console.error('Error updating task status:', error);
-            alert('Error updating task status');
-        }
-    }
-
     // View task details and load rating
     async function viewTaskDetails(taskId, taskType) {
         try {
@@ -1055,10 +888,17 @@
                     }
                 }
 
-                // Update progress
-                const progress = task.progress || 0;
-                document.getElementById('detail-progress-fill').style.width = `${progress}%`;
-                document.getElementById('detail-progress-text').textContent = `${progress}%`;
+                // Update status display
+                const progressText = document.getElementById('detail-progress-text');
+                if (progressText) {
+                    if (task.status === 'completed') {
+                        progressText.textContent = 'Done';
+                        progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700';
+                    } else {
+                        progressText.textContent = 'Not Done';
+                        progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
+                    }
+                }
 
                 // Load and display rating
                 await loadAndDisplayRating(taskId, taskType);
@@ -1155,9 +995,6 @@
     }
 
         // ===== MENTEE SELF-FEEDBACK (UI-only, localStorage — no DB/Github) =====
-    let menteeSelfRating = 0;
-    let menteeMood = '';
-    const MENTEE_MOOD_LABELS = { 'on-track':'📌 On Track', 'learned':'📚 Learned', 'challenged':'😅 Challenged', 'confident':'💪 Confident', 'need-help':'🆘 Need Help' };
     function getMenteeFeedbackKey(taskId, taskType) { return 'menteeFeedback_' + taskType + '_' + taskId; }
 
     function openMenteeFeedbackModal() {
@@ -1168,18 +1005,10 @@
         const key = getMenteeFeedbackKey(currentTaskId, currentTaskType);
         const raw = localStorage.getItem(key);
         const data = raw ? JSON.parse(raw) : {};
-        menteeSelfRating = data.rating || 0;
-        menteeMood = data.mood || '';
-        updateMenteeStars(menteeSelfRating);
-        highlightMenteeMood(menteeMood);
-        var learned = document.getElementById('mentee-learned-input');
-        var challenged = document.getElementById('mentee-challenged-input');
-        var next = document.getElementById('mentee-next-input');
-        var notes = document.getElementById('mentee-feedback-input');
-        if (learned) learned.value = data.learned || '';
-        if (challenged) challenged.value = data.challenged || '';
-        if (next) next.value = data.next || '';
-        if (notes) notes.value = data.text || '';
+        var feedback = document.getElementById('mentee-feedback-input');
+        var extra = document.getElementById('mentee-extra-input');
+        if (feedback) feedback.value = data.text || '';
+        if (extra) extra.value = data.extra || '';
         var status = document.getElementById('mentee-feedback-status');
         if (status) { status.classList.add('hidden'); status.textContent = ''; }
         countMenteeChars();
@@ -1197,97 +1026,86 @@
             var raw = localStorage.getItem(key);
             var details = document.getElementById('mentee-rating-details');
             var noMsg = document.getElementById('mentee-no-rating-message');
+            var progressText = document.getElementById('detail-progress-text');
             if (!raw) {
-                menteeSelfRating = 0; menteeMood = '';
                 if (details) details.classList.add('hidden');
                 if (noMsg) noMsg.classList.remove('hidden');
+                // Reset status to "Not Done" if no feedback
+                if (progressText) {
+                    progressText.textContent = 'Not Done';
+                    progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
+                }
                 return;
             }
             var data = JSON.parse(raw);
-            menteeSelfRating = data.rating || 0;
-            menteeMood = data.mood || '';
-            updateMenteeStars(menteeSelfRating);
-            highlightMenteeMood(menteeMood);
-            var starsEl = document.getElementById('mentee-display-stars-sm');
-            if (starsEl) {
-                starsEl.innerHTML = '';
-                for (var i=1;i<=5;i++){ var s=document.createElement('span'); s.textContent='\u2605'; s.className=i<=menteeSelfRating?'text-amber-400':'text-slate-200'; starsEl.appendChild(s); }
+            // Show "Done" status when feedback exists
+            if (progressText) {
+                progressText.textContent = 'Done';
+                progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700';
             }
-            var scoreEl=document.getElementById('mentee-display-score'); if(scoreEl) scoreEl.textContent = menteeSelfRating ? (menteeSelfRating + '/5') : 'No rating';
-            var moodEl=document.getElementById('mentee-display-mood'); if(moodEl) moodEl.textContent = menteeMood ? (MENTEE_MOOD_LABELS[menteeMood]||menteeMood) : '\u2014';
-            var dateEl=document.getElementById('mentee-display-date'); if(dateEl) dateEl.textContent = data.date ? new Date(data.date).toLocaleDateString() : '';
-            var learnedEl=document.getElementById('mentee-display-learned'); if(learnedEl) learnedEl.textContent = data.learned || '\u2014';
-            var nextEl=document.getElementById('mentee-display-next'); if(nextEl) nextEl.textContent = data.next || '\u2014';
+            var dateEl = document.getElementById('mentee-display-date');
+            if (dateEl) dateEl.textContent = data.date ? new Date(data.date).toLocaleDateString() : '';
+            var feedbackEl = document.getElementById('mentee-display-feedback');
+            if (feedbackEl) feedbackEl.textContent = data.text || '—';
+            var extraEl = document.getElementById('mentee-display-extra');
+            if (extraEl) extraEl.textContent = data.extra || '—';
             if (details) details.classList.remove('hidden');
             if (noMsg) noMsg.classList.add('hidden');
-        } catch(e){ console.error('loadMenteeFeedback error',e); }
+        } catch(e) { console.error('loadMenteeFeedback error', e); }
     }
-    function highlightMenteeMood(mood) {
-        document.querySelectorAll('.mentee-mood-tag').forEach(function(btn){
-            var m=btn.dataset.mood;
-            if(m===mood){ btn.classList.add('bg-blue-100','border-blue-400','text-blue-700'); btn.classList.remove('border-slate-200','text-slate-500'); }
-            else { btn.classList.remove('bg-blue-100','border-blue-400','text-blue-700'); btn.classList.add('border-slate-200','text-slate-500'); }
-        });
+
+    function countMenteeChars() {
+        var input = document.getElementById('mentee-feedback-input');
+        var charCount = document.getElementById('mentee-char-count');
+        if (input && charCount) {
+            var len = input.value.length;
+            charCount.textContent = len + ' / 2000';
+            charCount.className = len > 1800 ? 'text-xs text-red-500' : 'text-xs text-slate-400';
+        }
     }
-    function clearMenteeMoodTags() {
-        document.querySelectorAll('.mentee-mood-tag').forEach(function(btn){
-            btn.classList.remove('bg-blue-100','border-blue-400','text-blue-700');
-            btn.classList.add('border-slate-200','text-slate-500');
-        });
-    }
-    function updateMenteeStars(val){
-        menteeSelfRating = val;
-        document.querySelectorAll('#mentee-star-picker .mentee-star').forEach(function(btn){
-            var v=parseInt(btn.dataset.value); btn.classList.toggle('text-amber-400', v<=val && val>0); btn.classList.toggle('text-slate-200', v>val || val===0);
-        });
-        var label=document.getElementById('mentee-star-label');
-        var labels=['','Poor','Fair','Good','Very Good','Excellent'];
-        if(label) label.textContent = val ? (val + '/5 \u2022 ' + (labels[val] || '')) : '';
-    }
-    function countMenteeChars(){
-        var input=document.getElementById('mentee-feedback-input');
-        var charCount=document.getElementById('mentee-char-count');
-        if(input&&charCount){ var len=input.value.length; charCount.textContent = len + ' / 2000'; charCount.className=len>1800?'text-xs text-red-500':'text-xs text-slate-400'; }
-    }
-    function saveMenteeFeedback(){
-        var input=document.getElementById('mentee-feedback-input');
-        var learnedInput=document.getElementById('mentee-learned-input');
-        var challengedInput=document.getElementById('mentee-challenged-input');
-        var nextInput=document.getElementById('mentee-next-input');
-        var text=input?input.value.trim():'';
-        var learned=learnedInput?learnedInput.value.trim():'';
-        var challenged=challengedInput?challengedInput.value.trim():'';
-        var nextVal=nextInput?nextInput.value.trim():'';
-        if(!text&&!menteeSelfRating&&!learned&&!challenged&&!nextVal){ var s=document.getElementById('mentee-feedback-status'); if(s){ s.textContent='Please fill in at least one field or select a rating.'; s.className='text-sm mt-2 text-amber-600'; s.classList.remove('hidden'); } return; }
-        if(!currentTaskId||!currentTaskType){ alert('No task selected'); return; }
-        var key=getMenteeFeedbackKey(currentTaskId, currentTaskType);
-        var payload={ rating:menteeSelfRating, text:text, learned:learned, challenged:challenged, next:nextVal, mood:menteeMood, date:new Date().toISOString() };
+
+    function saveMenteeFeedback() {
+        var input = document.getElementById('mentee-feedback-input');
+        var extraInput = document.getElementById('mentee-extra-input');
+        var text = input ? input.value.trim() : '';
+        var extra = extraInput ? extraInput.value.trim() : '';
+        if (!text) {
+            var s = document.getElementById('mentee-feedback-status');
+            if (s) { s.textContent = 'Please enter your reflection.'; s.className = 'text-sm mt-2 text-amber-600'; s.classList.remove('hidden'); }
+            return;
+        }
+        if (!currentTaskId || !currentTaskType) { alert('No task selected'); return; }
+        var key = getMenteeFeedbackKey(currentTaskId, currentTaskType);
+        var payload = { text: text, extra: extra, date: new Date().toISOString() };
         localStorage.setItem(key, JSON.stringify(payload));
+        // Update status badge to "Done" after submitting reflection
+        var progressText = document.getElementById('detail-progress-text');
+        if (progressText) {
+            progressText.textContent = 'Done';
+            progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700';
+        }
         closeMenteeFeedbackModal();
     }
-    function editMenteeFeedback(){ openMenteeFeedbackModal(); }
-    function cancelMenteeFeedback(){ closeMenteeFeedbackModal(); }
-    function clearMenteeFeedback(){
-        if(!currentTaskId||!currentTaskType) return;
-        if(!confirm('Clear your self-feedback for this task? (Only removes from this browser)')) return;
+
+    function editMenteeFeedback() { openMenteeFeedbackModal(); }
+    function cancelMenteeFeedback() { closeMenteeFeedbackModal(); }
+    function clearMenteeFeedback() {
+        if (!currentTaskId || !currentTaskType) return;
+        if (!confirm('Clear your reflection for this task?')) return;
         localStorage.removeItem(getMenteeFeedbackKey(currentTaskId, currentTaskType));
-        menteeSelfRating=0; menteeMood='';
-        updateMenteeStars(0); clearMenteeMoodTags();
+        // Reset status badge back to "Not Done"
+        var progressText = document.getElementById('detail-progress-text');
+        if (progressText) {
+            progressText.textContent = 'Not Done';
+            progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
+        }
         loadMenteeFeedback(currentTaskId, currentTaskType);
     }
-    document.addEventListener('click', function(e){
-        if(e.target.classList.contains('mentee-star')){
-            var v=parseInt(e.target.dataset.value); updateMenteeStars(v);
-        }
-        if(e.target.classList.contains('mentee-mood-tag')){
-            menteeMood=e.target.dataset.mood;
-            highlightMenteeMood(menteeMood);
-        }
+
+    document.addEventListener('input', function(e) {
+        if (e.target.id === 'mentee-feedback-input') countMenteeChars();
     });
-    document.addEventListener('input', function(e){
-        if(e.target.id==='mentee-feedback-input') countMenteeChars();
-    });
-    document.getElementById('mentee-feedback-form').addEventListener('submit', function(e){
+    document.getElementById('mentee-feedback-form').addEventListener('submit', function(e) {
         e.preventDefault();
         saveMenteeFeedback();
     });
@@ -1317,46 +1135,6 @@
 
         currentTaskId = null;
         currentTaskType = null;
-    }
-
-    // Additional modal functions
-    async function markTaskComplete() {
-        if (currentTaskId && currentTaskType) {
-            await markTaskAsComplete(currentTaskId, currentTaskType);
-            closeTaskDetailsModal();
-        }
-    }
-
-    async function startTaskProgress() {
-        if (!currentTaskId || !currentTaskType) return;
-
-        try {
-            const response = await fetch('/update_task_status', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    task_id: currentTaskId,
-                    task_type: currentTaskType,
-                    status: 'in-progress',
-                    progress: 25
-                })
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                alert('Task progress started!');
-                closeTaskDetailsModal();
-                location.reload();
-            } else {
-                alert('Error: ' + result.message);
-            }
-        } catch (error) {
-            console.error('Error updating task status:', error);
-            alert('Error updating task status');
-        }
     }
 
     // Edit personal task function
