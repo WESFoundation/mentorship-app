@@ -7801,25 +7801,40 @@ def supervisor_all_mentorships():
     # Pre-fetch all tasks and meetings for these mentorships to avoid N+1 queries
     mentorship_ids = [m.id for m in all_mentorships]
     
-    # Fetch all tasks for these mentorships
+    # Build sets of (mentee_id, mentor_id) pairs from mentorships for matching
+    mentorship_pairs = {(m.mentee_id, m.mentor_id) for m in all_mentorships}
+    mentee_ids_set = {m.mentee_id for m in all_mentorships}
+    mentor_ids_set = {m.mentor_id for m in all_mentorships}
+    
+    # Fetch all tasks for these mentorships (MenteeTask has mentee_id + mentor_id, no mentorship_request_id)
     tasks = MenteeTask.query.filter(
-        MenteeTask.mentorship_request_id.in_(mentorship_ids)
+        MenteeTask.mentee_id.in_(mentee_ids_set),
+        MenteeTask.mentor_id.in_(mentor_ids_set)
     ).all() if mentorship_ids else []
     
-    # Group tasks by mentorship_id
-    tasks_by_mentorship = {}
+    # Group tasks by (mentee_id, mentor_id) pair
+    tasks_by_pair = {}
     for task in tasks:
-        tasks_by_mentorship.setdefault(task.mentorship_request_id, []).append(task)
+        tasks_by_pair.setdefault((task.mentee_id, task.mentor_id), []).append(task)
     
-    # Fetch all meetings for these mentorships
+    # Fetch all meetings for these mentorships (MeetingRequest has requester_id + requested_to_id)
+    all_meeting_pairs = set()
+    for m in all_mentorships:
+        all_meeting_pairs.add((m.mentee_id, m.mentor_id))
+        all_meeting_pairs.add((m.mentor_id, m.mentee_id))
+    
+    all_requester_ids = list({p[0] for p in all_meeting_pairs})
+    all_requested_ids = list({p[1] for p in all_meeting_pairs})
+    
     meetings = MeetingRequest.query.filter(
-        MeetingRequest.mentorship_request_id.in_(mentorship_ids)
+        MeetingRequest.requester_id.in_(all_requester_ids),
+        MeetingRequest.requested_to_id.in_(all_requested_ids)
     ).all() if mentorship_ids else []
     
-    # Group meetings by mentorship_id
-    meetings_by_mentorship = {}
+    # Group meetings by (requester_id, requested_to_id) pair
+    meetings_by_pair = {}
     for meeting in meetings:
-        meetings_by_mentorship.setdefault(meeting.mentorship_request_id, []).append(meeting)
+        meetings_by_pair.setdefault((meeting.requester_id, meeting.requested_to_id), []).append(meeting)
     
     # Get all mentor/mentee IDs for profile queries
     mentor_ids = [m.mentor_id for m in all_mentorships]
@@ -7833,31 +7848,16 @@ def supervisor_all_mentorships():
     mentors = {u.id: u for u in User.query.filter(User.id.in_(mentor_ids)).all()} if mentor_ids else {}
     mentees = {u.id: u for u in User.query.filter(User.id.in_(mentee_ids)).all()} if mentee_ids else {}
     
-    # Get all tasks and meetings grouped by mentorship_id
-    all_tasks = MenteeTask.query.filter(
-        MenteeTask.mentorship_request_id.in_(mentorship_ids)
-    ).all() if mentorship_ids else []
-    
-    all_meetings = MeetingRequest.query.filter(
-        MeetingRequest.mentorship_request_id.in_(mentorship_ids)
-    ).all() if mentorship_ids else []
-    
-    tasks_by_mentorship = {}
-    for task in all_tasks:
-        tasks_by_mentorship.setdefault(task.mentorship_request_id, []).append(task)
-    
-    meetings_by_mentorship = {}
-    for meeting in all_meetings:
-        meetings_by_mentorship.setdefault(meeting.mentorship_request_id, []).append(meeting)
-    
     mentorships_data = []
     for mentorship in all_mentorships:
         mentor = mentors.get(mentorship.mentor_id)
         mentee = mentees.get(mentorship.mentee_id)
         mentor_profile = mentor_profiles.get(mentorship.mentor_id)
         mentee_profile = mentee_profiles.get(mentorship.mentee_id)
-        tasks = tasks_by_mentorship.get(mentorship.id, [])
-        meetings = meetings_by_mentorship.get(mentorship.id, [])
+        pair = (mentorship.mentee_id, mentorship.mentor_id)
+        tasks = tasks_by_pair.get(pair, [])
+        # Meetings can be in either direction
+        meetings = meetings_by_pair.get(pair, []) + meetings_by_pair.get((mentorship.mentor_id, mentorship.mentee_id), [])
         
         mentorships_data.append({
             "request": mentorship,
