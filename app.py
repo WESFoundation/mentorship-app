@@ -9628,6 +9628,42 @@ def get_mentor_options_for_mentee(mentee_user):
     return mentors
 
 
+_TAG_PREFIX = "@@TAGS@@"
+
+def _parse_tags_from_content(content):
+    """Extract tag metadata from content prefix. Returns (tags_dict, clean_content)."""
+    if content and content.startswith(_TAG_PREFIX):
+        line_end = content.find("\n")
+        if line_end == -1:
+            line_end = len(content)
+        json_str = content[len(_TAG_PREFIX):line_end].strip()
+        clean = content[line_end + 1:] if line_end < len(content) else ""
+        try:
+            import json as _json
+            tags = _json.loads(json_str)
+            return tags, clean.strip()
+        except Exception:
+            return {}, content
+    return {}, content or ""
+
+
+def _build_tagged_content(title, content, mentor_id, institution_id, mentee_tag_id, supervisor_tag_id):
+    """Prepend tag metadata to content."""
+    import json as _json
+    tags = {}
+    if mentor_id:
+        tags["mentor"] = int(mentor_id)
+    if institution_id:
+        tags["inst"] = int(institution_id)
+    if mentee_tag_id:
+        tags["mentee"] = int(mentee_tag_id)
+    if supervisor_tag_id:
+        tags["supervisor"] = int(supervisor_tag_id)
+    if tags:
+        return _TAG_PREFIX + _json.dumps(tags) + "\n" + content
+    return content
+
+
 @app.route("/resources")
 def resources_hub():
     """Resources Hub page: Notes panel where mentees can call/tag a mentor."""
@@ -9641,6 +9677,9 @@ def resources_hub():
     user_type = session.get("user_type")
     notes = []
     tag_options = []
+    institution_options = []
+    mentee_tag_options = []
+    supervisor_tag_options = []
 
     if user_type == "2":
         # Mentee: their own notes (about themselves)
@@ -9648,8 +9687,8 @@ def resources_hub():
             ResourceNote.mentee_id == user.id
         ).order_by(ResourceNote.updated_at.desc()).all()
         tag_options = get_mentor_options_for_mentee(user)
-        # Add mentee's institution as tag option if they have one
-        institution_options = []
+        mentee_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="2").filter(User.id != user.id).limit(50).all()]
+        supervisor_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="0").all()]
         if user.institution_id:
             inst = Institution.query.get(user.institution_id)
             if inst:
@@ -9668,29 +9707,53 @@ def resources_hub():
         for n in ResourceNote.query.filter(
             db.or_(
                 ResourceNote.mentor_id == user.id,
+                ResourceNote.mentee_id == user.id,
                 ResourceNote.mentee_id.in_(mentee_ids) if mentee_ids else False
             )
         ).all():
             combined[n.id] = n
         notes = sorted(combined.values(), key=lambda n: n.updated_at or n.created_at, reverse=True)
+        tag_options = [{"id": m.id, "name": m.name, "email": m.email} for m in User.query.filter_by(user_type="1").filter(User.id != user.id).all()]
+        mentee_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="2").limit(50).all()]
+        supervisor_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="0").all()]
+        if user.institution_id:
+            inst = Institution.query.get(user.institution_id)
+            if inst:
+                institution_options = [{"id": inst.id, "name": inst.name}]
 
     elif user_type == "3":
         # Institution: their own notes, and they can write/manage them (like mentees)
         notes = ResourceNote.query.filter(
             ResourceNote.mentee_id == user.id
         ).order_by(ResourceNote.updated_at.desc()).all()
+        tag_options = [{"id": m.id, "name": m.name, "email": m.email} for m in User.query.filter_by(user_type="1").all()]
+        mentee_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="2").limit(50).all()]
+        supervisor_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="0").all()]
+        if user.institution_id:
+            inst = Institution.query.get(user.institution_id)
+            if inst:
+                institution_options = [{"id": inst.id, "name": inst.name}]
 
     else:
         # Supervisor: see everything
         notes = ResourceNote.query.order_by(ResourceNote.updated_at.desc()).all()
+        tag_options = [{"id": m.id, "name": m.name, "email": m.email} for m in User.query.filter_by(user_type="1").all()]
+        mentee_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="2").limit(50).all()]
+        supervisor_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="0").filter(User.id != user.id).all()]
+        if user.institution_id:
+            inst = Institution.query.get(user.institution_id)
+            if inst:
+                institution_options = [{"id": inst.id, "name": inst.name}]
 
     return render_template(
         "resources_hub.html",
         notes=notes,
         tag_options=tag_options,
-        institution_options=institution_options if 'institution_options' in locals() else [],
+        institution_options=institution_options,
+        mentee_tag_options=mentee_tag_options,
+        supervisor_tag_options=supervisor_tag_options,
         user_type=user_type,
-        can_write=user_type in ("2", "3"),
+        can_write=True,
         current_user=user,
         now=datetime.utcnow(),
         show_sidebar=True,
@@ -9704,8 +9767,8 @@ def create_note():
         return jsonify({"error": "Please sign in first."}), 401
 
     user_type = session.get("user_type")
-    if user_type not in ("2", "3"):
-        return jsonify({"error": "Only mentees and institutions can write notes in the Resources Hub."}), 403
+    if user_type not in ("0", "1", "2", "3"):
+        return jsonify({"error": "Invalid user type."}), 403
 
     user = User.query.filter_by(email=session["email"]).first()
     if not user:
@@ -9715,6 +9778,8 @@ def create_note():
     content = (request.form.get("content") or "").strip()
     mentor_id = request.form.get("mentor_id") or request.form.get("tag_mentor_id")
     institution_id = request.form.get("institution_id")
+    mentee_tag_id = request.form.get("mentee_tag_id")
+    supervisor_tag_id = request.form.get("supervisor_tag_id")
 
     if not title:
         return jsonify({"error": "Note title is required."}), 400
@@ -9735,12 +9800,14 @@ def create_note():
         if user.institution_id != institution.id:
             return jsonify({"error": "You can only tag your own institution."}), 403
 
+    tagged_content = _build_tagged_content(title, content, mentor_id, institution_id, mentee_tag_id, supervisor_tag_id)
+
     note = ResourceNote(
         mentee_id=user.id,
         mentor_id=mentor.id if mentor else None,
         institution_id=institution.id if institution else None,
         title=title,
-        content=content
+        content=tagged_content
     )
     db.session.add(note)
     db.session.commit()
@@ -9765,21 +9832,20 @@ def update_note(note_id):
 
     user = User.query.filter_by(email=session["email"]).first()
     user_type = session.get("user_type")
-    if not user or (user_type not in ("2", "3") or note.mentee_id != user.id):
+    if not user or note.mentee_id != user.id:
         return jsonify({"error": "You can only edit your own notes."}), 403
 
     title = (request.form.get("title") or "").strip()
     content = (request.form.get("content") or "").strip()
     mentor_id = request.form.get("mentor_id")
     institution_id = request.form.get("institution_id")
+    mentee_tag_id = request.form.get("mentee_tag_id")
+    supervisor_tag_id = request.form.get("supervisor_tag_id")
 
     if not title:
         return jsonify({"error": "Note title is required."}), 400
     if not content:
         return jsonify({"error": "Note content is required."}), 400
-
-    if user_type == "3":
-        mentor_id = None
 
     if mentor_id:
         mentor = User.query.get(int(mentor_id))
@@ -9801,7 +9867,7 @@ def update_note(note_id):
         note.institution_id = None
 
     note.title = title
-    note.content = content
+    note.content = _build_tagged_content(title, content, mentor_id, institution_id, mentee_tag_id, supervisor_tag_id)
     db.session.commit()
 
     return jsonify({"success": True, "message": "Note updated successfully."})
@@ -9818,7 +9884,7 @@ def delete_note(note_id):
 
     user = User.query.filter_by(email=session["email"]).first()
     user_type = session.get("user_type")
-    if not user or (user_type not in ("2", "3") or note.mentee_id != user.id):
+    if not user or note.mentee_id != user.id:
         return jsonify({"error": "You can only delete your own notes."}), 403
 
     db.session.delete(note)
