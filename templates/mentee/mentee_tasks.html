@@ -1038,6 +1038,24 @@
         // ===== MENTEE SELF-FEEDBACK (UI-only, localStorage — no DB/Github) =====
     function getMenteeFeedbackKey(taskId, taskType) { return 'menteeFeedback_' + taskType + '_' + taskId; }
 
+    function updateTaskCardBadge(taskId, taskType, isDone) {
+        var card = document.querySelector('.task-card[data-task-id="' + taskId + '"][data-task-type="' + taskType + '"]');
+        if (!card) return;
+        var badges = card.querySelectorAll('span');
+        badges.forEach(function(badge) {
+            var txt = badge.textContent.trim();
+            if (txt === 'Done' || txt === 'Not Done') {
+                if (isDone) {
+                    badge.textContent = 'Done';
+                    badge.className = 'text-xs font-bold px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600';
+                } else {
+                    badge.textContent = 'Not Done';
+                    badge.className = 'text-xs font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-500';
+                }
+            }
+        });
+    }
+
     const menteeRatingLabels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
     const menteeMentorRatingLabels = ['', 'Not Helpful', 'Slightly Helpful', 'Helpful', 'Very Helpful', 'Extremely Helpful'];
 
@@ -1158,6 +1176,7 @@
                     progressText.textContent = 'Not Done';
                     progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
                 }
+                updateTaskCardBadge(taskId, taskType, false);
                 return;
             }
             var data = JSON.parse(raw);
@@ -1165,6 +1184,7 @@
                 progressText.textContent = 'Done';
                 progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700';
             }
+            updateTaskCardBadge(taskId, taskType, true);
             var dateEl = document.getElementById('mentee-display-date');
             if (dateEl) dateEl.textContent = data.date ? new Date(data.date).toLocaleDateString() : '';
             var feedbackEl = document.getElementById('mentee-display-feedback');
@@ -1263,6 +1283,7 @@
             progressText.textContent = 'Done';
             progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700';
         }
+        updateTaskCardBadge(currentTaskId, currentTaskType, true);
         closeMenteeFeedbackModal();
     }
 
@@ -1282,6 +1303,7 @@
             progressText.textContent = 'Not Done';
             progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
         }
+        updateTaskCardBadge(currentTaskId, currentTaskType, false);
         loadMenteeFeedback(currentTaskId, currentTaskType);
     }
 

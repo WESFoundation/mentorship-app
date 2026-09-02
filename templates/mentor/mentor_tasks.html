@@ -1674,6 +1674,22 @@ async function loadAndDisplayRating(taskId, taskType) {
 // ===== MENTOR SELF-REFLECTION (UI-only, localStorage — no DB/Github) =====
 function getMentorReflectionKey(taskId, taskType) { return 'mentorReflection_' + taskType + '_' + taskId; }
 
+function updateMentorTaskCardBadge(taskId, taskType, isDone) {
+    var card = document.querySelector('.task-card[data-task-id="' + taskId + '"][data-task-type="' + taskType + '"]');
+    if (!card) return;
+    var spans = card.querySelectorAll('span');
+    spans.forEach(function(span) {
+        var txt = span.textContent.trim();
+        if (txt === 'Done' || txt === 'Not Done') {
+            if (isDone) {
+                span.outerHTML = '<span class="text-green-600 text-sm font-medium flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Done</span>';
+            } else {
+                span.outerHTML = '<span class="text-sm font-medium text-slate-500">Not Done</span>';
+            }
+        }
+    });
+}
+
 function openMentorFeedbackModal() {
     if (!currentTaskId || !currentTaskType) return;
     const modal = document.getElementById('mentor-feedback-modal');
@@ -1707,19 +1723,19 @@ function loadMentorFeedback(taskId, taskType) {
         if (!raw) {
             if (details) details.classList.add('hidden');
             if (noMsg) noMsg.classList.remove('hidden');
-            // Reset status to "Not Done" if no feedback
             if (progressText) {
                 progressText.textContent = 'Not Done';
                 progressText.className = 'text-sm font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full';
             }
+            updateMentorTaskCardBadge(taskId, taskType, false);
             return;
         }
         var data = JSON.parse(raw);
-        // Show "Done" status when feedback exists
         if (progressText) {
             progressText.textContent = 'Done';
             progressText.className = 'text-sm font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full';
         }
+        updateMentorTaskCardBadge(taskId, taskType, true);
         var dateEl = document.getElementById('mentor-display-date');
         if (dateEl) dateEl.textContent = data.date ? new Date(data.date).toLocaleDateString() : '';
         var feedbackEl = document.getElementById('mentor-display-feedback');
@@ -1822,12 +1838,12 @@ function saveMentorFeedback() {
     var key = getMentorReflectionKey(currentTaskId, currentTaskType);
     var payload = { text: text, extra: extra, date: new Date().toISOString() };
     localStorage.setItem(key, JSON.stringify(payload));
-    // Update status badge to "Done" after submitting reflection
     var progressText = document.getElementById('detail-progress-text');
     if (progressText) {
         progressText.textContent = 'Done';
         progressText.className = 'text-sm font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full';
     }
+    updateMentorTaskCardBadge(currentTaskId, currentTaskType, true);
     closeMentorFeedbackModal();
 }
 
@@ -1837,12 +1853,12 @@ function clearMentorFeedback() {
     if (!currentTaskId || !currentTaskType) return;
     if (!confirm('Clear your reflection for this task?')) return;
     localStorage.removeItem(getMentorReflectionKey(currentTaskId, currentTaskType));
-    // Reset status badge back to "Not Done"
     var progressText = document.getElementById('detail-progress-text');
     if (progressText) {
         progressText.textContent = 'Not Done';
         progressText.className = 'text-sm font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full';
     }
+    updateMentorTaskCardBadge(currentTaskId, currentTaskType, false);
     loadMentorFeedback(currentTaskId, currentTaskType);
 }
 
