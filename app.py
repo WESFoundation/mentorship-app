@@ -6579,6 +6579,61 @@ def reschedule_meeting(meeting_id):
         print(f"Error rescheduling meeting: {str(e)}")
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
+# ------------------- CANCEL MEETING -------------------
+@app.route("/cancel_meeting/<int:meeting_id>", methods=["POST"])
+def cancel_meeting(meeting_id):
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    user_type = session.get("user_type")
+    if user_type not in ("0", "1"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    try:
+        data = request.get_json()
+        reason = data.get("reason", "").strip()
+
+        if not reason:
+            return jsonify({"success": False, "message": "Please provide a reason for cancellation"}), 400
+
+        user = User.query.filter_by(email=session["email"]).first()
+        meeting = MeetingRequest.query.get(meeting_id)
+
+        if not meeting:
+            return jsonify({"success": False, "message": "Meeting not found"}), 404
+
+        if user_type == "1" and meeting.requested_to_id != user.id:
+            return jsonify({"success": False, "message": "You can only cancel your own meetings"}), 403
+
+        meeting.status = "cancelled"
+        meeting.reschedule_reason = reason
+        meeting.rescheduled_at = datetime.utcnow()
+        meeting.rescheduled_by_id = user.id
+
+        if meeting.gcal_event_id:
+            try:
+                service = get_calendar_service()
+                if service:
+                    service.events().delete(
+                        calendarId=CALENDAR_ID,
+                        eventId=meeting.gcal_event_id,
+                        sendUpdates="all"
+                    ).execute()
+            except Exception as e:
+                print(f"Error deleting Google Calendar event: {str(e)}")
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Meeting cancelled successfully"
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error cancelling meeting: {str(e)}")
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
 # ---------------- Supervisor - All Meeting Details ----------------
 @app.route("/supervisor_meeting_details")
 def supervisor_meeting_details():
