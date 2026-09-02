@@ -669,7 +669,67 @@
                     </div>
                 </div>
             </div>
-            
+
+            <!-- Mentee's Reflection Section (fetched from server) -->
+            <div id="mentee-feedback-from-server" class="bg-emerald-50/50 p-5 rounded-xl border border-emerald-100 hidden">
+                <h4 class="font-bold text-emerald-800 text-lg mb-3 flex items-center gap-2">
+                    <span>📋</span> Mentee's Reflection
+                </h4>
+
+                <div id="mentee-server-no-feedback" class="text-center py-4">
+                    <p class="text-emerald-700/60 text-sm">No reflection submitted by mentee yet.</p>
+                </div>
+
+                <div id="mentee-server-feedback-details" class="hidden">
+                    <div class="flex items-center gap-3 mb-4 pb-4 border-b border-emerald-200/50">
+                        <div class="w-10 h-10 rounded-full bg-emerald-400 flex items-center justify-center text-white font-bold text-sm shadow-sm" id="mentee-server-initial">M</div>
+                        <div>
+                            <p class="font-semibold text-slate-800 text-sm" id="mentee-server-name">Mentee</p>
+                            <p class="text-xs text-slate-500">Submitted reflection</p>
+                        </div>
+                        <span id="mentee-server-date" class="text-xs font-medium text-slate-400 ml-auto uppercase tracking-wide"></span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 mb-4">
+                        <div class="bg-white/70 p-3 rounded-xl border border-emerald-100">
+                            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Task Satisfaction</label>
+                            <div id="mentee-server-stars" class="flex gap-1 text-lg text-amber-400"></div>
+                        </div>
+                        <div class="bg-white/70 p-3 rounded-xl border border-emerald-100">
+                            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Mentor Support Rating</label>
+                            <div id="mentee-server-mentor-stars" class="flex gap-1 text-lg text-blue-400"></div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Reflection</label>
+                            <div class="bg-white/70 p-3 rounded-xl border border-emerald-100">
+                                <p id="mentee-server-text" class="text-slate-700 text-sm leading-relaxed"></p>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-amber-600 uppercase tracking-wider block mb-1">Challenges Faced</label>
+                            <div class="bg-amber-50/50 p-3 rounded-xl border border-amber-100">
+                                <p id="mentee-server-challenges" class="text-slate-700 text-sm leading-relaxed"></p>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-emerald-600 uppercase tracking-wider block mb-1">Next Steps</label>
+                            <div class="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
+                                <p id="mentee-server-next" class="text-slate-700 text-sm leading-relaxed"></p>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Additional Notes</label>
+                            <div class="bg-white/70 p-3 rounded-xl border border-emerald-100">
+                                <p id="mentee-server-extra" class="text-slate-700 text-sm leading-relaxed"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Mentor Reflection Section (mirrors mentee self-reflection) -->
             <div id="mentor-feedback-section" class="bg-blue-50/50 p-5 rounded-xl border border-blue-100 mt-4">
                 <h4 class="font-bold text-blue-800 text-lg mb-3 flex items-center gap-2">
@@ -872,6 +932,7 @@ async function viewTaskDetails(taskId, taskType) {
             populateTaskDetailsModal(taskData.task);
             await loadAndDisplayRating(taskId, taskType);
             loadMentorFeedback(taskId, taskType);
+            loadMenteeFeedbackFromServer(taskId, taskType);
         } else {
             alert('Error loading task details: ' + taskData.message);
             closeTaskDetailsModal();
@@ -880,6 +941,7 @@ async function viewTaskDetails(taskId, taskType) {
         console.error('Error fetching task details:', error);
         populateFromDOM(taskId, taskType);
         loadMentorFeedback(taskId, taskType);
+        loadMenteeFeedbackFromServer(taskId, taskType);
     }
 }
 
@@ -1118,6 +1180,8 @@ function closeTaskDetailsModal() {
     console.log("Closing task details modal");
     const modal = document.getElementById('task-details-modal');
     if (modal) modal.classList.add('hidden');
+    var menteeFb = document.getElementById('mentee-feedback-from-server');
+    if (menteeFb) menteeFb.classList.add('hidden');
     currentTaskId = null;
     currentTaskType = null;
 }
@@ -1455,11 +1519,9 @@ async function loadExistingRating() {
             setRating(result.rating.rating);
             const feedback = document.getElementById('rating-feedback');
             const strengths = document.getElementById('rating-strengths');
-            const improvements = document.getElementById('rating-improvements');
             
             if (feedback) feedback.value = result.rating.feedback || '';
-            if (strengths) strengths.value = result.rating.strengths || '';
-            if (improvements) improvements.value = result.rating.improvements || '';
+            if (strengths) strengths.value = result.rating.strengths || result.rating.additional_notes || '';
         } else {
             // Reset form for new rating
             const form = document.getElementById('rating-form');
@@ -1488,7 +1550,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 rating: parseInt(formData.get('rating')),
                 feedback: formData.get('feedback') || '',
                 strengths: formData.get('strengths') || '',
-                improvements: formData.get('improvements') || ''
+                improvements: ''
             };
             
             // Validation
@@ -1497,13 +1559,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            if (!ratingData.strengths.trim()) {
-                alert('Please provide strengths');
-                return;
-            }
-            
-            if (!ratingData.improvements.trim()) {
-                alert('Please provide areas for improvement');
+            if (!ratingData.feedback.trim()) {
+                alert('Please provide feedback');
                 return;
             }
             
@@ -1672,6 +1729,73 @@ function loadMentorFeedback(taskId, taskType) {
         if (details) details.classList.remove('hidden');
         if (noMsg) noMsg.classList.add('hidden');
     } catch(e) { console.error('loadMentorFeedback error', e); }
+}
+
+function loadMenteeFeedbackFromServer(taskId, taskType) {
+    var container = document.getElementById('mentee-feedback-from-server');
+    var noFeedback = document.getElementById('mentee-server-no-feedback');
+    var details = document.getElementById('mentee-server-feedback-details');
+    if (!container) return;
+    container.classList.remove('hidden');
+    if (noFeedback) noFeedback.classList.add('hidden');
+    if (details) details.classList.add('hidden');
+
+    fetch('/get_mentee_feedback/' + taskType + '/' + taskId)
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (!result.success || !result.feedback || !result.feedback.text) {
+                if (noFeedback) noFeedback.classList.remove('hidden');
+                if (details) details.classList.add('hidden');
+                return;
+            }
+            var fb = result.feedback;
+            var nameEl = document.getElementById('mentee-server-name');
+            var initialEl = document.getElementById('mentee-server-initial');
+            var dateEl = document.getElementById('mentee-server-date');
+            if (nameEl) nameEl.textContent = fb.mentee_name || 'Mentee';
+            if (initialEl) initialEl.textContent = (fb.mentee_name || 'M').charAt(0).toUpperCase();
+            if (dateEl) dateEl.textContent = fb.date ? new Date(fb.date).toLocaleDateString() : '';
+
+            var starsContainer = document.getElementById('mentee-server-stars');
+            if (starsContainer) {
+                starsContainer.innerHTML = '';
+                var rating = parseInt(fb.rating) || 0;
+                for (var i = 1; i <= 5; i++) {
+                    var s = document.createElement('span');
+                    s.className = i <= rating ? 'text-amber-400' : 'text-slate-300';
+                    s.innerHTML = '★';
+                    starsContainer.appendChild(s);
+                }
+            }
+            var mentorStarsContainer = document.getElementById('mentee-server-mentor-stars');
+            if (mentorStarsContainer) {
+                mentorStarsContainer.innerHTML = '';
+                var mRating = parseInt(fb.mentorRating) || 0;
+                for (var j = 1; j <= 5; j++) {
+                    var ms = document.createElement('span');
+                    ms.className = j <= mRating ? 'text-blue-400' : 'text-slate-300';
+                    ms.innerHTML = '★';
+                    mentorStarsContainer.appendChild(ms);
+                }
+            }
+
+            var textEl = document.getElementById('mentee-server-text');
+            var challengesEl = document.getElementById('mentee-server-challenges');
+            var nextEl = document.getElementById('mentee-server-next');
+            var extraEl = document.getElementById('mentee-server-extra');
+            if (textEl) textEl.textContent = fb.text || '—';
+            if (challengesEl) challengesEl.textContent = fb.challenges || '—';
+            if (nextEl) nextEl.textContent = fb.nextSteps || '—';
+            if (extraEl) extraEl.textContent = fb.extra || '—';
+
+            if (noFeedback) noFeedback.classList.add('hidden');
+            if (details) details.classList.remove('hidden');
+        })
+        .catch(function(err) {
+            console.error('Error loading mentee feedback:', err);
+            if (noFeedback) noFeedback.classList.remove('hidden');
+            if (details) details.classList.add('hidden');
+        });
 }
 
 function countMentorChars() {

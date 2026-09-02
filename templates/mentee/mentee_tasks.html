@@ -490,7 +490,7 @@
                     </div>
                 </div>
 
-                <!-- ✅ RATING SECTION - ONLY IN MODAL -->
+                <!-- RATING SECTION - Mentor's rating of this task -->
                 <div id="rating-section" class="bg-amber-50/50 p-5 rounded-xl border border-amber-100">
                     <h4 class="font-bold text-amber-800 text-lg mb-3 flex items-center gap-2">
                         <span>⭐</span> Mentor Rating & Feedback
@@ -498,67 +498,43 @@
 
                     <div id="rating-display">
                         <div id="no-rating-message" class="text-center py-6">
-                            <div
-                                class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 text-amber-500 mb-3">
+                            <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 text-amber-500 mb-3">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z">
-                                    </path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
                                 </svg>
                             </div>
                             <p class="text-amber-800 font-medium">No rating provided yet</p>
-                            <p class="text-sm text-amber-600/80 mt-1">Your mentor will provide feedback after task
-                                completion.</p>
+                            <p class="text-sm text-amber-600/80 mt-1">Your mentor will rate this task after you submit your reflection.</p>
                         </div>
 
                         <div id="rating-details" class="hidden">
-                            <!-- Mentor identity -->
                             <div class="flex items-center gap-3 mb-4 pb-4 border-b border-amber-200/50">
                                 <div class="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center text-white font-bold text-sm shadow-sm">
                                     <span id="mentor-initial">M</span>
                                 </div>
                                 <div>
-                                    <p id="mentor-name-display" class="font-semibold text-slate-800 text-sm">Mentor Name</p>
+                                    <p id="mentor-name-display" class="font-semibold text-slate-800 text-sm">Mentor</p>
                                     <p class="text-xs text-slate-500">Provided rating & feedback</p>
                                 </div>
                                 <span id="rating-date" class="text-xs font-medium text-slate-400 ml-auto uppercase tracking-wide"></span>
                             </div>
 
-                            <!-- Overall rating banner -->
                             <div class="flex items-center gap-3 mb-5 bg-white/70 rounded-xl px-4 py-3 border border-amber-100">
                                 <div id="display-stars" class="flex gap-1 text-xl text-amber-400"></div>
                                 <span id="rating-score" class="font-bold text-slate-700 text-xl bg-white px-3 py-1 rounded-lg border border-slate-100 shadow-sm"></span>
                             </div>
 
                             <div class="space-y-4">
-                                <!-- Remark -->
                                 <div>
-                                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2 flex items-center gap-1">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path></svg>
-                                        Remark
-                                    </label>
-                                    <div class="bg-amber-50/60 p-4 rounded-xl border border-amber-100 shadow-sm">
+                                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Feedback</label>
+                                    <div class="bg-white/70 p-4 rounded-xl border border-amber-100">
                                         <p id="display-feedback" class="text-slate-700 text-sm leading-relaxed"></p>
                                     </div>
                                 </div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="text-xs font-bold text-emerald-600 uppercase tracking-wider block mb-2 flex items-center gap-1">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                                            Strengths
-                                        </label>
-                                        <div class="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 h-full">
-                                            <p id="display-strengths" class="text-slate-600 text-sm"></p>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label class="text-xs font-bold text-blue-600 uppercase tracking-wider block mb-2 flex items-center gap-1">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                            Areas for Improvement
-                                        </label>
-                                        <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100 h-full">
-                                            <p id="display-improvements" class="text-slate-600 text-sm"></p>
-                                        </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Additional Notes</label>
+                                    <div class="bg-white/70 p-4 rounded-xl border border-amber-100">
+                                        <p id="display-strengths" class="text-slate-700 text-sm leading-relaxed"></p>
                                     </div>
                                 </div>
                             </div>
@@ -566,7 +542,7 @@
                     </div>
                 </div>
 
-                <!-- ✅ MY FEEDBACK SECTION — mirrors Mentor Rating layout exactly -->
+                <!-- MY REFLECTION SECTION -->
                 <div id="mentee-feedback-section" class="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
                     <h4 class="font-bold text-blue-800 text-lg mb-3 flex items-center gap-2">
                         <span>💭</span> My Reflection
@@ -580,7 +556,7 @@
                                 </svg>
                             </div>
                             <p class="text-blue-800 font-medium">No reflection yet</p>
-                            <p class="text-sm text-blue-600/80 mt-1 mb-3">Share your thoughts on this task.</p>
+                            <p class="text-sm text-blue-600/80 mt-1 mb-3">Share your experience on this task.</p>
                             <button onclick="openMenteeFeedbackModal()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition inline-flex items-center gap-2">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                                 Add Reflection
@@ -597,16 +573,40 @@
                                 <span id="mentee-display-date" class="text-xs font-medium text-slate-400 ml-auto uppercase tracking-wide"></span>
                             </div>
 
-                            <div class="space-y-4">
+                            <!-- Star Ratings Row -->
+                            <div class="grid grid-cols-2 gap-3 mb-4">
+                                <div class="bg-white/70 p-3 rounded-xl border border-blue-100">
+                                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Task Satisfaction</label>
+                                    <div id="mentee-display-stars" class="flex gap-1 text-lg text-amber-400"></div>
+                                </div>
+                                <div class="bg-white/70 p-3 rounded-xl border border-blue-100">
+                                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Mentor Support</label>
+                                    <div id="mentee-display-mentor-stars" class="flex gap-1 text-lg text-blue-400"></div>
+                                </div>
+                            </div>
+
+                            <div class="space-y-3">
                                 <div>
-                                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Reflection</label>
-                                    <div class="bg-white/70 p-4 rounded-xl border border-blue-100">
+                                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Reflection</label>
+                                    <div class="bg-white/70 p-3 rounded-xl border border-blue-100">
                                         <p id="mentee-display-feedback" class="text-slate-700 text-sm leading-relaxed"></p>
                                     </div>
                                 </div>
                                 <div>
-                                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Additional Notes</label>
-                                    <div class="bg-white/70 p-4 rounded-xl border border-blue-100">
+                                    <label class="text-xs font-bold text-amber-600 uppercase tracking-wider block mb-1">Challenges Faced</label>
+                                    <div class="bg-amber-50/50 p-3 rounded-xl border border-amber-100">
+                                        <p id="mentee-display-challenges" class="text-slate-700 text-sm leading-relaxed"></p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-emerald-600 uppercase tracking-wider block mb-1">Next Steps</label>
+                                    <div class="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
+                                        <p id="mentee-display-next" class="text-slate-700 text-sm leading-relaxed"></p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Additional Notes</label>
+                                    <div class="bg-white/70 p-3 rounded-xl border border-blue-100">
                                         <p id="mentee-display-extra" class="text-slate-700 text-sm leading-relaxed"></p>
                                     </div>
                                 </div>
@@ -621,6 +621,9 @@
                                     Clear
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Actions -->
                 <div class="flex gap-3 pt-6 border-t border-slate-100">
@@ -635,13 +638,13 @@
 
 </main>
 
-<!-- Mentee Reflection Modal (mirrors mentor rating modal) — placed outside task-details-modal to avoid transform stacking context -->
+<!-- Mentee Reflection Modal — placed outside task-details-modal to avoid transform stacking context -->
 <div id="mentee-feedback-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[60] hidden transition-opacity duration-300">
     <div class="bg-white rounded-2xl p-8 w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-start mb-6">
             <div>
                 <h3 class="text-xl font-semibold text-slate-900">My Reflection</h3>
-                <p class="text-slate-600 mt-1">Share your thoughts on this task</p>
+                <p class="text-slate-600 mt-1">Share your experience on this task</p>
             </div>
             <button onclick="closeMenteeFeedbackModal()" class="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-50 rounded-full transition">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -651,19 +654,59 @@
         </div>
 
         <form id="mentee-feedback-form" class="space-y-6">
+            <!-- Task Satisfaction Rating -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">How satisfied are you with your work on this task? *</label>
+                <div class="flex gap-2" id="mentee-star-rating">
+                    <button type="button" class="mentee-star text-3xl text-slate-300 hover:text-amber-400 transition" data-value="1">★</button>
+                    <button type="button" class="mentee-star text-3xl text-slate-300 hover:text-amber-400 transition" data-value="2">★</button>
+                    <button type="button" class="mentee-star text-3xl text-slate-300 hover:text-amber-400 transition" data-value="3">★</button>
+                    <button type="button" class="mentee-star text-3xl text-slate-300 hover:text-amber-400 transition" data-value="4">★</button>
+                    <button type="button" class="mentee-star text-3xl text-slate-300 hover:text-amber-400 transition" data-value="5">★</button>
+                </div>
+                <input type="hidden" id="mentee-selected-rating" name="rating">
+                <p id="mentee-rating-label" class="text-xs text-slate-400 mt-1"></p>
+            </div>
+
+            <!-- Mentor Support Rating -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">How helpful was your mentor for this task?</label>
+                <div class="flex gap-2" id="mentee-mentor-rating">
+                    <button type="button" class="mentee-mentor-star text-3xl text-slate-300 hover:text-blue-400 transition" data-value="1">★</button>
+                    <button type="button" class="mentee-mentor-star text-3xl text-slate-300 hover:text-blue-400 transition" data-value="2">★</button>
+                    <button type="button" class="mentee-mentor-star text-3xl text-slate-300 hover:text-blue-400 transition" data-value="3">★</button>
+                    <button type="button" class="mentee-mentor-star text-3xl text-slate-300 hover:text-blue-400 transition" data-value="4">★</button>
+                    <button type="button" class="mentee-mentor-star text-3xl text-slate-300 hover:text-blue-400 transition" data-value="5">★</button>
+                </div>
+                <input type="hidden" id="mentee-selected-mentor-rating" name="mentor_rating">
+                <p id="mentee-mentor-rating-label" class="text-xs text-slate-400 mt-1"></p>
+            </div>
+
             <!-- Reflection -->
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-2">Your Reflection *</label>
-                <textarea id="mentee-feedback-input" name="text" rows="5" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-slate-700 placeholder-slate-400" placeholder="How did this task go? What did you learn or accomplish?" required></textarea>
+                <textarea id="mentee-feedback-input" name="text" rows="4" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-slate-700 placeholder-slate-400" placeholder="What did you learn? What went well?" required></textarea>
                 <div class="flex items-center justify-between mt-1">
                     <p id="mentee-char-count" class="text-xs text-slate-400">0 / 2000</p>
                 </div>
             </div>
 
+            <!-- Challenges -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Challenges Faced</label>
+                <textarea id="mentee-challenges-input" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-slate-700 placeholder-slate-400" placeholder="What difficulties did you encounter during this task?"></textarea>
+            </div>
+
+            <!-- Next Steps -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Next Steps</label>
+                <textarea id="mentee-next-input" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-slate-700 placeholder-slate-400" placeholder="What will you do next based on this task?"></textarea>
+            </div>
+
             <!-- Additional Notes -->
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-2">Additional Notes</label>
-                <textarea id="mentee-extra-input" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm text-slate-700 placeholder-slate-400" placeholder="Anything else you'd like to share..."></textarea>
+                <textarea id="mentee-extra-input" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm text-slate-700 placeholder-slate-400" placeholder="Anything else you'd like to share..."></textarea>
             </div>
 
             <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
@@ -967,13 +1010,11 @@
                 const ratingDate = document.getElementById('rating-date');
                 const displayFeedback = document.getElementById('display-feedback');
                 const displayStrengths = document.getElementById('display-strengths');
-                const displayImprovements = document.getElementById('display-improvements');
 
                 if (ratingScore) ratingScore.textContent = `${result.rating.rating}/5`;
                 if (ratingDate) ratingDate.textContent = `Rated on ${new Date(result.rating.rated_at).toLocaleDateString()}`;
                 if (displayFeedback) displayFeedback.textContent = result.rating.feedback || 'No overall feedback provided';
-                if (displayStrengths) displayStrengths.textContent = result.rating.strengths || 'Not specified';
-                if (displayImprovements) displayImprovements.textContent = result.rating.improvements || 'Not specified';
+                if (displayStrengths) displayStrengths.textContent = result.rating.strengths || result.rating.additional_notes || 'Not specified';
 
             } else {
                 // No rating found - show "no rating" message
@@ -997,6 +1038,70 @@
         // ===== MENTEE SELF-FEEDBACK (UI-only, localStorage — no DB/Github) =====
     function getMenteeFeedbackKey(taskId, taskType) { return 'menteeFeedback_' + taskType + '_' + taskId; }
 
+    const menteeRatingLabels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
+    const menteeMentorRatingLabels = ['', 'Not Helpful', 'Slightly Helpful', 'Helpful', 'Very Helpful', 'Extremely Helpful'];
+
+    function setMenteeStars(containerId, value, colorClass) {
+        var stars = document.querySelectorAll('#' + containerId + ' .mentee-star, #' + containerId + ' .mentee-mentor-star');
+        stars.forEach(function(s) {
+            if (parseInt(s.getAttribute('data-value')) <= value) {
+                s.classList.remove('text-slate-300');
+                s.classList.add(colorClass);
+            } else {
+                s.classList.remove(colorClass);
+                s.classList.add('text-slate-300');
+            }
+        });
+    }
+
+    function resetMenteeStars() {
+        document.querySelectorAll('.mentee-star').forEach(function(s) { s.classList.remove('text-amber-400'); s.classList.add('text-slate-300'); });
+        document.querySelectorAll('.mentee-mentor-star').forEach(function(s) { s.classList.remove('text-blue-400'); s.classList.add('text-slate-300'); });
+        document.getElementById('mentee-selected-rating').value = '';
+        document.getElementById('mentee-selected-mentor-rating').value = '';
+        document.getElementById('mentee-rating-label').textContent = '';
+        document.getElementById('mentee-mentor-rating-label').textContent = '';
+    }
+
+    function initMenteeStarRatings() {
+        document.querySelectorAll('#mentee-star-rating .mentee-star').forEach(function(star) {
+            star.addEventListener('click', function(e) {
+                e.preventDefault();
+                var val = parseInt(this.getAttribute('data-value'));
+                document.getElementById('mentee-selected-rating').value = val;
+                setMenteeStars('mentee-star-rating', val, 'text-amber-400');
+                document.getElementById('mentee-rating-label').textContent = menteeRatingLabels[val];
+            });
+            star.addEventListener('mouseenter', function() {
+                var val = parseInt(this.getAttribute('data-value'));
+                document.getElementById('mentee-rating-label').textContent = menteeRatingLabels[val];
+            });
+        });
+        document.querySelectorAll('#mentee-mentor-rating .mentee-mentor-star').forEach(function(star) {
+            star.addEventListener('click', function(e) {
+                e.preventDefault();
+                var val = parseInt(this.getAttribute('data-value'));
+                document.getElementById('mentee-selected-mentor-rating').value = val;
+                setMenteeStars('mentee-mentor-rating', val, 'text-blue-400');
+                document.getElementById('mentee-mentor-rating-label').textContent = menteeMentorRatingLabels[val];
+            });
+            star.addEventListener('mouseenter', function() {
+                var val = parseInt(this.getAttribute('data-value'));
+                document.getElementById('mentee-mentor-rating-label').textContent = menteeMentorRatingLabels[val];
+            });
+        });
+        var starRating = document.getElementById('mentee-star-rating');
+        if (starRating) starRating.addEventListener('mouseleave', function() {
+            var sel = document.getElementById('mentee-selected-rating').value;
+            document.getElementById('mentee-rating-label').textContent = sel ? menteeRatingLabels[parseInt(sel)] : '';
+        });
+        var mentorRating = document.getElementById('mentee-mentor-rating');
+        if (mentorRating) mentorRating.addEventListener('mouseleave', function() {
+            var sel = document.getElementById('mentee-selected-mentor-rating').value;
+            document.getElementById('mentee-mentor-rating-label').textContent = sel ? menteeMentorRatingLabels[parseInt(sel)] : '';
+        });
+    }
+
     function openMenteeFeedbackModal() {
         if (!currentTaskId || !currentTaskType) return;
         const modal = document.getElementById('mentee-feedback-modal');
@@ -1005,10 +1110,29 @@
         const key = getMenteeFeedbackKey(currentTaskId, currentTaskType);
         const raw = localStorage.getItem(key);
         const data = raw ? JSON.parse(raw) : {};
+
+        resetMenteeStars();
+
         var feedback = document.getElementById('mentee-feedback-input');
         var extra = document.getElementById('mentee-extra-input');
+        var challenges = document.getElementById('mentee-challenges-input');
+        var nextSteps = document.getElementById('mentee-next-input');
         if (feedback) feedback.value = data.text || '';
         if (extra) extra.value = data.extra || '';
+        if (challenges) challenges.value = data.challenges || '';
+        if (nextSteps) nextSteps.value = data.nextSteps || '';
+
+        if (data.rating) {
+            document.getElementById('mentee-selected-rating').value = data.rating;
+            setMenteeStars('mentee-star-rating', parseInt(data.rating), 'text-amber-400');
+            document.getElementById('mentee-rating-label').textContent = menteeRatingLabels[parseInt(data.rating)] || '';
+        }
+        if (data.mentorRating) {
+            document.getElementById('mentee-selected-mentor-rating').value = data.mentorRating;
+            setMenteeStars('mentee-mentor-rating', parseInt(data.mentorRating), 'text-blue-400');
+            document.getElementById('mentee-mentor-rating-label').textContent = menteeMentorRatingLabels[parseInt(data.mentorRating)] || '';
+        }
+
         var status = document.getElementById('mentee-feedback-status');
         if (status) { status.classList.add('hidden'); status.textContent = ''; }
         countMenteeChars();
@@ -1030,7 +1154,6 @@
             if (!raw) {
                 if (details) details.classList.add('hidden');
                 if (noMsg) noMsg.classList.remove('hidden');
-                // Reset status to "Not Done" if no feedback
                 if (progressText) {
                     progressText.textContent = 'Not Done';
                     progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
@@ -1038,7 +1161,6 @@
                 return;
             }
             var data = JSON.parse(raw);
-            // Show "Done" status when feedback exists
             if (progressText) {
                 progressText.textContent = 'Done';
                 progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700';
@@ -1049,6 +1171,34 @@
             if (feedbackEl) feedbackEl.textContent = data.text || '—';
             var extraEl = document.getElementById('mentee-display-extra');
             if (extraEl) extraEl.textContent = data.extra || '—';
+            var challengesEl = document.getElementById('mentee-display-challenges');
+            if (challengesEl) challengesEl.textContent = data.challenges || '—';
+            var nextEl = document.getElementById('mentee-display-next');
+            if (nextEl) nextEl.textContent = data.nextSteps || '—';
+
+            var starsContainer = document.getElementById('mentee-display-stars');
+            if (starsContainer) {
+                starsContainer.innerHTML = '';
+                var rating = parseInt(data.rating) || 0;
+                for (var i = 1; i <= 5; i++) {
+                    var s = document.createElement('span');
+                    s.className = i <= rating ? 'text-amber-400' : 'text-slate-300';
+                    s.innerHTML = '★';
+                    starsContainer.appendChild(s);
+                }
+            }
+            var mentorStarsContainer = document.getElementById('mentee-display-mentor-stars');
+            if (mentorStarsContainer) {
+                mentorStarsContainer.innerHTML = '';
+                var mRating = parseInt(data.mentorRating) || 0;
+                for (var j = 1; j <= 5; j++) {
+                    var ms = document.createElement('span');
+                    ms.className = j <= mRating ? 'text-blue-400' : 'text-slate-300';
+                    ms.innerHTML = '★';
+                    mentorStarsContainer.appendChild(ms);
+                }
+            }
+
             if (details) details.classList.remove('hidden');
             if (noMsg) noMsg.classList.add('hidden');
         } catch(e) { console.error('loadMenteeFeedback error', e); }
@@ -1067,18 +1217,47 @@
     function saveMenteeFeedback() {
         var input = document.getElementById('mentee-feedback-input');
         var extraInput = document.getElementById('mentee-extra-input');
+        var challengesInput = document.getElementById('mentee-challenges-input');
+        var nextInput = document.getElementById('mentee-next-input');
+        var ratingInput = document.getElementById('mentee-selected-rating');
+        var mentorRatingInput = document.getElementById('mentee-selected-mentor-rating');
+
         var text = input ? input.value.trim() : '';
         var extra = extraInput ? extraInput.value.trim() : '';
+        var challenges = challengesInput ? challengesInput.value.trim() : '';
+        var nextSteps = nextInput ? nextInput.value.trim() : '';
+        var rating = ratingInput ? ratingInput.value : '';
+        var mentorRating = mentorRatingInput ? mentorRatingInput.value : '';
+
         if (!text) {
             var s = document.getElementById('mentee-feedback-status');
             if (s) { s.textContent = 'Please enter your reflection.'; s.className = 'text-sm mt-2 text-amber-600'; s.classList.remove('hidden'); }
             return;
         }
+        if (!rating) {
+            var s2 = document.getElementById('mentee-feedback-status');
+            if (s2) { s2.textContent = 'Please select a satisfaction rating.'; s2.className = 'text-sm mt-2 text-amber-600'; s2.classList.remove('hidden'); }
+            return;
+        }
         if (!currentTaskId || !currentTaskType) { alert('No task selected'); return; }
         var key = getMenteeFeedbackKey(currentTaskId, currentTaskType);
-        var payload = { text: text, extra: extra, date: new Date().toISOString() };
+        var payload = {
+            text: text,
+            extra: extra,
+            challenges: challenges,
+            nextSteps: nextSteps,
+            rating: rating,
+            mentorRating: mentorRating,
+            date: new Date().toISOString()
+        };
         localStorage.setItem(key, JSON.stringify(payload));
-        // Update status badge to "Done" after submitting reflection
+
+        fetch('/save_mentee_feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({}, payload, { task_type: currentTaskType, task_id: currentTaskId }))
+        }).catch(function(err) { console.error('Failed to sync feedback to server:', err); });
+
         var progressText = document.getElementById('detail-progress-text');
         if (progressText) {
             progressText.textContent = 'Done';
@@ -1093,7 +1272,11 @@
         if (!currentTaskId || !currentTaskType) return;
         if (!confirm('Clear your reflection for this task?')) return;
         localStorage.removeItem(getMenteeFeedbackKey(currentTaskId, currentTaskType));
-        // Reset status badge back to "Not Done"
+        fetch('/save_mentee_feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_type: currentTaskType, task_id: currentTaskId, text: '', extra: '', challenges: '', nextSteps: '', rating: '', mentorRating: '', date: '' })
+        }).catch(function(err) { console.error('Failed to sync clear to server:', err); });
         var progressText = document.getElementById('detail-progress-text');
         if (progressText) {
             progressText.textContent = 'Not Done';
@@ -1109,6 +1292,7 @@
         e.preventDefault();
         saveMenteeFeedback();
     });
+    initMenteeStarRatings();
 
     // Modal functions
 // Modal functions

@@ -4864,12 +4864,33 @@ def mentee_calendar():
         MeetingRequest.meeting_date.asc(),
         MeetingRequest.meeting_time.asc()
     ).all()
+
+    all_participants = _get_all_meeting_participants()
+    extra_meeting_ids = []
+    for mid, pdata in all_participants.items():
+        if pdata.get("mentee_id") == mentee.id:
+            extra_meeting_ids.append(mid)
+
+    extra_meetings = []
+    if extra_meeting_ids:
+        extra_meetings = MeetingRequest.query.filter(
+            MeetingRequest.id.in_(extra_meeting_ids),
+            ~MeetingRequest.id.in_([m.id for m in meetings])
+        ).order_by(
+            MeetingRequest.meeting_date.asc(),
+            MeetingRequest.meeting_time.asc()
+        ).all()
+    
+    all_meetings = list(meetings) + list(extra_meetings)
     
     # Prepare meeting data for the calendar
     calendar_meetings = []
-    for meeting in meetings:
-        # Get mentor details
-        mentor = User.query.get(meeting.requested_to_id)
+    for meeting in all_meetings:
+        pdata = _get_meeting_participants(meeting.id)
+        if pdata and pdata.get("mentor_id"):
+            mentor = User.query.get(pdata["mentor_id"])
+        else:
+            mentor = User.query.get(meeting.requested_to_id)
         
         # Determine meeting status based on date/time
         meeting_datetime = datetime.combine(meeting.meeting_date, meeting.meeting_time)
@@ -4928,12 +4949,33 @@ def mentor_calendar():
         MeetingRequest.meeting_date.asc(),
         MeetingRequest.meeting_time.asc()
     ).all()
+
+    all_participants = _get_all_meeting_participants()
+    extra_meeting_ids = []
+    for mid, pdata in all_participants.items():
+        if pdata.get("mentor_id") == mentor.id:
+            extra_meeting_ids.append(mid)
+
+    extra_meetings = []
+    if extra_meeting_ids:
+        extra_meetings = MeetingRequest.query.filter(
+            MeetingRequest.id.in_(extra_meeting_ids),
+            ~MeetingRequest.id.in_([m.id for m in meetings])
+        ).order_by(
+            MeetingRequest.meeting_date.asc(),
+            MeetingRequest.meeting_time.asc()
+        ).all()
+
+    all_meetings = list(meetings) + list(extra_meetings)
     
     # Prepare meeting data for the calendar
     calendar_meetings = []
-    for meeting in meetings:
-        # Get mentee details
-        mentee = User.query.get(meeting.requester_id)
+    for meeting in all_meetings:
+        pdata = _get_meeting_participants(meeting.id)
+        if pdata and pdata.get("mentee_id"):
+            mentee = User.query.get(pdata["mentee_id"])
+        else:
+            mentee = User.query.get(meeting.requester_id)
         
         # Determine meeting status based on date/time
         meeting_datetime = datetime.combine(meeting.meeting_date, meeting.meeting_time)
@@ -5958,6 +6000,95 @@ def get_task_rating(task_type, task_id):
         return jsonify({'success': False, 'message': str(e)})
 
 
+# ===== MENTEE FEEDBACK SYNC (JSON file, no DB changes) =====
+MENTEE_FEEDBACK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mentee_feedback_data')
+
+def _get_mentee_feedback_path(task_type, task_id):
+    os.makedirs(MENTEE_FEEDBACK_DIR, exist_ok=True)
+    return os.path.join(MENTEE_FEEDBACK_DIR, f'{task_type}_{task_id}.json')
+
+# ===== MEETING PARTICIPANT SYNC (JSON file, no DB changes) =====
+MEETING_PARTICIPANTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'meeting_participants_data')
+
+def _get_meeting_participants_path(meeting_id):
+    os.makedirs(MEETING_PARTICIPANTS_DIR, exist_ok=True)
+    return os.path.join(MEETING_PARTICIPANTS_DIR, f'meeting_{meeting_id}.json')
+
+def _save_meeting_participants(meeting_id, participants):
+    path = _get_meeting_participants_path(meeting_id)
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(participants, f, ensure_ascii=False, indent=2)
+
+def _get_meeting_participants(meeting_id):
+    path = _get_meeting_participants_path(meeting_id)
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _get_all_meeting_participants():
+    os.makedirs(MEETING_PARTICIPANTS_DIR, exist_ok=True)
+    result = {}
+    for fname in os.listdir(MEETING_PARTICIPANTS_DIR):
+        if fname.startswith('meeting_') and fname.endswith('.json'):
+            try:
+                meeting_id = int(fname.replace('meeting_', '').replace('.json', ''))
+                with open(os.path.join(MEETING_PARTICIPANTS_DIR, fname), 'r', encoding='utf-8') as f:
+                    result[meeting_id] = json.load(f)
+            except Exception:
+                pass
+    return result
+
+@app.route('/save_mentee_feedback', methods=['POST'])
+def save_mentee_feedback():
+    if "email" not in session or session.get("user_type") != "2":
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    try:
+        mentee = User.query.filter_by(email=session["email"]).first()
+        if not mentee:
+            return jsonify({'success': False, 'message': 'Mentee not found'})
+        data = request.get_json()
+        task_type = data.get('task_type')
+        task_id = data.get('task_id')
+        if not task_type or not task_id:
+            return jsonify({'success': False, 'message': 'Missing task_type or task_id'})
+        feedback_data = {
+            'mentee_id': mentee.id,
+            'mentee_name': mentee.name,
+            'task_type': task_type,
+            'task_id': task_id,
+            'rating': data.get('rating', ''),
+            'mentor_rating': data.get('mentor_rating', ''),
+            'text': data.get('text', ''),
+            'challenges': data.get('challenges', ''),
+            'nextSteps': data.get('nextSteps', ''),
+            'extra': data.get('extra', ''),
+            'date': data.get('date', datetime.utcnow().isoformat())
+        }
+        path = _get_mentee_feedback_path(task_type, task_id)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(feedback_data, f, ensure_ascii=False, indent=2)
+        return jsonify({'success': True, 'message': 'Feedback saved'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/get_mentee_feedback/<task_type>/<int:task_id>')
+def get_mentee_feedback(task_type, task_id):
+    if "email" not in session or session.get("user_type") not in ("1", "0", "3"):
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    try:
+        path = _get_mentee_feedback_path(task_type, task_id)
+        if not os.path.exists(path):
+            return jsonify({'success': True, 'feedback': None})
+        with open(path, 'r', encoding='utf-8') as f:
+            feedback_data = json.load(f)
+        return jsonify({'success': True, 'feedback': feedback_data})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
 @app.route("/get_supervisor_tasks_data")
 def get_supervisor_tasks_data():
     if "email" not in session or session.get("user_type") != "0":
@@ -6289,10 +6420,28 @@ def mentee_meeting_details():
         MeetingRequest.meeting_time.desc()
     ).all()
 
+    all_participants = _get_all_meeting_participants()
+    extra_meeting_ids = []
+    for mid, pdata in all_participants.items():
+        if pdata.get("mentee_id") == mentee.id:
+            extra_meeting_ids.append(mid)
+
+    extra_meetings = []
+    if extra_meeting_ids:
+        extra_meetings = MeetingRequest.query.filter(
+            MeetingRequest.id.in_(extra_meeting_ids),
+            ~MeetingRequest.id.in_([m.id for m in meetings])
+        ).order_by(
+            MeetingRequest.meeting_date.desc(),
+            MeetingRequest.meeting_time.desc()
+        ).all()
+
+    all_meetings = list(meetings) + list(extra_meetings)
+
     return render_template(
         "mentee/mentee_meeting_details.html",
         show_sidebar=True,
-        meetings=meetings
+        meetings=all_meetings
     )
 
 @app.route("/mentor_meeting_details")
@@ -6303,16 +6452,34 @@ def mentor_meeting_details():
     # Get logged-in mentee
     mentor = User.query.filter_by(email=session["email"]).first()
 
-    # Fetch all meetings created by this mentee
+    # Fetch all meetings created by this mentor
     meetings = MeetingRequest.query.filter_by(requested_to_id=mentor.id).order_by(
         MeetingRequest.meeting_date.desc(),
         MeetingRequest.meeting_time.desc()
     ).all()
 
+    all_participants = _get_all_meeting_participants()
+    extra_meeting_ids = []
+    for mid, pdata in all_participants.items():
+        if pdata.get("mentor_id") == mentor.id:
+            extra_meeting_ids.append(mid)
+
+    extra_meetings = []
+    if extra_meeting_ids:
+        extra_meetings = MeetingRequest.query.filter(
+            MeetingRequest.id.in_(extra_meeting_ids),
+            ~MeetingRequest.id.in_([m.id for m in meetings])
+        ).order_by(
+            MeetingRequest.meeting_date.desc(),
+            MeetingRequest.meeting_time.desc()
+        ).all()
+
+    all_meetings = list(meetings) + list(extra_meetings)
+
     return render_template(
         "mentor/mentor_meeting_details.html",
         show_sidebar=True,
-        meetings=meetings
+        meetings=all_meetings
     )
 
 # ------------------- RESCHEDULE MEETING -------------------
@@ -8277,6 +8444,17 @@ def create_meeting_ajax():
 
         db.session.add(meeting)
         db.session.commit()
+
+        if mentee_id and mentor_id:
+            try:
+                _save_meeting_participants(meeting.id, {
+                    "mentee_id": int(mentee_id),
+                    "mentor_id": int(mentor_id),
+                    "created_by": supervisor.id,
+                    "created_by_name": supervisor.name
+                })
+            except Exception as e:
+                app.logger.error(f"Failed to save meeting participants: {e}")
     except Exception as e:
         db.session.rollback()
         app.logger.error(f"Failed to save meeting request: {e}")
@@ -8293,7 +8471,9 @@ def create_meeting_ajax():
         "end": end_str,
         "timezone": timezone,
         "supervisor_email": supervisor.email,
-        "participant_email": requested_to.email
+        "participant_email": requested_to.email,
+        "mentor_email": User.query.get(int(mentor_id)).email if mentor_id else requested_to.email,
+        "mentee_email": User.query.get(int(mentee_id)).email if mentee_id else ""
     }
     if calendar_warning:
         payload["warning"] = calendar_warning
