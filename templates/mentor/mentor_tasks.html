@@ -1756,7 +1756,7 @@ function loadMenteeFeedbackFromServer(taskId, taskType) {
     if (noFeedback) noFeedback.classList.add('hidden');
     if (details) details.classList.add('hidden');
 
-    fetch('/get_mentee_feedback/' + taskType + '/' + taskId)
+    fetch('/get_mentee_feedback/' + taskType + '/' + taskId, { credentials: 'same-origin' })
         .then(function(r) { return r.json(); })
         .then(function(result) {
             if (!result.success || !result.feedback || !result.feedback.text) {
@@ -1786,7 +1786,7 @@ function loadMenteeFeedbackFromServer(taskId, taskType) {
             var mentorStarsContainer = document.getElementById('mentee-server-mentor-stars');
             if (mentorStarsContainer) {
                 mentorStarsContainer.innerHTML = '';
-                var mRating = parseInt(fb.mentorRating) || 0;
+                var mRating = parseInt(fb.mentor_rating) || 0;
                 for (var j = 1; j <= 5; j++) {
                     var ms = document.createElement('span');
                     ms.className = j <= mRating ? 'text-blue-400' : 'text-slate-300';

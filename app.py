@@ -6050,7 +6050,9 @@ def save_mentee_feedback():
         mentee = User.query.filter_by(email=session["email"]).first()
         if not mentee:
             return jsonify({'success': False, 'message': 'Mentee not found'})
-        data = request.get_json()
+        data = request.get_json(force=True)
+        if not data:
+            return jsonify({'success': False, 'message': 'Invalid JSON body'})
         task_type = data.get('task_type')
         task_id = data.get('task_id')
         if not task_type or not task_id:

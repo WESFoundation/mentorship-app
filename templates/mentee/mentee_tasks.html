@@ -1275,7 +1275,20 @@
         fetch('/save_mentee_feedback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(Object.assign({}, payload, { task_type: currentTaskType, task_id: currentTaskId }))
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                task_type: currentTaskType,
+                task_id: currentTaskId,
+                text: text,
+                extra: extra,
+                challenges: challenges,
+                nextSteps: nextSteps,
+                rating: rating,
+                mentor_rating: mentorRating,
+                date: payload.date
+            })
+        }).then(function(r) { return r.json(); }).then(function(res) {
+            console.log('Mentee feedback sync result:', res);
         }).catch(function(err) { console.error('Failed to sync feedback to server:', err); });
 
         var progressText = document.getElementById('detail-progress-text');
@@ -1296,7 +1309,10 @@
         fetch('/save_mentee_feedback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ task_type: currentTaskType, task_id: currentTaskId, text: '', extra: '', challenges: '', nextSteps: '', rating: '', mentorRating: '', date: '' })
+            credentials: 'same-origin',
+            body: JSON.stringify({ task_type: currentTaskType, task_id: currentTaskId, text: '', extra: '', challenges: '', nextSteps: '', rating: '', mentor_rating: '', date: '' })
+        }).then(function(r) { return r.json(); }).then(function(res) {
+            console.log('Mentee feedback clear sync result:', res);
         }).catch(function(err) { console.error('Failed to sync clear to server:', err); });
         var progressText = document.getElementById('detail-progress-text');
         if (progressText) {
