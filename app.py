@@ -4894,11 +4894,24 @@ def mentee_calendar():
             "meet_link": meeting.meet_link
         })
     
+    # Fetch mentee's approved mentors for the Schedule Meeting button
+    accepted_requests = MentorshipRequest.query.filter_by(
+        mentee_id=mentee.id,
+        supervisor_status="approved",
+        final_status="approved"
+    ).all()
+    
+    my_mentors = []
+    for req in accepted_requests:
+        if req.mentor:
+            my_mentors.append(req.mentor)
+    
     return render_template(
         "mentee/mentee_calendar.html",
         show_sidebar=True,
-        meetings=calendar_meetings,  # Pass real meetings to template
-        current_date=datetime.utcnow()  # For month/year display in header
+        meetings=calendar_meetings,
+        my_mentors=my_mentors,
+        current_date=datetime.utcnow()
     )
 
 
