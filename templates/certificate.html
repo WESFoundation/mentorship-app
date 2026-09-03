@@ -250,6 +250,77 @@
             margin-top: 0.25rem;
         }
         
+        .tasks-section {
+            margin: 2rem 0;
+        }
+        
+        .tasks-title {
+            text-align: center;
+            color: #7c3aed;
+            font-weight: 700;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        .tasks-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.75rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .task-card {
+            border-radius: 0.75rem;
+            padding: 1rem;
+            text-align: center;
+            border: 2px solid;
+        }
+        
+        .task-card-total {
+            background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+            border-color: #c4b5fd;
+        }
+        
+        .task-card-completed {
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border-color: #6ee7b7;
+        }
+        
+        .task-card-progress {
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+            border-color: #fcd34d;
+        }
+        
+        .task-card-pending {
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+            border-color: #fca5a5;
+        }
+        
+        .task-number {
+            font-size: 1.75rem;
+            font-weight: 800;
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        .task-card-total .task-number { color: #7c3aed; }
+        .task-card-completed .task-number { color: #059669; }
+        .task-card-progress .task-number { color: #d97706; }
+        .task-card-pending .task-number { color: #dc2626; }
+        
+        .task-label {
+            font-size: 0.65rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-top: 0.25rem;
+        }
+        
         .cert-details {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -422,6 +493,7 @@
                 padding: 2rem 1.5rem;
             }
             .stats-grid,
+            .tasks-grid,
             .cert-details,
             .signatures {
                 grid-template-columns: 1fr;
@@ -519,6 +591,36 @@
                         <div class="stat-card">
                             <div class="stat-number">{{ mentorship_stats.sessions_count }}</div>
                             <div class="stat-label">{{ mentorship_stats.sessions_type }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- My Tasks -->
+                {% if task_stats and (user_type == '1' or user_type == '2') %}
+                <div class="tasks-section">
+                    <div class="tasks-title">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                        </svg>
+                        My Tasks
+                    </div>
+                    <div class="tasks-grid">
+                        <div class="task-card task-card-total">
+                            <div class="task-number">{{ task_stats.total }}</div>
+                            <div class="task-label">Total</div>
+                        </div>
+                        <div class="task-card task-card-completed">
+                            <div class="task-number">{{ task_stats.completed }}</div>
+                            <div class="task-label">Completed</div>
+                        </div>
+                        <div class="task-card task-card-progress">
+                            <div class="task-number">{{ task_stats.in_progress }}</div>
+                            <div class="task-label">In Progress</div>
+                        </div>
+                        <div class="task-card task-card-pending">
+                            <div class="task-number">{{ task_stats.pending }}</div>
+                            <div class="task-label">Pending</div>
                         </div>
                     </div>
                 </div>

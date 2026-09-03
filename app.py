@@ -7889,6 +7889,35 @@ def my_certificate():
             "sessions_type": "Sessions Attended"
         }
     
+    # Calculate task statistics
+    task_stats = {}
+    if user_type == "1":  # Mentor
+        assigned_tasks = MenteeTask.query.filter_by(mentor_id=user.id).all()
+        personal_tasks_created = PersonalTask.query.filter_by(mentor_id=user.id).all()
+        total_tasks = len(assigned_tasks) + len(personal_tasks_created)
+        completed_tasks = sum(1 for t in assigned_tasks if t.status == "completed") + sum(1 for t in personal_tasks_created if t.status == "completed")
+        in_progress_tasks = sum(1 for t in assigned_tasks if t.status == "in-progress") + sum(1 for t in personal_tasks_created if t.status == "in-progress")
+        pending_tasks = total_tasks - completed_tasks - in_progress_tasks
+        task_stats = {
+            "total": total_tasks,
+            "completed": completed_tasks,
+            "in_progress": in_progress_tasks,
+            "pending": pending_tasks
+        }
+    elif user_type == "2":  # Mentee
+        assigned_tasks = MenteeTask.query.filter_by(mentee_id=user.id).all()
+        personal_tasks = PersonalTask.query.filter_by(mentee_id=user.id).all()
+        total_tasks = len(assigned_tasks) + len(personal_tasks)
+        completed_tasks = sum(1 for t in assigned_tasks if t.status == "completed") + sum(1 for t in personal_tasks if t.status == "completed")
+        in_progress_tasks = sum(1 for t in assigned_tasks if t.status == "in-progress") + sum(1 for t in personal_tasks if t.status == "in-progress")
+        pending_tasks = total_tasks - completed_tasks - in_progress_tasks
+        task_stats = {
+            "total": total_tasks,
+            "completed": completed_tasks,
+            "in_progress": in_progress_tasks,
+            "pending": pending_tasks
+        }
+
     # Determine back URL based on user type
     if user_type == "1":
         back_url = url_for("mentordashboard")
@@ -7908,6 +7937,7 @@ def my_certificate():
         user_id=user.id,
         registration_date=registration_date,
         mentorship_stats=mentorship_stats,
+        task_stats=task_stats,
         back_url=back_url
     )
 
