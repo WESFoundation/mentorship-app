@@ -917,7 +917,7 @@
         fetch('/api/detect_country').then(function(r) { return r.json(); }).then(function(res) {
             if (!res.success || !res.dial_code) return;
             var code = res.dial_code;
-            var fields = document.querySelectorAll('input[name="mobile_country_code"], input[name="parent_mobile_country_code"]');
+            var fields = document.querySelectorAll('input[name="mobile_country_code"], input[name="parent_mobile_country_code"], input[name="whatsapp_country_code"]');
             fields.forEach(function(el) {
                 if (!el.value || defaultCodes.indexOf(el.value.trim()) !== -1) {
                     el.value = code;

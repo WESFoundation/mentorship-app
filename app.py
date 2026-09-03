@@ -5762,33 +5762,72 @@ COUNTRY_DIAL_CODES = {
 @app.route("/api/detect_country")
 def api_detect_country():
     """Detect the user's country dial code from their IP address.
-    Uses ip-api.com (free, no API key needed, 45 req/min).
+    Tries multiple free HTTPS geolocation APIs with fallback.
     No database changes. Returns JSON with dial_code and country name.
     """
-    try:
-        import urllib.request
-        ip = request.headers.get("X-Forwarded-For", request.remote_addr)
-        if ip and "," in ip:
-            ip = ip.split(",")[0].strip()
-        if ip in ("127.0.0.1", "::1", "localhost"):
-            url = "http://ip-api.com/json/"
-        else:
-            url = f"http://ip-api.com/json/{ip}"
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read().decode())
-        if data.get("status") == "success":
-            cc = data.get("countryCode", "")
-            dial = COUNTRY_DIAL_CODES.get(cc, "")
-            return jsonify({
-                "success": True,
-                "country_code": cc,
-                "country_name": data.get("country", ""),
-                "dial_code": dial
+    import urllib.request
+    import urllib.error
+
+    # ---- Step 1: Extract client IP from common proxy headers ----
+    ip = None
+    for header in ("CF-Connecting-IP", "X-Forwarded-For", "X-Real-IP", "X-Client-IP"):
+        val = request.headers.get(header)
+        if val:
+            ip = val.split(",")[0].strip()
+            break
+    if not ip:
+        ip = request.remote_addr
+
+    # Normalise localhost / IPv6 loopback
+    if ip in ("127.0.0.1", "::1", "localhost", ""):
+        ip = None  # let the API detect from the server's real IP
+
+    # ---- Step 2: Try geolocation APIs (HTTPS only, in order) ----
+    apis = []
+    if ip:
+        apis = [
+            f"https://ipwho.is/{ip}",
+            f"https://ipapi.co/{ip}/json/",
+            f"https://api.ipify.org?format=json",  # IP-only, will chain below
+        ]
+    else:
+        apis = [
+            "https://ipwho.is/",
+            "https://ipapi.co/json/",
+        ]
+
+    for url in apis:
+        try:
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             })
-        return jsonify({"success": False, "message": "Could not detect country"})
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode())
+
+            # ipify only returns IP — fetch geolocation in a second call
+            if "ip" in data and "country_code" not in data:
+                ip = data["ip"]
+                geo_url = f"https://ipwho.is/{ip}"
+                geo_req = urllib.request.Request(geo_url, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                })
+                with urllib.request.urlopen(geo_req, timeout=5) as geo_resp:
+                    data = json.loads(geo_resp.read().decode())
+
+            cc = data.get("country_code") or data.get("countryCode") or ""
+            if cc:
+                dial = COUNTRY_DIAL_CODES.get(cc, "")
+                if dial:
+                    return jsonify({
+                        "success": True,
+                        "country_code": cc,
+                        "country_name": data.get("country", ""),
+                        "dial_code": dial
+                    })
+        except Exception:
+            continue  # try next API
+
+    return jsonify({"success": False, "message": "Could not detect country from IP"})
 
 @app.route("/api/export_mentee_work", methods=["POST"])
 def api_export_mentee_work():
