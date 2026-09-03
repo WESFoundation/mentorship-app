@@ -8638,6 +8638,18 @@ def mentee_create_meeting_request(mentor_id):
     if not mentee:
         return redirect(url_for("signin"))
 
+    # Get all active mentors for this mentee
+    active_mentorships = MentorshipRequest.query.filter_by(
+        mentee_id=mentee.id,
+        final_status="approved"
+    ).all()
+    
+    all_active_mentors = []
+    for mr in active_mentorships:
+        m = User.query.get(mr.mentor_id)
+        if m:
+            all_active_mentors.append(m)
+
     # Check if the mentee has an active (approved) mentorship with this mentor
     active_mentorship = MentorshipRequest.query.filter_by(
         mentee_id=mentee.id,
@@ -8664,11 +8676,16 @@ def mentee_create_meeting_request(mentor_id):
         MenteeTask.status.in_(["pending", "in-progress"])
     ).order_by(MenteeTask.meeting_number.asc()).all()
 
+    # All active institutions for the institute selection dropdown
+    all_institutions = Institution.query.filter_by(status="active").all()
+
     return render_template(
         "mentee/mentee_create_meeting_request.html",
         mentee=mentee,
         mentor=mentor,
-        running_tasks=running_tasks
+        all_active_mentors=all_active_mentors,
+        running_tasks=running_tasks,
+        all_institutions=all_institutions
     )
 
 @app.route("/get_tasks_for_mentorship")

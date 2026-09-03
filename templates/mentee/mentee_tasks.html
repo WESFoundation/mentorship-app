@@ -612,11 +612,11 @@
                                 </div>
                             </div>
                             <div class="mt-4 pt-4 border-t border-blue-100 flex gap-2">
-                                <button onclick="openMenteeFeedbackModal()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
+                                <button id="mentee-edit-feedback-btn" onclick="openMenteeFeedbackModal()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition flex items-center gap-2">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                     Edit
                                 </button>
-                                <button onclick="clearMenteeFeedback()" class="px-4 py-2 text-red-500 text-sm font-medium rounded-lg hover:bg-red-50 transition flex items-center gap-2">
+                                <button id="mentee-clear-feedback-btn" onclick="clearMenteeFeedback()" class="px-4 py-2 text-red-500 text-sm font-medium rounded-lg hover:bg-red-50 transition flex items-center gap-2">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                     Clear
                                 </button>
@@ -1221,6 +1221,40 @@
 
             if (details) details.classList.remove('hidden');
             if (noMsg) noMsg.classList.add('hidden');
+
+            // Enforce 24-hour edit time limit
+            var editBtn = document.getElementById('mentee-edit-feedback-btn');
+            var clearBtn = document.getElementById('mentee-clear-feedback-btn');
+            if (editBtn) {
+                if (data.date) {
+                    var savedTime = new Date(data.date).getTime();
+                    var now = Date.now();
+                    var hoursSince = (now - savedTime) / (1000 * 60 * 60);
+                    if (hoursSince > 24) {
+                        editBtn.disabled = true;
+                        editBtn.className = 'px-4 py-2 bg-slate-300 text-slate-500 text-sm font-medium rounded-lg cursor-not-allowed flex items-center gap-2';
+                        editBtn.title = 'Editing is only available within 24 hours of submission';
+                        if (clearBtn) {
+                            clearBtn.disabled = true;
+                            clearBtn.className = 'px-4 py-2 text-slate-400 text-sm font-medium rounded-lg cursor-not-allowed flex items-center gap-2';
+                            clearBtn.title = 'Clearing is only available within 24 hours of submission';
+                        }
+                    } else {
+                        editBtn.disabled = false;
+                        editBtn.className = 'px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition flex items-center gap-2';
+                        editBtn.title = '';
+                        if (clearBtn) {
+                            clearBtn.disabled = false;
+                            clearBtn.className = 'px-4 py-2 text-red-500 text-sm font-medium rounded-lg hover:bg-red-50 transition flex items-center gap-2';
+                            clearBtn.title = '';
+                        }
+                    }
+                } else {
+                    editBtn.disabled = false;
+                    editBtn.className = 'px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition flex items-center gap-2';
+                    editBtn.title = '';
+                }
+            }
         } catch(e) { console.error('loadMenteeFeedback error', e); }
     }
 
