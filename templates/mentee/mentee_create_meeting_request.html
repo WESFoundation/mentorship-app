@@ -32,6 +32,7 @@
         </div>
       </div>
       <input type="hidden" id="mentor_id" value="{{ mentor.id }}">
+      <input type="hidden" id="mentee_id" value="{{ mentee.id }}">
     {% else %}
       <div class="mb-6 p-4 bg-red-50 rounded-lg border border-red-200">
         <p class="text-red-600 font-medium">⚠ No mentor selected!</p>
@@ -347,6 +348,7 @@ async function createMeeting() {
   const duration = document.getElementById("duration").value;
   const timezone = document.getElementById("timezone").value;
   const mentor_id = document.getElementById("mentor_id").value;
+  const mentee_id = document.getElementById("mentee_id").value;
   const platformEl = document.getElementById("platform");
   const platform = platformEl ? platformEl.value : "google";
 
@@ -385,7 +387,7 @@ async function createMeeting() {
     const response = await fetch("/create_meeting_ajax", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: finalTitle, date, start_time, duration, timezone, mentor_id })
+      body: JSON.stringify({ title: finalTitle, date, start_time, duration, timezone, mentor_id, mentee_id, platform })
     });
 
     let data = null;

@@ -6123,6 +6123,90 @@ def _get_all_meeting_participants():
                 pass
     return result
 
+
+def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calendar_link,
+                              platform, title, start_datetime, timezone,
+                              mentor_id, mentee_id, supervisor, requested_to):
+    """Send meeting link details to all participants via email + in-app notification.
+    Never raises; logs errors instead.
+    """
+    try:
+        # Determine all recipient emails
+        recipients = {}
+        # Supervisor (creator)
+        recipients[supervisor.id] = supervisor
+        # Requested-to user (mentor, mentee, or institution)
+        if requested_to:
+            recipients[requested_to.id] = requested_to
+        # Resolve mentor and mentee from IDs for notification
+        mentor_user = None
+        mentee_user = None
+        if mentor_id:
+            mentor_user = User.query.get(int(mentor_id))
+            if mentor_user:
+                recipients[mentor_user.id] = mentor_user
+        if mentee_id:
+            mentee_user = User.query.get(int(mentee_id))
+            if mentee_user:
+                recipients[mentee_user.id] = mentee_user
+
+        start_str = start_datetime.strftime("%B %d, %Y at %I:%M %p")
+
+        # Build link section for email
+        link_section = ""
+        if meet_link:
+            link_section = f'<p><a href="{meet_link}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Join Meeting</a></p>'
+        elif platform == "teams" and teams_calendar_link:
+            link_section = f'<p><a href="{teams_calendar_link}" style="display:inline-block;padding:12px 24px;background:#6264a7;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Open in Outlook & Create Teams Meeting</a></p>'
+        elif calendar_add_link:
+            link_section = f'<p><a href="{calendar_add_link}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Add to Google Calendar</a></p>'
+
+        # Build fallback message
+        fallback_msg = ""
+        if not meet_link and platform == "google":
+            fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No automatic meeting link was generated. Please open the Google Calendar event and click "Join with Google Meet" to get the link, then share it with participants.</p>'
+        elif not meet_link and platform == "teams":
+            fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No automatic meeting link was generated. Open the Outlook event, enable the "Teams meeting" toggle, and send the invite to generate a Teams join link.</p>'
+
+        html_body = f"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+            <h2 style="color:#1e40af;">Meeting Scheduled</h2>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:16px 0;">
+                <p><strong>Meeting:</strong> {title}</p>
+                <p><strong>Date/Time:</strong> {start_str} ({timezone})</p>
+                <p><strong>Platform:</strong> {platform.title()}</p>
+                <p><strong>Created by:</strong> {supervisor.name} ({supervisor.email})</p>
+            </div>
+            {link_section}
+            {fallback_msg}
+            {f'<p style="margin-top:12px;"><a href="{calendar_add_link}" style="color:#2563eb;">Add to Google Calendar</a></p>' if calendar_add_link and meet_link else ''}
+            <p style="color:#64748b;font-size:12px;margin-top:24px;">This email was sent by Mentor Connect.</p>
+        </div>
+        """
+
+        # Send email to all recipients
+        for uid, user in recipients.items():
+            if user and user.email:
+                try:
+                    send_email_reminder(
+                        user.email,
+                        f"Meeting Scheduled: {title}",
+                        html_body
+                    )
+                except Exception as e:
+                    app.logger.error(f"Failed to send meeting link email to {user.email}: {e}")
+
+            # Create in-app notification
+            link_url = meet_link or calendar_add_link or teams_calendar_link or ""
+            notification_msg = f'New meeting "{title}" scheduled for {start_str}'
+            if meet_link:
+                notification_msg += f' — <a href="{meet_link}">Join Meeting</a>'
+            create_notification(uid, notification_msg, link=link_url if link_url else None)
+
+    except Exception as e:
+        app.logger.error(f"Failed to send meeting link emails: {e}")
+
+
 @app.route('/save_mentee_feedback', methods=['POST'])
 def save_mentee_feedback():
     if "email" not in session or session.get("user_type") != "2":
@@ -6794,7 +6878,10 @@ def request_mentorship():
                 "message": "Your parent/guardian has not approved your participation. Please contact support if you need assistance."
             }), 403
         
-        data = request.json
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request data"}), 400
+
         mentor_id = data.get("mentor_id")
         purpose = data.get("purpose")
         mentor_type = data.get("mentor_type")
@@ -6805,6 +6892,12 @@ def request_mentorship():
         # Validate required fields
         if not all([mentor_id, purpose, mentor_type, term, duration_months, why_need_mentor]):
             return jsonify({"success": False, "message": "Missing required fields"}), 400
+
+        # Validate and convert mentor_id to integer
+        try:
+            mentor_id = int(mentor_id)
+        except (ValueError, TypeError):
+            return jsonify({"success": False, "message": "Invalid mentor ID"}), 400
 
         # Validate duration_months is a positive integer
         try:
@@ -6827,7 +6920,6 @@ def request_mentorship():
         existing_request = MentorshipRequest.query.filter_by(
             mentee_id=mentee.id,
             mentor_id=mentor_id,
-            
         ).all()
         
         # loop through existing requests to check status
@@ -8322,23 +8414,35 @@ def mentee_create_meeting_request(mentor_id):
         return redirect(url_for("signin"))
 
     mentee = User.query.filter_by(email=session["email"]).first()
-    mentor = User.query.get(mentor_id)
-    # sendUpdates="all"
 
+    if not mentee:
+        return redirect(url_for("signin"))
+
+    # Check if the mentee has an active (approved) mentorship with this mentor
+    active_mentorship = MentorshipRequest.query.filter_by(
+        mentee_id=mentee.id,
+        mentor_id=mentor_id,
+        supervisor_status="approved",
+        final_status="approved"
+    ).first()
+
+    if not active_mentorship:
+        flash("You don't have an active mentorship with this mentor yet. Connect with a mentor first.", "error")
+        return redirect(url_for("my_mentors"))
+
+    mentor = User.query.get(mentor_id)
 
     if not mentor:
         flash("Mentor not found", "error")
-        return redirect(url_for("mentors_list"))  # change to your actual route
+        return redirect(url_for("my_mentors"))
 
     # Tasks currently being worked on in this mentorship (not completed yet),
     # so the mentee can pick one to discuss during the meeting
-    running_tasks = []
-    if mentee:
-        running_tasks = MenteeTask.query.filter(
-            MenteeTask.mentee_id == mentee.id,
-            MenteeTask.mentor_id == mentor.id,
-            MenteeTask.status.in_(["pending", "in-progress"])
-        ).order_by(MenteeTask.meeting_number.asc()).all()
+    running_tasks = MenteeTask.query.filter(
+        MenteeTask.mentee_id == mentee.id,
+        MenteeTask.mentor_id == mentor.id,
+        MenteeTask.status.in_(["pending", "in-progress"])
+    ).order_by(MenteeTask.meeting_number.asc()).all()
 
     return render_template(
         "mentee/mentee_create_meeting_request.html",
@@ -8385,7 +8489,9 @@ def create_meeting_ajax():
     if "email" not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
-    data = request.get_json()
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Invalid request body"}), 400
     title = data.get("title")
     date = data.get("date")
     start_time = data.get("start_time")
@@ -8446,25 +8552,55 @@ def create_meeting_ajax():
     if platform not in ("google", "teams"):
         platform = "google"
 
+    # Build task context for description (must be before calendar event creation)
+    task_context = ""
+    if task_id:
+        try:
+            mentee_task = MenteeTask.query.get(int(task_id))
+            if mentee_task and mentee_task.master_task:
+                mt = mentee_task.master_task
+                task_context = (
+                    f"\n\n--- Task to Discuss ---\n"
+                    f"Meeting #{mentee_task.meeting_number} ({mentee_task.month})\n"
+                    f"Purpose: {mt.purpose_of_call}\n"
+                    f"Mentor Focus: {mt.mentor_focus}\n"
+                    f"Mentee Focus: {mt.mentee_focus}\n"
+                    f"Status: {mentee_task.status}"
+                )
+        except Exception:
+            pass
+
     meet_link = None
     gcal_event_id = None
     calendar_warning = None
     calendar_add_link = None
     teams_calendar_link = None
 
+    # Resolve all participant User objects for attendees list
+    mentor_user = User.query.get(int(mentor_id)) if mentor_id else None
+    mentee_user = User.query.get(int(mentee_id)) if mentee_id else None
+
     if platform == "google":
         service = get_calendar_service()
         if service:
             try:
+                # Build attendees list: always include supervisor + requested_to
+                # Then add mentor/mentee if they aren't the same as requested_to
+                attendees = [
+                    {"email": supervisor.email},
+                    {"email": requested_to.email}
+                ]
+                if mentor_user and mentor_user.email != requested_to.email:
+                    attendees.append({"email": mentor_user.email})
+                if mentee_user and mentee_user.email != requested_to.email:
+                    attendees.append({"email": mentee_user.email})
+
                 event = {
                     "summary": title,
                     "description": f"Meeting created by {supervisor.name} ({supervisor.email}) in {timezone} timezone{task_context}",
                     "start": {"dateTime": start_str, "timeZone": timezone},
                     "end": {"dateTime": end_str, "timeZone": timezone},
-                    "attendees": [
-                        {"email": supervisor.email},
-                        {"email": requested_to.email}
-                    ],
+                    "attendees": attendees,
                     "reminders": {
                         "useDefault": False,
                         "overrides": [
@@ -8500,6 +8636,12 @@ def create_meeting_ajax():
             calendar_warning = ("Meeting request saved without a Google Meet link because "
                                 "calendar integration is not configured.")
 
+        all_emails = [supervisor.email, requested_to.email]
+        if mentor_user and mentor_user.email not in all_emails:
+            all_emails.append(mentor_user.email)
+        if mentee_user and mentee_user.email not in all_emails:
+            all_emails.append(mentee_user.email)
+
         calendar_add_link = (
             "https://calendar.google.com/calendar/render?"
             + urlencode({
@@ -8507,7 +8649,7 @@ def create_meeting_ajax():
                 "text": title,
                 "dates": f"{start_datetime.strftime('%Y%m%dT%H%M%S')}/{end_datetime.strftime('%Y%m%dT%H%M%S')}",
                 "details": f"Meeting scheduled via Mentor Connect. Supervisor: {supervisor.email} | Participant: {requested_to.email}",
-                "add": f"{supervisor.email},{requested_to.email}",
+                "add": ",".join(all_emails),
                 "ctz": timezone,
             })
         )
@@ -8524,6 +8666,12 @@ def create_meeting_ajax():
 
         start_utc = start_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
         end_utc = end_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
+
+        all_emails_teams = [supervisor.email, requested_to.email]
+        if mentor_user and mentor_user.email not in all_emails_teams:
+            all_emails_teams.append(mentor_user.email)
+        if mentee_user and mentee_user.email not in all_emails_teams:
+            all_emails_teams.append(mentee_user.email)
 
         teams_body = (
             "Meeting scheduled via Mentor Connect.\n\n"
@@ -8542,29 +8690,11 @@ def create_meeting_ajax():
                 "subject": title,
                 "startdt": start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "enddt": end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "to": f"{supervisor.email};{requested_to.email}",
+                "to": ";".join(all_emails_teams),
                 "body": teams_body,
                 "location": "Microsoft Teams Meeting",
             })
         )
-
-    # Build task context for description
-    task_context = ""
-    if task_id:
-        try:
-            mentee_task = MenteeTask.query.get(int(task_id))
-            if mentee_task and mentee_task.master_task:
-                mt = mentee_task.master_task
-                task_context = (
-                    f"\n\n--- Task to Discuss ---\n"
-                    f"Meeting #{mentee_task.meeting_number} ({mentee_task.month})\n"
-                    f"Purpose: {mt.purpose_of_call}\n"
-                    f"Mentor Focus: {mt.mentor_focus}\n"
-                    f"Mentee Focus: {mt.mentee_focus}\n"
-                    f"Status: {mentee_task.status}"
-                )
-        except Exception:
-            pass
 
     try:
         meeting = MeetingRequest(
@@ -8593,6 +8723,22 @@ def create_meeting_ajax():
                 })
             except Exception as e:
                 app.logger.error(f"Failed to save meeting participants: {e}")
+
+        # Send meeting link notification to all participants via email
+        _send_meeting_link_email(
+            meeting=meeting,
+            meet_link=meet_link,
+            calendar_add_link=calendar_add_link,
+            teams_calendar_link=teams_calendar_link,
+            platform=platform,
+            title=title,
+            start_datetime=start_datetime,
+            timezone=timezone,
+            mentor_id=mentor_id,
+            mentee_id=mentee_id,
+            supervisor=supervisor,
+            requested_to=requested_to
+        )
     except Exception as e:
         db.session.rollback()
         app.logger.error(f"Failed to save meeting request: {e}")
@@ -8610,8 +8756,8 @@ def create_meeting_ajax():
         "timezone": timezone,
         "supervisor_email": supervisor.email,
         "participant_email": requested_to.email,
-        "mentor_email": User.query.get(int(mentor_id)).email if mentor_id else requested_to.email,
-        "mentee_email": User.query.get(int(mentee_id)).email if mentee_id else ""
+        "mentor_email": mentor_user.email if mentor_user else requested_to.email,
+        "mentee_email": mentee_user.email if mentee_user else ""
     }
     if calendar_warning:
         payload["warning"] = calendar_warning
@@ -10201,10 +10347,8 @@ def resources_hub():
         tag_options = [{"id": m.id, "name": m.name, "email": m.email} for m in User.query.filter_by(user_type="1").all()]
         mentee_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="2").limit(50).all()]
         supervisor_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="0").filter(User.id != user.id).all()]
-        if user.institution_id:
-            inst = Institution.query.get(user.institution_id)
-            if inst:
-                institution_options = [{"id": inst.id, "name": inst.name}]
+        # Supervisor can tag any institution
+        institution_options = [{"id": inst.id, "name": inst.name} for inst in Institution.query.all()]
 
     return render_template(
         "resources_hub.html",

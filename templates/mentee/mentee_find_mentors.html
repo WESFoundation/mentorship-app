@@ -1163,20 +1163,6 @@
     }
   });
 
-  // Request modal functions
-  function openRequestModal(mentorId) {
-    document.getElementById('mentorIdInput').value = mentorId;
-    document.getElementById('requestModal').classList.remove('hidden');
-
-    // Reset and initialize form when opening modal
-    document.getElementById('mentorshipRequestForm').reset();
-    updateDuration();
-  }
-
-  function closeRequestModal() {
-    document.getElementById('requestModal').classList.add('hidden');
-  }
-
   const mentorTypeSelect = document.getElementById('mentor_type');
   const termSelect = document.getElementById('term');
   const durationInput = document.getElementById('duration_months');
