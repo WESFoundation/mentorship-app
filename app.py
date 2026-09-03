@@ -6496,29 +6496,65 @@ def institution_calendar():
     institution_name = user.institution
     institution_id = user.institution_id
 
-    # Fetch all meetings involving mentees or mentors from this institution
-    # We need to query MeetingRequest and join with User to filter by institution
-    meetings = (
+    # Fetch all meetings involving this institution:
+    # 1) Meetings created BY this institution (requester_id = institution user)
+    # 2) Meetings where a mentor/mentee from this institution is a participant
+    institution_meeting_ids = set()
+
+    # Case 1: meetings this institution created
+    created = MeetingRequest.query.filter(
+        MeetingRequest.requester_id == user.id
+    ).all()
+    for m in created:
+        institution_meeting_ids.add(m.id)
+
+    # Case 2: meetings involving a mentor/mentee from this institution
+    linked = (
         MeetingRequest.query
         .join(User, or_(MeetingRequest.requester_id == User.id, MeetingRequest.requested_to_id == User.id))
         .filter(
-            (User.user_type.in_(["1", "2"])) & # Only mentors and mentees
+            (User.user_type.in_(["1", "2"])) &
             (
                 (User.institution_id == institution_id) |
                 (User.institution == institution_name)
             )
         )
-        .order_by(MeetingRequest.meeting_date.asc(), MeetingRequest.meeting_time.asc())
         .all()
     )
+    for m in linked:
+        institution_meeting_ids.add(m.id)
+
+    meetings = MeetingRequest.query.filter(
+        MeetingRequest.id.in_(institution_meeting_ids)
+    ).order_by(
+        MeetingRequest.meeting_date.asc(), MeetingRequest.meeting_time.asc()
+    ).all()
 
     from datetime import datetime, date
     now = datetime.now()
 
     calendar_meetings = []
     for meeting in meetings:
-        mentee = User.query.get(meeting.requester_id)
-        mentor = User.query.get(meeting.requested_to_id)
+        requester = User.query.get(meeting.requester_id)
+        requested_to = User.query.get(meeting.requested_to_id)
+
+        # Determine which is mentor and which is mentee by user_type
+        mentee = None
+        mentor = None
+        if requester:
+            if requester.user_type == "2":
+                mentee = requester
+            elif requester.user_type == "1":
+                mentor = requester
+        if requested_to:
+            if requested_to.user_type == "2":
+                mentee = requested_to
+            elif requested_to.user_type == "1":
+                mentor = requested_to
+        # Fallback: if types didn't resolve, use position-based default
+        if not mentee and not mentor:
+            mentee = requester
+            mentor = requested_to
         
         meeting_datetime = datetime.combine(meeting.meeting_date, meeting.meeting_time)
         
