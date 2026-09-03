@@ -7837,7 +7837,6 @@ def my_certificate():
         return redirect(url_for("signin"))
     
     # Format registration date
-    # Use created_at if available, otherwise oauth_created_at
     if user.created_at:
         registration_date = user.created_at.strftime("%B %d, %Y")
     elif user.oauth_created_at:
@@ -7845,80 +7844,191 @@ def my_certificate():
     else:
         registration_date = "Registration date not available"
     
-    # Calculate mentorship statistics
-    mentorship_stats = {}
     user_type = session.get("user_type")
     
-    if user_type == "1":  # Mentor
-        # Count active mentees
-        active_mentorships = MentorshipRequest.query.filter_by(
-            mentor_id=user.id,
-            final_status="approved"
-        ).all()
-        
-        # Count total sessions given
-        total_sessions = MeetingRequest.query.filter_by(
-            requested_to_id=user.id,
-            status="approved"
-        ).count()
-        
-        mentorship_stats = {
-            "connected_count": len(active_mentorships),
-            "connected_type": "Active Mentees",
-            "sessions_count": total_sessions,
-            "sessions_type": "Sessions Conducted"
-        }
-        
-    elif user_type == "2":  # Mentee
-        # Count active mentors
-        active_mentorships = MentorshipRequest.query.filter_by(
-            mentee_id=user.id,
-            final_status="approved"
-        ).all()
-        
-        # Count total sessions attended
-        total_sessions = MeetingRequest.query.filter_by(
-            requester_id=user.id,
-            status="approved"
-        ).count()
-        
-        mentorship_stats = {
-            "connected_count": len(active_mentorships),
-            "connected_type": "Active Mentors",
-            "sessions_count": total_sessions,
-            "sessions_type": "Sessions Attended"
-        }
+    # Build selectable data lists
+    connections_list = []
+    sessions_list = []
+    tasks_list = []
     
-    # Calculate task statistics
-    task_stats = {}
     if user_type == "1":  # Mentor
-        assigned_tasks = MenteeTask.query.filter_by(mentor_id=user.id).all()
-        personal_tasks_created = PersonalTask.query.filter_by(mentor_id=user.id).all()
-        total_tasks = len(assigned_tasks) + len(personal_tasks_created)
-        completed_tasks = sum(1 for t in assigned_tasks if t.status == "completed") + sum(1 for t in personal_tasks_created if t.status == "completed")
-        in_progress_tasks = sum(1 for t in assigned_tasks if t.status == "in-progress") + sum(1 for t in personal_tasks_created if t.status == "in-progress")
-        pending_tasks = total_tasks - completed_tasks - in_progress_tasks
-        task_stats = {
-            "total": total_tasks,
-            "completed": completed_tasks,
-            "in_progress": in_progress_tasks,
-            "pending": pending_tasks
-        }
+        # Active mentees
+        active_mentorships = MentorshipRequest.query.filter_by(
+            mentor_id=user.id, final_status="approved"
+        ).all()
+        for mr in active_mentorships:
+            mentee = User.query.get(mr.mentee_id)
+            if mentee:
+                connections_list.append({
+                    "id": mr.id,
+                    "name": mentee.name,
+                    "type": "mentee"
+                })
+        
+        # Sessions
+        sessions = MeetingRequest.query.filter_by(
+            requested_to_id=user.id, status="approved"
+        ).all()
+        for s in sessions:
+            requester = User.query.get(s.requester_id)
+            session_date = s.date.strftime("%b %d, %Y") if s.date else "TBD"
+            sessions_list.append({
+                "id": s.id,
+                "title": s.title or "Meeting",
+                "date": session_date,
+                "with": requester.name if requester else "Unknown"
+            })
+        
+        # Tasks
+        mentee_tasks = MenteeTask.query.filter_by(mentor_id=user.id).all()
+        for t in mentee_tasks:
+            mentee = User.query.get(t.mentee_id)
+            task_name = t.master_task.purpose_of_call if t.master_task else f"Task #{t.meeting_number}"
+            tasks_list.append({
+                "id": t.id,
+                "title": task_name,
+                "status": t.status or "pending",
+                "with": mentee.name if mentee else "Unknown"
+            })
+        
+        personal_tasks = PersonalTask.query.filter_by(mentor_id=user.id).all()
+        for t in personal_tasks:
+            tasks_list.append({
+                "id": f"p{t.id}",
+                "title": t.title,
+                "status": t.status or "pending",
+                "with": "Personal"
+            })
+        
+        connected_label = "Active Mentees"
+        sessions_label = "Sessions Conducted"
+        
     elif user_type == "2":  # Mentee
-        assigned_tasks = MenteeTask.query.filter_by(mentee_id=user.id).all()
+        # Active mentors
+        active_mentorships = MentorshipRequest.query.filter_by(
+            mentee_id=user.id, final_status="approved"
+        ).all()
+        for mr in active_mentorships:
+            mentor = User.query.get(mr.mentor_id)
+            if mentor:
+                connections_list.append({
+                    "id": mr.id,
+                    "name": mentor.name,
+                    "type": "mentor"
+                })
+        
+        # Sessions
+        sessions = MeetingRequest.query.filter_by(
+            requester_id=user.id, status="approved"
+        ).all()
+        for s in sessions:
+            target = User.query.get(s.requested_to_id)
+            session_date = s.date.strftime("%b %d, %Y") if s.date else "TBD"
+            sessions_list.append({
+                "id": s.id,
+                "title": s.title or "Meeting",
+                "date": session_date,
+                "with": target.name if target else "Unknown"
+            })
+        
+        # Tasks
+        mentee_tasks = MenteeTask.query.filter_by(mentee_id=user.id).all()
+        for t in mentee_tasks:
+            mentor = User.query.get(t.mentor_id)
+            task_name = t.master_task.purpose_of_call if t.master_task else f"Task #{t.meeting_number}"
+            tasks_list.append({
+                "id": t.id,
+                "title": task_name,
+                "status": t.status or "pending",
+                "with": mentor.name if mentor else "Unknown"
+            })
+        
         personal_tasks = PersonalTask.query.filter_by(mentee_id=user.id).all()
-        total_tasks = len(assigned_tasks) + len(personal_tasks)
-        completed_tasks = sum(1 for t in assigned_tasks if t.status == "completed") + sum(1 for t in personal_tasks if t.status == "completed")
-        in_progress_tasks = sum(1 for t in assigned_tasks if t.status == "in-progress") + sum(1 for t in personal_tasks if t.status == "in-progress")
-        pending_tasks = total_tasks - completed_tasks - in_progress_tasks
-        task_stats = {
-            "total": total_tasks,
-            "completed": completed_tasks,
-            "in_progress": in_progress_tasks,
-            "pending": pending_tasks
-        }
+        for t in personal_tasks:
+            tasks_list.append({
+                "id": f"p{t.id}",
+                "title": t.title,
+                "status": t.status or "pending",
+                "with": "Personal"
+            })
+        
+        connected_label = "Active Mentors"
+        sessions_label = "Sessions Attended"
+    else:
+        connected_label = ""
+        sessions_label = ""
+    
+    # Mentorship stats (for backward compat)
+    mentorship_stats = {
+        "connected_count": len(connections_list),
+        "connected_type": connected_label,
+        "sessions_count": len(sessions_list),
+        "sessions_type": sessions_label
+    }
+    
+    # Task stats
+    completed_tasks = sum(1 for t in tasks_list if t["status"] == "completed")
+    in_progress_tasks = sum(1 for t in tasks_list if t["status"] == "in-progress")
+    task_stats = {
+        "total": len(tasks_list),
+        "completed": completed_tasks,
+        "in_progress": in_progress_tasks,
+        "pending": len(tasks_list) - completed_tasks - in_progress_tasks
+    }
 
-    # Determine back URL based on user type
+    # Detailed mentorship info for page 2
+    mentorship_details = []
+    if user_type == "1":
+        for mr in active_mentorships:
+            mentee = User.query.get(mr.mentee_id)
+            mentorship_details.append({
+                "partner": mentee.name if mentee else "Unknown",
+                "purpose": mr.purpose or "N/A",
+                "mentor_type": (mr.mentor_type or "N/A").capitalize(),
+                "term": ("Long-term" if mr.term == "long" else "Short-term") if mr.term else "N/A",
+                "duration": f"{mr.duration_months} months" if mr.duration_months else "N/A",
+                "status": (mr.final_status or "pending").capitalize(),
+                "started": mr.created_at.strftime("%b %d, %Y") if mr.created_at else "N/A"
+            })
+    elif user_type == "2":
+        for mr in active_mentorships:
+            mentor = User.query.get(mr.mentor_id)
+            mentorship_details.append({
+                "partner": mentor.name if mentor else "Unknown",
+                "purpose": mr.purpose or "N/A",
+                "mentor_type": (mr.mentor_type or "N/A").capitalize(),
+                "term": ("Long-term" if mr.term == "long" else "Short-term") if mr.term else "N/A",
+                "duration": f"{mr.duration_months} months" if mr.duration_months else "N/A",
+                "status": (mr.final_status or "pending").capitalize(),
+                "started": mr.created_at.strftime("%b %d, %Y") if mr.created_at else "N/A"
+            })
+
+    # Task ratings for page 2
+    task_ratings = []
+    if user_type == "1":
+        ratings = TaskRating.query.filter_by(mentor_id=user.id).all()
+    elif user_type == "2":
+        ratings = TaskRating.query.filter_by(mentee_id=user.id).all()
+    else:
+        ratings = []
+    for r in ratings:
+        mentee_user = User.query.get(r.mentee_id)
+        mentor_user = User.query.get(r.mentor_id)
+        stars = "★" * r.rating + "☆" * (5 - r.rating)
+        task_ratings.append({
+            "task_id": r.task_id,
+            "task_type": r.task_type,
+            "mentee": mentee_user.name if mentee_user else "Unknown",
+            "mentor": mentor_user.name if mentor_user else "Unknown",
+            "rating": r.rating,
+            "stars": stars,
+            "feedback": r.feedback or "—",
+            "strengths": r.strengths or "—",
+            "improvements": r.improvements or "—",
+            "rated_at": r.rated_at.strftime("%b %d, %Y") if r.rated_at else "N/A"
+        })
+
+    # Determine back URL
     if user_type == "1":
         back_url = url_for("mentordashboard")
     elif user_type == "2":
@@ -7938,6 +8048,11 @@ def my_certificate():
         registration_date=registration_date,
         mentorship_stats=mentorship_stats,
         task_stats=task_stats,
+        connections_list=connections_list,
+        sessions_list=sessions_list,
+        tasks_list=tasks_list,
+        mentorship_details=mentorship_details,
+        task_ratings=task_ratings,
         back_url=back_url
     )
 
