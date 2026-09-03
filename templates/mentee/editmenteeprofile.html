@@ -67,7 +67,7 @@
                         </div>
                         <input type="file" name="profile_picture"
                             class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" accept="image/*"
-                            title="Change profile picture">
+                            title="Change profile picture" onchange="previewProfilePhoto(this)">
                     </div>
                 </div>
 
@@ -887,6 +887,26 @@
 
             // Scroll to message
             messageDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        // Instant profile photo preview
+        function previewProfilePhoto(input) {
+            if (input.files && input.files[0]) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var container = input.closest('.relative');
+                    var img = container.querySelector('img');
+                    if (img) {
+                        img.src = e.target.result;
+                    } else {
+                        var placeholder = container.querySelector('div');
+                        if (placeholder) {
+                            placeholder.outerHTML = '<img src="' + e.target.result + '" alt="Profile Picture" class="w-full h-full object-cover">';
+                        }
+                    }
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
         }
     </script>
 

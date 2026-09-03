@@ -23,15 +23,15 @@
     <form id="supervisorProfileForm" method="POST" enctype="multipart/form-data" class="space-y-6" onsubmit="return validateSupervisorForm()">
         <!-- Profile Picture -->
         <div class="flex flex-col items-center md:flex-row md:items-center md:space-x-6">
-            <img src="{{ url_for('static', filename='uploads/' + (profile_picture if profile_picture else 'default.png')) }}"
+            <img id="profilePreview" src="{{ url_for('static', filename='uploads/' + (profile_picture if profile_picture else 'default.png')) }}"
                  alt="Profile Picture"
                  class="w-28 h-28 rounded-full object-cover border-4 border-gray-300 shadow mb-4 md:mb-0">
             <div>
                 {% if profile_picture %}
-                <input type="file" name="profile_picture" class="border p-2 rounded w-full md:w-auto" accept="image/*">
+                <input type="file" name="profile_picture" class="border p-2 rounded w-full md:w-auto" accept="image/*" onchange="previewSupervisorPhoto(this)">
                 <p class="text-xs text-gray-500 mt-1">Leave empty to keep current picture</p>
                 {% else %}
-                <input type="file" name="profile_picture" class="border p-2 rounded w-full md:w-auto" required accept="image/*">
+                <input type="file" name="profile_picture" class="border p-2 rounded w-full md:w-auto" required accept="image/*" onchange="previewSupervisorPhoto(this)">
                 <p class="text-xs text-red-500 mt-1">* Profile picture is required</p>
                 {% endif %}
             </div>
@@ -158,6 +158,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// Instant profile photo preview
+function previewSupervisorPhoto(input) {
+    if (input.files && input.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var img = document.getElementById('profilePreview');
+            if (img) img.src = e.target.result;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
 </script>
 
 {% endblock %}
