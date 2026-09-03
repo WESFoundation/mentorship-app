@@ -3856,6 +3856,34 @@ def get_institution_tasks_data():
     
     institution_user_ids = [user.id for user in institution_users]
     
+    # Pre-fetch all ratings in memory to avoid N+1 queries
+    ratings = TaskRating.query.all()
+    ratings_map = {(r.task_type, r.task_id): r.rating for r in ratings}
+
+    inst_id_val = institution_id or user.id
+
+    def _get_mentee_rating_val(ttype, tid):
+        try:
+            p = _get_mentee_feedback_path(ttype, tid)
+            if os.path.exists(p):
+                with open(p, 'r', encoding='utf-8') as f:
+                    d = json.load(f)
+                    return int(d.get('rating') or 0)
+        except Exception:
+            pass
+        return 0
+
+    def _get_has_reflection_val(ttype, tid):
+        try:
+            p = _get_institution_reflection_path(ttype, tid, inst_id_val)
+            if os.path.exists(p):
+                with open(p, 'r', encoding='utf-8') as f:
+                    d = json.load(f)
+                    return bool(d.get('text'))
+        except Exception:
+            pass
+        return False
+    
     tasks_data = []
     
     # Get Personal Tasks
@@ -3866,6 +3894,7 @@ def get_institution_tasks_data():
     for task in personal_tasks:
         mentee = db.session.get(User, task.mentee_id)
         mentor = db.session.get(User, task.mentor_id) if task.mentor_id else None
+        m_rating = ratings_map.get(('personal', task.id), getattr(task, 'rating', 0) or 0)
         
         tasks_data.append({
             "id": f"personal_{task.id}",
@@ -3882,7 +3911,9 @@ def get_institution_tasks_data():
             "menteeId": task.mentee_id,
             "menteeName": mentee.name if mentee else "Unknown",
             "type": "personal",
-            "rating": getattr(task, 'rating', 0) or 0,
+            "rating": m_rating,
+            "menteeRating": _get_mentee_rating_val("personal", task.id),
+            "hasReflection": _get_has_reflection_val("personal", task.id),
             "isCritical": task.is_critical if hasattr(task, 'is_critical') else False
         })
     
@@ -3895,6 +3926,7 @@ def get_institution_tasks_data():
         mentee = db.session.get(User, task.mentee_id)
         mentor = db.session.get(User, task.mentor_id)
         master_task = db.session.get(MasterTask, task.task_id) if task.task_id else None
+        m_rating = ratings_map.get(('master', task.id), 0)
         
         tasks_data.append({
             "id": f"master_{task.id}",
@@ -3911,6 +3943,9 @@ def get_institution_tasks_data():
             "menteeId": task.mentee_id,
             "menteeName": mentee.name if mentee else "Unknown",
             "type": "master",
+            "rating": m_rating,
+            "menteeRating": _get_mentee_rating_val("master", task.id),
+            "hasReflection": _get_has_reflection_val("master", task.id),
             "isCritical": True
         })
     
@@ -6091,6 +6126,61 @@ def get_mentee_feedback(task_type, task_id):
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
+# ===== INSTITUTION TASK REFLECTION SYNC =====
+INSTITUTION_REFLECTION_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'institution_reflection_data')
+
+def _get_institution_reflection_path(task_type, task_id, institution_id):
+    os.makedirs(INSTITUTION_REFLECTION_DIR, exist_ok=True)
+    return os.path.join(INSTITUTION_REFLECTION_DIR, f'{institution_id}_{task_type}_{task_id}.json')
+
+@app.route('/save_institution_reflection', methods=['POST'])
+def save_institution_reflection():
+    if "email" not in session or session.get("user_type") != "3":
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    try:
+        user = User.query.filter_by(email=session["email"]).first()
+        if not user:
+            return jsonify({'success': False, 'message': 'User not found'})
+        inst_id = user.institution_id or user.id
+        data = request.get_json(force=True)
+        task_type = data.get('task_type')
+        task_id = data.get('task_id')
+        if not task_type or not task_id:
+            return jsonify({'success': False, 'message': 'Missing task_type or task_id'})
+        reflection_data = {
+            'institution_id': inst_id,
+            'institution_name': user.institution or user.name,
+            'task_type': task_type,
+            'task_id': task_id,
+            'text': (data.get('text') or '').strip(),
+            'notes': (data.get('notes') or '').strip(),
+            'date': data.get('date', datetime.utcnow().isoformat())
+        }
+        path = _get_institution_reflection_path(task_type, task_id, inst_id)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(reflection_data, f, ensure_ascii=False, indent=2)
+        return jsonify({'success': True, 'message': 'Reflection saved', 'reflection': reflection_data})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/get_institution_reflection/<task_type>/<int:task_id>')
+def get_institution_reflection(task_type, task_id):
+    if "email" not in session or session.get("user_type") not in ("3", "0"):
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    try:
+        user = User.query.filter_by(email=session["email"]).first()
+        if not user:
+            return jsonify({'success': False, 'message': 'User not found'})
+        inst_id = user.institution_id or user.id
+        path = _get_institution_reflection_path(task_type, task_id, inst_id)
+        if not os.path.exists(path):
+            return jsonify({'success': True, 'reflection': None})
+        with open(path, 'r', encoding='utf-8') as f:
+            reflection_data = json.load(f)
+        return jsonify({'success': True, 'reflection': reflection_data})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
 @app.route("/get_supervisor_tasks_data")
 def get_supervisor_tasks_data():
     if "email" not in session or session.get("user_type") != "0":
@@ -6296,7 +6386,7 @@ def supervisor_tasks():
 @app.route('/supervisor_get_task_rating/<task_type>/<int:task_id>')
 def supervisor_get_task_rating(task_type, task_id):
     try:
-        if "email" not in session or session.get("user_type") != "0":
+        if "email" not in session or session.get("user_type") not in ("0", "3"):
             return jsonify({'success': False, 'message': 'Unauthorized'})
         
         # Supervisor can see rating for any task
@@ -6328,8 +6418,25 @@ def institution_calendar():
         return redirect(url_for("signin"))
     
     user = User.query.filter_by(email=session["email"]).first()
-    institution_name = user.institution
-    institution_id = user.institution_id
+
+    # Resolve institution details by ID, user_id, or name
+    institution = None
+    if user.institution_id:
+        institution = Institution.query.filter_by(id=user.institution_id).first()
+    if not institution and user.id:
+        institution = Institution.query.filter_by(user_id=user.id).first()
+    if not institution and user.institution:
+        institution = Institution.query.filter_by(name=user.institution).first()
+
+    institution_name = institution.name if institution else user.institution
+    institution_id = institution.id if institution else user.institution_id
+
+    if institution_name and not user.institution:
+        user.institution = institution_name
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
     # Fetch all meetings involving mentees or mentors from this institution
     # We need to query MeetingRequest and join with User to filter by institution
@@ -6380,23 +6487,20 @@ def institution_calendar():
             "created_at": meeting.created_at
         })
     
-    # Filter mentors/mentees to only those with active mentorships
-    active_mentor_ids = set()
-    active_mentee_ids = set()
-    approved_requests = MentorshipRequest.query.filter_by(final_status="approved").all()
-    for req in approved_requests:
-        active_mentor_ids.add(req.mentor_id)
-        active_mentee_ids.add(req.mentee_id)
+    # Filter mentors and mentees who belong to this institution
+    inst_conditions = []
+    if institution_id:
+        inst_conditions.append(User.institution_id == institution_id)
+    if institution_name:
+        inst_conditions.append(User.institution == institution_name)
 
-    mentors = User.query.filter(
-        User.user_type == "1",
-        User.id.in_(active_mentor_ids)
-    ).all() if active_mentor_ids else []
-
-    mentees = User.query.filter(
-        User.user_type == "2",
-        User.id.in_(active_mentee_ids)
-    ).all() if active_mentee_ids else []
+    if inst_conditions:
+        inst_filter = or_(*inst_conditions)
+        mentors = User.query.filter(User.user_type == "1", inst_filter).all()
+        mentees = User.query.filter(User.user_type == "2", inst_filter).all()
+    else:
+        mentors = []
+        mentees = []
 
     return render_template(
         "institution/institution_calendar.html",
