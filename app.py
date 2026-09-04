@@ -5072,6 +5072,14 @@ def supervisor_calendar():
     for mr in approved_mentorships:
         mentor_name = mr.mentor.name if mr.mentor else "Unknown"
         mentee_name = mr.mentee.name if mr.mentee else "Unknown"
+        # Resolve institution user_id from mentor's or mentee's institution_id
+        inst_user_id = ""
+        for u in (mr.mentor, mr.mentee):
+            if u and u.institution_id:
+                inst = Institution.query.get(u.institution_id)
+                if inst and inst.user_id:
+                    inst_user_id = str(inst.user_id)
+                    break
         mentorships_list.append({
             "id": mr.id,
             "mentor_id": mr.mentor_id,
@@ -5079,7 +5087,8 @@ def supervisor_calendar():
             "mentor_name": mentor_name,
             "mentee_name": mentee_name,
             "purpose": mr.purpose or "",
-            "duration": mr.duration_months or 0
+            "duration": mr.duration_months or 0,
+            "inst_user_id": inst_user_id
         })
 
     return render_template(
@@ -6076,6 +6085,8 @@ def rate_task(task_type, task_id):
             )
             db.session.add(new_rating)
         
+        task.status = 'completed'
+        task.completed_date = datetime.utcnow()
         db.session.commit()
         
         return jsonify({
@@ -6278,6 +6289,15 @@ def save_mentee_feedback():
         path = _get_mentee_feedback_path(task_type, task_id)
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(feedback_data, f, ensure_ascii=False, indent=2)
+
+        if task_type == 'master':
+            task = MenteeTask.query.filter_by(id=task_id, mentee_id=mentee.id).first()
+        else:
+            task = PersonalTask.query.filter_by(id=task_id, mentee_id=mentee.id).first()
+        if task and task.status == 'pending':
+            task.status = 'in-progress'
+            db.session.commit()
+
         return jsonify({'success': True, 'message': 'Feedback saved'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
@@ -8646,10 +8666,12 @@ def mentee_create_meeting_request(mentor_id):
     ).all()
     
     all_active_mentors = []
+    mentor_types = {}
     for mr in active_mentorships:
         m = User.query.get(mr.mentor_id)
         if m:
             all_active_mentors.append(m)
+            mentor_types[m.id] = mr.mentor_type
 
     # Check if the mentee has an active (approved) mentorship with this mentor
     active_mentorship = MentorshipRequest.query.filter_by(
@@ -8685,6 +8707,8 @@ def mentee_create_meeting_request(mentor_id):
         mentee=mentee,
         mentor=mentor,
         all_active_mentors=all_active_mentors,
+        mentor_types=mentor_types,
+        active_mentorship=active_mentorship,
         running_tasks=running_tasks,
         all_institutions=all_institutions
     )
@@ -8787,7 +8811,8 @@ def create_meeting_ajax():
     end_str = end_datetime.isoformat()
 
     platform = (data.get("platform") or "google").strip().lower()
-    if platform not in ("google", "teams"):
+    custom_link = (data.get("custom_link") or "").strip()
+    if platform not in ("google", "teams", "custom"):
         platform = "google"
 
     # Build task context for description (must be before calendar event creation)
@@ -8891,6 +8916,8 @@ def create_meeting_ajax():
                 "ctz": timezone,
             })
         )
+    elif platform == "custom":
+        meet_link = custom_link if custom_link else None
     else:
         tzobj = dt.timezone.utc
         try:
@@ -10582,8 +10609,8 @@ def resources_hub():
     else:
         # Supervisor: see everything
         notes = ResourceNote.query.order_by(ResourceNote.updated_at.desc()).all()
-        tag_options = [{"id": m.id, "name": m.name, "email": m.email} for m in User.query.filter_by(user_type="1").all()]
-        mentee_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="2").limit(50).all()]
+        tag_options = [{"id": m.id, "name": m.name, "email": m.email, "institution_id": m.institution_id} for m in User.query.filter_by(user_type="1").all()]
+        mentee_tag_options = [{"id": m.id, "name": m.name, "institution_id": m.institution_id} for m in User.query.filter_by(user_type="2").limit(50).all()]
         supervisor_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="0").filter(User.id != user.id).all()]
         # Supervisor can tag any institution
         institution_options = [{"id": inst.id, "name": inst.name} for inst in Institution.query.all()]
@@ -10640,7 +10667,7 @@ def create_note():
         institution = Institution.query.get(int(institution_id))
         if not institution:
             return jsonify({"error": "Selected institution is not valid."}), 400
-        if user.institution_id != institution.id:
+        if user.user_type != "0" and user.institution_id != institution.id:
             return jsonify({"error": "You can only tag your own institution."}), 403
 
     tagged_content = _build_tagged_content(title, content, mentor_id, institution_id, mentee_tag_id, supervisor_tag_id)
@@ -10703,7 +10730,7 @@ def update_note(note_id):
         institution = Institution.query.get(int(institution_id))
         if not institution:
             return jsonify({"error": "Selected institution is not valid."}), 400
-        if user.institution_id != institution.id:
+        if user.user_type != "0" and user.institution_id != institution.id:
             return jsonify({"error": "You can only tag your own institution."}), 403
         note.institution_id = institution.id
     elif institution_id == "":

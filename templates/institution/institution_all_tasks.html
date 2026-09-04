@@ -77,19 +77,6 @@
         font-weight: 600;
     }
     
-    .progress-bar {
-        background: #e5e7eb;
-        border-radius: 10px;
-        overflow: hidden;
-        height: 8px;
-    }
-    
-    .progress-fill {
-        background: #3b82f6;
-        height: 100%;
-        transition: width 0.3s ease;
-    }
-    
     .filter-btn {
         padding: 8px 16px;
         border: 1px solid #d1d5db;
@@ -488,17 +475,10 @@
                 <p id="detail-task-instructions" class="text-gray-600 bg-gray-50 p-4 rounded-lg">Loading instructions...</p>
             </div>
             
-            <!-- Progress -->
+            <!-- Status -->
             <div>
-                <h4 class="font-medium text-gray-700 mb-2">Progress Tracking</h4>
-                <div class="flex items-center gap-4">
-                    <div class="flex-1">
-                        <div class="progress-bar">
-                            <div id="detail-progress-fill" class="progress-fill" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <span id="detail-progress-text" class="text-sm font-medium">0%</span>
-                </div>
+                <h4 class="font-medium text-gray-700 mb-2">Task Status</h4>
+                <span id="detail-status-indicator" class="text-sm font-semibold px-3 py-1.5 rounded-full border"></span>
             </div>
             
             <!-- Rating Section -->
@@ -804,7 +784,7 @@ function createTaskHTML(task) {
         <div class="task-card p-6 ${task.status === 'completed' ? 'completed' : ''} ${task.isCritical || isOverdue ? 'urgent' : ''}">
             <div class="flex justify-between items-start mb-3">
                 <div class="flex items-center gap-3">
-                    <span class="text-sm font-medium text-gray-500">${task.serial}</span>
+                    <span class="text-base font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-200">${task.serial}</span>
                     <h3 class="text-lg font-semibold text-gray-900">${task.title || 'Untitled'}</h3>
                     <span class="task-status ${getStatusClass(task.status)}">${getStatusText(task.status)}</span>
                     <span class="badge ${taskTypeClass}">${task.type === 'master' ? 'Master Task' : 'Personal Task'}</span>
@@ -866,21 +846,19 @@ function createTaskHTML(task) {
                     <span class="priority-${task.priority || 'medium'}">${task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) + ' Priority' : 'No Priority'}</span>
                 </div>
                 
-                ${task.status !== 'completed' ? `
-                <div class="flex items-center gap-3">
-                    <div class="w-24">
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${task.progress || 0}%"></div>
-                        </div>
-                    </div>
-                    <span class="text-sm font-medium">${task.progress || 0}%</span>
-                </div>
-                ` : `
-                <span class="text-green-600 text-sm font-medium flex items-center gap-1">
+                ${task.status === 'completed' ? `
+                <span class="text-green-600 text-sm font-semibold flex items-center gap-1.5 bg-green-50 px-3 py-1 rounded-full border border-green-200">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                     </svg>
-                    Completed
+                    Done
+                </span>
+                ` : `
+                <span class="text-amber-600 text-sm font-semibold flex items-center gap-1.5 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Not Done
                 </span>
                 `}
             </div>
@@ -965,8 +943,18 @@ async function viewTaskDetails(taskId) {
         document.getElementById('detail-task-updated').textContent = formatDate(task.updatedAt);
         document.getElementById('detail-task-description').textContent = task.description || 'No description available';
         document.getElementById('detail-task-instructions').textContent = task.instructions || "No additional instructions provided.";
-        document.getElementById('detail-progress-fill').style.width = `${task.progress || 0}%`;
-        document.getElementById('detail-progress-text').textContent = `${task.progress || 0}%`;
+        // Update status indicator
+        var statusEl = document.getElementById('detail-status-indicator');
+        if (task.status === 'completed') {
+            statusEl.textContent = 'Done';
+            statusEl.className = 'text-sm font-semibold px-3 py-1.5 rounded-full border text-green-700 bg-green-50 border-green-200';
+        } else if (task.status === 'in-progress') {
+            statusEl.textContent = 'In Progress';
+            statusEl.className = 'text-sm font-semibold px-3 py-1.5 rounded-full border text-blue-700 bg-blue-50 border-blue-200';
+        } else {
+            statusEl.textContent = 'Not Done';
+            statusEl.className = 'text-sm font-semibold px-3 py-1.5 rounded-full border text-amber-700 bg-amber-50 border-amber-200';
+        }
         
         // Load and display rating
         await loadAndDisplayRating(task.id);
