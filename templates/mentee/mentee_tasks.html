@@ -939,6 +939,9 @@
                     if (task.status === 'completed') {
                         progressText.textContent = 'Done';
                         progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700';
+                    } else if (task.status === 'in-progress') {
+                        progressText.textContent = 'In Progress';
+                        progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-blue-100 text-blue-700';
                     } else {
                         progressText.textContent = 'Not Done';
                         progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
@@ -947,8 +950,8 @@
 
                 // Load and display rating
                 await loadAndDisplayRating(taskId, taskType);
-                // Load mentee self-feedback (localStorage, no DB)
-                loadMenteeFeedback(taskId, taskType);
+                // Load mentee self-feedback
+                loadMenteeFeedback(taskId, taskType, task.status);
 
                 // Show modal
                 document.getElementById('task-details-modal').classList.remove('hidden');
@@ -1043,8 +1046,24 @@
     function updateTaskCardBadge(taskId, taskType, state) {
         var card = document.querySelector('.task-card[data-task-id="' + taskId + '"][data-task-type="' + taskType + '"]');
         if (!card) return;
+        
+        var statusBadge = card.querySelector('.task-status');
+        if (statusBadge) {
+            if (state === 'done') {
+                statusBadge.textContent = 'Completed';
+                statusBadge.className = 'task-status px-2.5 py-0.5 rounded-full text-xs font-bold border bg-emerald-50 text-emerald-600 border-emerald-100';
+            } else if (state === 'in-progress') {
+                statusBadge.textContent = 'In Progress';
+                statusBadge.className = 'task-status px-2.5 py-0.5 rounded-full text-xs font-bold border bg-blue-50 text-blue-600 border-blue-100';
+            } else {
+                statusBadge.textContent = 'To Do';
+                statusBadge.className = 'task-status px-2.5 py-0.5 rounded-full text-xs font-bold border bg-amber-50 text-amber-600 border-amber-100';
+            }
+        }
+
         var badges = card.querySelectorAll('span');
         badges.forEach(function(badge) {
+            if (badge === statusBadge) return;
             var txt = badge.textContent.trim();
             if (txt === 'Done' || txt === 'Not Done' || txt === 'In Progress') {
                 if (state === 'done') {
@@ -1100,12 +1119,20 @@
                 document.getElementById('mentee-rating-label').textContent = menteeRatingLabels[val];
             });
         });
-        document.querySelectorAll('#mentee-mentor-rating .mentee-mentor-star').forEach(function(star) {
+        var container = document.getElementById('mentee-star-rating');
+        if (container) {
+            container.addEventListener('mouseleave', function() {
+                var cur = parseInt(document.getElementById('mentee-selected-rating').value) || 0;
+                setMenteeStars('mentee-star-rating', cur, 'text-amber-400');
+                document.getElementById('mentee-rating-label').textContent = menteeRatingLabels[cur];
+            });
+        }
+        document.querySelectorAll('#mentee-mentor-star-rating .mentee-mentor-star').forEach(function(star) {
             star.addEventListener('click', function(e) {
                 e.preventDefault();
                 var val = parseInt(this.getAttribute('data-value'));
                 document.getElementById('mentee-selected-mentor-rating').value = val;
-                setMenteeStars('mentee-mentor-rating', val, 'text-blue-400');
+                setMenteeStars('mentee-mentor-star-rating', val, 'text-blue-400');
                 document.getElementById('mentee-mentor-rating-label').textContent = menteeMentorRatingLabels[val];
             });
             star.addEventListener('mouseenter', function() {
@@ -1113,16 +1140,24 @@
                 document.getElementById('mentee-mentor-rating-label').textContent = menteeMentorRatingLabels[val];
             });
         });
-        var starRating = document.getElementById('mentee-star-rating');
-        if (starRating) starRating.addEventListener('mouseleave', function() {
-            var sel = document.getElementById('mentee-selected-rating').value;
-            document.getElementById('mentee-rating-label').textContent = sel ? menteeRatingLabels[parseInt(sel)] : '';
-        });
-        var mentorRating = document.getElementById('mentee-mentor-rating');
-        if (mentorRating) mentorRating.addEventListener('mouseleave', function() {
-            var sel = document.getElementById('mentee-selected-mentor-rating').value;
-            document.getElementById('mentee-mentor-rating-label').textContent = sel ? menteeMentorRatingLabels[parseInt(sel)] : '';
-        });
+        var container2 = document.getElementById('mentee-mentor-star-rating');
+        if (container2) {
+            container2.addEventListener('mouseleave', function() {
+                var cur = parseInt(document.getElementById('mentee-selected-mentor-rating').value) || 0;
+                setMenteeStars('mentee-mentor-star-rating', cur, 'text-blue-400');
+                document.getElementById('mentee-mentor-rating-label').textContent = menteeMentorRatingLabels[cur];
+            });
+        }
+    }
+
+    function countMenteeChars() {
+        var input = document.getElementById('mentee-feedback-input');
+        var charCount = document.getElementById('mentee-char-count');
+        if (input && charCount) {
+            var len = input.value.length;
+            charCount.textContent = len + ' / 2000';
+            charCount.className = len > 1800 ? 'text-xs text-red-500' : 'text-xs text-slate-400';
+        }
     }
 
     function openMenteeFeedbackModal() {
@@ -1130,12 +1165,10 @@
         const modal = document.getElementById('mentee-feedback-modal');
         if (!modal) return;
         modal.classList.remove('hidden');
+        resetMenteeStars();
         const key = getMenteeFeedbackKey(currentTaskId, currentTaskType);
         const raw = localStorage.getItem(key);
         const data = raw ? JSON.parse(raw) : {};
-
-        resetMenteeStars();
-
         var feedback = document.getElementById('mentee-feedback-input');
         var extra = document.getElementById('mentee-extra-input');
         var challenges = document.getElementById('mentee-challenges-input');
@@ -1144,18 +1177,18 @@
         if (extra) extra.value = data.extra || '';
         if (challenges) challenges.value = data.challenges || '';
         if (nextSteps) nextSteps.value = data.nextSteps || '';
-
         if (data.rating) {
-            document.getElementById('mentee-selected-rating').value = data.rating;
-            setMenteeStars('mentee-star-rating', parseInt(data.rating), 'text-amber-400');
-            document.getElementById('mentee-rating-label').textContent = menteeRatingLabels[parseInt(data.rating)] || '';
+            var rVal = parseInt(data.rating);
+            document.getElementById('mentee-selected-rating').value = rVal;
+            setMenteeStars('mentee-star-rating', rVal, 'text-amber-400');
+            document.getElementById('mentee-rating-label').textContent = menteeRatingLabels[rVal] || '';
         }
         if (data.mentorRating) {
-            document.getElementById('mentee-selected-mentor-rating').value = data.mentorRating;
-            setMenteeStars('mentee-mentor-rating', parseInt(data.mentorRating), 'text-blue-400');
-            document.getElementById('mentee-mentor-rating-label').textContent = menteeMentorRatingLabels[parseInt(data.mentorRating)] || '';
+            var mrVal = parseInt(data.mentorRating);
+            document.getElementById('mentee-selected-mentor-rating').value = mrVal;
+            setMenteeStars('mentee-mentor-star-rating', mrVal, 'text-blue-400');
+            document.getElementById('mentee-mentor-rating-label').textContent = menteeMentorRatingLabels[mrVal] || '';
         }
-
         var status = document.getElementById('mentee-feedback-status');
         if (status) { status.classList.add('hidden'); status.textContent = ''; }
         countMenteeChars();
@@ -1164,32 +1197,47 @@
     function closeMenteeFeedbackModal() {
         var modal = document.getElementById('mentee-feedback-modal');
         if (modal) modal.classList.add('hidden');
-        loadMenteeFeedback(currentTaskId, currentTaskType);
+        loadMenteeFeedback(currentTaskId, currentTaskType, 'in-progress');
     }
 
-    function loadMenteeFeedback(taskId, taskType) {
+    function loadMenteeFeedback(taskId, taskType, taskStatus) {
         try {
             var key = getMenteeFeedbackKey(taskId, taskType);
             var raw = localStorage.getItem(key);
             var details = document.getElementById('mentee-rating-details');
             var noMsg = document.getElementById('mentee-no-rating-message');
             var progressText = document.getElementById('detail-progress-text');
+            var isCompleted = taskStatus === 'completed';
+
             if (!raw) {
                 if (details) details.classList.add('hidden');
                 if (noMsg) noMsg.classList.remove('hidden');
                 if (progressText) {
-                    progressText.textContent = 'Not Done';
-                    progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
+                    if (isCompleted) {
+                        progressText.textContent = 'Done';
+                        progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700';
+                    } else if (taskStatus === 'in-progress') {
+                        progressText.textContent = 'In Progress';
+                        progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-blue-100 text-blue-700';
+                    } else {
+                        progressText.textContent = 'Not Done';
+                        progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
+                    }
                 }
-                updateTaskCardBadge(taskId, taskType, 'not-done');
+                updateTaskCardBadge(taskId, taskType, isCompleted ? 'done' : (taskStatus === 'in-progress' ? 'in-progress' : 'not-done'));
                 return;
             }
             var data = JSON.parse(raw);
             if (progressText) {
-                progressText.textContent = 'In Progress';
-                progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-blue-100 text-blue-700';
+                if (isCompleted) {
+                    progressText.textContent = 'Done';
+                    progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700';
+                } else {
+                    progressText.textContent = 'In Progress';
+                    progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-blue-100 text-blue-700';
+                }
             }
-            updateTaskCardBadge(taskId, taskType, 'in-progress');
+            updateTaskCardBadge(taskId, taskType, isCompleted ? 'done' : 'in-progress');
             var dateEl = document.getElementById('mentee-display-date');
             if (dateEl) dateEl.textContent = data.date ? new Date(data.date).toLocaleDateString() : '';
             var feedbackEl = document.getElementById('mentee-display-feedback');

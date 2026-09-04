@@ -1196,6 +1196,92 @@ class TaskRating(db.Model):
         return f"<TaskRating {self.rating}/5 for task {self.task_id}>"
 
 
+#------------Mentee Feedback Table-------------------
+class MenteeFeedback(db.Model):
+    __tablename__ = "mentee_feedbacks"
+
+    id = db.Column(db.Integer, primary_key=True)
+    mentee_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+    task_id = db.Column(db.Integer, nullable=False)
+    task_type = db.Column(db.String(20), nullable=False)  # 'master' or 'personal'
+    rating = db.Column(db.Integer)  # 1 to 5
+    mentor_rating = db.Column(db.Integer)  # 1 to 5
+    text = db.Column(db.Text)
+    challenges = db.Column(db.Text)
+    next_steps = db.Column(db.Text)
+    extra = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    mentee = db.relationship("User", foreign_keys=[mentee_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'mentee_id': self.mentee_id,
+            'mentee_name': self.mentee.name if self.mentee else '',
+            'task_type': self.task_type,
+            'task_id': self.task_id,
+            'rating': str(self.rating) if self.rating is not None else '',
+            'mentor_rating': str(self.mentor_rating) if self.mentor_rating is not None else '',
+            'text': self.text or '',
+            'challenges': self.challenges or '',
+            'nextSteps': self.next_steps or '',
+            'extra': self.extra or '',
+            'date': self.created_at.isoformat() if self.created_at else ''
+        }
+
+
+#------------Mentor Reflection Table-------------------
+class MentorReflection(db.Model):
+    __tablename__ = "mentor_reflections"
+
+    id = db.Column(db.Integer, primary_key=True)
+    mentor_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+    task_id = db.Column(db.Integer, nullable=False)
+    task_type = db.Column(db.String(20), nullable=False)  # 'master' or 'personal'
+    text = db.Column(db.Text)
+    extra = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    mentor = db.relationship("User", foreign_keys=[mentor_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'mentor_id': self.mentor_id,
+            'mentor_name': self.mentor.name if self.mentor else '',
+            'task_type': self.task_type,
+            'task_id': self.task_id,
+            'text': self.text or '',
+            'extra': self.extra or '',
+            'date': self.created_at.isoformat() if self.created_at else ''
+        }
+
+
+#------------Institution Reflection Table-------------------
+class InstitutionReflection(db.Model):
+    __tablename__ = "institution_reflections"
+
+    id = db.Column(db.Integer, primary_key=True)
+    institution_id = db.Column(db.Integer, nullable=False)
+    task_id = db.Column(db.Integer, nullable=False)
+    task_type = db.Column(db.String(20), nullable=False)  # 'master' or 'personal'
+    text = db.Column(db.Text)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'institution_id': self.institution_id,
+            'task_type': self.task_type,
+            'task_id': self.task_id,
+            'text': self.text or '',
+            'notes': self.notes or '',
+            'date': self.created_at.isoformat() if self.created_at else ''
+        }
+
+
 #------------Chat System Tables-------------------
 class ChatConversation(db.Model):
     """
@@ -1595,11 +1681,11 @@ def signup():
 def signin():
     if request.method == "POST":
         session.permanent = True
-        email = request.form["email"]
+        email = request.form["email"].strip().lower()
         password = request.form["password"]
 
         # fetch user from "database"
-        user = User.query.filter_by(email=email).first()
+        user = User.query.filter(db.func.lower(User.email) == email).first()
 
         # Check if user exists
         if not user:
@@ -1931,7 +2017,8 @@ def callback():
                     break
         
         if user:
-            if user.email != email:
+            # Case-insensitive check: same canonical email = same person
+            if _canonical_email(user.email) != _canonical_email(email):
                 print(f"   ⛔ Duplicate blocked: '{email}' is a variant of existing account '{user.email}'")
                 flash("An account already exists with this email address. Please sign in with your existing Mentor Connect account instead of creating a new one.", "error")
                 return redirect(url_for("signin"))
@@ -1939,13 +2026,20 @@ def callback():
             print(f"   User ID: {user.id}")
             print(f"   User Type: {user.user_type}")
             
-            # Update Google ID if not set
+            # Normalize stored email to lowercase + update Google ID
+            needs_commit = False
+            if user.email != email:
+                print(f"   🔄 Normalizing email: '{user.email}' → '{email}'")
+                user.email = email
+                needs_commit = True
             if not user.google_id:
                 user.google_id = google_id
                 user.oauth_provider = 'google'
                 user.profile_picture_url = picture_url
+                needs_commit = True
+            if needs_commit:
                 db.session.commit()
-                print(f"   ✅ Updated user with Google ID")
+                print(f"   ✅ Updated user record")
             
             print(f"\n📍 Step 8: Setting session for existing user")
             session.permanent = True
@@ -3041,7 +3135,7 @@ def create_account():
     
     if request.method == "POST":
         name = request.form.get("name")
-        email = request.form.get("email")
+        email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password")
         confirm_password = request.form.get("confirm_password")
         user_type = request.form.get("user_type")
@@ -3072,7 +3166,7 @@ def create_account():
             return redirect(url_for("create_account"))
         
         # Check if email already exists
-        existing_user = User.query.filter_by(email=email).first()
+        existing_user = User.query.filter(db.func.lower(User.email) == email).first()
         if existing_user:
             flash("Email already exists! Please use a different email.", "error")
             return redirect(url_for("create_account"))
@@ -3862,27 +3956,17 @@ def get_institution_tasks_data():
 
     inst_id_val = institution_id or user.id
 
+    # Pre-fetch all mentee feedbacks and institution reflections
+    mentee_feedbacks = MenteeFeedback.query.all()
+    mentee_ratings_map = {(mf.task_type, mf.task_id): (mf.rating or 0) for mf in mentee_feedbacks}
+    inst_reflections = InstitutionReflection.query.filter_by(institution_id=inst_id_val).all()
+    inst_refl_map = {(ir.task_type, ir.task_id): bool(ir.text) for ir in inst_reflections}
+
     def _get_mentee_rating_val(ttype, tid):
-        try:
-            p = _get_mentee_feedback_path(ttype, tid)
-            if os.path.exists(p):
-                with open(p, 'r', encoding='utf-8') as f:
-                    d = json.load(f)
-                    return int(d.get('rating') or 0)
-        except Exception:
-            pass
-        return 0
+        return mentee_ratings_map.get((ttype, tid), 0)
 
     def _get_has_reflection_val(ttype, tid):
-        try:
-            p = _get_institution_reflection_path(ttype, tid, inst_id_val)
-            if os.path.exists(p):
-                with open(p, 'r', encoding='utf-8') as f:
-                    d = json.load(f)
-                    return bool(d.get('text'))
-        except Exception:
-            pass
-        return False
+        return inst_refl_map.get((ttype, tid), False)
     
     tasks_data = []
     
@@ -5195,7 +5279,7 @@ def mentee_tasks():
     # Calculate statistics
     total_tasks = len(assigned_tasks) + len(personal_tasks)
     completed_tasks = len([t for t in assigned_tasks if t.status == 'completed']) + len([t for t in personal_tasks if t.status == 'completed'])
-    pending_tasks = len([t for t in assigned_tasks if t.status == 'pending']) + len([t for t in personal_tasks if t.status == 'pending'])
+    pending_tasks = len([t for t in assigned_tasks if t.status in ('pending', 'in-progress')]) + len([t for t in personal_tasks if t.status in ('pending', 'in-progress')])
     
     today = datetime.utcnow().date()
     overdue_tasks = len([t for t in assigned_tasks if t.due_date and t.due_date.date() < today and t.status != 'completed']) + \
@@ -6121,6 +6205,7 @@ def rate_task(task_type, task_id):
             db.session.add(new_rating)
         
         task.status = 'completed'
+        task.progress = 100
         task.completed_date = datetime.utcnow()
         db.session.commit()
         
@@ -6166,13 +6251,6 @@ def get_task_rating(task_type, task_id):
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
-
-# ===== MENTEE FEEDBACK SYNC (JSON file, no DB changes) =====
-MENTEE_FEEDBACK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mentee_feedback_data')
-
-def _get_mentee_feedback_path(task_type, task_id):
-    os.makedirs(MENTEE_FEEDBACK_DIR, exist_ok=True)
-    return os.path.join(MENTEE_FEEDBACK_DIR, f'{task_type}_{task_id}.json')
 
 # ===== MEETING PARTICIPANT SYNC (JSON file, no DB changes) =====
 MEETING_PARTICIPANTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'meeting_participants_data')
@@ -6308,32 +6386,33 @@ def save_mentee_feedback():
         task_id = data.get('task_id')
         if not task_type or not task_id:
             return jsonify({'success': False, 'message': 'Missing task_type or task_id'})
-        feedback_data = {
-            'mentee_id': mentee.id,
-            'mentee_name': mentee.name,
-            'task_type': task_type,
-            'task_id': task_id,
-            'rating': data.get('rating', ''),
-            'mentor_rating': data.get('mentor_rating', ''),
-            'text': data.get('text', ''),
-            'challenges': data.get('challenges', ''),
-            'nextSteps': data.get('nextSteps', ''),
-            'extra': data.get('extra', ''),
-            'date': data.get('date', datetime.utcnow().isoformat())
-        }
-        path = _get_mentee_feedback_path(task_type, task_id)
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(feedback_data, f, ensure_ascii=False, indent=2)
+        feedback = MenteeFeedback.query.filter_by(task_type=task_type, task_id=task_id).first()
+        if not feedback:
+            feedback = MenteeFeedback(
+                mentee_id=mentee.id,
+                task_type=task_type,
+                task_id=task_id
+            )
+            db.session.add(feedback)
+        feedback.mentee_id = mentee.id
+        feedback.rating = int(data.get('rating')) if data.get('rating') else None
+        feedback.mentor_rating = int(data.get('mentor_rating')) if data.get('mentor_rating') else None
+        feedback.text = data.get('text', '')
+        feedback.challenges = data.get('challenges', '')
+        feedback.next_steps = data.get('nextSteps', '')
+        feedback.extra = data.get('extra', '')
+        feedback.created_at = datetime.utcnow()
 
         if task_type == 'master':
             task = MenteeTask.query.filter_by(id=task_id, mentee_id=mentee.id).first()
         else:
             task = PersonalTask.query.filter_by(id=task_id, mentee_id=mentee.id).first()
-        if task and task.status == 'pending':
+        if task and task.status in ('pending', None, ''):
             task.status = 'in-progress'
-            db.session.commit()
+            task.progress = 50
 
-        return jsonify({'success': True, 'message': 'Feedback saved'})
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Feedback saved', 'feedback': feedback.to_dict()})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -6342,22 +6421,69 @@ def get_mentee_feedback(task_type, task_id):
     if "email" not in session or session.get("user_type") not in ("1", "0", "3"):
         return jsonify({'success': False, 'message': 'Unauthorized'})
     try:
-        path = _get_mentee_feedback_path(task_type, task_id)
-        if not os.path.exists(path):
+        feedback = MenteeFeedback.query.filter_by(task_type=task_type, task_id=task_id).first()
+        if not feedback:
             return jsonify({'success': True, 'feedback': None})
-        with open(path, 'r', encoding='utf-8') as f:
-            feedback_data = json.load(f)
-        return jsonify({'success': True, 'feedback': feedback_data})
+        return jsonify({'success': True, 'feedback': feedback.to_dict()})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+# ===== MENTOR TASK REFLECTION SYNC =====
+@app.route('/save_mentor_reflection', methods=['POST'])
+def save_mentor_reflection():
+    if "email" not in session or session.get("user_type") != "1":
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    try:
+        mentor = User.query.filter_by(email=session["email"]).first()
+        if not mentor:
+            return jsonify({'success': False, 'message': 'Mentor not found'})
+        data = request.get_json(force=True)
+        if not data:
+            return jsonify({'success': False, 'message': 'Invalid JSON body'})
+        task_type = data.get('task_type')
+        task_id = data.get('task_id')
+        if not task_type or not task_id:
+            return jsonify({'success': False, 'message': 'Missing task_type or task_id'})
+
+        reflection = MentorReflection.query.filter_by(task_type=task_type, task_id=task_id).first()
+        if not reflection:
+            reflection = MentorReflection(
+                mentor_id=mentor.id,
+                task_type=task_type,
+                task_id=task_id
+            )
+            db.session.add(reflection)
+        reflection.mentor_id = mentor.id
+        reflection.text = (data.get('text') or '').strip()
+        reflection.extra = (data.get('extra') or '').strip()
+        reflection.created_at = datetime.utcnow()
+
+        # Update task status to completed
+        if task_type == 'master':
+            task = MenteeTask.query.filter_by(id=task_id, mentor_id=mentor.id).first()
+        else:
+            task = PersonalTask.query.filter_by(id=task_id, mentor_id=mentor.id).first()
+        if task:
+            task.status = 'completed'
+            task.progress = 100
+            task.completed_date = datetime.utcnow()
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Reflection saved', 'reflection': reflection.to_dict()})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/get_mentor_reflection/<task_type>/<int:task_id>')
+def get_mentor_reflection(task_type, task_id):
+    try:
+        reflection = MentorReflection.query.filter_by(task_type=task_type, task_id=task_id).first()
+        if not reflection:
+            return jsonify({'success': True, 'reflection': None})
+        return jsonify({'success': True, 'reflection': reflection.to_dict()})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
 # ===== INSTITUTION TASK REFLECTION SYNC =====
-INSTITUTION_REFLECTION_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'institution_reflection_data')
-
-def _get_institution_reflection_path(task_type, task_id, institution_id):
-    os.makedirs(INSTITUTION_REFLECTION_DIR, exist_ok=True)
-    return os.path.join(INSTITUTION_REFLECTION_DIR, f'{institution_id}_{task_type}_{task_id}.json')
-
 @app.route('/save_institution_reflection', methods=['POST'])
 def save_institution_reflection():
     if "email" not in session or session.get("user_type") != "3":
@@ -6372,19 +6498,21 @@ def save_institution_reflection():
         task_id = data.get('task_id')
         if not task_type or not task_id:
             return jsonify({'success': False, 'message': 'Missing task_type or task_id'})
-        reflection_data = {
-            'institution_id': inst_id,
-            'institution_name': user.institution or user.name,
-            'task_type': task_type,
-            'task_id': task_id,
-            'text': (data.get('text') or '').strip(),
-            'notes': (data.get('notes') or '').strip(),
-            'date': data.get('date', datetime.utcnow().isoformat())
-        }
-        path = _get_institution_reflection_path(task_type, task_id, inst_id)
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(reflection_data, f, ensure_ascii=False, indent=2)
-        return jsonify({'success': True, 'message': 'Reflection saved', 'reflection': reflection_data})
+
+        refl = InstitutionReflection.query.filter_by(institution_id=inst_id, task_type=task_type, task_id=task_id).first()
+        if not refl:
+            refl = InstitutionReflection(
+                institution_id=inst_id,
+                task_type=task_type,
+                task_id=task_id
+            )
+            db.session.add(refl)
+        refl.text = (data.get('text') or '').strip()
+        refl.notes = (data.get('notes') or '').strip()
+        refl.created_at = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': 'Reflection saved', 'reflection': refl.to_dict()})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -6397,12 +6525,10 @@ def get_institution_reflection(task_type, task_id):
         if not user:
             return jsonify({'success': False, 'message': 'User not found'})
         inst_id = user.institution_id or user.id
-        path = _get_institution_reflection_path(task_type, task_id, inst_id)
-        if not os.path.exists(path):
+        refl = InstitutionReflection.query.filter_by(institution_id=inst_id, task_type=task_type, task_id=task_id).first()
+        if not refl:
             return jsonify({'success': True, 'reflection': None})
-        with open(path, 'r', encoding='utf-8') as f:
-            reflection_data = json.load(f)
-        return jsonify({'success': True, 'reflection': reflection_data})
+        return jsonify({'success': True, 'reflection': refl.to_dict()})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -7055,7 +7181,7 @@ def supervisor_meeting_details():
 # ------------------- HANDLE MENTORSHIP REQUEST ------------------
 @app.route("/request_mentorship", methods=["POST"])
 def request_mentorship(): 
-    if "email" not in session or session.get("user_type") != "2":
+    if "email" not in session or str(session.get("user_type")) != "2":
         return jsonify({"success": False, "message": "Unauthorized"}), 401
 
     try:
@@ -7064,21 +7190,24 @@ def request_mentorship():
         if not mentee:
             return jsonify({"success": False, "message": "User not found"}), 404
         
-        # Check parent consent status for under-18 mentees
+        # Check parent consent status ONLY for under-18 mentees
         mentee_profile = MenteeProfile.query.filter_by(user_id=mentee.id).first()
-        if mentee_profile and mentee_profile.parent_consent_status == "pending":
-            return jsonify({
-                "success": False, 
-                "message": "You need parent/guardian approval before requesting mentorship. Please check your email or update your parent's email in your profile."
-            }), 403
-        
-        if mentee_profile and mentee_profile.parent_consent_status == "rejected":
-            return jsonify({
-                "success": False, 
-                "message": "Your parent/guardian has not approved your participation. Please contact support if you need assistance."
-            }), 403
+        if mentee_profile and mentee_profile.dob and is_under_18(mentee_profile.dob):
+            if mentee_profile.parent_consent_status == "pending":
+                return jsonify({
+                    "success": False, 
+                    "message": "You need parent/guardian approval before requesting mentorship. Please check your email or update your parent's email in your profile."
+                }), 403
+            
+            if mentee_profile.parent_consent_status == "rejected":
+                return jsonify({
+                    "success": False, 
+                    "message": "Your parent/guardian has not approved your participation. Please contact support if you need assistance."
+                }), 403
         
         data = request.get_json(silent=True)
+        if not data and request.form:
+            data = request.form.to_dict()
         if not data:
             return jsonify({"success": False, "message": "Invalid request data"}), 400
 
@@ -7101,14 +7230,26 @@ def request_mentorship():
 
         # Validate duration_months is a positive integer
         try:
-            duration_months = int(duration_months)
+            if isinstance(duration_months, str):
+                import re
+                nums = re.findall(r'\d+', duration_months)
+                duration_months = int(nums[0]) if nums else int(duration_months)
+            else:
+                duration_months = int(duration_months)
             if duration_months <= 0:
                 return jsonify({"success": False, "message": "Duration must be a positive number"}), 400
         except (ValueError, TypeError):
             return jsonify({"success": False, "message": "Invalid duration value"}), 400
 
         # Verify mentor exists
-        mentor = User.query.get(mentor_id)
+        mentor = db.session.get(User, mentor_id)
+        if not mentor:
+            # Fallback in case mentor_profile id was passed instead of user_id
+            m_prof = db.session.get(MentorProfile, mentor_id)
+            if m_prof:
+                mentor = db.session.get(User, m_prof.user_id)
+                if mentor:
+                    mentor_id = mentor.id
         if not mentor:
             return jsonify({"success": False, "message": "Mentor not found"}), 404
 
@@ -7129,16 +7270,15 @@ def request_mentorship():
             if req.mentor_status == "accepted" and req.supervisor_status == "approved" and req.final_status == "approved":
                 return jsonify({"success": False, "message": "You are already assigned to this mentor."}), 400
 
-
         # Create new mentorship request
         new_request = MentorshipRequest(
             mentee_id=mentee.id,
             mentor_id=mentor_id,
-            purpose=purpose,
-            mentor_type=mentor_type,
-            term=term,
+            purpose=str(purpose).strip()[:1000] if purpose else "",
+            mentor_type=str(mentor_type).strip()[:20] if mentor_type else "",
+            term=str(term).strip()[:20] if term else "",
             duration_months=duration_months,
-            why_need_mentor=why_need_mentor,
+            why_need_mentor=str(why_need_mentor).strip() if why_need_mentor else "",
             mentor_status="pending",
             supervisor_status="pending",
             final_status="pending"
@@ -7146,6 +7286,16 @@ def request_mentorship():
         
         db.session.add(new_request)
         db.session.commit()
+
+        # Send in-app notification to mentor
+        try:
+            create_notification(
+                mentor_id,
+                f"You have a new mentorship request from {mentee.name or 'a mentee'}.",
+                link="/mentor_mentorship_request"
+            )
+        except Exception as notif_err:
+            app.logger.warning(f"Failed to create mentor notification: {notif_err}")
 
         return jsonify({
             "success": True, 
@@ -7155,8 +7305,10 @@ def request_mentorship():
 
     except Exception as e:
         db.session.rollback()
+        import traceback
+        traceback.print_exc()
         app.logger.error(f"Error in request_mentorship: {str(e)}")
-        return jsonify({"success": False, "message": "Internal server error"}), 500
+        return jsonify({"success": False, "message": f"Could not submit request: {str(e)}"}), 500
 
 @app.route("/mentor_response", methods=["POST"])
 def mentor_response():

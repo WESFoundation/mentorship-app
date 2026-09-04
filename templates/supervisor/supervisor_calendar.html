@@ -862,14 +862,17 @@ function openScheduleMeetingModal() {
   document.getElementById('sm-institution').value = '';
   document.getElementById('sm-mentorship').value = '';
   // Unlock participant dropdowns
-  document.getElementById('sm-mentor').disabled = false;
-  document.getElementById('sm-mentee').disabled = false;
-  document.getElementById('sm-institution').disabled = false;
+  document.getElementById('sm-mentor').style.pointerEvents = '';
+  document.getElementById('sm-mentor').style.backgroundColor = '';
+  document.getElementById('sm-mentee').style.pointerEvents = '';
+  document.getElementById('sm-mentee').style.backgroundColor = '';
+  document.getElementById('sm-institution').style.pointerEvents = '';
+  document.getElementById('sm-institution').style.backgroundColor = '';
   document.getElementById('sm-duration').value = '';
   document.getElementById('sm-platform').value = 'google';
-  // Reset task section
-  document.getElementById('sm-task-section').classList.add('hidden');
+  // Reset task section (keep visible)
   document.getElementById('sm-task').innerHTML = '<option value="">No task selected (general meeting)</option>';
+  document.getElementById('sm-task-hint').textContent = 'Select a mentorship or mentor & mentee to load available tasks.';
   // Auto-detect timezone
   try {
     var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -917,25 +920,59 @@ document.getElementById('sm-mentor').addEventListener('change', updateParticipan
 document.getElementById('sm-mentee').addEventListener('change', updateParticipantBanner);
 document.getElementById('sm-institution').addEventListener('change', updateParticipantBanner);
 
+async function loadTasksForSupervisorMeeting(menteeId, mentorId) {
+  var taskSel = document.getElementById('sm-task');
+  var hint = document.getElementById('sm-task-hint');
+  if (!menteeId || !mentorId) {
+    taskSel.innerHTML = '<option value="">No task selected (general meeting)</option>';
+    if (hint) hint.textContent = 'Select a mentorship or mentor & mentee above to load available tasks.';
+    return;
+  }
+
+  try {
+    var resp = await fetch('/get_tasks_for_mentorship?mentee_id=' + menteeId + '&mentor_id=' + mentorId);
+    var data = await resp.json();
+    taskSel.innerHTML = '<option value="">No task selected (general meeting)</option>';
+    if (data.tasks && data.tasks.length > 0) {
+      data.tasks.forEach(function(t) {
+        var label = 'Meeting #' + t.meeting_number + ' — ' + t.month;
+        if (t.purpose) label += ' (' + t.purpose.substring(0, 60) + ')';
+        label += ' [' + t.status + ']';
+        var opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = label;
+        taskSel.appendChild(opt);
+      });
+      if (hint) hint.textContent = data.tasks.length + ' tasks available for this pair.';
+    } else {
+      if (hint) hint.textContent = 'No tasks found for this pair. Proceeding with general meeting.';
+    }
+  } catch(e) {
+    console.error('Failed to load tasks:', e);
+    if (hint) hint.textContent = 'Could not load tasks for this pair.';
+  }
+}
+
 // Mentorship selection — auto-fill mentor/mentee/institution + load tasks
 document.getElementById('sm-mentorship').addEventListener('change', async function() {
   var opt = this.options[this.selectedIndex];
   var mentorSel = document.getElementById('sm-mentor');
   var menteeSel = document.getElementById('sm-mentee');
   var instSel = document.getElementById('sm-institution');
-  var taskSection = document.getElementById('sm-task-section');
-  var taskSel = document.getElementById('sm-task');
 
   if (!this.value) {
-    // Reset and unlock mentor/mentee/institution if mentorship deselected
     mentorSel.value = '';
     menteeSel.value = '';
     if (instSel) instSel.value = '';
-    mentorSel.disabled = false;
-    menteeSel.disabled = false;
-    if (instSel) instSel.disabled = false;
-    taskSel.innerHTML = '<option value="">No task selected (general meeting)</option>';
-    document.getElementById('sm-task-hint').textContent = 'Select a mentorship above to load available tasks.';
+    mentorSel.style.pointerEvents = '';
+    mentorSel.style.backgroundColor = '';
+    menteeSel.style.pointerEvents = '';
+    menteeSel.style.backgroundColor = '';
+    if (instSel) {
+      instSel.style.pointerEvents = '';
+      instSel.style.backgroundColor = '';
+    }
+    loadTasksForSupervisorMeeting(null, null);
     updateParticipantBanner();
     return;
   }
@@ -964,37 +1001,34 @@ document.getElementById('sm-mentorship').addEventListener('change', async functi
     }
     instSel.dispatchEvent(new Event('change'));
   }
-  // Lock dropdowns so user cannot manually change them
-  // Defer by one frame so browser renders the selected value before disabling
-  requestAnimationFrame(function() {
-    mentorSel.disabled = true;
-    menteeSel.disabled = true;
-    if (instSel) instSel.disabled = true;
-  });
+  // Soft lock dropdowns (prevents visual glitch of disabled select appearing blank)
+  mentorSel.style.pointerEvents = 'none';
+  mentorSel.style.backgroundColor = '#f8fafc';
+  menteeSel.style.pointerEvents = 'none';
+  menteeSel.style.backgroundColor = '#f8fafc';
+  if (instSel) {
+    instSel.style.pointerEvents = 'none';
+    instSel.style.backgroundColor = '#f8fafc';
+  }
   updateParticipantBanner();
 
-  // Fetch tasks for this mentorship
-  try {
-    var resp = await fetch('/get_tasks_for_mentorship?mentee_id=' + menteeId + '&mentor_id=' + mentorId);
-    var data = await resp.json();
-    taskSel.innerHTML = '<option value="">No task selected (general meeting)</option>';
-    if (data.tasks && data.tasks.length > 0) {
-      data.tasks.forEach(function(t) {
-        var label = 'Meeting #' + t.meeting_number + ' — ' + t.month;
-        if (t.purpose) label += ' (' + t.purpose.substring(0, 60) + ')';
-        label += ' [' + t.status + ']';
-        var opt2 = document.createElement('option');
-        opt2.value = t.id;
-        opt2.textContent = label;
-        taskSel.appendChild(opt2);
-      });
-      taskSection.classList.remove('hidden');
-      document.getElementById('sm-task-hint').classList.remove('hidden');
-    } else {
-      taskSection.classList.add('hidden');
-    }
-  } catch(e) {
-    taskSection.classList.add('hidden');
+  // Load tasks
+  await loadTasksForSupervisorMeeting(menteeId, mentorId);
+});
+
+// Also trigger task reload when mentor or mentee dropdown changes manually
+document.getElementById('sm-mentor').addEventListener('change', function() {
+  if (!document.getElementById('sm-mentorship').value) {
+    var mentorId = this.value;
+    var menteeId = document.getElementById('sm-mentee').value;
+    loadTasksForSupervisorMeeting(menteeId, mentorId);
+  }
+});
+document.getElementById('sm-mentee').addEventListener('change', function() {
+  if (!document.getElementById('sm-mentorship').value) {
+    var menteeId = this.value;
+    var mentorId = document.getElementById('sm-mentor').value;
+    loadTasksForSupervisorMeeting(menteeId, mentorId);
   }
 });
 

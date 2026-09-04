@@ -1128,18 +1128,23 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(jsonData),
     })
-      .then(response => response.json())
+      .then(response => {
+        return response.json().catch(() => {
+          throw new Error('Unable to process request. Please try again.');
+        }).then(data => {
+          if (!response.ok || !data.success) {
+            throw new Error(data.message || 'Unable to submit request.');
+          }
+          return data;
+        });
+      })
       .then(data => {
-        if (data.success) {
-          alert(data.message);
-          closeRequestModal();
-        } else {
-          alert('Error: ' + data.message);
-        }
+        alert(data.message || 'Mentorship request sent successfully!');
+        closeRequestModal();
       })
       .catch(error => {
-        console.error('Error:', error);
-        alert('An error occurred while sending the request.');
+        console.error('Mentorship request error:', error);
+        alert(error.message || 'Unable to submit mentorship request. Please try again.');
       });
   });
 

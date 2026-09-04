@@ -931,7 +931,7 @@ async function viewTaskDetails(taskId, taskType) {
         if (taskData.success) {
             populateTaskDetailsModal(taskData.task);
             await loadAndDisplayRating(taskId, taskType);
-            loadMentorFeedback(taskId, taskType);
+            loadMentorFeedback(taskId, taskType, taskData.task.status);
             loadMenteeFeedbackFromServer(taskId, taskType);
         } else {
             alert('Error loading task details: ' + taskData.message);
@@ -1592,6 +1592,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (result.success) {
                     alert('Rating submitted successfully!');
                     closeRatingModal();
+                    // Update task card in DOM to Completed / Done
+                    updateMentorTaskCardBadge(currentTaskId, currentTaskType, true);
+                    var pt = document.getElementById('detail-progress-text');
+                    if (pt) {
+                        pt.textContent = 'Done';
+                        pt.className = 'text-sm font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full';
+                    }
+                    var st = document.getElementById('detail-task-status');
+                    if (st) {
+                        st.textContent = 'Completed';
+                        st.className = 'task-status status-completed';
+                    }
                     // Reload the rating display
                     await loadAndDisplayRating(currentTaskId, currentTaskType);
                 } else {
@@ -1680,8 +1692,21 @@ function getMentorReflectionKey(taskId, taskType) { return 'mentorReflection_' +
 function updateMentorTaskCardBadge(taskId, taskType, isDone) {
     var card = document.querySelector('.task-card[data-task-id="' + taskId + '"][data-task-type="' + taskType + '"]');
     if (!card) return;
+    
+    var statusBadge = card.querySelector('.task-status');
+    if (statusBadge) {
+        if (isDone) {
+            statusBadge.textContent = 'Completed';
+            statusBadge.className = 'task-status status-completed';
+        } else {
+            statusBadge.textContent = 'In Progress';
+            statusBadge.className = 'task-status status-in-progress';
+        }
+    }
+
     var spans = card.querySelectorAll('span');
     spans.forEach(function(span) {
+        if (span === statusBadge || span.classList.contains('task-badge') || span.classList.contains('priority-high') || span.classList.contains('priority-medium') || span.classList.contains('priority-low')) return;
         var txt = span.textContent.trim();
         if (txt === 'Done' || txt === 'Not Done' || txt === 'In Progress') {
             if (isDone) {
@@ -1713,24 +1738,36 @@ function openMentorFeedbackModal() {
 function closeMentorFeedbackModal() {
     var modal = document.getElementById('mentor-feedback-modal');
     if (modal) modal.classList.add('hidden');
-    loadMentorFeedback(currentTaskId, currentTaskType);
+    loadMentorFeedback(currentTaskId, currentTaskType, 'completed');
 }
 
-function loadMentorFeedback(taskId, taskType) {
+function loadMentorFeedback(taskId, taskType, taskStatus) {
     try {
         var key = getMentorReflectionKey(taskId, taskType);
         var raw = localStorage.getItem(key);
         var details = document.getElementById('mentor-rating-details');
         var noMsg = document.getElementById('mentor-no-rating-message');
         var progressText = document.getElementById('detail-progress-text');
+        var isCompleted = taskStatus === 'completed';
+
         if (!raw) {
             if (details) details.classList.add('hidden');
             if (noMsg) noMsg.classList.remove('hidden');
             if (progressText) {
-                progressText.textContent = 'Not Done';
-                progressText.className = 'text-sm font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full';
+                if (isCompleted) {
+                    progressText.textContent = 'Done';
+                    progressText.className = 'text-sm font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full';
+                } else if (taskStatus === 'in-progress') {
+                    progressText.textContent = 'In Progress';
+                    progressText.className = 'text-sm font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-full';
+                } else {
+                    progressText.textContent = 'Not Done';
+                    progressText.className = 'text-sm font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full';
+                }
             }
-            updateMentorTaskCardBadge(taskId, taskType, false);
+            if (isCompleted) {
+                updateMentorTaskCardBadge(taskId, taskType, true);
+            }
             return;
         }
         var data = JSON.parse(raw);
@@ -1841,10 +1878,31 @@ function saveMentorFeedback() {
     var key = getMentorReflectionKey(currentTaskId, currentTaskType);
     var payload = { text: text, extra: extra, date: new Date().toISOString() };
     localStorage.setItem(key, JSON.stringify(payload));
+
+    fetch('/save_mentor_reflection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+            task_type: currentTaskType,
+            task_id: currentTaskId,
+            text: text,
+            extra: extra,
+            date: payload.date
+        })
+    }).then(function(r) { return r.json(); }).then(function(res) {
+        console.log('Mentor reflection sync result:', res);
+    }).catch(function(err) { console.error('Failed to sync mentor reflection:', err); });
+
     var progressText = document.getElementById('detail-progress-text');
     if (progressText) {
         progressText.textContent = 'Done';
         progressText.className = 'text-sm font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full';
+    }
+    var st = document.getElementById('detail-task-status');
+    if (st) {
+        st.textContent = 'Completed';
+        st.className = 'task-status status-completed';
     }
     updateMentorTaskCardBadge(currentTaskId, currentTaskType, true);
     closeMentorFeedbackModal();

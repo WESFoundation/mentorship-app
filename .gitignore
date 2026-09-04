@@ -33,6 +33,7 @@ credentials.json
 .idea/
 *.sublime-workspace
 *.sublime-project
+.agents/
 
 # OS
 .DS_Store
