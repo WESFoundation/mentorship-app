@@ -16,6 +16,21 @@
 
   <!-- Meeting Card -->
   <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    {% if all_active_mentors and all_active_mentors|length > 1 %}
+      <div class="mb-6">
+        <label for="mentor_select" class="block text-sm font-medium text-gray-700 mb-1">Select Mentor</label>
+        <select id="mentor_select"
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+          onchange="switchMentor(this.value)">
+          {% for m in all_active_mentors %}
+          {% set mtype = mentor_types.get(m.id, '') %}
+          <option value="{{ m.id }}" {% if m.id == mentor.id %}selected{% endif %}>{{ m.name }}{% if mtype %} ({{ mtype|capitalize }} Mentor){% endif %} — {{ m.email }}</option>
+          {% endfor %}
+        </select>
+        <p class="text-xs text-gray-400 mt-1">Choose which mentor you want to schedule a meeting with.</p>
+      </div>
+    {% endif %}
+
     {% if mentor %}
       <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
         <div class="flex items-center gap-3">
@@ -26,12 +41,13 @@
           </div>
           <div>
             <p class="text-sm text-blue-600 font-medium">Meeting with</p>
-            <p class="font-semibold text-gray-900">{{ mentor.name }}</p>
+            <p class="font-semibold text-gray-900">{{ mentor.name }}{% if active_mentorship and active_mentorship.mentor_type %} <span class="text-xs font-medium bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full ml-1">{{ active_mentorship.mentor_type|capitalize }} Mentor</span>{% endif %}</p>
             <p class="text-sm text-gray-600">{{ mentor.email }}</p>
           </div>
         </div>
       </div>
       <input type="hidden" id="mentor_id" value="{{ mentor.id }}">
+      <input type="hidden" id="mentee_id" value="{{ mentee.id }}">
     {% else %}
       <div class="mb-6 p-4 bg-red-50 rounded-lg border border-red-200">
         <p class="text-red-600 font-medium">⚠ No mentor selected!</p>
@@ -73,10 +89,40 @@
       <div>
         <label for="platform" class="block text-sm font-medium text-gray-700 mb-1">Meeting Platform</label>
         <select id="platform"
-          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white">
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+          onchange="toggleCustomLink()">
           <option value="google">Google Meet</option>
           <option value="teams">Microsoft Teams</option>
+          <option value="custom">Other (Custom Link)</option>
         </select>
+      </div>
+
+      <div id="customLinkWrap" class="hidden">
+        <label for="custom_link" class="block text-sm font-medium text-gray-700 mb-1">Meeting Link</label>
+        <input type="url" id="custom_link" placeholder="https://..." 
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+        <p class="text-xs text-gray-400 mt-1">Paste your external meeting link (Zoom, Webex, etc.)</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            Your Institute
+          </label>
+          <input type="text" readonly
+            value="{{ mentee.institution if mentee and mentee.institution else 'Not specified' }}"
+            class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm cursor-not-allowed">
+          <input type="hidden" id="mentee_institute_id" value="{{ mentee.institution_id if mentee and mentee.institution_id else '' }}">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            Mentor's Institute
+          </label>
+          <input type="text" readonly
+            value="{{ mentor.institution if mentor and mentor.institution else 'Not specified' }}"
+            class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm cursor-not-allowed">
+          <input type="hidden" id="mentor_institute_id" value="{{ mentor.institution_id if mentor and mentor.institution_id else '' }}">
+        </div>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -332,6 +378,20 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
+function switchMentor(mentorId) {
+  window.location.href = "/mentee_create_meeting_request/" + mentorId;
+}
+
+function toggleCustomLink() {
+  var wrap = document.getElementById("customLinkWrap");
+  var platform = document.getElementById("platform").value;
+  if (platform === "custom") {
+    wrap.classList.remove("hidden");
+  } else {
+    wrap.classList.add("hidden");
+  }
+}
+
 async function createMeeting() {
   const title = document.getElementById("title").value.trim();
   const taskSelect = document.getElementById("task_select");
@@ -347,11 +407,22 @@ async function createMeeting() {
   const duration = document.getElementById("duration").value;
   const timezone = document.getElementById("timezone").value;
   const mentor_id = document.getElementById("mentor_id").value;
+  const mentee_id = document.getElementById("mentee_id").value;
   const platformEl = document.getElementById("platform");
   const platform = platformEl ? platformEl.value : "google";
+  const customLinkEl = document.getElementById("custom_link");
+  const custom_link = (platform === "custom" && customLinkEl) ? customLinkEl.value.trim() : "";
+  const mentorInstEl = document.getElementById("mentor_institute_id");
+  const menteeInstEl = document.getElementById("mentee_institute_id");
+  const institution_id = mentorInstEl ? mentorInstEl.value : "";
 
   if (!title || !date || !hour || !minute || !ampm || !duration || !timezone) {
     Swal.fire("Error", "Please fill all fields including time zone!", "error");
+    return;
+  }
+
+  if (platform === "custom" && !custom_link) {
+    Swal.fire("Error", "Please paste your meeting link when using a custom platform.", "error");
     return;
   }
 
@@ -385,7 +456,7 @@ async function createMeeting() {
     const response = await fetch("/create_meeting_ajax", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: finalTitle, date, start_time, duration, timezone, mentor_id })
+      body: JSON.stringify({ title: finalTitle, date, start_time, duration, timezone, mentor_id, mentee_id, platform, custom_link, institution_id })
     });
 
     let data = null;
@@ -437,6 +508,12 @@ document.addEventListener('DOMContentLoaded', function() {
   // If no exact match found, default to Asia/Kolkata for Indian users
   if (!timezoneSelect.value && userTimezone.includes('Asia/Calcutta')) {
     timezoneSelect.value = 'Asia/Kolkata';
+  }
+
+  // Auto-fill task: select the first running task if available
+  var taskSel = document.getElementById('task_select');
+  if (taskSel && taskSel.options.length > 1) {
+    taskSel.selectedIndex = 1;
   }
 });
 

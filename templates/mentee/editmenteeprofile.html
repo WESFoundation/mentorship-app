@@ -67,7 +67,7 @@
                         </div>
                         <input type="file" name="profile_picture"
                             class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" accept="image/*"
-                            title="Change profile picture">
+                            title="Change profile picture" onchange="previewProfilePhoto(this)">
                     </div>
                 </div>
 
@@ -888,6 +888,43 @@
             // Scroll to message
             messageDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
+
+        // Instant profile photo preview
+        function previewProfilePhoto(input) {
+            if (input.files && input.files[0]) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var container = input.closest('.relative');
+                    var img = container.querySelector('img');
+                    if (img) {
+                        img.src = e.target.result;
+                    } else {
+                        var placeholder = container.querySelector('div');
+                        if (placeholder) {
+                            placeholder.outerHTML = '<img src="' + e.target.result + '" alt="Profile Picture" class="w-full h-full object-cover">';
+                        }
+                    }
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+    </script>
+
+    <script>
+    // Auto-detect country code from IP (only fills empty/default fields)
+    (function() {
+        var defaultCodes = ['+1', '+91', '+01'];
+        fetch('/api/detect_country').then(function(r) { return r.json(); }).then(function(res) {
+            if (!res.success || !res.dial_code) return;
+            var code = res.dial_code;
+            var fields = document.querySelectorAll('input[name="mobile_country_code"], input[name="parent_mobile_country_code"], input[name="whatsapp_country_code"]');
+            fields.forEach(function(el) {
+                if (!el.value || defaultCodes.indexOf(el.value.trim()) !== -1) {
+                    el.value = code;
+                }
+            });
+        }).catch(function() {});
+    })();
     </script>
 
     <datalist id="country_codes">

@@ -4320,7 +4320,8 @@ def find_mentor():
         educations=options["educations"],
         experiences=options["experiences"],
         active_section="findmentor",
-        show_sidebar=True
+        show_sidebar=True,
+        current_user=current_user
     )
 
 def calculate_mentor_suggestions(mentee_profile, all_mentors, current_user_id):
@@ -5106,6 +5107,14 @@ def supervisor_calendar():
     for mr in approved_mentorships:
         mentor_name = mr.mentor.name if mr.mentor else "Unknown"
         mentee_name = mr.mentee.name if mr.mentee else "Unknown"
+        # Resolve institution user_id from mentor's or mentee's institution_id
+        inst_user_id = ""
+        for u in (mr.mentor, mr.mentee):
+            if u and u.institution_id:
+                inst = Institution.query.get(u.institution_id)
+                if inst and inst.user_id:
+                    inst_user_id = str(inst.user_id)
+                    break
         mentorships_list.append({
             "id": mr.id,
             "mentor_id": mr.mentor_id,
@@ -5113,7 +5122,8 @@ def supervisor_calendar():
             "mentor_name": mentor_name,
             "mentee_name": mentee_name,
             "purpose": mr.purpose or "",
-            "duration": mr.duration_months or 0
+            "duration": mr.duration_months or 0,
+            "inst_user_id": inst_user_id
         })
 
     return render_template(
@@ -5744,6 +5754,126 @@ def export_mentee_work():
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
+# ===== IP-BASED COUNTRY DETECTION (no DB changes) =====
+COUNTRY_DIAL_CODES = {
+    "AF": "+93", "AL": "+355", "DZ": "+213", "AS": "+1684", "AD": "+376",
+    "AO": "+244", "AI": "+1264", "AG": "+1268", "AR": "+54", "AM": "+374",
+    "AW": "+297", "AU": "+61", "AT": "+43", "AZ": "+994", "BS": "+1242",
+    "BH": "+973", "BD": "+880", "BB": "+1246", "BY": "+375", "BE": "+32",
+    "BZ": "+501", "BJ": "+229", "BM": "+1441", "BT": "+975", "BO": "+591",
+    "BA": "+387", "BW": "+267", "BR": "+55", "BN": "+673", "BG": "+359",
+    "BF": "+226", "BI": "+257", "KH": "+855", "CM": "+237", "CA": "+1",
+    "CV": "+238", "KY": "+1345", "CF": "+236", "TD": "+235", "CL": "+56",
+    "CN": "+86", "CO": "+57", "KM": "+269", "CG": "+242", "CD": "+243",
+    "CR": "+506", "CI": "+225", "HR": "+385", "CU": "+53", "CW": "+599",
+    "CY": "+357", "CZ": "+420", "DK": "+45", "DJ": "+253", "DM": "+1767",
+    "DO": "+1809", "EC": "+593", "EG": "+20", "SV": "+503", "GQ": "+240",
+    "ER": "+291", "EE": "+372", "ET": "+251", "FK": "+500", "FO": "+298",
+    "FJ": "+679", "FI": "+358", "FR": "+33", "GF": "+594", "PF": "+689",
+    "GA": "+241", "GM": "+220", "GE": "+995", "DE": "+49", "GH": "+233",
+    "GI": "+350", "GR": "+30", "GL": "+299", "GD": "+1473", "GP": "+590",
+    "GU": "+1671", "GT": "+502", "GN": "+224", "GW": "+245", "GY": "+592",
+    "HT": "+509", "HN": "+504", "HK": "+852", "HU": "+36", "IS": "+354",
+    "IN": "+91", "ID": "+62", "IR": "+98", "IQ": "+964", "IE": "+353",
+    "IL": "+972", "IT": "+39", "JM": "+1876", "JP": "+81", "JO": "+962",
+    "KZ": "+7", "KE": "+254", "KI": "+686", "KW": "+965", "KG": "+996",
+    "LA": "+856", "LV": "+371", "LB": "+961", "LS": "+266", "LR": "+231",
+    "LY": "+218", "LI": "+423", "LT": "+370", "LU": "+352", "MO": "+853",
+    "MK": "+389", "MG": "+261", "MW": "+265", "MY": "+60", "MV": "+960",
+    "ML": "+223", "MT": "+356", "MH": "+692", "MQ": "+596", "MR": "+222",
+    "MU": "+230", "YT": "+262", "MX": "+52", "FM": "+691", "MD": "+373",
+    "MC": "+377", "MN": "+976", "ME": "+382", "MS": "+1664", "MA": "+212",
+    "MZ": "+258", "MM": "+95", "NA": "+264", "NR": "+674", "NP": "+977",
+    "NL": "+31", "NC": "+687", "NZ": "+64", "NI": "+505", "NE": "+227",
+    "NG": "+234", "NU": "+683", "KP": "+850", "MP": "+1670", "NO": "+47",
+    "OM": "+968", "PK": "+92", "PW": "+680", "PS": "+970", "PA": "+507",
+    "PG": "+675", "PY": "+595", "PE": "+51", "PH": "+63", "PL": "+48",
+    "PT": "+351", "PR": "+1787", "QA": "+974", "RE": "+262", "RO": "+40",
+    "RU": "+7", "RW": "+250", "BL": "+590", "SH": "+290", "KN": "+1869",
+    "LC": "+1758", "MF": "+590", "PM": "+508", "VC": "+1784", "WS": "+685",
+    "SM": "+378", "ST": "+239", "SA": "+966", "SN": "+221", "RS": "+381",
+    "SC": "+248", "SL": "+232", "SG": "+65", "SX": "+1721", "SK": "+421",
+    "SI": "+386", "SB": "+677", "SO": "+252", "ZA": "+27", "KR": "+82",
+    "SS": "+211", "ES": "+34", "LK": "+94", "SD": "+249", "SR": "+597",
+    "SZ": "+268", "SE": "+46", "CH": "+41", "SY": "+963", "TW": "+886",
+    "TJ": "+992", "TZ": "+255", "TH": "+66", "TL": "+670", "TG": "+228",
+    "TK": "+690", "TO": "+676", "TT": "+1868", "TN": "+216", "TR": "+90",
+    "TM": "+993", "TC": "+1649", "TV": "+688", "VI": "+1340", "UG": "+256",
+    "UA": "+380", "AE": "+971", "GB": "+44", "US": "+1", "UY": "+598",
+    "UZ": "+998", "VU": "+678", "VA": "+379", "VE": "+58", "VN": "+84",
+    "WF": "+681", "YE": "+967", "ZM": "+260", "ZW": "+263"
+}
+
+@app.route("/api/detect_country")
+def api_detect_country():
+    """Detect the user's country dial code from their IP address.
+    Tries multiple free HTTPS geolocation APIs with fallback.
+    No database changes. Returns JSON with dial_code and country name.
+    """
+    import urllib.request
+    import urllib.error
+
+    # ---- Step 1: Extract client IP from common proxy headers ----
+    ip = None
+    for header in ("CF-Connecting-IP", "X-Forwarded-For", "X-Real-IP", "X-Client-IP"):
+        val = request.headers.get(header)
+        if val:
+            ip = val.split(",")[0].strip()
+            break
+    if not ip:
+        ip = request.remote_addr
+
+    # Normalise localhost / IPv6 loopback
+    if ip in ("127.0.0.1", "::1", "localhost", ""):
+        ip = None  # let the API detect from the server's real IP
+
+    # ---- Step 2: Try geolocation APIs (HTTPS only, in order) ----
+    apis = []
+    if ip:
+        apis = [
+            f"https://ipwho.is/{ip}",
+            f"https://ipapi.co/{ip}/json/",
+            f"https://api.ipify.org?format=json",  # IP-only, will chain below
+        ]
+    else:
+        apis = [
+            "https://ipwho.is/",
+            "https://ipapi.co/json/",
+        ]
+
+    for url in apis:
+        try:
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            })
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode())
+
+            # ipify only returns IP — fetch geolocation in a second call
+            if "ip" in data and "country_code" not in data:
+                ip = data["ip"]
+                geo_url = f"https://ipwho.is/{ip}"
+                geo_req = urllib.request.Request(geo_url, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                })
+                with urllib.request.urlopen(geo_req, timeout=5) as geo_resp:
+                    data = json.loads(geo_resp.read().decode())
+
+            cc = data.get("country_code") or data.get("countryCode") or ""
+            if cc:
+                dial = COUNTRY_DIAL_CODES.get(cc, "")
+                if dial:
+                    return jsonify({
+                        "success": True,
+                        "country_code": cc,
+                        "country_name": data.get("country", ""),
+                        "dial_code": dial
+                    })
+        except Exception:
+            continue  # try next API
+
+    return jsonify({"success": False, "message": "Could not detect country from IP"})
+
 @app.route("/api/export_mentee_work", methods=["POST"])
 def api_export_mentee_work():
     """External API: export a mentor's mentee work as an Excel file.
@@ -5990,6 +6120,8 @@ def rate_task(task_type, task_id):
             )
             db.session.add(new_rating)
         
+        task.status = 'completed'
+        task.completed_date = datetime.utcnow()
         db.session.commit()
         
         return jsonify({
@@ -6077,6 +6209,90 @@ def _get_all_meeting_participants():
                 pass
     return result
 
+
+def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calendar_link,
+                              platform, title, start_datetime, timezone,
+                              mentor_id, mentee_id, supervisor, requested_to):
+    """Send meeting link details to all participants via email + in-app notification.
+    Never raises; logs errors instead.
+    """
+    try:
+        # Determine all recipient emails
+        recipients = {}
+        # Supervisor (creator)
+        recipients[supervisor.id] = supervisor
+        # Requested-to user (mentor, mentee, or institution)
+        if requested_to:
+            recipients[requested_to.id] = requested_to
+        # Resolve mentor and mentee from IDs for notification
+        mentor_user = None
+        mentee_user = None
+        if mentor_id:
+            mentor_user = User.query.get(int(mentor_id))
+            if mentor_user:
+                recipients[mentor_user.id] = mentor_user
+        if mentee_id:
+            mentee_user = User.query.get(int(mentee_id))
+            if mentee_user:
+                recipients[mentee_user.id] = mentee_user
+
+        start_str = start_datetime.strftime("%B %d, %Y at %I:%M %p")
+
+        # Build link section for email
+        link_section = ""
+        if meet_link:
+            link_section = f'<p><a href="{meet_link}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Join Meeting</a></p>'
+        elif platform == "teams" and teams_calendar_link:
+            link_section = f'<p><a href="{teams_calendar_link}" style="display:inline-block;padding:12px 24px;background:#6264a7;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Open in Outlook & Create Teams Meeting</a></p>'
+        elif calendar_add_link:
+            link_section = f'<p><a href="{calendar_add_link}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Add to Google Calendar</a></p>'
+
+        # Build fallback message
+        fallback_msg = ""
+        if not meet_link and platform == "google":
+            fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No automatic meeting link was generated. Please open the Google Calendar event and click "Join with Google Meet" to get the link, then share it with participants.</p>'
+        elif not meet_link and platform == "teams":
+            fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No automatic meeting link was generated. Open the Outlook event, enable the "Teams meeting" toggle, and send the invite to generate a Teams join link.</p>'
+
+        html_body = f"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+            <h2 style="color:#1e40af;">Meeting Scheduled</h2>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:16px 0;">
+                <p><strong>Meeting:</strong> {title}</p>
+                <p><strong>Date/Time:</strong> {start_str} ({timezone})</p>
+                <p><strong>Platform:</strong> {platform.title()}</p>
+                <p><strong>Created by:</strong> {supervisor.name} ({supervisor.email})</p>
+            </div>
+            {link_section}
+            {fallback_msg}
+            {f'<p style="margin-top:12px;"><a href="{calendar_add_link}" style="color:#2563eb;">Add to Google Calendar</a></p>' if calendar_add_link and meet_link else ''}
+            <p style="color:#64748b;font-size:12px;margin-top:24px;">This email was sent by Mentor Connect.</p>
+        </div>
+        """
+
+        # Send email to all recipients
+        for uid, user in recipients.items():
+            if user and user.email:
+                try:
+                    send_email_reminder(
+                        user.email,
+                        f"Meeting Scheduled: {title}",
+                        html_body
+                    )
+                except Exception as e:
+                    app.logger.error(f"Failed to send meeting link email to {user.email}: {e}")
+
+            # Create in-app notification
+            link_url = meet_link or calendar_add_link or teams_calendar_link or ""
+            notification_msg = f'New meeting "{title}" scheduled for {start_str}'
+            if meet_link:
+                notification_msg += f' — <a href="{meet_link}">Join Meeting</a>'
+            create_notification(uid, notification_msg, link=link_url if link_url else None)
+
+    except Exception as e:
+        app.logger.error(f"Failed to send meeting link emails: {e}")
+
+
 @app.route('/save_mentee_feedback', methods=['POST'])
 def save_mentee_feedback():
     if "email" not in session or session.get("user_type") != "2":
@@ -6108,6 +6324,15 @@ def save_mentee_feedback():
         path = _get_mentee_feedback_path(task_type, task_id)
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(feedback_data, f, ensure_ascii=False, indent=2)
+
+        if task_type == 'master':
+            task = MenteeTask.query.filter_by(id=task_id, mentee_id=mentee.id).first()
+        else:
+            task = PersonalTask.query.filter_by(id=task_id, mentee_id=mentee.id).first()
+        if task and task.status == 'pending':
+            task.status = 'in-progress'
+            db.session.commit()
+
         return jsonify({'success': True, 'message': 'Feedback saved'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
@@ -6438,29 +6663,65 @@ def institution_calendar():
         except Exception:
             db.session.rollback()
 
-    # Fetch all meetings involving mentees or mentors from this institution
-    # We need to query MeetingRequest and join with User to filter by institution
-    meetings = (
+    # Fetch all meetings involving this institution:
+    # 1) Meetings created BY this institution (requester_id = institution user)
+    # 2) Meetings where a mentor/mentee from this institution is a participant
+    institution_meeting_ids = set()
+
+    # Case 1: meetings this institution created
+    created = MeetingRequest.query.filter(
+        MeetingRequest.requester_id == user.id
+    ).all()
+    for m in created:
+        institution_meeting_ids.add(m.id)
+
+    # Case 2: meetings involving a mentor/mentee from this institution
+    linked = (
         MeetingRequest.query
         .join(User, or_(MeetingRequest.requester_id == User.id, MeetingRequest.requested_to_id == User.id))
         .filter(
-            (User.user_type.in_(["1", "2"])) & # Only mentors and mentees
+            (User.user_type.in_(["1", "2"])) &
             (
                 (User.institution_id == institution_id) |
                 (User.institution == institution_name)
             )
         )
-        .order_by(MeetingRequest.meeting_date.asc(), MeetingRequest.meeting_time.asc())
         .all()
     )
+    for m in linked:
+        institution_meeting_ids.add(m.id)
+
+    meetings = MeetingRequest.query.filter(
+        MeetingRequest.id.in_(institution_meeting_ids)
+    ).order_by(
+        MeetingRequest.meeting_date.asc(), MeetingRequest.meeting_time.asc()
+    ).all()
 
     from datetime import datetime, date
     now = datetime.now()
 
     calendar_meetings = []
     for meeting in meetings:
-        mentee = User.query.get(meeting.requester_id)
-        mentor = User.query.get(meeting.requested_to_id)
+        requester = User.query.get(meeting.requester_id)
+        requested_to = User.query.get(meeting.requested_to_id)
+
+        # Determine which is mentor and which is mentee by user_type
+        mentee = None
+        mentor = None
+        if requester:
+            if requester.user_type == "2":
+                mentee = requester
+            elif requester.user_type == "1":
+                mentor = requester
+        if requested_to:
+            if requested_to.user_type == "2":
+                mentee = requested_to
+            elif requested_to.user_type == "1":
+                mentor = requested_to
+        # Fallback: if types didn't resolve, use position-based default
+        if not mentee and not mentor:
+            mentee = requester
+            mentor = requested_to
         
         meeting_datetime = datetime.combine(meeting.meeting_date, meeting.meeting_time)
         
@@ -6817,7 +7078,10 @@ def request_mentorship():
                 "message": "Your parent/guardian has not approved your participation. Please contact support if you need assistance."
             }), 403
         
-        data = request.json
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request data"}), 400
+
         mentor_id = data.get("mentor_id")
         purpose = data.get("purpose")
         mentor_type = data.get("mentor_type")
@@ -6828,6 +7092,12 @@ def request_mentorship():
         # Validate required fields
         if not all([mentor_id, purpose, mentor_type, term, duration_months, why_need_mentor]):
             return jsonify({"success": False, "message": "Missing required fields"}), 400
+
+        # Validate and convert mentor_id to integer
+        try:
+            mentor_id = int(mentor_id)
+        except (ValueError, TypeError):
+            return jsonify({"success": False, "message": "Invalid mentor ID"}), 400
 
         # Validate duration_months is a positive integer
         try:
@@ -6850,7 +7120,6 @@ def request_mentorship():
         existing_request = MentorshipRequest.query.filter_by(
             mentee_id=mentee.id,
             mentor_id=mentor_id,
-            
         ).all()
         
         # loop through existing requests to check status
@@ -7693,7 +7962,6 @@ def my_certificate():
         return redirect(url_for("signin"))
     
     # Format registration date
-    # Use created_at if available, otherwise oauth_created_at
     if user.created_at:
         registration_date = user.created_at.strftime("%B %d, %Y")
     elif user.oauth_created_at:
@@ -7701,51 +7969,193 @@ def my_certificate():
     else:
         registration_date = "Registration date not available"
     
-    # Calculate mentorship statistics
-    mentorship_stats = {}
     user_type = session.get("user_type")
     
+    # Build selectable data lists
+    connections_list = []
+    sessions_list = []
+    tasks_list = []
+    
     if user_type == "1":  # Mentor
-        # Count active mentees
+        # Active mentees
         active_mentorships = MentorshipRequest.query.filter_by(
-            mentor_id=user.id,
-            final_status="approved"
+            mentor_id=user.id, final_status="approved"
         ).all()
+        for mr in active_mentorships:
+            mentee = User.query.get(mr.mentee_id)
+            if mentee:
+                connections_list.append({
+                    "id": mr.id,
+                    "name": mentee.name,
+                    "type": "mentee"
+                })
         
-        # Count total sessions given
-        total_sessions = MeetingRequest.query.filter_by(
-            requested_to_id=user.id,
-            status="approved"
-        ).count()
+        # Sessions
+        sessions = MeetingRequest.query.filter_by(
+            requested_to_id=user.id, status="approved"
+        ).all()
+        for s in sessions:
+            requester = User.query.get(s.requester_id)
+            session_date = s.date.strftime("%b %d, %Y") if s.date else "TBD"
+            sessions_list.append({
+                "id": s.id,
+                "title": s.title or "Meeting",
+                "date": session_date,
+                "with": requester.name if requester else "Unknown"
+            })
         
-        mentorship_stats = {
-            "connected_count": len(active_mentorships),
-            "connected_type": "Active Mentees",
-            "sessions_count": total_sessions,
-            "sessions_type": "Sessions Conducted"
-        }
+        # Tasks
+        mentee_tasks = MenteeTask.query.filter_by(mentor_id=user.id).all()
+        for t in mentee_tasks:
+            mentee = User.query.get(t.mentee_id)
+            task_name = t.master_task.purpose_of_call if t.master_task else f"Task #{t.meeting_number}"
+            tasks_list.append({
+                "id": t.id,
+                "title": task_name,
+                "status": t.status or "pending",
+                "with": mentee.name if mentee else "Unknown"
+            })
+        
+        personal_tasks = PersonalTask.query.filter_by(mentor_id=user.id).all()
+        for t in personal_tasks:
+            tasks_list.append({
+                "id": f"p{t.id}",
+                "title": t.title,
+                "status": t.status or "pending",
+                "with": "Personal"
+            })
+        
+        connected_label = "Active Mentees"
+        sessions_label = "Sessions Conducted"
         
     elif user_type == "2":  # Mentee
-        # Count active mentors
+        # Active mentors
         active_mentorships = MentorshipRequest.query.filter_by(
-            mentee_id=user.id,
-            final_status="approved"
+            mentee_id=user.id, final_status="approved"
         ).all()
+        for mr in active_mentorships:
+            mentor = User.query.get(mr.mentor_id)
+            if mentor:
+                connections_list.append({
+                    "id": mr.id,
+                    "name": mentor.name,
+                    "type": "mentor"
+                })
         
-        # Count total sessions attended
-        total_sessions = MeetingRequest.query.filter_by(
-            requester_id=user.id,
-            status="approved"
-        ).count()
+        # Sessions
+        sessions = MeetingRequest.query.filter_by(
+            requester_id=user.id, status="approved"
+        ).all()
+        for s in sessions:
+            target = User.query.get(s.requested_to_id)
+            session_date = s.date.strftime("%b %d, %Y") if s.date else "TBD"
+            sessions_list.append({
+                "id": s.id,
+                "title": s.title or "Meeting",
+                "date": session_date,
+                "with": target.name if target else "Unknown"
+            })
         
-        mentorship_stats = {
-            "connected_count": len(active_mentorships),
-            "connected_type": "Active Mentors",
-            "sessions_count": total_sessions,
-            "sessions_type": "Sessions Attended"
-        }
+        # Tasks
+        mentee_tasks = MenteeTask.query.filter_by(mentee_id=user.id).all()
+        for t in mentee_tasks:
+            mentor = User.query.get(t.mentor_id)
+            task_name = t.master_task.purpose_of_call if t.master_task else f"Task #{t.meeting_number}"
+            tasks_list.append({
+                "id": t.id,
+                "title": task_name,
+                "status": t.status or "pending",
+                "with": mentor.name if mentor else "Unknown"
+            })
+        
+        personal_tasks = PersonalTask.query.filter_by(mentee_id=user.id).all()
+        for t in personal_tasks:
+            tasks_list.append({
+                "id": f"p{t.id}",
+                "title": t.title,
+                "status": t.status or "pending",
+                "with": "Personal"
+            })
+        
+        connected_label = "Active Mentors"
+        sessions_label = "Sessions Attended"
+    else:
+        connected_label = ""
+        sessions_label = ""
     
-    # Determine back URL based on user type
+    # Mentorship stats (for backward compat)
+    mentorship_stats = {
+        "connected_count": len(connections_list),
+        "connected_type": connected_label,
+        "sessions_count": len(sessions_list),
+        "sessions_type": sessions_label
+    }
+    
+    # Task stats
+    completed_tasks = sum(1 for t in tasks_list if t["status"] == "completed")
+    in_progress_tasks = sum(1 for t in tasks_list if t["status"] == "in-progress")
+    task_stats = {
+        "total": len(tasks_list),
+        "completed": completed_tasks,
+        "in_progress": in_progress_tasks,
+        "pending": len(tasks_list) - completed_tasks - in_progress_tasks
+    }
+
+    # Detailed mentorship info for page 2
+    mentorship_details = []
+    if user_type == "1":
+        for mr in active_mentorships:
+            mentee = User.query.get(mr.mentee_id)
+            mentorship_details.append({
+                "id": mr.id,
+                "partner": mentee.name if mentee else "Unknown",
+                "purpose": mr.purpose or "N/A",
+                "mentor_type": (mr.mentor_type or "N/A").capitalize(),
+                "term": ("Long-term" if mr.term == "long" else "Short-term") if mr.term else "N/A",
+                "duration": f"{mr.duration_months} months" if mr.duration_months else "N/A",
+                "status": (mr.final_status or "pending").capitalize(),
+                "started": mr.created_at.strftime("%b %d, %Y") if mr.created_at else "N/A"
+            })
+    elif user_type == "2":
+        for mr in active_mentorships:
+            mentor = User.query.get(mr.mentor_id)
+            mentorship_details.append({
+                "id": mr.id,
+                "partner": mentor.name if mentor else "Unknown",
+                "purpose": mr.purpose or "N/A",
+                "mentor_type": (mr.mentor_type or "N/A").capitalize(),
+                "term": ("Long-term" if mr.term == "long" else "Short-term") if mr.term else "N/A",
+                "duration": f"{mr.duration_months} months" if mr.duration_months else "N/A",
+                "status": (mr.final_status or "pending").capitalize(),
+                "started": mr.created_at.strftime("%b %d, %Y") if mr.created_at else "N/A"
+            })
+
+    # Task ratings for page 2
+    task_ratings = []
+    if user_type == "1":
+        ratings = TaskRating.query.filter_by(mentor_id=user.id).all()
+    elif user_type == "2":
+        ratings = TaskRating.query.filter_by(mentee_id=user.id).all()
+    else:
+        ratings = []
+    for r in ratings:
+        mentee_user = User.query.get(r.mentee_id)
+        mentor_user = User.query.get(r.mentor_id)
+        stars = "★" * r.rating + "☆" * (5 - r.rating)
+        task_ratings.append({
+            "task_id": r.task_id,
+            "task_type": r.task_type,
+            "mentee": mentee_user.name if mentee_user else "Unknown",
+            "mentor": mentor_user.name if mentor_user else "Unknown",
+            "rating": r.rating,
+            "stars": stars,
+            "feedback": r.feedback or "—",
+            "strengths": r.strengths or "—",
+            "improvements": r.improvements or "—",
+            "rated_at": r.rated_at.strftime("%b %d, %Y") if r.rated_at else "N/A"
+        })
+
+    # Determine back URL
     if user_type == "1":
         back_url = url_for("mentordashboard")
     elif user_type == "2":
@@ -7764,6 +8174,12 @@ def my_certificate():
         user_id=user.id,
         registration_date=registration_date,
         mentorship_stats=mentorship_stats,
+        task_stats=task_stats,
+        connections_list=connections_list,
+        sessions_list=sessions_list,
+        tasks_list=tasks_list,
+        mentorship_details=mentorship_details,
+        task_ratings=task_ratings,
         back_url=back_url
     )
 
@@ -8345,29 +8761,62 @@ def mentee_create_meeting_request(mentor_id):
         return redirect(url_for("signin"))
 
     mentee = User.query.filter_by(email=session["email"]).first()
-    mentor = User.query.get(mentor_id)
-    # sendUpdates="all"
 
+    if not mentee:
+        return redirect(url_for("signin"))
+
+    # Get all active mentors for this mentee
+    active_mentorships = MentorshipRequest.query.filter_by(
+        mentee_id=mentee.id,
+        final_status="approved"
+    ).all()
+    
+    all_active_mentors = []
+    mentor_types = {}
+    for mr in active_mentorships:
+        m = User.query.get(mr.mentor_id)
+        if m:
+            all_active_mentors.append(m)
+            mentor_types[m.id] = mr.mentor_type
+
+    # Check if the mentee has an active (approved) mentorship with this mentor
+    active_mentorship = MentorshipRequest.query.filter_by(
+        mentee_id=mentee.id,
+        mentor_id=mentor_id,
+        supervisor_status="approved",
+        final_status="approved"
+    ).first()
+
+    if not active_mentorship:
+        flash("You don't have an active mentorship with this mentor yet. Connect with a mentor first.", "error")
+        return redirect(url_for("my_mentors"))
+
+    mentor = User.query.get(mentor_id)
 
     if not mentor:
         flash("Mentor not found", "error")
-        return redirect(url_for("mentors_list"))  # change to your actual route
+        return redirect(url_for("my_mentors"))
 
     # Tasks currently being worked on in this mentorship (not completed yet),
     # so the mentee can pick one to discuss during the meeting
-    running_tasks = []
-    if mentee:
-        running_tasks = MenteeTask.query.filter(
-            MenteeTask.mentee_id == mentee.id,
-            MenteeTask.mentor_id == mentor.id,
-            MenteeTask.status.in_(["pending", "in-progress"])
-        ).order_by(MenteeTask.meeting_number.asc()).all()
+    running_tasks = MenteeTask.query.filter(
+        MenteeTask.mentee_id == mentee.id,
+        MenteeTask.mentor_id == mentor.id,
+        MenteeTask.status.in_(["pending", "in-progress"])
+    ).order_by(MenteeTask.meeting_number.asc()).all()
+
+    # All active institutions for the institute selection dropdown
+    all_institutions = Institution.query.filter_by(status="active").all()
 
     return render_template(
         "mentee/mentee_create_meeting_request.html",
         mentee=mentee,
         mentor=mentor,
-        running_tasks=running_tasks
+        all_active_mentors=all_active_mentors,
+        mentor_types=mentor_types,
+        active_mentorship=active_mentorship,
+        running_tasks=running_tasks,
+        all_institutions=all_institutions
     )
 
 @app.route("/get_tasks_for_mentorship")
@@ -8408,7 +8857,9 @@ def create_meeting_ajax():
     if "email" not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
-    data = request.get_json()
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Invalid request body"}), 400
     title = data.get("title")
     date = data.get("date")
     start_time = data.get("start_time")
@@ -8466,8 +8917,27 @@ def create_meeting_ajax():
     end_str = end_datetime.isoformat()
 
     platform = (data.get("platform") or "google").strip().lower()
-    if platform not in ("google", "teams"):
+    custom_link = (data.get("custom_link") or "").strip()
+    if platform not in ("google", "teams", "custom"):
         platform = "google"
+
+    # Build task context for description (must be before calendar event creation)
+    task_context = ""
+    if task_id:
+        try:
+            mentee_task = MenteeTask.query.get(int(task_id))
+            if mentee_task and mentee_task.master_task:
+                mt = mentee_task.master_task
+                task_context = (
+                    f"\n\n--- Task to Discuss ---\n"
+                    f"Meeting #{mentee_task.meeting_number} ({mentee_task.month})\n"
+                    f"Purpose: {mt.purpose_of_call}\n"
+                    f"Mentor Focus: {mt.mentor_focus}\n"
+                    f"Mentee Focus: {mt.mentee_focus}\n"
+                    f"Status: {mentee_task.status}"
+                )
+        except Exception:
+            pass
 
     meet_link = None
     gcal_event_id = None
@@ -8475,19 +8945,31 @@ def create_meeting_ajax():
     calendar_add_link = None
     teams_calendar_link = None
 
+    # Resolve all participant User objects for attendees list
+    mentor_user = User.query.get(int(mentor_id)) if mentor_id else None
+    mentee_user = User.query.get(int(mentee_id)) if mentee_id else None
+
     if platform == "google":
         service = get_calendar_service()
         if service:
             try:
+                # Build attendees list: always include supervisor + requested_to
+                # Then add mentor/mentee if they aren't the same as requested_to
+                attendees = [
+                    {"email": supervisor.email},
+                    {"email": requested_to.email}
+                ]
+                if mentor_user and mentor_user.email != requested_to.email:
+                    attendees.append({"email": mentor_user.email})
+                if mentee_user and mentee_user.email != requested_to.email:
+                    attendees.append({"email": mentee_user.email})
+
                 event = {
                     "summary": title,
                     "description": f"Meeting created by {supervisor.name} ({supervisor.email}) in {timezone} timezone{task_context}",
                     "start": {"dateTime": start_str, "timeZone": timezone},
                     "end": {"dateTime": end_str, "timeZone": timezone},
-                    "attendees": [
-                        {"email": supervisor.email},
-                        {"email": requested_to.email}
-                    ],
+                    "attendees": attendees,
                     "reminders": {
                         "useDefault": False,
                         "overrides": [
@@ -8523,6 +9005,12 @@ def create_meeting_ajax():
             calendar_warning = ("Meeting request saved without a Google Meet link because "
                                 "calendar integration is not configured.")
 
+        all_emails = [supervisor.email, requested_to.email]
+        if mentor_user and mentor_user.email not in all_emails:
+            all_emails.append(mentor_user.email)
+        if mentee_user and mentee_user.email not in all_emails:
+            all_emails.append(mentee_user.email)
+
         calendar_add_link = (
             "https://calendar.google.com/calendar/render?"
             + urlencode({
@@ -8530,10 +9018,12 @@ def create_meeting_ajax():
                 "text": title,
                 "dates": f"{start_datetime.strftime('%Y%m%dT%H%M%S')}/{end_datetime.strftime('%Y%m%dT%H%M%S')}",
                 "details": f"Meeting scheduled via Mentor Connect. Supervisor: {supervisor.email} | Participant: {requested_to.email}",
-                "add": f"{supervisor.email},{requested_to.email}",
+                "add": ",".join(all_emails),
                 "ctz": timezone,
             })
         )
+    elif platform == "custom":
+        meet_link = custom_link if custom_link else None
     else:
         tzobj = dt.timezone.utc
         try:
@@ -8547,6 +9037,12 @@ def create_meeting_ajax():
 
         start_utc = start_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
         end_utc = end_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
+
+        all_emails_teams = [supervisor.email, requested_to.email]
+        if mentor_user and mentor_user.email not in all_emails_teams:
+            all_emails_teams.append(mentor_user.email)
+        if mentee_user and mentee_user.email not in all_emails_teams:
+            all_emails_teams.append(mentee_user.email)
 
         teams_body = (
             "Meeting scheduled via Mentor Connect.\n\n"
@@ -8565,29 +9061,11 @@ def create_meeting_ajax():
                 "subject": title,
                 "startdt": start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "enddt": end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "to": f"{supervisor.email};{requested_to.email}",
+                "to": ";".join(all_emails_teams),
                 "body": teams_body,
                 "location": "Microsoft Teams Meeting",
             })
         )
-
-    # Build task context for description
-    task_context = ""
-    if task_id:
-        try:
-            mentee_task = MenteeTask.query.get(int(task_id))
-            if mentee_task and mentee_task.master_task:
-                mt = mentee_task.master_task
-                task_context = (
-                    f"\n\n--- Task to Discuss ---\n"
-                    f"Meeting #{mentee_task.meeting_number} ({mentee_task.month})\n"
-                    f"Purpose: {mt.purpose_of_call}\n"
-                    f"Mentor Focus: {mt.mentor_focus}\n"
-                    f"Mentee Focus: {mt.mentee_focus}\n"
-                    f"Status: {mentee_task.status}"
-                )
-        except Exception:
-            pass
 
     try:
         meeting = MeetingRequest(
@@ -8616,6 +9094,22 @@ def create_meeting_ajax():
                 })
             except Exception as e:
                 app.logger.error(f"Failed to save meeting participants: {e}")
+
+        # Send meeting link notification to all participants via email
+        _send_meeting_link_email(
+            meeting=meeting,
+            meet_link=meet_link,
+            calendar_add_link=calendar_add_link,
+            teams_calendar_link=teams_calendar_link,
+            platform=platform,
+            title=title,
+            start_datetime=start_datetime,
+            timezone=timezone,
+            mentor_id=mentor_id,
+            mentee_id=mentee_id,
+            supervisor=supervisor,
+            requested_to=requested_to
+        )
     except Exception as e:
         db.session.rollback()
         app.logger.error(f"Failed to save meeting request: {e}")
@@ -8633,8 +9127,8 @@ def create_meeting_ajax():
         "timezone": timezone,
         "supervisor_email": supervisor.email,
         "participant_email": requested_to.email,
-        "mentor_email": User.query.get(int(mentor_id)).email if mentor_id else requested_to.email,
-        "mentee_email": User.query.get(int(mentee_id)).email if mentee_id else ""
+        "mentor_email": mentor_user.email if mentor_user else requested_to.email,
+        "mentee_email": mentee_user.email if mentee_user else ""
     }
     if calendar_warning:
         payload["warning"] = calendar_warning
@@ -10221,13 +10715,11 @@ def resources_hub():
     else:
         # Supervisor: see everything
         notes = ResourceNote.query.order_by(ResourceNote.updated_at.desc()).all()
-        tag_options = [{"id": m.id, "name": m.name, "email": m.email} for m in User.query.filter_by(user_type="1").all()]
-        mentee_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="2").limit(50).all()]
+        tag_options = [{"id": m.id, "name": m.name, "email": m.email, "institution_id": m.institution_id} for m in User.query.filter_by(user_type="1").all()]
+        mentee_tag_options = [{"id": m.id, "name": m.name, "institution_id": m.institution_id} for m in User.query.filter_by(user_type="2").limit(50).all()]
         supervisor_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="0").filter(User.id != user.id).all()]
-        if user.institution_id:
-            inst = Institution.query.get(user.institution_id)
-            if inst:
-                institution_options = [{"id": inst.id, "name": inst.name}]
+        # Supervisor can tag any institution
+        institution_options = [{"id": inst.id, "name": inst.name} for inst in Institution.query.all()]
 
     return render_template(
         "resources_hub.html",
@@ -10281,7 +10773,7 @@ def create_note():
         institution = Institution.query.get(int(institution_id))
         if not institution:
             return jsonify({"error": "Selected institution is not valid."}), 400
-        if user.institution_id != institution.id:
+        if user.user_type != "0" and user.institution_id != institution.id:
             return jsonify({"error": "You can only tag your own institution."}), 403
 
     tagged_content = _build_tagged_content(title, content, mentor_id, institution_id, mentee_tag_id, supervisor_tag_id)
@@ -10344,7 +10836,7 @@ def update_note(note_id):
         institution = Institution.query.get(int(institution_id))
         if not institution:
             return jsonify({"error": "Selected institution is not valid."}), 400
-        if user.institution_id != institution.id:
+        if user.user_type != "0" and user.institution_id != institution.id:
             return jsonify({"error": "You can only tag your own institution."}), 403
         note.institution_id = institution.id
     elif institution_id == "":

@@ -2211,5 +2211,18 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 });
 
+// Auto-detect country code from IP (only fills empty/default fields)
+(function() {
+    var defaultCodes = ['+1', '+91', '+01'];
+    fetch('/api/detect_country').then(function(r) { return r.json(); }).then(function(res) {
+        if (!res.success || !res.dial_code) return;
+        var code = res.dial_code;
+        var el = document.querySelector('input[name="whatsapp_country_code"]');
+        if (el && (!el.value || defaultCodes.indexOf(el.value.trim()) !== -1)) {
+            el.value = code;
+        }
+    }).catch(function() {});
+})();
+
 </script>
 {% endblock %}

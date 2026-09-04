@@ -39,6 +39,52 @@
             font-family: 'Inter', sans-serif;
             background-color: hsl(220, 30%, 98%);
         }
+
+        /* Searchable Select Styles */
+        .ss-wrapper { position: relative; width: 100%; }
+        .ss-display {
+            width: 100%; padding: 0.625rem 2.5rem 0.625rem 0.75rem;
+            border: 1px solid #cbd5e1; border-radius: 0.5rem;
+            background: #fff; font-size: 0.875rem; color: #1e293b;
+            cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            line-height: 1.5;
+        }
+        .ss-display:hover { border-color: #94a3b8; }
+        .ss-display:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+        .ss-display.ss-placeholder { color: #94a3b8; }
+        .ss-arrow {
+            position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%);
+            pointer-events: none; color: #94a3b8; transition: transform 0.2s;
+        }
+        .ss-wrapper.ss-open .ss-arrow { transform: translateY(-50%) rotate(180deg); }
+        .ss-clear {
+            position: absolute; right: 1.75rem; top: 50%; transform: translateY(-50%);
+            cursor: pointer; color: #94a3b8; display: none; font-size: 14px; line-height: 1;
+        }
+        .ss-clear:hover { color: #ef4444; }
+        .ss-clear.ss-visible { display: block; }
+        .ss-dropdown {
+            position: absolute; top: 100%; left: 0; right: 0; z-index: 9999;
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 0.5rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.12); max-height: 240px;
+            display: none; margin-top: 4px; overflow: hidden;
+        }
+        .ss-wrapper.ss-open .ss-dropdown { display: block; }
+        .ss-search {
+            width: 100%; padding: 0.5rem 0.75rem; border: none; border-bottom: 1px solid #e2e8f0;
+            font-size: 0.8125rem; outline: none; background: #f8fafc;
+        }
+        .ss-search::placeholder { color: #94a3b8; }
+        .ss-options { max-height: 200px; overflow-y: auto; }
+        .ss-option {
+            padding: 0.5rem 0.75rem; font-size: 0.8125rem; cursor: pointer;
+            color: #334155; transition: background 0.1s;
+        }
+        .ss-option:hover, .ss-option.ss-highlighted { background: #eff6ff; color: #1d4ed8; }
+        .ss-option.ss-selected { background: #dbeafe; color: #1d4ed8; font-weight: 600; }
+        .ss-option.ss-nodisplay { display: none; }
+        .ss-no-results { padding: 0.75rem; font-size: 0.8125rem; color: #94a3b8; text-align: center; }
     </style>
 </head>
 
@@ -127,18 +173,6 @@
                     </a>
                 </div>
             </div>
-
-            <!-- My Certificate Button -->
-            {% if session.get('user_type') in ['1', '2'] %}
-            <a href="{{ url_for('my_certificate') }}" 
-               class="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg text-sm font-medium"
-               title="My Certificate">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path>
-                </svg>
-                <span class="hidden sm:inline">My Certificate</span>
-            </a>
-            {% endif %}
 
             <!-- Profile Dropdown -->
             <div class="relative">
@@ -433,6 +467,15 @@
                     Resources Hub
                 </a>
 
+                <a href="{{ url_for('my_certificate')}}"
+                    class="sidebar-nav-item {% if request.endpoint == 'my_certificate' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                    </svg>
+                    My Certificate
+                </a>
+
                 {% elif session.get('user_type') == '3' %}
 
                 <div class="px-4 py-2 text-xs font-bold text-white/40 uppercase tracking-widest mb-2 mt-2">Institution
@@ -604,6 +647,15 @@
                             d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                     </svg>
                     Resources Hub
+                </a>
+
+                <a href="{{ url_for('my_certificate')}}"
+                    class="sidebar-nav-item {% if request.endpoint == 'my_certificate' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                    </svg>
+                    My Certificate
                 </a>
 
                 {% endif %}
@@ -864,6 +916,289 @@
                 upgradePasswordFields();
             }
         })();
+    </script>
+
+    <!-- Searchable Select Enhancement -->
+    <script>
+    (function() {
+        var SS_MIN_OPTIONS = 5;
+
+        function upgradeSelect(sel) {
+            if (sel.classList.contains('ss-done') || sel.closest('.ss-wrapper')) return;
+            if (sel.options.length < SS_MIN_OPTIONS) return;
+            if (sel.style.display === 'none' || sel.classList.contains('hidden')) return;
+            if (sel.hasAttribute('data-no-search')) return;
+
+            var wrapper = document.createElement('div');
+            wrapper.className = 'ss-wrapper';
+
+            var display = document.createElement('div');
+            display.className = 'ss-display';
+            display.tabIndex = 0;
+
+            var arrow = document.createElement('span');
+            arrow.className = 'ss-arrow';
+            arrow.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+            var clearBtn = document.createElement('span');
+            clearBtn.className = 'ss-clear';
+            clearBtn.innerHTML = '&times;';
+            clearBtn.title = 'Clear selection';
+
+            var dropdown = document.createElement('div');
+            dropdown.className = 'ss-dropdown';
+
+            var search = document.createElement('input');
+            search.type = 'text';
+            search.className = 'ss-search';
+            search.placeholder = 'Type to search\u2026';
+            search.setAttribute('autocomplete', 'off');
+
+            var optionsList = document.createElement('div');
+            optionsList.className = 'ss-options';
+
+            var items = [];
+            var selectedValue = sel.value;
+            var highlightedIndex = -1;
+
+            // Build items from options/optgroups
+            var children = sel.childNodes;
+            for (var i = 0; i < children.length; i++) {
+                var node = children[i];
+                if (node.nodeName === 'OPTGROUP') {
+                    var grpLabel = document.createElement('div');
+                    grpLabel.className = 'ss-option ss-nodisplay';
+                    grpLabel.style.fontWeight = '700';
+                    grpLabel.style.fontSize = '0.75rem';
+                    grpLabel.style.color = '#64748b';
+                    grpLabel.style.padding = '0.5rem 0.75rem 0.25rem';
+                    grpLabel.style.cursor = 'default';
+                    grpLabel.style.background = '#f8fafc';
+                    grpLabel.textContent = node.label;
+                    optionsList.appendChild(grpLabel);
+                    var grpItems = [];
+                    for (var j = 0; j < node.options.length; j++) {
+                        var opt = node.options[j];
+                        var optEl = document.createElement('div');
+                        optEl.className = 'ss-option';
+                        optEl.textContent = opt.text;
+                        optEl.style.paddingLeft = '1.25rem';
+                        if (opt.disabled) optEl.classList.add('ss-nodisplay');
+                        var item = { val: opt.value, text: opt.text, el: optEl, groupLabel: node.label.toLowerCase(), grpLabelEl: grpLabel };
+                        items.push(item);
+                        grpItems.push(item);
+                        optionsList.appendChild(optEl);
+                    }
+                    // Show group label if any child is visible
+                    item._grpItems = grpItems;
+                } else if (node.nodeName === 'OPTION') {
+                    var opt2 = node;
+                    var optEl2 = document.createElement('div');
+                    optEl2.className = 'ss-option';
+                    optEl2.textContent = opt2.text;
+                    if (opt2.disabled) optEl2.classList.add('ss-nodisplay');
+                    items.push({ val: opt2.value, text: opt2.text, el: optEl2 });
+                    optionsList.appendChild(optEl2);
+                }
+            }
+
+            function syncFromNative() {
+                selectedValue = sel.value;
+                items.forEach(function(it) {
+                    it.el.classList.toggle('ss-selected', it.val === selectedValue);
+                });
+                var matched = items.filter(function(it) { return it.val === selectedValue; })[0];
+                display.textContent = matched ? matched.text : '';
+                display.classList.toggle('ss-placeholder', !matched);
+                clearBtn.classList.toggle('ss-visible', !!matched);
+            }
+
+            function highlight(idx) {
+                items.forEach(function(it) { it.el.classList.remove('ss-highlighted'); });
+                if (idx >= 0 && idx < items.length) {
+                    items[idx].el.classList.add('ss-highlighted');
+                    items[idx].el.scrollIntoView({ block: 'nearest' });
+                }
+                highlightedIndex = idx;
+            }
+
+            function filterOptions(term) {
+                var t = term.toLowerCase();
+                var visibleCount = 0;
+                // Track which groups have visible items
+                var groupVisible = {};
+
+                items.forEach(function(it) {
+                    var match = it.text.toLowerCase().indexOf(t) !== -1;
+                    it.el.classList.toggle('ss-nodisplay', !match);
+                    if (match) visibleCount++;
+                    if (it.grpLabelEl) {
+                        if (!groupVisible[it.groupLabel]) groupVisible[it.groupLabel] = 0;
+                        if (match) groupVisible[it.groupLabel]++;
+                    }
+                });
+
+                // Show/hide group labels
+                items.forEach(function(it) {
+                    if (it.grpLabelEl) {
+                        var vis = groupVisible[it.groupLabel] || 0;
+                        it.grpLabelEl.classList.toggle('ss-nodisplay', vis === 0);
+                    }
+                });
+
+                var noRes = optionsList.querySelector('.ss-no-results');
+                if (visibleCount === 0) {
+                    if (!noRes) {
+                        noRes = document.createElement('div');
+                        noRes.className = 'ss-no-results';
+                        noRes.textContent = 'No results found';
+                        optionsList.appendChild(noRes);
+                    }
+                } else if (noRes) {
+                    noRes.remove();
+                }
+
+                // Return index of first visible real item
+                for (var k = 0; k < items.length; k++) {
+                    if (!items[k].el.classList.contains('ss-nodisplay')) return k;
+                }
+                return -1;
+            }
+
+            function selectItem(idx) {
+                if (idx < 0 || idx >= items.length) return;
+                sel.value = items[idx].val;
+                sel.dispatchEvent(new Event('change', { bubbles: true }));
+                syncFromNative();
+                close();
+                search.value = '';
+                filterOptions('');
+            }
+
+            function open() {
+                if (wrapper.classList.contains('ss-open')) return;
+                wrapper.classList.add('ss-open');
+                syncFromNative();
+                search.value = '';
+                filterOptions('');
+                setTimeout(function() { search.focus(); }, 10);
+                var curIdx = items.findIndex(function(it) { return it.val === selectedValue; });
+                highlight(curIdx >= 0 ? curIdx : 0);
+            }
+
+            function close() {
+                wrapper.classList.remove('ss-open');
+                highlightedIndex = -1;
+            }
+
+            display.addEventListener('click', function(e) {
+                e.stopPropagation();
+                wrapper.classList.contains('ss-open') ? close() : open();
+            });
+
+            display.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+                else if (e.key === 'Escape') close();
+            });
+
+            clearBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                sel.value = '';
+                sel.dispatchEvent(new Event('change', { bubbles: true }));
+                syncFromNative();
+            });
+
+            search.addEventListener('input', function() {
+                var first = filterOptions(search.value);
+                highlight(first >= 0 ? first : -1);
+            });
+
+            search.addEventListener('keydown', function(e) {
+                var visible = items.filter(function(it) { return !it.el.classList.contains('ss-nodisplay'); });
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    var curVisIdx = visible.indexOf(items[highlightedIndex]);
+                    var next = curVisIdx + 1;
+                    if (next >= visible.length) next = 0;
+                    highlight(items.indexOf(visible[next]));
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    var curVisIdx2 = visible.indexOf(items[highlightedIndex]);
+                    var prev = curVisIdx2 - 1;
+                    if (prev < 0) prev = visible.length - 1;
+                    highlight(items.indexOf(visible[prev]));
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (highlightedIndex >= 0) selectItem(highlightedIndex);
+                } else if (e.key === 'Escape') {
+                    close();
+                }
+            });
+
+            optionsList.addEventListener('mousemove', function(e) {
+                var optEl = e.target.closest('.ss-option');
+                if (!optEl) return;
+                var idx = items.findIndex(function(it) { return it.el === optEl; });
+                if (idx !== -1) highlight(idx);
+            });
+
+            optionsList.addEventListener('click', function(e) {
+                var optEl = e.target.closest('.ss-option');
+                if (!optEl || optEl.style.cursor === 'default') return;
+                var idx = items.findIndex(function(it) { return it.el === optEl; });
+                if (idx !== -1) selectItem(idx);
+            });
+
+            dropdown.appendChild(search);
+            dropdown.appendChild(optionsList);
+            wrapper.appendChild(display);
+            wrapper.appendChild(arrow);
+            wrapper.appendChild(clearBtn);
+            wrapper.appendChild(dropdown);
+            sel.parentNode.insertBefore(wrapper, sel);
+            sel.style.display = 'none';
+            sel.classList.add('ss-done');
+            syncFromNative();
+        }
+
+        function initSearchableSelects() {
+            document.querySelectorAll('select').forEach(function(sel) {
+                upgradeSelect(sel);
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initSearchableSelects);
+        } else {
+            initSearchableSelects();
+        }
+
+        // Close all open searchable selects when clicking outside
+        document.addEventListener('click', function(e) {
+            document.querySelectorAll('.ss-wrapper.ss-open').forEach(function(w) {
+                if (!w.contains(e.target)) {
+                    w.classList.remove('ss-open');
+                }
+            });
+        });
+
+        // Re-scan after dynamic content changes (e.g. modals, AJAX)
+        var _ssObserver = new MutationObserver(function(mutations) {
+            var needRescan = false;
+            mutations.forEach(function(m) {
+                if (m.addedNodes.length) needRescan = true;
+            });
+            if (needRescan) {
+                clearTimeout(_ssObserver._timer);
+                _ssObserver._timer = setTimeout(function() {
+                    document.querySelectorAll('select:not(.ss-done)').forEach(function(sel) {
+                        upgradeSelect(sel);
+                    });
+                }, 200);
+            }
+        });
+        _ssObserver.observe(document.body, { childList: true, subtree: true });
+    })();
     </script>
 </body>
 
