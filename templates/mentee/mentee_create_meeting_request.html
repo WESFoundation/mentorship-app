@@ -476,6 +476,12 @@ document.addEventListener('DOMContentLoaded', function() {
   if (!timezoneSelect.value && userTimezone.includes('Asia/Calcutta')) {
     timezoneSelect.value = 'Asia/Kolkata';
   }
+
+  // Auto-fill task: select the first running task if available
+  var taskSel = document.getElementById('task_select');
+  if (taskSel && taskSel.options.length > 1) {
+    taskSel.selectedIndex = 1;
+  }
 });
 
 // Rotate the dropdown arrow while the task selector is open

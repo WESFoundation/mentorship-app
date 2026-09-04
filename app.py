@@ -4285,7 +4285,8 @@ def find_mentor():
         educations=options["educations"],
         experiences=options["experiences"],
         active_section="findmentor",
-        show_sidebar=True
+        show_sidebar=True,
+        current_user=current_user
     )
 
 def calculate_mentor_suggestions(mentee_profile, all_mentors, current_user_id):
