@@ -837,6 +837,11 @@
                 justify-content: center;
             }
         }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -918,6 +923,13 @@
                     </div>
                     <div class="customize-items" id="tasksItems"></div>
                 </div>
+
+                <div style="padding: 0.75rem 1rem; border-top: 1px solid #e5e7eb;">
+                    <button onclick="generateCertificate()" id="generateBtn" style="width: 100%; padding: 0.625rem 1rem; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.2s;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        Generate Certificate
+                    </button>
+                </div>
             </div>
         </div>
         {% endif %}
@@ -931,14 +943,9 @@
                         <img src="{{ url_for('static', filename='img/logo.jpg') }}" alt="WES Logo">
                     </div>
                     <div class="header-text">
-                        <div class="org-name">Wazir Education Society</div>
-                        <div class="program-name">Mentorship Connect</div>
+                        <div class="org-name">WES Foundation</div>
+                        <div class="program-name">Mentorship Program</div>
                     </div>
-                </div>
-                
-                <div class="cert-type">
-                    <div class="cert-type-dot"></div>
-                    <div class="cert-type-text">Certificate of Registration</div>
                 </div>
             </div>
 
@@ -973,10 +980,19 @@
                 </div>
 
                 <p class="cert-description">
-                    has successfully registered with <strong>Wazir Education Society</strong> 
-                    Mentorship Connect Program and is an active member of our global community dedicated to 
+                    has successfully registered with <strong>WES Foundation</strong> 
+                    Mentorship Program and is an active member of our global community dedicated to 
                     fostering educational excellence, professional growth, and meaningful collaboration.
                 </p>
+
+                {% if user_type in ['1', '2'] %}
+                <p class="cert-description" style="margin-top: 0.5rem; font-size: 0.85rem; color: #374151;">
+                    <strong>{{ user_name }}</strong>
+                    {% set completed_count = tasks_list|selectattr('status', 'equalto', 'completed')|list|length %}
+                    has {{ connections_list|length }} {{ 'Mentors' if user_type == '2' else 'Mentees' }}
+                    and has completed {{ completed_count }} out of {{ tasks_list|length }} tasks.
+                </p>
+                {% endif %}
 
                 <!-- Mentorship Statistics -->
                 {% if user_type in ['1', '2'] %}
@@ -1058,20 +1074,20 @@
                         <img src="{{ url_for('static', filename='signature/arif.png') }}" alt="Signature" style="height: 100px; margin: 0 auto 0.5rem; display: block;">
                         <div class="signature-line"></div>
                         <div class="signature-name">Director</div>
-                        <div class="signature-title">Wazir Education Society</div>
+                        <div class="signature-title">WES Foundation</div>
                     </div>
                     <div class="signature">
                         <img src="{{ url_for('static', filename='signature/Silvia.png') }}" alt="Signature" style="height: 100px; margin: 0 auto 0.5rem; display: block;">
                         <div class="signature-line"></div>
                         <div class="signature-name">Program Coordinator</div>
-                        <div class="signature-title">Mentorship Connect</div>
+                        <div class="signature-title">Mentorship Program</div>
                     </div>
                 </div>
             </div>
 
             <!-- Footer -->
             <div class="certificate-footer">
-                <div class="footer-text">Wazir Education Society | Mentorship Connect Program</div>
+                <div class="footer-text">WES Foundation | Mentorship Program</div>
                 <div class="footer-contact">mentorship.weslux.lu | info@wazireducationsociety.com</div>
             </div>
         </div>
@@ -1086,8 +1102,8 @@
                         <img src="{{ url_for('static', filename='img/logo.jpg') }}" alt="WES Logo">
                     </div>
                     <div class="header-text">
-                        <div class="org-name">Wazir Education Society</div>
-                        <div class="program-name">Mentorship Connect</div>
+                        <div class="org-name">WES Foundation</div>
+                        <div class="program-name">Mentorship Program</div>
                     </div>
                 </div>
                 <div class="cert-type">
@@ -1126,7 +1142,7 @@
                             </thead>
                             <tbody>
                                 {% for m in mentorship_details %}
-                                <tr>
+                                <tr data-connection-id="{{ m.id }}">
                                     <td>{{ loop.index }}</td>
                                     <td><strong>{{ m.partner }}</strong></td>
                                     <td>{{ m.purpose }}</td>
@@ -1168,7 +1184,7 @@
                             </thead>
                             <tbody>
                                 {% for r in task_ratings %}
-                                <tr>
+                                <tr data-task-id="{{ r.task_id }}" data-task-type="{{ r.task_type }}">
                                     <td>{{ loop.index }}</td>
                                     <td>{{ r.mentor }}</td>
                                     <td>{{ r.mentee }}</td>
@@ -1211,7 +1227,7 @@
 
             <!-- Footer -->
             <div class="certificate-footer">
-                <div class="footer-text">Wazir Education Society | Mentorship Connect Program</div>
+                <div class="footer-text">WES Foundation | Mentorship Program</div>
                 <div class="footer-contact">mentorship.weslux.lu | info@wazireducationsociety.com</div>
             </div>
         </div>
@@ -1331,6 +1347,53 @@
             document.getElementById('statTaskProgress').textContent = inProgress;
             document.getElementById('statTaskPending').textContent = pending;
             document.getElementById('tasksCount').textContent = tasksList.length;
+        }
+
+        function generateCertificate() {
+            var btn = document.getElementById('generateBtn');
+            btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="animation: spin 1s linear infinite;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Generating...';
+            btn.disabled = true;
+
+            var selConnectionIds = [];
+            document.querySelectorAll('input[data-type="connection"]:checked').forEach(function(cb) {
+                selConnectionIds.push(String(cb.dataset.id));
+            });
+            var selTaskIds = [];
+            document.querySelectorAll('input[data-type="task"]:checked').forEach(function(cb) {
+                selTaskIds.push(String(cb.dataset.id));
+            });
+
+            var certPage2 = document.getElementById('certificatePage2');
+            if (certPage2) {
+                certPage2.querySelectorAll('tr[data-connection-id]').forEach(function(row) {
+                    var id = String(row.dataset.connectionId);
+                    row.style.display = selConnectionIds.indexOf(id) === -1 ? 'none' : '';
+                });
+                certPage2.querySelectorAll('tr[data-task-id]').forEach(function(row) {
+                    var rowId = String(row.dataset.taskId);
+                    var rowType = row.dataset.taskType;
+                    var found = false;
+                    for (var i = 0; i < selTaskIds.length; i++) {
+                        var checkId = selTaskIds[i];
+                        var checkType = checkId.startsWith('p') ? 'personal' : 'master';
+                        var checkIdNum = checkId.startsWith('p') ? checkId.substring(1) : checkId;
+                        if (checkIdNum === rowId && checkType === rowType) { found = true; break; }
+                    }
+                    row.style.display = found ? '' : 'none';
+                });
+            }
+
+            updateStats();
+
+            setTimeout(function() {
+                btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Generated!';
+                btn.style.background = 'linear-gradient(135deg, #059669 0%, #047857 100%)';
+                setTimeout(function() {
+                    btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Generate Certificate';
+                    btn.style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+                    btn.disabled = false;
+                }, 2000);
+            }, 600);
         }
 
         function downloadCertificate() {

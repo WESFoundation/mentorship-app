@@ -8003,6 +8003,7 @@ def my_certificate():
         for mr in active_mentorships:
             mentee = User.query.get(mr.mentee_id)
             mentorship_details.append({
+                "id": mr.id,
                 "partner": mentee.name if mentee else "Unknown",
                 "purpose": mr.purpose or "N/A",
                 "mentor_type": (mr.mentor_type or "N/A").capitalize(),
@@ -8015,6 +8016,7 @@ def my_certificate():
         for mr in active_mentorships:
             mentor = User.query.get(mr.mentor_id)
             mentorship_details.append({
+                "id": mr.id,
                 "partner": mentor.name if mentor else "Unknown",
                 "purpose": mr.purpose or "N/A",
                 "mentor_type": (mr.mentor_type or "N/A").capitalize(),
