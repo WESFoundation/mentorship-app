@@ -1235,12 +1235,6 @@
                 if (details) details.classList.add('hidden');
                 if (noMsg) noMsg.classList.remove('hidden');
                 if (progressText) {
-<<<<<<< HEAD
-                    progressText.textContent = 'Not Started';
-                    progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
-                }
-                updateTaskCardBadge(taskId, taskType, 'not-started');
-=======
                     if (isCompleted) {
                         progressText.textContent = 'Done';
                         progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700';
@@ -1253,7 +1247,6 @@
                     }
                 }
                 updateTaskCardBadge(taskId, taskType, isCompleted ? 'done' : (taskStatus === 'in-progress' ? 'in-progress' : 'not-done'));
->>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
                 return;
             }
             var data = JSON.parse(raw);

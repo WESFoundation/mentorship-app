@@ -684,19 +684,6 @@
                     description...</p>
             </div>
 
-            <!-- Progress -->
-            <div>
-                <h4 class="font-medium text-gray-700 mb-2">Progress Tracking</h4>
-                <div class="flex items-center gap-4">
-                    <div class="flex-1">
-                        <div class="progress-bar">
-                            <div id="detail-progress-fill" class="progress-fill" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <span id="detail-progress-text" class="text-sm font-medium">0%</span>
-                </div>
-            </div>
-
             <!-- Rating Section for Supervisor -->
             <div id="rating-section" class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
                 <h4 class="font-semibold text-yellow-800 text-lg mb-3">Mentor Rating & Feedback</h4>
@@ -1102,6 +1089,7 @@
                     <span class="badge badge-primary">${task.category || 'N/A'}</span>
                 </div>
                 
+<<<<<<< HEAD
                 ${(task.status !== 'completed' && task.status !== 'done') ? `
                 <div class="flex items-center gap-3">
                     <div class="w-24">
@@ -1117,8 +1105,21 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                     </svg>
                     Completed
+=======
+                ${task.status === 'completed' ? `
+                <span class="text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center gap-1">
+                    Done
+>>>>>>> bf9109180d5347b5d60ad55663d18b2b0e396fcf
                 </span>
-                `}
+                ` : (task.status === 'in-progress' ? `
+                <span class="text-xs font-bold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 flex items-center gap-1">
+                    In Progress
+                </span>
+                ` : `
+                <span class="text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-500 border border-slate-200 flex items-center gap-1">
+                    Not Done
+                </span>
+                `)}
             </div>
         </div>
     `;
@@ -1280,8 +1281,6 @@
             document.getElementById('detail-task-updated').textContent = formatDate(task.lastUpdated || task.dueDate);
             document.getElementById('detail-task-description').textContent = task.description || 'No description available';
             document.getElementById('detail-task-instructions').textContent = task.instructions || "No additional instructions provided.";
-            document.getElementById('detail-progress-fill').style.width = `${task.progress || 0}%`;
-            document.getElementById('detail-progress-text').textContent = `${task.progress || 0}%`;
 
             // Show mentee notes if available
             if (task.menteeNotes) {
@@ -1526,10 +1525,6 @@
             setIf('detail-task-due-date', formatDate(task.dueDate));
             setIf('detail-task-category', task.category || 'N/A');
             setIf('detail-task-description', task.description || 'No description available');
-
-            const progressFill = document.getElementById('detail-progress-fill');
-            if (progressFill) progressFill.style.width = `${task.progress || 0}%`;
-            setIf('detail-progress-text', `${task.progress || 0}%`);
 
             // Safely derive task type and id for rating lookup
             let taskType = 'personal';
