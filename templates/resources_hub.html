@@ -74,7 +74,10 @@
               <span class="text-[11px] text-slate-400">{{ (note.updated_at or note.created_at).strftime('%b %d, %Y') if (note.updated_at or note.created_at) }}</span>
             </div>
           </div>
-          {% if can_write and current_user.id == note.mentee_id %}
+          {% set is_author = (current_user.id == note.mentee_id) %}
+          {% set tags = note.tags_dict if note.tags_dict else {} %}
+          {% set is_tagged = (current_user.id == note.mentor_id or tags.get('mentor') == current_user.id or tags.get('mentee') == current_user.id or tags.get('supervisor') == current_user.id or (current_user.user_type == '3' and (note.institution_id == current_user.institution_id or tags.get('inst') == current_user.institution_id))) %}
+          {% if can_write and (is_author or is_tagged or current_user.user_type == '0') %}
           <div class="flex items-center gap-0.5 flex-shrink-0">
             <button onclick="openNoteModal({{ note.id }})" title="Edit note"
               class="rh-icon-btn p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50">
@@ -82,35 +85,49 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
               </svg>
             </button>
+            {% if is_author or current_user.user_type == '0' %}
             <button onclick="deleteNote({{ note.id }})" title="Delete note"
               class="rh-icon-btn p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
               </svg>
             </button>
+            {% endif %}
           </div>
           {% endif %}
         </div>
 
         <button onclick="viewNote({{ note.id }})" class="text-left w-full group">
           <h4 class="text-[15px] font-semibold text-slate-800 group-hover:text-blue-700 transition-colors mb-1">{{ note.title }}</h4>
-          <p class="text-sm text-slate-500 line-clamp-3">{{ note.content }}</p>
+          <p class="text-sm text-slate-500 line-clamp-3">{{ note.clean_content if note.clean_content is defined else note.content }}</p>
         </button>
 
         <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
-          {% if note.mentor %}
+          {% if note.tagged_mentor_user %}
           <span class="inline-flex items-center gap-1.5 bg-purple-50 text-purple-700 text-xs font-semibold px-2.5 py-1 rounded-full">
             <span class="relative flex h-2 w-2">
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
             </span>
-            Called: {{ note.mentor.name }}
+            Called Mentor: {{ note.tagged_mentor_user.name }}
           </span>
           {% endif %}
-          {% if note.institution %}
+          {% if note.tagged_mentee_user %}
+          <span class="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+            Mentee: {{ note.tagged_mentee_user.name }}
+          </span>
+          {% endif %}
+          {% if note.tagged_supervisor_user %}
+          <span class="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            Supervisor: {{ note.tagged_supervisor_user.name }}
+          </span>
+          {% endif %}
+          {% if note.tagged_institution_obj %}
           <span class="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-semibold px-2.5 py-1 rounded-full">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-            Institution: {{ note.institution.name }}
+            Institution: {{ note.tagged_institution_obj.name }}
           </span>
           {% endif %}
         </div>
@@ -173,7 +190,7 @@
           <span class="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">optional</span>
         </label>
         <select id="noteInstitution" name="institution_id" class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white"
-          onchange="filterByInstitution()">
+          onchange="filterByInstitution(true)">
           <option value="">Don't tag institution</option>
           {% for inst in institution_options %}
           <option value="{{ inst.id }}">{{ inst.name }}</option>
@@ -276,74 +293,27 @@
     clearTimeout(toast._timer);
     toast._timer = setTimeout(() => toast.classList.add('hidden'), 3500);
   }
-
-  // ---------- Parse tags from content prefix ----------
-  function parseContentTags(raw) {
-    const prefix = '@@TAGS@@';
-    if (raw && raw.startsWith(prefix)) {
-      const nl = raw.indexOf('\n');
-      const jsonStr = nl === -1 ? raw.slice(prefix.length) : raw.slice(prefix.length, nl);
-      const clean = nl === -1 ? '' : raw.slice(nl + 1);
-      try { return { tags: JSON.parse(jsonStr), content: clean.trim() }; }
-      catch(e) { return { tags: {}, content: raw }; }
-    }
-    return { tags: {}, content: raw || '' };
-  }
-
-  // ---------- Build tagged display names ----------
-  const allUsers = {
-    {% for m in tag_options %}{{ m.id }}: {{ m.name|to_json|safe }},{% endfor %}
-    {% for m in mentee_tag_options %}{{ m.id }}: {{ m.name|to_json|safe }},{% endfor %}
-    {% for s in supervisor_tag_options %}{{ s.id }}: {{ s.name|to_json|safe }},{% endfor %}
-    {% for i in institution_options %}{{ i.id }}: {{ i.name|to_json|safe }},{% endfor %}
-  };
-
   const notesStore = {
     {% for note in notes %}
     {{ note.id }}: {{
       {
         'id': note.id,
         'title': note.title,
-        'content': note.content,
+        'content': note.clean_content if note.clean_content is defined else note.content,
         'author_name': note.mentee.name if note.mentee else 'Unknown',
-        'mentor_name': note.mentor.name if note.mentor else None,
-        'institution_name': note.institution.name if note.institution else None,
+        'mentor_id': (note.mentor_id or (note.tags_dict.get('mentor')|int if note.tags_dict.get('mentor') else None)),
+        'mentor_name': note.tagged_mentor_user.name if note.tagged_mentor_user else (note.mentor.name if note.mentor else None),
+        'mentee_tag_id': (note.tags_dict.get('mentee')|int if note.tags_dict.get('mentee') else None),
+        'mentee_tag_name': note.tagged_mentee_user.name if note.tagged_mentee_user else None,
+        'supervisor_tag_id': (note.tags_dict.get('supervisor')|int if note.tags_dict.get('supervisor') else None),
+        'supervisor_tag_name': note.tagged_supervisor_user.name if note.tagged_supervisor_user else None,
+        'institution_id': (note.institution_id or (note.tags_dict.get('inst')|int if note.tags_dict.get('inst') else None)),
+        'institution_name': note.tagged_institution_obj.name if note.tagged_institution_obj else (note.institution.name if note.institution else None),
         'date': (note.updated_at or note.created_at).strftime('%b %d, %Y') if (note.updated_at or note.created_at) else ''
       }|to_json|safe
     }}{% if not loop.last %},{% endif %}
     {% endfor %}
   };
-
-  // ---------- Enrich notesStore with parsed tags ----------
-  Object.keys(notesStore).forEach(id => {
-    const n = notesStore[id];
-    const parsed = parseContentTags(n.content);
-    n.content = parsed.content;
-    n.tags = parsed.tags;
-    n.mentee_tag_name = parsed.tags.mentee ? (allUsers[parsed.tags.mentee] || 'User #' + parsed.tags.mentee) : null;
-    n.supervisor_tag_name = parsed.tags.supervisor ? (allUsers[parsed.tags.supervisor] || 'User #' + parsed.tags.supervisor) : null;
-  });
-
-  // ---------- Populate tag badges on note cards ----------
-  Object.keys(notesStore).forEach(id => {
-    const n = notesStore[id];
-    const card = document.querySelector('[data-note-id="' + id + '"]');
-    if (!card) return;
-    const tagContainer = card.querySelector('.mt-3.pt-3');
-    if (!tagContainer) return;
-    if (n.mentee_tag_name) {
-      const badge = document.createElement('span');
-      badge.className = 'inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 text-xs font-semibold px-2.5 py-1 rounded-full';
-      badge.innerHTML = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg> Mentee: ' + n.mentee_tag_name;
-      tagContainer.appendChild(badge);
-    }
-    if (n.supervisor_tag_name) {
-      const badge = document.createElement('span');
-      badge.className = 'inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-full';
-      badge.innerHTML = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg> Supervisor: ' + n.supervisor_tag_name;
-      tagContainer.appendChild(badge);
-    }
-  });
 
   // ---------- View note ----------
   function viewNote(id) {
@@ -383,6 +353,23 @@
   // ---------- Note modal ----------
   const noteForm = document.getElementById('noteForm');
 
+  function ensureOption(sel, val, label) {
+    if (!sel || !val) return;
+    let found = false;
+    for (const opt of sel.options) {
+      if (opt.value == val) {
+        found = true;
+        opt.style.display = '';
+        break;
+      }
+    }
+    if (!found) {
+      const opt = new Option(label || ('ID #' + val), val, true, true);
+      sel.add(opt);
+    }
+    sel.value = String(val);
+  }
+
   function openNoteModal(id) {
     document.getElementById('noteId').value = id || '';
     if (id && notesStore[id]) {
@@ -390,42 +377,38 @@
       document.getElementById('noteModalTitle').textContent = 'Edit Note';
       document.getElementById('noteTitle').value = n.title;
       document.getElementById('noteContent').value = n.content;
+
       const sel = document.getElementById('noteMentor');
       if (sel) {
         sel.value = '';
-        if (n.tags && n.tags.mentor) {
-          for (const opt of sel.options) {
-            if (opt.value == n.tags.mentor) { sel.value = opt.value; break; }
-          }
+        if (n.mentor_id) {
+          ensureOption(sel, n.mentor_id, n.mentor_name);
         }
         const hint = document.getElementById('callHint');
         if (hint) hint.classList.toggle('hidden', !sel.value);
       }
+
       const menteeSel = document.getElementById('noteMenteeTag');
       if (menteeSel) {
         menteeSel.value = '';
-        if (n.tags && n.tags.mentee) {
-          for (const opt of menteeSel.options) {
-            if (opt.value == n.tags.mentee) { menteeSel.value = opt.value; break; }
-          }
+        if (n.mentee_tag_id) {
+          ensureOption(menteeSel, n.mentee_tag_id, n.mentee_tag_name);
         }
       }
+
       const supSel = document.getElementById('noteSupervisorTag');
       if (supSel) {
         supSel.value = '';
-        if (n.tags && n.tags.supervisor) {
-          for (const opt of supSel.options) {
-            if (opt.value == n.tags.supervisor) { supSel.value = opt.value; break; }
-          }
+        if (n.supervisor_tag_id) {
+          ensureOption(supSel, n.supervisor_tag_id, n.supervisor_tag_name);
         }
       }
+
       const instSel = document.getElementById('noteInstitution');
       if (instSel) {
         instSel.value = '';
-        if (n.tags && n.tags.inst) {
-          for (const opt of instSel.options) {
-            if (opt.value == n.tags.inst) { instSel.value = opt.value; break; }
-          }
+        if (n.institution_id) {
+          ensureOption(instSel, n.institution_id, n.institution_name);
         }
       }
     } else {
@@ -435,7 +418,7 @@
       if (hint) hint.classList.add('hidden');
     }
     document.getElementById('noteModal').classList.remove('hidden');
-    filterByInstitution();
+    filterByInstitution(false);
   }
 
   function closeNoteModal() {
@@ -443,7 +426,7 @@
   }
 
   // Filter mentor and mentee dropdowns by selected institution (supervisor only)
-  function filterByInstitution() {
+  function filterByInstitution(isUserAction) {
     var instSel = document.getElementById('noteInstitution');
     var mentorSel = document.getElementById('noteMentor');
     var menteeSel = document.getElementById('noteMenteeTag');
@@ -455,11 +438,11 @@
       var mentorHasVisible = false;
       Array.from(mentorSel.options).forEach(function(opt) {
         if (!opt.value) { opt.style.display = ''; return; }
-        var show = !instId || opt.getAttribute('data-inst') === instId;
+        var show = !instId || !opt.getAttribute('data-inst') || opt.getAttribute('data-inst') === instId || opt.value === mentorVal;
         opt.style.display = show ? '' : 'none';
         if (show && opt.value === mentorVal) mentorHasVisible = true;
       });
-      if (!mentorHasVisible) mentorSel.value = '';
+      if (isUserAction && !mentorHasVisible) mentorSel.value = '';
     }
 
     if (menteeSel) {
@@ -467,11 +450,11 @@
       var menteeHasVisible = false;
       Array.from(menteeSel.options).forEach(function(opt) {
         if (!opt.value) { opt.style.display = ''; return; }
-        var show = !instId || opt.getAttribute('data-inst') === instId;
+        var show = !instId || !opt.getAttribute('data-inst') || opt.getAttribute('data-inst') === instId || opt.value === menteeVal;
         opt.style.display = show ? '' : 'none';
         if (show && opt.value === menteeVal) menteeHasVisible = true;
       });
-      if (!menteeHasVisible) menteeSel.value = '';
+      if (isUserAction && !menteeHasVisible) menteeSel.value = '';
     }
   }
 

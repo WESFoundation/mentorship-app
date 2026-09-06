@@ -1196,6 +1196,92 @@ class TaskRating(db.Model):
         return f"<TaskRating {self.rating}/5 for task {self.task_id}>"
 
 
+#------------Mentee Feedback Table-------------------
+class MenteeFeedback(db.Model):
+    __tablename__ = "mentee_feedbacks"
+
+    id = db.Column(db.Integer, primary_key=True)
+    mentee_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+    task_id = db.Column(db.Integer, nullable=False)
+    task_type = db.Column(db.String(20), nullable=False)  # 'master' or 'personal'
+    rating = db.Column(db.Integer)  # 1 to 5
+    mentor_rating = db.Column(db.Integer)  # 1 to 5
+    text = db.Column(db.Text)
+    challenges = db.Column(db.Text)
+    next_steps = db.Column(db.Text)
+    extra = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    mentee = db.relationship("User", foreign_keys=[mentee_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'mentee_id': self.mentee_id,
+            'mentee_name': self.mentee.name if self.mentee else '',
+            'task_type': self.task_type,
+            'task_id': self.task_id,
+            'rating': str(self.rating) if self.rating is not None else '',
+            'mentor_rating': str(self.mentor_rating) if self.mentor_rating is not None else '',
+            'text': self.text or '',
+            'challenges': self.challenges or '',
+            'nextSteps': self.next_steps or '',
+            'extra': self.extra or '',
+            'date': self.created_at.isoformat() if self.created_at else ''
+        }
+
+
+#------------Mentor Reflection Table-------------------
+class MentorReflection(db.Model):
+    __tablename__ = "mentor_reflections"
+
+    id = db.Column(db.Integer, primary_key=True)
+    mentor_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+    task_id = db.Column(db.Integer, nullable=False)
+    task_type = db.Column(db.String(20), nullable=False)  # 'master' or 'personal'
+    text = db.Column(db.Text)
+    extra = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    mentor = db.relationship("User", foreign_keys=[mentor_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'mentor_id': self.mentor_id,
+            'mentor_name': self.mentor.name if self.mentor else '',
+            'task_type': self.task_type,
+            'task_id': self.task_id,
+            'text': self.text or '',
+            'extra': self.extra or '',
+            'date': self.created_at.isoformat() if self.created_at else ''
+        }
+
+
+#------------Institution Reflection Table-------------------
+class InstitutionReflection(db.Model):
+    __tablename__ = "institution_reflections"
+
+    id = db.Column(db.Integer, primary_key=True)
+    institution_id = db.Column(db.Integer, nullable=False)
+    task_id = db.Column(db.Integer, nullable=False)
+    task_type = db.Column(db.String(20), nullable=False)  # 'master' or 'personal'
+    text = db.Column(db.Text)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'institution_id': self.institution_id,
+            'task_type': self.task_type,
+            'task_id': self.task_id,
+            'text': self.text or '',
+            'notes': self.notes or '',
+            'date': self.created_at.isoformat() if self.created_at else ''
+        }
+
+
 #------------Chat System Tables-------------------
 class ChatConversation(db.Model):
     """
@@ -1251,16 +1337,35 @@ class ChatMessage(db.Model):
 
 
 #------------Resources Hub - Notes Table-------------------
+_TAG_PREFIX = "@@TAGS@@"
+
+def _parse_tags_from_content(content):
+    """Extract tag metadata from content prefix. Returns (tags_dict, clean_content)."""
+    if content and content.startswith(_TAG_PREFIX):
+        line_end = content.find("\n")
+        if line_end == -1:
+            line_end = len(content)
+        json_str = content[len(_TAG_PREFIX):line_end].strip()
+        clean = content[line_end + 1:] if line_end < len(content) else ""
+        try:
+            import json as _json
+            tags = _json.loads(json_str)
+            return tags, clean.strip()
+        except Exception:
+            return {}, content
+    return {}, content or ""
+
+
 class ResourceNote(db.Model):
     """
-    Notes written by the mentee in the Resources Hub.
-    A mentee can call/tag a mentor and tag their institution on a note.
+    Notes written in the Resources Hub.
+    Can tag a mentor, mentee, supervisor, or institution on a note.
     """
     __tablename__ = "resource_notes"
 
     id = db.Column(db.Integer, primary_key=True)
 
-    # Who the note is about (the mentee who wrote it)
+    # Who wrote the note (user id of creator)
     mentee_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
 
     # Called/tagged mentor
@@ -1281,8 +1386,43 @@ class ResourceNote(db.Model):
     mentor = db.relationship("User", foreign_keys=[mentor_id], backref="tagged_notes")
     institution = db.relationship("Institution", foreign_keys=[institution_id], backref="tagged_notes")
 
+    @property
+    def tags_dict(self):
+        tags, _ = _parse_tags_from_content(self.content)
+        return tags
+
+    @property
+    def clean_content(self):
+        _, clean = _parse_tags_from_content(self.content)
+        return clean
+
     def __repr__(self):
         return f"<ResourceNote {self.id}: {self.title}>"
+
+
+class MentorSourcingRequest(db.Model):
+    """
+    Mentor sourcing request or contact/feedback submitted by a mentee when they cannot find the mentor they need.
+    """
+    __tablename__ = "mentor_sourcing_requests"
+
+    id = db.Column(db.Integer, primary_key=True)
+    mentee_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+    name = db.Column(db.String(150), nullable=True)
+    email = db.Column(db.String(150), nullable=True)
+    target_role = db.Column(db.String(200), nullable=True)
+    target_industry = db.Column(db.String(200), nullable=True)
+    skills_needed = db.Column(db.String(300), nullable=True)
+    preferred_experience = db.Column(db.String(100), nullable=True)
+    message = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(50), default="pending")  # pending, sourcing, resolved
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    mentee = db.relationship("User", foreign_keys=[mentee_id], backref="mentor_sourcing_requests")
+
+    def __repr__(self):
+        return f"<MentorSourcingRequest {self.id}: {self.target_role} - {self.target_industry}>"
+
 
 
 def assign_master_tasks_to_mentorship(mentorship_request):
@@ -1595,11 +1735,11 @@ def signup():
 def signin():
     if request.method == "POST":
         session.permanent = True
-        email = request.form["email"]
+        email = request.form["email"].strip().lower()
         password = request.form["password"]
 
         # fetch user from "database"
-        user = User.query.filter_by(email=email).first()
+        user = User.query.filter(db.func.lower(User.email) == email).first()
 
         # Check if user exists
         if not user:
@@ -1931,7 +2071,8 @@ def callback():
                     break
         
         if user:
-            if user.email != email:
+            # Case-insensitive check: same canonical email = same person
+            if _canonical_email(user.email) != _canonical_email(email):
                 print(f"   ⛔ Duplicate blocked: '{email}' is a variant of existing account '{user.email}'")
                 flash("An account already exists with this email address. Please sign in with your existing Mentor Connect account instead of creating a new one.", "error")
                 return redirect(url_for("signin"))
@@ -1939,13 +2080,20 @@ def callback():
             print(f"   User ID: {user.id}")
             print(f"   User Type: {user.user_type}")
             
-            # Update Google ID if not set
+            # Normalize stored email to lowercase + update Google ID
+            needs_commit = False
+            if user.email != email:
+                print(f"   🔄 Normalizing email: '{user.email}' → '{email}'")
+                user.email = email
+                needs_commit = True
             if not user.google_id:
                 user.google_id = google_id
                 user.oauth_provider = 'google'
                 user.profile_picture_url = picture_url
+                needs_commit = True
+            if needs_commit:
                 db.session.commit()
-                print(f"   ✅ Updated user with Google ID")
+                print(f"   ✅ Updated user record")
             
             print(f"\n📍 Step 8: Setting session for existing user")
             session.permanent = True
@@ -3041,7 +3189,7 @@ def create_account():
     
     if request.method == "POST":
         name = request.form.get("name")
-        email = request.form.get("email")
+        email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password")
         confirm_password = request.form.get("confirm_password")
         user_type = request.form.get("user_type")
@@ -3072,7 +3220,7 @@ def create_account():
             return redirect(url_for("create_account"))
         
         # Check if email already exists
-        existing_user = User.query.filter_by(email=email).first()
+        existing_user = User.query.filter(db.func.lower(User.email) == email).first()
         if existing_user:
             flash("Email already exists! Please use a different email.", "error")
             return redirect(url_for("create_account"))
@@ -3308,10 +3456,16 @@ def institutiondashboard():
         )\
         .all()
 
-    # Notes written by the institution in the Resources Hub
-    institution_notes = ResourceNote.query.filter(
-        ResourceNote.mentee_id == user.id
-    ).count()
+    # Notes written by or tagging the institution in the Resources Hub
+    inst_id = institution.id if institution else user.institution_id
+    all_res_notes = ResourceNote.query.all()
+    institution_notes = 0
+    for rn in all_res_notes:
+        if rn.mentee_id == user.id:
+            institution_notes += 1
+        elif inst_id and (rn.institution_id == inst_id or rn.tags_dict.get("inst") == inst_id):
+            institution_notes += 1
+
 
     return render_template(
         "institution/institutiondashboard.html",
@@ -3797,13 +3951,13 @@ def institution_all_tasks():
             all_institution_tasks.append({
                 "id": f"master_{task.id}",
                 "serial": f"M-{task.id}",
-                "title": master_task.purpose_of_call if master_task else "Master Task",
+                "title": master_task.purpose_of_call if master_task else "Mentorship Task",
                 "description": master_task.mentee_focus if master_task else "No description",
                 "due_date": task.due_date,
                 "status": compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id),
                 "progress": task.progress or 0,
                 "priority": "high",  # Master tasks are typically high priority
-                "category": "Master Task",
+                "category": "Mentorship Task",
                 "mentor_id": task.mentor_id,
                 "mentor_name": mentor.name if mentor else "Unknown",
                 "mentor_email": mentor.email if mentor else "",
@@ -3856,6 +4010,24 @@ def get_institution_tasks_data():
     
     institution_user_ids = [user.id for user in institution_users]
     
+    # Pre-fetch all ratings in memory to avoid N+1 queries
+    ratings = TaskRating.query.all()
+    ratings_map = {(r.task_type, r.task_id): r.rating for r in ratings}
+
+    inst_id_val = institution_id or user.id
+
+    # Pre-fetch all mentee feedbacks and institution reflections
+    mentee_feedbacks = MenteeFeedback.query.all()
+    mentee_ratings_map = {(mf.task_type, mf.task_id): (mf.rating or 0) for mf in mentee_feedbacks}
+    inst_reflections = InstitutionReflection.query.filter_by(institution_id=inst_id_val).all()
+    inst_refl_map = {(ir.task_type, ir.task_id): bool(ir.text) for ir in inst_reflections}
+
+    def _get_mentee_rating_val(ttype, tid):
+        return mentee_ratings_map.get((ttype, tid), 0)
+
+    def _get_has_reflection_val(ttype, tid):
+        return inst_refl_map.get((ttype, tid), False)
+    
     tasks_data = []
     
     # Get Personal Tasks
@@ -3866,6 +4038,7 @@ def get_institution_tasks_data():
     for task in personal_tasks:
         mentee = db.session.get(User, task.mentee_id)
         mentor = db.session.get(User, task.mentor_id) if task.mentor_id else None
+        m_rating = ratings_map.get(('personal', task.id), getattr(task, 'rating', 0) or 0)
         
         tasks_data.append({
             "id": f"personal_{task.id}",
@@ -3882,7 +4055,9 @@ def get_institution_tasks_data():
             "menteeId": task.mentee_id,
             "menteeName": mentee.name if mentee else "Unknown",
             "type": "personal",
-            "rating": getattr(task, 'rating', 0) or 0,
+            "rating": m_rating,
+            "menteeRating": _get_mentee_rating_val("personal", task.id),
+            "hasReflection": _get_has_reflection_val("personal", task.id),
             "isCritical": task.is_critical if hasattr(task, 'is_critical') else False
         })
     
@@ -3895,22 +4070,26 @@ def get_institution_tasks_data():
         mentee = db.session.get(User, task.mentee_id)
         mentor = db.session.get(User, task.mentor_id)
         master_task = db.session.get(MasterTask, task.task_id) if task.task_id else None
+        m_rating = ratings_map.get(('master', task.id), 0)
         
         tasks_data.append({
             "id": f"master_{task.id}",
             "serial": f"M-{task.id}",
-            "title": master_task.purpose_of_call if master_task else "Master Task",
+            "title": master_task.purpose_of_call if master_task else "Mentorship Task",
             "description": master_task.mentee_focus if master_task else "No description",
             "dueDate": task.due_date.isoformat() if task.due_date else None,
             "status": compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id),
             "progress": task.progress or 0,
             "priority": "high",
-            "category": "Master Task",
+            "category": "Mentorship Task",
             "mentorId": task.mentor_id,
             "mentorName": mentor.name if mentor else "Unknown",
             "menteeId": task.mentee_id,
             "menteeName": mentee.name if mentee else "Unknown",
             "type": "master",
+            "rating": m_rating,
+            "menteeRating": _get_mentee_rating_val("master", task.id),
+            "hasReflection": _get_has_reflection_val("master", task.id),
             "isCritical": True
         })
     
@@ -4288,6 +4467,55 @@ def find_mentor():
         show_sidebar=True,
         current_user=current_user
     )
+
+
+@app.route("/api/mentor_sourcing_request", methods=["POST"])
+def submit_mentor_sourcing_request():
+    """Handle mentor sourcing / feedback request submitted by mentee."""
+    if "email" not in session:
+        return jsonify({"success": False, "error": "Please sign in to submit a request."}), 401
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return jsonify({"success": False, "error": "User account not found."}), 404
+
+    target_role = (request.form.get("target_role") or "").strip()
+    target_industry = (request.form.get("target_industry") or "").strip()
+    skills_needed = (request.form.get("skills_needed") or "").strip()
+    preferred_experience = (request.form.get("preferred_experience") or "").strip()
+    message = (request.form.get("message") or "").strip()
+
+    if not target_role:
+        return jsonify({"success": False, "error": "Please enter the target role or title."}), 400
+    if not target_industry:
+        return jsonify({"success": False, "error": "Please enter the target industry or domain."}), 400
+    if not message:
+        return jsonify({"success": False, "error": "Please provide details on what you are looking for."}), 400
+
+    try:
+        req = MentorSourcingRequest(
+            mentee_id=user.id,
+            name=user.name,
+            email=user.email,
+            target_role=target_role,
+            target_industry=target_industry,
+            skills_needed=skills_needed,
+            preferred_experience=preferred_experience,
+            message=message,
+            status="pending",
+            created_at=datetime.utcnow()
+        )
+        db.session.add(req)
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Thank you! Your mentor request has been submitted. Our team will review your specifics and work to source a mentor for you."
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": "An error occurred while saving your request. Please try again."}), 500
+
 
 def calculate_mentor_suggestions(mentee_profile, all_mentors, current_user_id):
     """
@@ -4841,16 +5069,67 @@ def view_requests():
     
     mentor_requests = MentorProfile.query.filter_by(status="pending").all()
     mentee_requests = MenteeProfile.query.filter_by(status="pending").all()
+    sourcing_requests_count = MentorSourcingRequest.query.count()
 
     return render_template(
         "supervisor/supervisor_request.html",
         all_requests=all_mentorship_requests,
         mentor_requests=mentor_requests,
         mentee_requests=mentee_requests,
+        sourcing_requests_count=sourcing_requests_count,
         status_filter=status_filter,
         active_section="requests",
         show_sidebar=True
     )
+
+
+@app.route("/supervisor/mentor_sourcing_requests")
+def supervisor_sourcing_requests():
+    """Subpage showing mentor sourcing / feedback requests submitted by mentees."""
+    if "email" not in session or session.get("user_type") != "0":
+        return redirect(url_for("signin"))
+
+    status_filter = request.args.get("status", "all")
+    query = MentorSourcingRequest.query.options(joinedload(MentorSourcingRequest.mentee))
+
+    if status_filter in ("pending", "sourcing", "resolved"):
+        query = query.filter_by(status=status_filter)
+
+    requests_list = query.order_by(MentorSourcingRequest.created_at.desc()).all()
+
+    total_count = MentorSourcingRequest.query.count()
+    pending_count = MentorSourcingRequest.query.filter_by(status="pending").count()
+    sourcing_count = MentorSourcingRequest.query.filter_by(status="sourcing").count()
+    resolved_count = MentorSourcingRequest.query.filter_by(status="resolved").count()
+
+    return render_template(
+        "supervisor/supervisor_sourcing_requests.html",
+        requests=requests_list,
+        status_filter=status_filter,
+        total_count=total_count,
+        pending_count=pending_count,
+        sourcing_count=sourcing_count,
+        resolved_count=resolved_count,
+        active_section="requests",
+        show_sidebar=True
+    )
+
+
+@app.route("/api/mentor_sourcing_request/<int:req_id>/status", methods=["POST"])
+def update_mentor_sourcing_request_status(req_id):
+    """Update status of a mentor sourcing request (pending, sourcing, resolved)."""
+    if "email" not in session or session.get("user_type") != "0":
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    req = MentorSourcingRequest.query.get_or_404(req_id)
+    new_status = (request.form.get("status") or "").strip().lower()
+    if new_status not in ("pending", "sourcing", "resolved"):
+        return jsonify({"success": False, "error": "Invalid status."}), 400
+
+    req.status = new_status
+    db.session.commit()
+    return jsonify({"success": True, "message": f"Status updated to {new_status.capitalize()}."})
+
 
 @app.route("/mentee_calendar")
 def mentee_calendar():
@@ -5080,12 +5359,20 @@ def supervisor_calendar():
                 if inst and inst.user_id:
                     inst_user_id = str(inst.user_id)
                     break
+        mentor_inst = (mr.mentor.institution or (mr.mentor.institution_ref.name if mr.mentor and mr.mentor.institution_ref else "")) if mr.mentor else ""
+        mentee_inst = (mr.mentee.institution or (mr.mentee.institution_ref.name if mr.mentee and mr.mentee.institution_ref else "")) if mr.mentee else ""
+        mentor_inst_id = mr.mentor.institution_id if mr.mentor and mr.mentor.institution_id else ""
+        mentee_inst_id = mr.mentee.institution_id if mr.mentee and mr.mentee.institution_id else ""
         mentorships_list.append({
             "id": mr.id,
             "mentor_id": mr.mentor_id,
             "mentee_id": mr.mentee_id,
             "mentor_name": mentor_name,
             "mentee_name": mentee_name,
+            "mentor_institution": (mentor_inst or "").strip(),
+            "mentee_institution": (mentee_inst or "").strip(),
+            "mentor_inst_id": mentor_inst_id,
+            "mentee_inst_id": mentee_inst_id,
             "purpose": mr.purpose or "",
             "duration": mr.duration_months or 0,
             "inst_user_id": inst_user_id
@@ -5159,6 +5446,12 @@ def mentee_tasks():
 
     # Calculate statistics using computed task progress status
     total_tasks = len(assigned_tasks) + len(personal_tasks)
+<<<<<<< HEAD
+=======
+    completed_tasks = len([t for t in assigned_tasks if t.status == 'completed']) + len([t for t in personal_tasks if t.status == 'completed'])
+    pending_tasks = len([t for t in assigned_tasks if t.status in ('pending', 'in-progress')]) + len([t for t in personal_tasks if t.status in ('pending', 'in-progress')])
+    
+>>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
     today = datetime.utcnow().date()
 
     done_tasks = 0
@@ -5276,7 +5569,7 @@ def update_task_status():
             # Update master task
             task = MenteeTask.query.filter_by(id=task_id, mentee_id=mentee.id).first()
             if not task:
-                return jsonify({"success": False, "message": "Master task not found"})
+                return jsonify({"success": False, "message": "Mentorship task not found"})
             
             task.status = status
             if status == 'completed':
@@ -5384,7 +5677,7 @@ def get_task_details(task_id):
                 .first()
             
             if not task:
-                return jsonify({"success": False, "message": "Master task not found"})
+                return jsonify({"success": False, "message": "Mentorship task not found"})
             
             # Verify access rights
             user = User.query.filter_by(email=session["email"]).first()
@@ -6005,7 +6298,7 @@ def get_mentor_task_details(task_id):
                 .first()
             
             if not task:
-                return jsonify({"success": False, "message": "Master task not found"})
+                return jsonify({"success": False, "message": "Mentorship task not found"})
             
             # Verify the mentor has access to this task
             mentor = User.query.filter_by(email=session["email"]).first()
@@ -6125,6 +6418,12 @@ def rate_task(task_type, task_id):
             )
             db.session.add(new_rating)
         
+<<<<<<< HEAD
+=======
+        task.status = 'completed'
+        task.progress = 100
+        task.completed_date = datetime.utcnow()
+>>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
         db.session.commit()
         
         return jsonify({
@@ -6169,13 +6468,6 @@ def get_task_rating(task_type, task_id):
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
-
-# ===== MENTEE FEEDBACK SYNC (JSON file, no DB changes) =====
-MENTEE_FEEDBACK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mentee_feedback_data')
-
-def _get_mentee_feedback_path(task_type, task_id):
-    os.makedirs(MENTEE_FEEDBACK_DIR, exist_ok=True)
-    return os.path.join(MENTEE_FEEDBACK_DIR, f'{task_type}_{task_id}.json')
 
 # ===== MEETING PARTICIPANT SYNC (JSON file, no DB changes) =====
 MEETING_PARTICIPANTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'meeting_participants_data')
@@ -6355,7 +6647,15 @@ def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calend
         if not meet_link and platform == "google":
             fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No automatic meeting link was generated. Please open the Google Calendar event and click "Join with Google Meet" to get the link, then share it with participants.</p>'
         elif not meet_link and platform == "teams":
+<<<<<<< HEAD
             fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">Click the link below to open Microsoft Teams and create your meeting with a join link.</p>'
+=======
+            fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No automatic meeting link was generated. Open the Outlook event, enable the "Teams meeting" toggle, and send the invite to generate a Teams join link.</p>'
+        elif not meet_link and platform == "custom":
+            fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No meeting link was provided for this custom meeting.</p>'
+
+        platform_display = "Other (Custom Link)" if platform == "custom" else ("Microsoft Teams" if platform == "teams" else "Google Meet")
+>>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
 
         html_body = f"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
@@ -6363,7 +6663,7 @@ def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calend
             <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:16px 0;">
                 <p><strong>Meeting:</strong> {title}</p>
                 <p><strong>Date/Time:</strong> {start_str} ({timezone})</p>
-                <p><strong>Platform:</strong> {platform.title()}</p>
+                <p><strong>Platform:</strong> {platform_display}</p>
                 <p><strong>Created by:</strong> {supervisor.name} ({supervisor.email})</p>
             </div>
             {link_section}
@@ -6411,24 +6711,37 @@ def save_mentee_feedback():
         task_id = data.get('task_id')
         if not task_type or not task_id:
             return jsonify({'success': False, 'message': 'Missing task_type or task_id'})
-        feedback_data = {
-            'mentee_id': mentee.id,
-            'mentee_name': mentee.name,
-            'task_type': task_type,
-            'task_id': task_id,
-            'rating': data.get('rating', ''),
-            'mentor_rating': data.get('mentor_rating', ''),
-            'text': data.get('text', ''),
-            'challenges': data.get('challenges', ''),
-            'nextSteps': data.get('nextSteps', ''),
-            'extra': data.get('extra', ''),
-            'date': data.get('date', datetime.utcnow().isoformat())
-        }
-        path = _get_mentee_feedback_path(task_type, task_id)
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(feedback_data, f, ensure_ascii=False, indent=2)
+        feedback = MenteeFeedback.query.filter_by(task_type=task_type, task_id=task_id).first()
+        if not feedback:
+            feedback = MenteeFeedback(
+                mentee_id=mentee.id,
+                task_type=task_type,
+                task_id=task_id
+            )
+            db.session.add(feedback)
+        feedback.mentee_id = mentee.id
+        feedback.rating = int(data.get('rating')) if data.get('rating') else None
+        feedback.mentor_rating = int(data.get('mentor_rating')) if data.get('mentor_rating') else None
+        feedback.text = data.get('text', '')
+        feedback.challenges = data.get('challenges', '')
+        feedback.next_steps = data.get('nextSteps', '')
+        feedback.extra = data.get('extra', '')
+        feedback.created_at = datetime.utcnow()
 
+<<<<<<< HEAD
         return jsonify({'success': True, 'message': 'Feedback saved'})
+=======
+        if task_type == 'master':
+            task = MenteeTask.query.filter_by(id=task_id, mentee_id=mentee.id).first()
+        else:
+            task = PersonalTask.query.filter_by(id=task_id, mentee_id=mentee.id).first()
+        if task and task.status in ('pending', None, ''):
+            task.status = 'in-progress'
+            task.progress = 50
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Feedback saved', 'feedback': feedback.to_dict()})
+>>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -6437,12 +6750,114 @@ def get_mentee_feedback(task_type, task_id):
     if "email" not in session or session.get("user_type") not in ("1", "0", "3"):
         return jsonify({'success': False, 'message': 'Unauthorized'})
     try:
-        path = _get_mentee_feedback_path(task_type, task_id)
-        if not os.path.exists(path):
+        feedback = MenteeFeedback.query.filter_by(task_type=task_type, task_id=task_id).first()
+        if not feedback:
             return jsonify({'success': True, 'feedback': None})
-        with open(path, 'r', encoding='utf-8') as f:
-            feedback_data = json.load(f)
-        return jsonify({'success': True, 'feedback': feedback_data})
+        return jsonify({'success': True, 'feedback': feedback.to_dict()})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+# ===== MENTOR TASK REFLECTION SYNC =====
+@app.route('/save_mentor_reflection', methods=['POST'])
+def save_mentor_reflection():
+    if "email" not in session or session.get("user_type") != "1":
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    try:
+        mentor = User.query.filter_by(email=session["email"]).first()
+        if not mentor:
+            return jsonify({'success': False, 'message': 'Mentor not found'})
+        data = request.get_json(force=True)
+        if not data:
+            return jsonify({'success': False, 'message': 'Invalid JSON body'})
+        task_type = data.get('task_type')
+        task_id = data.get('task_id')
+        if not task_type or not task_id:
+            return jsonify({'success': False, 'message': 'Missing task_type or task_id'})
+
+        reflection = MentorReflection.query.filter_by(task_type=task_type, task_id=task_id).first()
+        if not reflection:
+            reflection = MentorReflection(
+                mentor_id=mentor.id,
+                task_type=task_type,
+                task_id=task_id
+            )
+            db.session.add(reflection)
+        reflection.mentor_id = mentor.id
+        reflection.text = (data.get('text') or '').strip()
+        reflection.extra = (data.get('extra') or '').strip()
+        reflection.created_at = datetime.utcnow()
+
+        # Update task status to completed
+        if task_type == 'master':
+            task = MenteeTask.query.filter_by(id=task_id, mentor_id=mentor.id).first()
+        else:
+            task = PersonalTask.query.filter_by(id=task_id, mentor_id=mentor.id).first()
+        if task:
+            task.status = 'completed'
+            task.progress = 100
+            task.completed_date = datetime.utcnow()
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Reflection saved', 'reflection': reflection.to_dict()})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/get_mentor_reflection/<task_type>/<int:task_id>')
+def get_mentor_reflection(task_type, task_id):
+    try:
+        reflection = MentorReflection.query.filter_by(task_type=task_type, task_id=task_id).first()
+        if not reflection:
+            return jsonify({'success': True, 'reflection': None})
+        return jsonify({'success': True, 'reflection': reflection.to_dict()})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+# ===== INSTITUTION TASK REFLECTION SYNC =====
+@app.route('/save_institution_reflection', methods=['POST'])
+def save_institution_reflection():
+    if "email" not in session or session.get("user_type") != "3":
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    try:
+        user = User.query.filter_by(email=session["email"]).first()
+        if not user:
+            return jsonify({'success': False, 'message': 'User not found'})
+        inst_id = user.institution_id or user.id
+        data = request.get_json(force=True)
+        task_type = data.get('task_type')
+        task_id = data.get('task_id')
+        if not task_type or not task_id:
+            return jsonify({'success': False, 'message': 'Missing task_type or task_id'})
+
+        refl = InstitutionReflection.query.filter_by(institution_id=inst_id, task_type=task_type, task_id=task_id).first()
+        if not refl:
+            refl = InstitutionReflection(
+                institution_id=inst_id,
+                task_type=task_type,
+                task_id=task_id
+            )
+            db.session.add(refl)
+        refl.text = (data.get('text') or '').strip()
+        refl.notes = (data.get('notes') or '').strip()
+        refl.created_at = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': 'Reflection saved', 'reflection': refl.to_dict()})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/get_institution_reflection/<task_type>/<int:task_id>')
+def get_institution_reflection(task_type, task_id):
+    if "email" not in session or session.get("user_type") not in ("3", "0"):
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    try:
+        user = User.query.filter_by(email=session["email"]).first()
+        if not user:
+            return jsonify({'success': False, 'message': 'User not found'})
+        inst_id = user.institution_id or user.id
+        refl = InstitutionReflection.query.filter_by(institution_id=inst_id, task_type=task_type, task_id=task_id).first()
+        if not refl:
+            return jsonify({'success': True, 'reflection': None})
+        return jsonify({'success': True, 'reflection': refl.to_dict()})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -6517,7 +6932,7 @@ def get_supervisor_tasks_data():
                     'progress': task.progress or 0,
                     'mentorName': mentor.name,
                     'menteeName': mentee.name,
-                    'category': 'Mentorship Program',
+                    'category': 'Mentorship Task',
                     'rating': rating.rating if rating else None,
                     'isCritical': is_overdue,
                     'type': 'master',
@@ -6601,6 +7016,7 @@ def supervisor_tasks():
                 'progress': task.progress,
                 'mentee_name': user.name,
                 'mentor_name': mentor.name if mentor else 'Self',
+                'category': 'Personal Task',
                 'type': 'personal'
             })
         
@@ -6617,6 +7033,7 @@ def supervisor_tasks():
                 'progress': task.progress,
                 'mentee_name': user.name,
                 'mentor_name': mentor.name if mentor else 'Unknown',
+                'category': 'Mentorship Task',
                 'type': 'master'
             })
         
@@ -6651,7 +7068,7 @@ def supervisor_tasks():
 @app.route('/supervisor_get_task_rating/<task_type>/<int:task_id>')
 def supervisor_get_task_rating(task_type, task_id):
     try:
-        if "email" not in session or session.get("user_type") != "0":
+        if "email" not in session or session.get("user_type") not in ("0", "3"):
             return jsonify({'success': False, 'message': 'Unauthorized'})
         
         # Supervisor can see rating for any task
@@ -6683,8 +7100,25 @@ def institution_calendar():
         return redirect(url_for("signin"))
     
     user = User.query.filter_by(email=session["email"]).first()
-    institution_name = user.institution
-    institution_id = user.institution_id
+
+    # Resolve institution details by ID, user_id, or name
+    institution = None
+    if user.institution_id:
+        institution = Institution.query.filter_by(id=user.institution_id).first()
+    if not institution and user.id:
+        institution = Institution.query.filter_by(user_id=user.id).first()
+    if not institution and user.institution:
+        institution = Institution.query.filter_by(name=user.institution).first()
+
+    institution_name = institution.name if institution else user.institution
+    institution_id = institution.id if institution else user.institution_id
+
+    if institution_name and not user.institution:
+        user.institution = institution_name
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
     # Fetch all meetings involving this institution:
     # 1) Meetings created BY this institution (requester_id = institution user)
@@ -6771,23 +7205,20 @@ def institution_calendar():
             "created_at": meeting.created_at
         })
     
-    # Filter mentors/mentees to only those with active mentorships
-    active_mentor_ids = set()
-    active_mentee_ids = set()
-    approved_requests = MentorshipRequest.query.filter_by(final_status="approved").all()
-    for req in approved_requests:
-        active_mentor_ids.add(req.mentor_id)
-        active_mentee_ids.add(req.mentee_id)
+    # Filter mentors and mentees who belong to this institution
+    inst_conditions = []
+    if institution_id:
+        inst_conditions.append(User.institution_id == institution_id)
+    if institution_name:
+        inst_conditions.append(User.institution == institution_name)
 
-    mentors = User.query.filter(
-        User.user_type == "1",
-        User.id.in_(active_mentor_ids)
-    ).all() if active_mentor_ids else []
-
-    mentees = User.query.filter(
-        User.user_type == "2",
-        User.id.in_(active_mentee_ids)
-    ).all() if active_mentee_ids else []
+    if inst_conditions:
+        inst_filter = or_(*inst_conditions)
+        mentors = User.query.filter(User.user_type == "1", inst_filter).all()
+        mentees = User.query.filter(User.user_type == "2", inst_filter).all()
+    else:
+        mentors = []
+        mentees = []
 
     return render_template(
         "institution/institution_calendar.html",
@@ -7081,7 +7512,7 @@ def supervisor_meeting_details():
 # ------------------- HANDLE MENTORSHIP REQUEST ------------------
 @app.route("/request_mentorship", methods=["POST"])
 def request_mentorship(): 
-    if "email" not in session or session.get("user_type") != "2":
+    if "email" not in session or str(session.get("user_type")) != "2":
         return jsonify({"success": False, "message": "Unauthorized"}), 401
 
     try:
@@ -7090,21 +7521,24 @@ def request_mentorship():
         if not mentee:
             return jsonify({"success": False, "message": "User not found"}), 404
         
-        # Check parent consent status for under-18 mentees
+        # Check parent consent status ONLY for under-18 mentees
         mentee_profile = MenteeProfile.query.filter_by(user_id=mentee.id).first()
-        if mentee_profile and mentee_profile.parent_consent_status == "pending":
-            return jsonify({
-                "success": False, 
-                "message": "You need parent/guardian approval before requesting mentorship. Please check your email or update your parent's email in your profile."
-            }), 403
-        
-        if mentee_profile and mentee_profile.parent_consent_status == "rejected":
-            return jsonify({
-                "success": False, 
-                "message": "Your parent/guardian has not approved your participation. Please contact support if you need assistance."
-            }), 403
+        if mentee_profile and mentee_profile.dob and is_under_18(mentee_profile.dob):
+            if mentee_profile.parent_consent_status == "pending":
+                return jsonify({
+                    "success": False, 
+                    "message": "You need parent/guardian approval before requesting mentorship. Please check your email or update your parent's email in your profile."
+                }), 403
+            
+            if mentee_profile.parent_consent_status == "rejected":
+                return jsonify({
+                    "success": False, 
+                    "message": "Your parent/guardian has not approved your participation. Please contact support if you need assistance."
+                }), 403
         
         data = request.get_json(silent=True)
+        if not data and request.form:
+            data = request.form.to_dict()
         if not data:
             return jsonify({"success": False, "message": "Invalid request data"}), 400
 
@@ -7127,14 +7561,26 @@ def request_mentorship():
 
         # Validate duration_months is a positive integer
         try:
-            duration_months = int(duration_months)
+            if isinstance(duration_months, str):
+                import re
+                nums = re.findall(r'\d+', duration_months)
+                duration_months = int(nums[0]) if nums else int(duration_months)
+            else:
+                duration_months = int(duration_months)
             if duration_months <= 0:
                 return jsonify({"success": False, "message": "Duration must be a positive number"}), 400
         except (ValueError, TypeError):
             return jsonify({"success": False, "message": "Invalid duration value"}), 400
 
         # Verify mentor exists
-        mentor = User.query.get(mentor_id)
+        mentor = db.session.get(User, mentor_id)
+        if not mentor:
+            # Fallback in case mentor_profile id was passed instead of user_id
+            m_prof = db.session.get(MentorProfile, mentor_id)
+            if m_prof:
+                mentor = db.session.get(User, m_prof.user_id)
+                if mentor:
+                    mentor_id = mentor.id
         if not mentor:
             return jsonify({"success": False, "message": "Mentor not found"}), 404
 
@@ -7155,16 +7601,15 @@ def request_mentorship():
             if req.mentor_status == "accepted" and req.supervisor_status == "approved" and req.final_status == "approved":
                 return jsonify({"success": False, "message": "You are already assigned to this mentor."}), 400
 
-
         # Create new mentorship request
         new_request = MentorshipRequest(
             mentee_id=mentee.id,
             mentor_id=mentor_id,
-            purpose=purpose,
-            mentor_type=mentor_type,
-            term=term,
+            purpose=str(purpose).strip()[:1000] if purpose else "",
+            mentor_type=str(mentor_type).strip()[:20] if mentor_type else "",
+            term=str(term).strip()[:20] if term else "",
             duration_months=duration_months,
-            why_need_mentor=why_need_mentor,
+            why_need_mentor=str(why_need_mentor).strip() if why_need_mentor else "",
             mentor_status="pending",
             supervisor_status="pending",
             final_status="pending"
@@ -7172,6 +7617,16 @@ def request_mentorship():
         
         db.session.add(new_request)
         db.session.commit()
+
+        # Send in-app notification to mentor
+        try:
+            create_notification(
+                mentor_id,
+                f"You have a new mentorship request from {mentee.name or 'a mentee'}.",
+                link="/mentor_mentorship_request"
+            )
+        except Exception as notif_err:
+            app.logger.warning(f"Failed to create mentor notification: {notif_err}")
 
         return jsonify({
             "success": True, 
@@ -7181,8 +7636,10 @@ def request_mentorship():
 
     except Exception as e:
         db.session.rollback()
+        import traceback
+        traceback.print_exc()
         app.logger.error(f"Error in request_mentorship: {str(e)}")
-        return jsonify({"success": False, "message": "Internal server error"}), 500
+        return jsonify({"success": False, "message": f"Could not submit request: {str(e)}"}), 500
 
 @app.route("/mentor_response", methods=["POST"])
 def mentor_response():
@@ -8922,37 +9379,61 @@ def create_meeting_ajax():
     mentorship_id = data.get("mentorship_id")
 
     # Determine the requested_to participant (mentor, mentee, or institution)
-    requested_to = None
-    requested_to_type = None
-    if mentor_id:
-        requested_to = User.query.get(int(mentor_id))
-        requested_to_type = "mentor"
-    elif mentee_id:
-        requested_to = User.query.get(int(mentee_id))
-        requested_to_type = "mentee"
-    elif institution_id:
-        requested_to = User.query.get(int(institution_id))
-        requested_to_type = "institution"
+    mentor_user = User.query.get(int(mentor_id)) if mentor_id else None
+    mentee_user = User.query.get(int(mentee_id)) if mentee_id else None
+    institution_user = User.query.get(int(institution_id)) if institution_id else None
 
-    if not all([title, date, start_time, duration]):
-        return jsonify({"error": "Please fill all required fields"}), 400
+    requested_to = mentor_user or mentee_user or institution_user
+    requested_to_type = "mentor" if mentor_user else ("mentee" if mentee_user else ("institution" if institution_user else None))
 
-    if not requested_to:
-        return jsonify({"error": "Please select a participant (mentor, mentee, or institution)"}), 400
+    platform = (data.get("platform") or "google").strip().lower()
+    custom_link = (data.get("custom_link") or "").strip()
+    if platform not in ("google", "teams", "custom"):
+        platform = "google"
+
+    missing_fields = []
+    if not mentor_id and not mentee_id:
+        missing_fields.append("Mentor")
+        missing_fields.append("Mentee")
+    elif not mentor_id:
+        missing_fields.append("Mentor")
+    elif not mentee_id:
+        missing_fields.append("Mentee")
+
+    if not title or not str(title).strip():
+        missing_fields.append("Meeting Title")
+    if not date or not str(date).strip():
+        missing_fields.append("Meeting Date")
+    if not start_time or not str(start_time).strip():
+        missing_fields.append("Meeting Time")
+    if not duration or not str(duration).strip():
+        missing_fields.append("Duration")
+    if not timezone or not str(timezone).strip():
+        missing_fields.append("Time Zone")
+    if platform == "custom" and not custom_link:
+        missing_fields.append("Meeting Link (for Other platform)")
+
+    if missing_fields:
+        if len(missing_fields) == 1:
+            return jsonify({"error": f"{missing_fields[0]} is required. Please fill it in."}), 400
+        else:
+            return jsonify({"error": f"Please fill in the required fields: {', '.join(missing_fields)}."}), 400
 
     supervisor = User.query.filter_by(email=session["email"]).first()
 
     if not supervisor:
-        return jsonify({"error": "Supervisor not found"}), 404
+        return jsonify({"error": "User session not found. Please log in again."}), 404
 
     # Calculate start and end datetime
     try:
         start_datetime = dt.datetime.strptime(f"{date} {start_time}", "%Y-%m-%d %H:%M")
     except (ValueError, TypeError):
-        return jsonify({"error": "Invalid date or time. Please check your selection."}), 400
+        return jsonify({"error": "Invalid date or time format. Please check your selection."}), 400
 
     try:
         duration_minutes = int(duration)
+        if duration_minutes <= 0:
+            return jsonify({"error": "Duration must be a positive number."}), 400
     except (ValueError, TypeError):
         return jsonify({"error": "Invalid duration selected."}), 400
 
@@ -8960,16 +9441,10 @@ def create_meeting_ajax():
     current_datetime = dt.datetime.now()
     if start_datetime <= current_datetime:
         return jsonify({"error": "Cannot create meeting for past or current date/time. Please select a future date and time."}), 400
-    
-    end_datetime = start_datetime + dt.timedelta(minutes=duration_minutes)
 
+    end_datetime = start_datetime + dt.timedelta(minutes=duration_minutes)
     start_str = start_datetime.isoformat()
     end_str = end_datetime.isoformat()
-
-    platform = (data.get("platform") or "google").strip().lower()
-    custom_link = (data.get("custom_link") or "").strip()
-    if platform not in ("google", "teams", "custom"):
-        platform = "google"
 
     # Build task context for description (must be before calendar event creation)
     task_context = ""
@@ -10647,25 +11122,6 @@ def get_mentor_options_for_mentee(mentee_user):
     return mentors
 
 
-_TAG_PREFIX = "@@TAGS@@"
-
-def _parse_tags_from_content(content):
-    """Extract tag metadata from content prefix. Returns (tags_dict, clean_content)."""
-    if content and content.startswith(_TAG_PREFIX):
-        line_end = content.find("\n")
-        if line_end == -1:
-            line_end = len(content)
-        json_str = content[len(_TAG_PREFIX):line_end].strip()
-        clean = content[line_end + 1:] if line_end < len(content) else ""
-        try:
-            import json as _json
-            tags = _json.loads(json_str)
-            return tags, clean.strip()
-        except Exception:
-            return {}, content
-    return {}, content or ""
-
-
 def _build_tagged_content(title, content, mentor_id, institution_id, mentee_tag_id, supervisor_tag_id):
     """Prepend tag metadata to content."""
     import json as _json
@@ -10685,7 +11141,7 @@ def _build_tagged_content(title, content, mentor_id, institution_id, mentee_tag_
 
 @app.route("/resources")
 def resources_hub():
-    """Resources Hub page: Notes panel where mentees can call/tag a mentor."""
+    """Resources Hub page: Notes panel where mentees, mentors, institutions, and supervisors can share and sync notes."""
     if "email" not in session:
         return redirect(url_for("signin"))
 
@@ -10694,19 +11150,29 @@ def resources_hub():
         return redirect(url_for("signin"))
 
     user_type = session.get("user_type")
-    notes = []
     tag_options = []
     institution_options = []
     mentee_tag_options = []
     supervisor_tag_options = []
 
+    # Get active mentee IDs for mentor
+    mentee_ids = set()
+    if user_type == "1":
+        mentee_ids = {r.mentee_id for r in MentorshipRequest.query.filter_by(
+            mentor_id=user.id,
+            supervisor_status="approved",
+            final_status="approved"
+        ).all()}
+
+    user_inst_id = user.institution_id
+    if user_type == "3" and not user_inst_id:
+        inst_rec = Institution.query.filter_by(user_id=user.id).first()
+        if inst_rec:
+            user_inst_id = inst_rec.id
+
     if user_type == "2":
-        # Mentee: their own notes (about themselves)
-        notes = ResourceNote.query.filter(
-            ResourceNote.mentee_id == user.id
-        ).order_by(ResourceNote.updated_at.desc()).all()
         tag_options = get_mentor_options_for_mentee(user)
-        mentee_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="2").filter(User.id != user.id).limit(50).all()]
+        mentee_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="2").all()]
         supervisor_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="0").all()]
         if user.institution_id:
             inst = Institution.query.get(user.institution_id)
@@ -10714,26 +11180,8 @@ def resources_hub():
                 institution_options = [{"id": inst.id, "name": inst.name}]
 
     elif user_type == "1":
-        # Mentor: notes calling them, or notes about their mentees
-        mentee_ids = [r.mentee_id for r in MentorshipRequest.query.filter_by(
-            mentor_id=user.id,
-            
-            supervisor_status="approved",
-            final_status="approved"
-        ).all()]
-
-        combined = {}
-        for n in ResourceNote.query.filter(
-            db.or_(
-                ResourceNote.mentor_id == user.id,
-                ResourceNote.mentee_id == user.id,
-                ResourceNote.mentee_id.in_(mentee_ids) if mentee_ids else False
-            )
-        ).all():
-            combined[n.id] = n
-        notes = sorted(combined.values(), key=lambda n: n.updated_at or n.created_at, reverse=True)
-        tag_options = [{"id": m.id, "name": m.name, "email": m.email} for m in User.query.filter_by(user_type="1").filter(User.id != user.id).all()]
-        mentee_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="2").limit(50).all()]
+        tag_options = [{"id": m.id, "name": m.name, "email": m.email} for m in User.query.filter_by(user_type="1").all()]
+        mentee_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="2").all()]
         supervisor_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="0").all()]
         if user.institution_id:
             inst = Institution.query.get(user.institution_id)
@@ -10741,26 +11189,75 @@ def resources_hub():
                 institution_options = [{"id": inst.id, "name": inst.name}]
 
     elif user_type == "3":
-        # Institution: their own notes, and they can write/manage them (like mentees)
-        notes = ResourceNote.query.filter(
-            ResourceNote.mentee_id == user.id
-        ).order_by(ResourceNote.updated_at.desc()).all()
         tag_options = [{"id": m.id, "name": m.name, "email": m.email} for m in User.query.filter_by(user_type="1").all()]
-        mentee_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="2").limit(50).all()]
+        mentee_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="2").all()]
         supervisor_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="0").all()]
-        if user.institution_id:
-            inst = Institution.query.get(user.institution_id)
+        inst_id_to_fetch = user.institution_id or user_inst_id
+        if inst_id_to_fetch:
+            inst = Institution.query.get(inst_id_to_fetch)
             if inst:
                 institution_options = [{"id": inst.id, "name": inst.name}]
 
     else:
-        # Supervisor: see everything
-        notes = ResourceNote.query.order_by(ResourceNote.updated_at.desc()).all()
+        # Supervisor
         tag_options = [{"id": m.id, "name": m.name, "email": m.email, "institution_id": m.institution_id} for m in User.query.filter_by(user_type="1").all()]
-        mentee_tag_options = [{"id": m.id, "name": m.name, "institution_id": m.institution_id} for m in User.query.filter_by(user_type="2").limit(50).all()]
-        supervisor_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="0").filter(User.id != user.id).all()]
-        # Supervisor can tag any institution
+        mentee_tag_options = [{"id": m.id, "name": m.name, "institution_id": m.institution_id} for m in User.query.filter_by(user_type="2").all()]
+        supervisor_tag_options = [{"id": m.id, "name": m.name} for m in User.query.filter_by(user_type="0").all()]
         institution_options = [{"id": inst.id, "name": inst.name} for inst in Institution.query.all()]
+
+    # Query all notes and filter those that belong to or tag this user/account
+    all_notes = ResourceNote.query.order_by(ResourceNote.updated_at.desc(), ResourceNote.created_at.desc()).all()
+    notes = []
+    for note in all_notes:
+        # 1. Author can always see their own note
+        if note.mentee_id == user.id:
+            notes.append(note)
+            continue
+
+        # 2. Supervisor sees all notes
+        if user_type == "0":
+            notes.append(note)
+            continue
+
+        tags = note.tags_dict
+
+        # 3. Tagged Mentor
+        if user_type == "1" and (note.mentor_id == user.id or tags.get("mentor") == user.id):
+            notes.append(note)
+            continue
+
+        # 4. Tagged Mentee
+        if user_type == "2" and tags.get("mentee") == user.id:
+            notes.append(note)
+            continue
+
+        # 5. Tagged Supervisor
+        if tags.get("supervisor") == user.id:
+            notes.append(note)
+            continue
+
+        # 6. Tagged Institution
+        if user_type == "3" and user_inst_id:
+            if note.institution_id == user_inst_id or tags.get("inst") == user_inst_id:
+                notes.append(note)
+                continue
+
+        # 7. Mentors see notes from their active mentees
+        if user_type == "1" and note.mentee_id in mentee_ids:
+            notes.append(note)
+            continue
+
+    # Attach resolved entities for display and frontend interaction
+    for n in notes:
+        t = n.tags_dict
+        m_id = n.mentor_id or t.get("mentor")
+        n.tagged_mentor_user = User.query.get(int(m_id)) if m_id else None
+        e_id = t.get("mentee")
+        n.tagged_mentee_user = User.query.get(int(e_id)) if e_id else None
+        s_id = t.get("supervisor")
+        n.tagged_supervisor_user = User.query.get(int(s_id)) if s_id else None
+        i_id = n.institution_id or t.get("inst")
+        n.tagged_institution_obj = Institution.query.get(int(i_id)) if i_id else None
 
     return render_template(
         "resources_hub.html",
@@ -10804,13 +11301,13 @@ def create_note():
         return jsonify({"error": "Note content is required."}), 400
 
     mentor = None
-    if mentor_id:
+    if mentor_id and str(mentor_id).isdigit():
         mentor = User.query.get(int(mentor_id))
         if not mentor or mentor.user_type != "1":
             return jsonify({"error": "Selected mentor is not valid."}), 400
 
     institution = None
-    if institution_id:
+    if institution_id and str(institution_id).isdigit():
         institution = Institution.query.get(int(institution_id))
         if not institution:
             return jsonify({"error": "Selected institution is not valid."}), 400
@@ -10824,7 +11321,9 @@ def create_note():
         mentor_id=mentor.id if mentor else None,
         institution_id=institution.id if institution else None,
         title=title,
-        content=tagged_content
+        content=tagged_content,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
     )
     db.session.add(note)
     db.session.commit()
@@ -10849,42 +11348,98 @@ def update_note(note_id):
 
     user = User.query.filter_by(email=session["email"]).first()
     user_type = session.get("user_type")
-    if not user or note.mentee_id != user.id:
-        return jsonify({"error": "You can only edit your own notes."}), 403
+    if not user:
+        return jsonify({"error": "User not found."}), 404
+
+    tags = note.tags_dict
+    is_author = (note.mentee_id == user.id)
+    is_tagged_mentor = (note.mentor_id == user.id or tags.get("mentor") == user.id)
+    is_tagged_mentee = (tags.get("mentee") == user.id)
+    is_tagged_supervisor = (tags.get("supervisor") == user.id or user_type == "0")
+    user_inst_id = user.institution_id
+    if user_type == "3" and not user_inst_id:
+        inst_rec = Institution.query.filter_by(user_id=user.id).first()
+        if inst_rec:
+            user_inst_id = inst_rec.id
+    is_tagged_institution = bool(user_type == "3" and user_inst_id and (note.institution_id == user_inst_id or tags.get("inst") == user_inst_id))
+
+    active_mentee_ids = set()
+    if user_type == "1":
+        active_mentee_ids = {r.mentee_id for r in MentorshipRequest.query.filter_by(
+            mentor_id=user.id,
+            supervisor_status="approved",
+            final_status="approved"
+        ).all()}
+    is_assigned_mentor = bool(user_type == "1" and note.mentee_id in active_mentee_ids)
+
+    if not (is_author or is_tagged_mentor or is_tagged_mentee or is_tagged_supervisor or is_tagged_institution or is_assigned_mentor):
+        return jsonify({"error": "You do not have permission to edit this note."}), 403
 
     title = (request.form.get("title") or "").strip()
     content = (request.form.get("content") or "").strip()
-    mentor_id = request.form.get("mentor_id")
-    institution_id = request.form.get("institution_id")
-    mentee_tag_id = request.form.get("mentee_tag_id")
-    supervisor_tag_id = request.form.get("supervisor_tag_id")
 
     if not title:
         return jsonify({"error": "Note title is required."}), 400
     if not content:
         return jsonify({"error": "Note content is required."}), 400
 
-    if mentor_id:
-        mentor = User.query.get(int(mentor_id))
-        if not mentor or mentor.user_type != "1":
-            return jsonify({"error": "Selected mentor is not valid."}), 400
-        note.mentor_id = mentor.id
+    existing_tags = dict(note.tags_dict)
+
+    if "mentor_id" in request.form:
+        mid = request.form.get("mentor_id")
+        if mid and str(mid).isdigit():
+            mentor = User.query.get(int(mid))
+            if mentor and mentor.user_type == "1":
+                note.mentor_id = mentor.id
+                existing_tags["mentor"] = mentor.id
+        elif mid == "":
+            note.mentor_id = None
+            existing_tags.pop("mentor", None)
+    elif note.mentor_id:
+        existing_tags["mentor"] = note.mentor_id
+
+    if "institution_id" in request.form:
+        iid = request.form.get("institution_id")
+        if iid and str(iid).isdigit():
+            inst = Institution.query.get(int(iid))
+            if inst:
+                note.institution_id = inst.id
+                existing_tags["inst"] = inst.id
+        elif iid == "":
+            note.institution_id = None
+            existing_tags.pop("inst", None)
+    elif note.institution_id:
+        existing_tags["inst"] = note.institution_id
+
+    if "mentee_tag_id" in request.form:
+        eid = request.form.get("mentee_tag_id")
+        if eid and str(eid).isdigit():
+            existing_tags["mentee"] = int(eid)
+        elif eid == "":
+            existing_tags.pop("mentee", None)
+
+    if "supervisor_tag_id" in request.form:
+        sid = request.form.get("supervisor_tag_id")
+        if sid and str(sid).isdigit():
+            existing_tags["supervisor"] = int(sid)
+        elif sid == "":
+            existing_tags.pop("supervisor", None)
+
+    # Sync columns and tags dictionary
+    if existing_tags.get("mentor"):
+        note.mentor_id = existing_tags["mentor"]
     else:
         note.mentor_id = None
 
-    institution = None
-    if institution_id:
-        institution = Institution.query.get(int(institution_id))
-        if not institution:
-            return jsonify({"error": "Selected institution is not valid."}), 400
-        if user.user_type != "0" and user.institution_id != institution.id:
-            return jsonify({"error": "You can only tag your own institution."}), 403
-        note.institution_id = institution.id
-    elif institution_id == "":
+    if existing_tags.get("inst"):
+        note.institution_id = existing_tags["inst"]
+    else:
         note.institution_id = None
 
     note.title = title
-    note.content = _build_tagged_content(title, content, mentor_id, institution_id, mentee_tag_id, supervisor_tag_id)
+    import json as _json
+    note.content = (_TAG_PREFIX + _json.dumps(existing_tags) + "\n" + content) if existing_tags else content
+    note.updated_at = datetime.utcnow()
     db.session.commit()
 
     return jsonify({"success": True, "message": "Note updated successfully."})
@@ -10901,7 +11456,7 @@ def delete_note(note_id):
 
     user = User.query.filter_by(email=session["email"]).first()
     user_type = session.get("user_type")
-    if not user or note.mentee_id != user.id:
+    if not user or (note.mentee_id != user.id and user_type != "0"):
         return jsonify({"error": "You can only delete your own notes."}), 403
 
     db.session.delete(note)
