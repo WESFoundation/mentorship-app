@@ -5446,12 +5446,6 @@ def mentee_tasks():
 
     # Calculate statistics using computed task progress status
     total_tasks = len(assigned_tasks) + len(personal_tasks)
-<<<<<<< HEAD
-=======
-    completed_tasks = len([t for t in assigned_tasks if t.status == 'completed']) + len([t for t in personal_tasks if t.status == 'completed'])
-    pending_tasks = len([t for t in assigned_tasks if t.status in ('pending', 'in-progress')]) + len([t for t in personal_tasks if t.status in ('pending', 'in-progress')])
-    
->>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
     today = datetime.utcnow().date()
 
     done_tasks = 0
@@ -6418,12 +6412,9 @@ def rate_task(task_type, task_id):
             )
             db.session.add(new_rating)
         
-<<<<<<< HEAD
-=======
         task.status = 'completed'
         task.progress = 100
         task.completed_date = datetime.utcnow()
->>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
         db.session.commit()
         
         return jsonify({
@@ -6647,15 +6638,11 @@ def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calend
         if not meet_link and platform == "google":
             fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No automatic meeting link was generated. Please open the Google Calendar event and click "Join with Google Meet" to get the link, then share it with participants.</p>'
         elif not meet_link and platform == "teams":
-<<<<<<< HEAD
-            fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">Click the link below to open Microsoft Teams and create your meeting with a join link.</p>'
-=======
             fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No automatic meeting link was generated. Open the Outlook event, enable the "Teams meeting" toggle, and send the invite to generate a Teams join link.</p>'
         elif not meet_link and platform == "custom":
             fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No meeting link was provided for this custom meeting.</p>'
 
         platform_display = "Other (Custom Link)" if platform == "custom" else ("Microsoft Teams" if platform == "teams" else "Google Meet")
->>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
 
         html_body = f"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
@@ -6728,9 +6715,6 @@ def save_mentee_feedback():
         feedback.extra = data.get('extra', '')
         feedback.created_at = datetime.utcnow()
 
-<<<<<<< HEAD
-        return jsonify({'success': True, 'message': 'Feedback saved'})
-=======
         if task_type == 'master':
             task = MenteeTask.query.filter_by(id=task_id, mentee_id=mentee.id).first()
         else:
@@ -6741,7 +6725,6 @@ def save_mentee_feedback():
 
         db.session.commit()
         return jsonify({'success': True, 'message': 'Feedback saved', 'feedback': feedback.to_dict()})
->>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 

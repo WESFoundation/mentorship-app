@@ -1079,51 +1079,11 @@ function filterByMentee(menteeId) {
 let currentSelectedTask = null;
 
 // Modal functions
-<<<<<<< HEAD
-async function viewTaskDetails(taskId) {
-    const task = allTasks.find(t => t.id === taskId);
-    if (task) {
-        document.getElementById('detail-task-title').textContent = task.title;
-        document.getElementById('detail-task-mentor').textContent = task.mentorName;
-        document.getElementById('detail-task-mentee').textContent = task.menteeName;
-        document.getElementById('detail-task-status').textContent = getStatusText(task.status);
-        document.getElementById('detail-task-status').className = `task-status ${getStatusClass(task.status)}`;
-        document.getElementById('detail-task-type').textContent = task.type === 'master' ? 'Master Task' : 'Personal Task';
-        document.getElementById('detail-task-type').className = `badge ${task.type === 'master' ? 'task-type-master' : 'task-type-personal'}`;
-        document.getElementById('detail-task-priority').textContent = task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) : 'Not set';
-        document.getElementById('detail-task-priority').className = `priority-${task.priority || 'medium'}`;
-        document.getElementById('detail-task-due-date').textContent = formatDate(task.dueDate);
-        document.getElementById('detail-task-created').textContent = formatDate(task.createdDate);
-        document.getElementById('detail-task-updated').textContent = formatDate(task.updatedAt);
-        document.getElementById('detail-task-description').textContent = task.description || 'No description available';
-        document.getElementById('detail-task-instructions').textContent = task.instructions || "No additional instructions provided.";
-        // Update status indicator
-        var statusEl = document.getElementById('detail-status-indicator');
-        if (task.status === 'done') {
-            statusEl.textContent = 'Done';
-            statusEl.className = 'text-sm font-semibold px-3 py-1.5 rounded-full border text-green-700 bg-green-50 border-green-200';
-        } else if (task.status === 'in-progress') {
-            statusEl.textContent = 'In Progress';
-            statusEl.className = 'text-sm font-semibold px-3 py-1.5 rounded-full border text-blue-700 bg-blue-50 border-blue-200';
-        } else if (task.status === 'committed') {
-            statusEl.textContent = 'Committed';
-            statusEl.className = 'text-sm font-semibold px-3 py-1.5 rounded-full border text-amber-700 bg-amber-50 border-amber-200';
-        } else {
-            statusEl.textContent = 'Not Started';
-            statusEl.className = 'text-sm font-semibold px-3 py-1.5 rounded-full border text-slate-700 bg-slate-50 border-slate-200';
-        }
-        
-        // Load and display rating
-        await loadAndDisplayRating(task.id);
-        
-        document.getElementById('task-details-modal').classList.remove('hidden');
-=======
 function viewTaskDetails(taskId) {
     const task = allTasks.find(t => String(t.id) === String(taskId));
     if (!task) {
         console.error("Task not found for id:", taskId);
         return;
->>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
     }
     currentSelectedTask = task;
     
