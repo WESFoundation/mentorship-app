@@ -42,6 +42,16 @@
         text-transform: uppercase;
     }
     
+    .status-not-started {
+        background: #f1f5f9;
+        color: #64748b;
+    }
+
+    .status-committed {
+        background: #fef3c7;
+        color: #d97706;
+    }
+
     .status-pending {
         background: #fef3c7;
         color: #d97706;
@@ -868,23 +878,27 @@ function createTaskHTML(task) {
 
 // Helper functions
 function getStatusClass(status) {
-    const statusClasses = {
-        'pending': 'status-pending',
+    const classMap = {
+        'not-started': 'status-not-started',
+        'committed': 'status-committed',
         'in-progress': 'status-in-progress',
-        'completed': 'status-completed',
-        'overdue': 'status-overdue'
+        'done': 'status-completed',
+        'pending': 'status-not-started',
+        'completed': 'status-completed'
     };
-    return statusClasses[status] || 'status-pending';
+    return classMap[status] || 'status-not-started';
 }
 
 function getStatusText(status) {
-    const statusTexts = {
-        'pending': 'To Do',
+    const statusMap = {
+        'not-started': 'Not Started',
+        'committed': 'Committed',
         'in-progress': 'In Progress',
-        'completed': 'Completed',
-        'overdue': 'Overdue'
+        'done': 'Done',
+        'pending': 'Not Started',
+        'completed': 'Done'
     };
-    return statusTexts[status] || 'To Do';
+    return statusMap[status] || 'Not Started';
 }
 
 function formatDate(dateString) {
@@ -945,15 +959,18 @@ async function viewTaskDetails(taskId) {
         document.getElementById('detail-task-instructions').textContent = task.instructions || "No additional instructions provided.";
         // Update status indicator
         var statusEl = document.getElementById('detail-status-indicator');
-        if (task.status === 'completed') {
+        if (task.status === 'done') {
             statusEl.textContent = 'Done';
             statusEl.className = 'text-sm font-semibold px-3 py-1.5 rounded-full border text-green-700 bg-green-50 border-green-200';
         } else if (task.status === 'in-progress') {
             statusEl.textContent = 'In Progress';
             statusEl.className = 'text-sm font-semibold px-3 py-1.5 rounded-full border text-blue-700 bg-blue-50 border-blue-200';
-        } else {
-            statusEl.textContent = 'Not Done';
+        } else if (task.status === 'committed') {
+            statusEl.textContent = 'Committed';
             statusEl.className = 'text-sm font-semibold px-3 py-1.5 rounded-full border text-amber-700 bg-amber-50 border-amber-200';
+        } else {
+            statusEl.textContent = 'Not Started';
+            statusEl.className = 'text-sm font-semibold px-3 py-1.5 rounded-full border text-slate-700 bg-slate-50 border-slate-200';
         }
         
         // Load and display rating
