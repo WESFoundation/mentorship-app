@@ -1263,9 +1263,9 @@
     </div>
 
     <script>
-        const connectionsList = {{ connections_list | tojson }};
-        const sessionsList = {{ sessions_list | tojson }};
-        const tasksList = {{ tasks_list | tojson }};
+        const connectionsList = {{ (connections_list or []) | tojson }};
+        const sessionsList = {{ (sessions_list or []) | tojson }};
+        const tasksList = {{ (tasks_list or []) | tojson }};
 
         function toggleCustomizePanel() {
             const body = document.getElementById('customizeBody');

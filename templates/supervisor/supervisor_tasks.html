@@ -1089,27 +1089,9 @@
                     <span class="badge badge-primary">${task.category || 'N/A'}</span>
                 </div>
                 
-<<<<<<< HEAD
-                ${(task.status !== 'completed' && task.status !== 'done') ? `
-                <div class="flex items-center gap-3">
-                    <div class="w-24">
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${task.progress || 0}%"></div>
-                        </div>
-                    </div>
-                    <span class="text-sm font-medium">${task.progress || 0}%</span>
-                </div>
-                ` : `
-                <span class="text-green-600 text-sm font-medium flex items-center gap-1">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                    Completed
-=======
-                ${task.status === 'completed' ? `
+                ${(task.status === 'completed' || task.status === 'done') ? `
                 <span class="text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center gap-1">
                     Done
->>>>>>> bf9109180d5347b5d60ad55663d18b2b0e396fcf
                 </span>
                 ` : (task.status === 'in-progress' ? `
                 <span class="text-xs font-bold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 flex items-center gap-1">

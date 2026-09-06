@@ -9,6 +9,7 @@ from functools import wraps
 from sqlalchemy.orm import Session
 import os
 import json 
+import time
 from urllib.parse import urlencode
 from google_auth_oauthlib.flow import Flow
 from google.oauth2 import id_token
@@ -6467,10 +6468,19 @@ def _get_meeting_participants_path(meeting_id):
     os.makedirs(MEETING_PARTICIPANTS_DIR, exist_ok=True)
     return os.path.join(MEETING_PARTICIPANTS_DIR, f'meeting_{meeting_id}.json')
 
+_MEETING_PARTICIPANTS_CACHE = None
+_MEETING_PARTICIPANTS_CACHE_TIME = 0
+
+def _invalidate_meeting_participants_cache():
+    global _MEETING_PARTICIPANTS_CACHE, _MEETING_PARTICIPANTS_CACHE_TIME
+    _MEETING_PARTICIPANTS_CACHE = None
+    _MEETING_PARTICIPANTS_CACHE_TIME = 0
+
 def _save_meeting_participants(meeting_id, participants):
     path = _get_meeting_participants_path(meeting_id)
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(participants, f, ensure_ascii=False, indent=2)
+    _invalidate_meeting_participants_cache()
 
 def _get_meeting_participants(meeting_id):
     path = _get_meeting_participants_path(meeting_id)
@@ -6483,6 +6493,10 @@ def _get_meeting_participants(meeting_id):
         return {}
 
 def _get_all_meeting_participants():
+    global _MEETING_PARTICIPANTS_CACHE, _MEETING_PARTICIPANTS_CACHE_TIME
+    now = time.time()
+    if _MEETING_PARTICIPANTS_CACHE is not None and (now - _MEETING_PARTICIPANTS_CACHE_TIME < 5):
+        return _MEETING_PARTICIPANTS_CACHE
     os.makedirs(MEETING_PARTICIPANTS_DIR, exist_ok=True)
     result = {}
     for fname in os.listdir(MEETING_PARTICIPANTS_DIR):
@@ -6493,36 +6507,43 @@ def _get_all_meeting_participants():
                     result[meeting_id] = json.load(f)
             except Exception:
                 pass
+    _MEETING_PARTICIPANTS_CACHE = result
+    _MEETING_PARTICIPANTS_CACHE_TIME = now
     return result
 
 
 # ===== 4-STAGE TASK PROGRESS (computed, no DB changes) =====
 # Stages: not-started, committed, in-progress, done
 
-def _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id):
+def _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id, all_pdata=None):
     """Check if any meeting in meeting_participants_data is linked to this task."""
-    all_pdata = _get_all_meeting_participants()
+    if all_pdata is None:
+        all_pdata = _get_all_meeting_participants()
+    str_task_id = str(task_id)
     for meeting_id, pdata in all_pdata.items():
-        if pdata.get("task_type") == task_type and str(pdata.get("task_id")) == str(task_id):
+        if pdata.get("task_type") == task_type and str(pdata.get("task_id")) == str_task_id:
             return True
         if pdata.get("mentee_id") == mentee_id and pdata.get("mentor_id") == mentor_id:
-            if pdata.get("task_type") == task_type and str(pdata.get("task_id")) == str(task_id):
+            if pdata.get("task_type") == task_type and str(pdata.get("task_id")) == str_task_id:
                 return True
     return False
 
 
-def _meeting_is_completed(task_type, task_id):
+def _meeting_is_completed(task_type, task_id, meetings_map=None, all_pdata=None):
     """Check if the linked meeting has passed its date (i.e. meeting is completed)."""
-    all_pdata = _get_all_meeting_participants()
+    if all_pdata is None:
+        all_pdata = _get_all_meeting_participants()
+    str_task_id = str(task_id)
+    from datetime import date as date_cls
+    today = date_cls.today()
     for meeting_id, pdata in all_pdata.items():
-        if pdata.get("task_type") == task_type and str(pdata.get("task_id")) == str(task_id):
-            meeting = MeetingRequest.query.get(meeting_id)
-            if meeting:
-                meeting_date = meeting.meeting_date
-                if meeting_date:
-                    from datetime import date as date_cls
-                    if meeting_date <= date_cls.today():
-                        return True
+        if pdata.get("task_type") == task_type and str(pdata.get("task_id")) == str_task_id:
+            if meetings_map is not None:
+                meeting = meetings_map.get(meeting_id)
+            else:
+                meeting = db.session.get(MeetingRequest, meeting_id)
+            if meeting and meeting.meeting_date and meeting.meeting_date <= today:
+                return True
     return False
 
 
@@ -6545,28 +6566,26 @@ def _has_mentor_rating(task_type, task_id):
     return rating is not None
 
 
-def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id):
+def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratings_set=None, meetings_map=None, all_pdata=None):
     """Compute the 4-stage task progress status dynamically.
 
     Returns one of: 'not-started', 'committed', 'in-progress', 'done'
     """
-    has_meeting = _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id)
+    has_meeting = _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id, all_pdata=all_pdata)
     if not has_meeting:
         return 'not-started'
 
-    meeting_done = _meeting_is_completed(task_type, task_id)
+    meeting_done = _meeting_is_completed(task_type, task_id, meetings_map=meetings_map, all_pdata=all_pdata)
     has_mentee_fb = _has_mentee_feedback(task_type, task_id)
-    has_mentor_rt = _has_mentor_rating(task_type, task_id)
+    if ratings_set is not None:
+        has_mentor_rt = (task_type, task_id) in ratings_set
+    else:
+        has_mentor_rt = _has_mentor_rating(task_type, task_id)
 
     if not meeting_done and not has_mentee_fb and not has_mentor_rt:
         return 'committed'
 
-    if meeting_done and (has_mentee_fb or has_mentor_rt):
-        if has_mentee_fb and has_mentor_rt:
-            return 'done'
-        return 'in-progress'
-
-    if has_mentee_fb or has_mentor_rt:
+    if (meeting_done or True) and (has_mentee_fb or has_mentor_rt):
         if has_mentee_fb and has_mentor_rt:
             return 'done'
         return 'in-progress'
@@ -6850,25 +6869,35 @@ def get_supervisor_tasks_data():
         return jsonify({"success": False, "message": "Unauthorized"})
     
     try:
-        # Get all tasks with ratings
+        # Pre-fetch all entities to avoid N+1 query storm
+        users_map = {u.id: u for u in User.query.all()}
+        master_tasks_map = {m.id: m for m in MasterTask.query.all()}
+        all_ratings = TaskRating.query.all()
+        ratings_map = {(r.task_type, r.task_id): r for r in all_ratings}
+        ratings_set = {(r.task_type, r.task_id) for r in all_ratings}
+        meetings_map = {m.id: m for m in MeetingRequest.query.all()}
+        all_pdata = _get_all_meeting_participants()
+
         personal_tasks = PersonalTask.query.all()
         mentee_tasks = MenteeTask.query.all()
 
         tasks = []
+        now_dt = datetime.utcnow()
+        default_due = now_dt + timedelta(days=30)
         
         # Process personal tasks
         for task in personal_tasks:
-            mentee = User.query.get(task.mentee_id)
-            mentor = User.query.get(task.mentor_id) if task.mentor_id else None
+            mentee = users_map.get(task.mentee_id)
+            mentor = users_map.get(task.mentor_id) if task.mentor_id else None
+            rating_obj = ratings_map.get(('personal', task.id))
             
-            # Get rating for this task
-            rating = TaskRating.query.filter_by(
-                task_id=task.id,
-                task_type='personal'
-            ).first()
-            
-            due_date = task.due_date or datetime.utcnow() + timedelta(days=30)
+            due_date = task.due_date or default_due
             is_critical = task.priority == 'high' and task.status != 'completed'
+            
+            status = compute_task_progress_status(
+                "personal", task.id, task.mentee_id, task.mentor_id or None,
+                ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
+            )
             
             tasks.append({
                 'id': f"personal_{task.id}",
@@ -6876,36 +6905,36 @@ def get_supervisor_tasks_data():
                 'description': task.description or 'No description provided',
                 'dueDate': due_date.isoformat(),
                 'priority': task.priority,
-                'status': compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id or None),
+                'status': status,
                 'progress': task.progress or 0,
                 'mentorId': task.mentor_id,
                 'mentorName': mentor.name if mentor else 'Self',
                 'menteeId': task.mentee_id,
                 'menteeName': mentee.name if mentee else 'Unknown',
                 'category': 'Personal Task',
-                'rating': rating.rating if rating else None,
+                'rating': rating_obj.rating if rating_obj else None,
                 'isCritical': is_critical,
                 'type': 'personal',
-                'journey_phase': 'Custom Task',  # Personal tasks don't have journey phase
+                'journey_phase': 'Custom Task',
                 'month': 'N/A',
                 'meeting_number': 'N/A'
             })
         
         # Process mentee tasks
         for task in mentee_tasks:
-            master_task = db.session.get(MasterTask, task.task_id)
-            mentee = db.session.get(User, task.mentee_id)
-            mentor = db.session.get(User, task.mentor_id)
+            master_task = master_tasks_map.get(task.task_id)
+            mentee = users_map.get(task.mentee_id)
+            mentor = users_map.get(task.mentor_id)
             
             if master_task and mentee and mentor:
-                # Get rating for this task
-                rating = TaskRating.query.filter_by(
-                    task_id=task.id,
-                    task_type='master'
-                ).first()
+                rating_obj = ratings_map.get(('master', task.id))
+                due_date = task.due_date or default_due
+                is_overdue = due_date < now_dt and task.status != 'completed'
                 
-                due_date = task.due_date or datetime.utcnow() + timedelta(days=30)
-                is_overdue = due_date < datetime.utcnow() and task.status != 'completed'
+                status = compute_task_progress_status(
+                    "master", task.id, task.mentee_id, task.mentor_id,
+                    ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
+                )
                 
                 tasks.append({
                     'id': f"master_{task.id}",
@@ -6913,22 +6942,21 @@ def get_supervisor_tasks_data():
                     'description': master_task.mentee_focus or 'No description provided',
                     'dueDate': due_date.isoformat(),
                     'priority': 'medium',
-                    'status': compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id),
+                    'status': status,
                     'progress': task.progress or 0,
                     'mentorId': task.mentor_id,
                     'mentorName': mentor.name,
                     'menteeId': task.mentee_id,
                     'menteeName': mentee.name,
                     'category': 'Mentorship Task',
-                    'rating': rating.rating if rating else None,
+                    'rating': rating_obj.rating if rating_obj else None,
                     'isCritical': is_overdue,
                     'type': 'master',
-                    'journey_phase': master_task.journey_phase,  # Add journey phase
+                    'journey_phase': master_task.journey_phase,
                     'month': master_task.month,
                     'meeting_number': task.meeting_number
                 })
 
-        # Get unique mentors and mentees
         # Add serial numbers to tasks for frontend display
         for i, t in enumerate(tasks, start=1):
             try:
@@ -6972,14 +7000,16 @@ def supervisor_tasks():
         return redirect(url_for("signin"))
     
     try:
-        print("🔍 Starting supervisor_tasks data fetch...")
-        
+        users_map = {u.id: u for u in User.query.all()}
+        all_ratings = TaskRating.query.all()
+        ratings_set = {(r.task_type, r.task_id) for r in all_ratings}
+        meetings_map = {m.id: m for m in MeetingRequest.query.all()}
+        all_pdata = _get_all_meeting_participants()
+
         # Get all tasks with proper joins
         personal_tasks = db.session.query(PersonalTask, User).join(
             User, PersonalTask.mentee_id == User.id
         ).all()
-        
-        print(f"📊 Found {len(personal_tasks)} personal tasks")
         
         mentee_tasks = db.session.query(MenteeTask, MasterTask, User).join(
             MasterTask, MenteeTask.task_id == MasterTask.id
@@ -6987,21 +7017,23 @@ def supervisor_tasks():
             User, MenteeTask.mentee_id == User.id
         ).all()
         
-        print(f"📊 Found {len(mentee_tasks)} mentee tasks")
-        
         # Prepare tasks data
         all_tasks = []
         
         # Process personal tasks
         for task, user in personal_tasks:
-            mentor = User.query.get(task.mentor_id) if task.mentor_id else None
+            mentor = users_map.get(task.mentor_id) if task.mentor_id else None
+            status = compute_task_progress_status(
+                "personal", task.id, task.mentee_id, task.mentor_id or None,
+                ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
+            )
             all_tasks.append({
                 'id': f"personal_{task.id}",
                 'title': task.title,
                 'description': task.description,
                 'due_date': task.due_date,
                 'priority': task.priority,
-                'status': compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id or None),
+                'status': status,
                 'progress': task.progress,
                 'mentee_name': user.name,
                 'mentor_name': mentor.name if mentor else 'Self',
@@ -7011,14 +7043,18 @@ def supervisor_tasks():
         
         # Process mentee tasks  
         for task, master, user in mentee_tasks:
-            mentor = User.query.get(task.mentor_id)
+            mentor = users_map.get(task.mentor_id)
+            status = compute_task_progress_status(
+                "master", task.id, task.mentee_id, task.mentor_id,
+                ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
+            )
             all_tasks.append({
                 'id': f"master_{task.id}",
                 'title': f"{master.purpose_of_call} - {master.month}",
                 'description': master.mentee_focus,
                 'due_date': task.due_date,
                 'priority': 'medium',
-                'status': compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id),
+                'status': status,
                 'progress': task.progress,
                 'mentee_name': user.name,
                 'mentor_name': mentor.name if mentor else 'Unknown',
@@ -7026,7 +7062,6 @@ def supervisor_tasks():
                 'type': 'master'
             })
         
-        print(f"🎯 Total tasks prepared: {len(all_tasks)}")
         # Add serial numbers to all_tasks (dicts) for display
         for i, task in enumerate(all_tasks, start=1):
             try:

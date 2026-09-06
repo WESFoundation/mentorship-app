@@ -1340,11 +1340,7 @@ function clearFilterTag(index) {
 let currentSelectedTask = null;
 
 // Modal functions
-<<<<<<< HEAD
-async function viewTaskDetails(taskId) {
-=======
 function viewTaskDetails(taskId) {
->>>>>>> bf9109180d5347b5d60ad55663d18b2b0e396fcf
     const task = allTasks.find(t => String(t.id) === String(taskId));
     if (!task) {
         console.error("Task not found for id:", taskId);

@@ -382,14 +382,14 @@
                                 <span class="task-badge">Mentorship Task</span>
                             </div>
                             <span class="task-status 
-                                {% if task.status == 'pending' %}status-pending
+                                {% if task.status == 'pending' or task.status == 'not-started' %}status-pending
                                 {% elif task.status == 'in-progress' %}status-in-progress
-                                {% elif task.status == 'completed' %}status-completed
+                                {% elif task.status == 'completed' or task.status == 'done' %}status-completed
                                 {% else %}status-pending{% endif %}">
                                 
-                                {% if task.status == 'pending' %}To Do
+                                {% if task.status == 'pending' or task.status == 'not-started' %}To Do
                                 {% elif task.status == 'in-progress' %}In Progress
-                                {% elif task.status == 'completed' %}Completed
+                                {% elif task.status == 'completed' or task.status == 'done' %}Completed
                                 {% else %}To Do{% endif %}
                             </span>
                         </div>
@@ -469,14 +469,14 @@
                                 {% endif %}
                             </div>
                             <span class="task-status 
-                                {% if task.status == 'pending' %}status-pending
+                                {% if task.status == 'pending' or task.status == 'not-started' %}status-pending
                                 {% elif task.status == 'in-progress' %}status-in-progress
-                                {% elif task.status == 'completed' %}status-completed
+                                {% elif task.status == 'completed' or task.status == 'done' %}status-completed
                                 {% else %}status-pending{% endif %}">
                                 
-                                {% if task.status == 'pending' %}To Do
+                                {% if task.status == 'pending' or task.status == 'not-started' %}To Do
                                 {% elif task.status == 'in-progress' %}In Progress
-                                {% elif task.status == 'completed' %}Completed
+                                {% elif task.status == 'completed' or task.status == 'done' %}Completed
                                 {% else %}To Do{% endif %}
                             </span>
                         </div>

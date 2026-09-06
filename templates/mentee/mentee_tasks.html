@@ -179,8 +179,8 @@
             <!-- Mentorship Tasks -->
             {% for task in assigned_tasks %}
             <div class="task-card bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden
-                {% if task.status == 'completed' %}border-l-4 border-l-emerald-500 opacity-75 hover:opacity-100{% endif %} 
-                {% if task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed') %}border-l-4 border-l-rose-500{% else %}border-l-4 border-l-blue-500{% endif %}"
+                {% if task.status == 'completed' or task.status == 'done' %}border-l-4 border-l-emerald-500 opacity-75 hover:opacity-100{% endif %} 
+                {% if task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed' and task.status != 'done') %}border-l-4 border-l-rose-500{% else %}border-l-4 border-l-blue-500{% endif %}"
                 data-task-type="master" data-task-id="{{ task.id }}">
 
                 <div class="flex flex-col md:flex-row justify-between items-start gap-4 mb-4">
@@ -198,12 +198,12 @@
                             </span>
 
                             <span class="task-status px-2.5 py-0.5 rounded-full text-xs font-bold border 
-                                {% if task.status == 'completed' %}bg-emerald-50 text-emerald-600 border-emerald-100
-                                {% elif task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed') %}bg-rose-50 text-rose-600 border-rose-100
+                                {% if task.status == 'completed' or task.status == 'done' %}bg-emerald-50 text-emerald-600 border-emerald-100
+                                {% elif task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed' and task.status != 'done') %}bg-rose-50 text-rose-600 border-rose-100
                                 {% elif task.status == 'in-progress' %}bg-blue-50 text-blue-600 border-blue-100
                                 {% else %}bg-amber-50 text-amber-600 border-amber-100{% endif %}">
-                                {% if task.status == 'completed' %}Completed
-                                {% elif task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed') %}Overdue
+                                {% if task.status == 'completed' or task.status == 'done' %}Completed
+                                {% elif task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed' and task.status != 'done') %}Overdue
                                 {% elif task.status == 'in-progress' %}In Progress
                                 {% else %}To Do{% endif %}
                             </span>
@@ -267,8 +267,8 @@
             <!-- Personal Tasks -->
             {% for task in personal_tasks %}
             <div class="task-card bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden
-                {% if task.status == 'completed' %}border-l-4 border-l-emerald-500 opacity-75 hover:opacity-100{% endif %} 
-                {% if task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed') %}border-l-4 border-l-rose-500{% else %}border-l-4 border-l-green-500{% endif %}"
+                {% if task.status == 'completed' or task.status == 'done' %}border-l-4 border-l-emerald-500 opacity-75 hover:opacity-100{% endif %} 
+                {% if task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed' and task.status != 'done') %}border-l-4 border-l-rose-500{% else %}border-l-4 border-l-green-500{% endif %}"
                 data-task-type="personal" data-task-id="{{ task.id }}">
 
                 <div class="flex flex-col md:flex-row justify-between items-start gap-4 mb-4">
@@ -315,12 +315,12 @@
 
                             <!-- Status Badge -->
                             <span class="task-status px-2.5 py-0.5 rounded-full text-xs font-bold border 
-                                {% if task.status == 'completed' %}bg-emerald-50 text-emerald-600 border-emerald-100
-                                {% elif task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed') %}bg-rose-50 text-rose-600 border-rose-100
+                                {% if task.status == 'completed' or task.status == 'done' %}bg-emerald-50 text-emerald-600 border-emerald-100
+                                {% elif task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed' and task.status != 'done') %}bg-rose-50 text-rose-600 border-rose-100
                                 {% elif task.status == 'in-progress' %}bg-blue-50 text-blue-600 border-blue-100
                                 {% else %}bg-amber-50 text-amber-600 border-amber-100{% endif %}">
-                                {% if task.status == 'completed' %}Completed
-                                {% elif task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed') %}Overdue
+                                {% if task.status == 'completed' or task.status == 'done' %}Completed
+                                {% elif task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed' and task.status != 'done') %}Overdue
                                 {% elif task.status == 'in-progress' %}In Progress
                                 {% else %}To Do{% endif %}
                             </span>
