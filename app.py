@@ -2767,7 +2767,7 @@ def menteedashboard():
                 "serial": t.meeting_number,
                 "title": (t.master_task.journey_phase if t.master_task else "Mentorship Task"),
                 "detail": (t.master_task.purpose_of_call if t.master_task else ""),
-                "status": t.status,
+                "status": compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id),
                 "progress": t.progress or 0,
                 "due_date": t.due_date
             })
@@ -2783,7 +2783,7 @@ def menteedashboard():
                 "serial": None,
                 "title": t.title,
                 "detail": (t.description or ""),
-                "status": t.status,
+                "status": compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id or None),
                 "progress": t.progress or 0,
                 "due_date": t.due_date
             })
@@ -3595,7 +3595,7 @@ def institution_mentorships():
             "mentee_profile": mentee_profile,
             "tasks": tasks,
             "meetings": meetings,
-            "tasks_completed": len([t for t in tasks if t.status == "completed"]),
+            "tasks_completed": len([t for t in tasks if compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id) == "done"]),
             "tasks_total": len(tasks),
             "meetings_completed": len([m for m in meetings if m.status == "approved"]),
             "meetings_total": len(meetings)
@@ -3888,7 +3888,7 @@ def institution_all_tasks():
             "title": task.title,
             "description": task.description,
             "due_date": task.due_date,
-            "status": task.status or "pending",
+            "status": compute_task_progress_status("personal", task.id, task.mentee_id, None),
             "progress": task.progress or 0,
             "priority": task.priority or "medium",
             "category": getattr(task, 'category', None) or "Personal",
@@ -3921,7 +3921,7 @@ def institution_all_tasks():
                 "title": task.title,
                 "description": task.description,
                 "due_date": task.due_date,
-                "status": task.status or "pending",
+                "status": compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id),
                 "progress": task.progress or 0,
                 "priority": task.priority or "medium",
                 "category": getattr(task, 'category', None) or "Personal",
@@ -3954,7 +3954,7 @@ def institution_all_tasks():
                 "title": master_task.purpose_of_call if master_task else "Mentorship Task",
                 "description": master_task.mentee_focus if master_task else "No description",
                 "due_date": task.due_date,
-                "status": task.status or "pending",
+                "status": compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id),
                 "progress": task.progress or 0,
                 "priority": "high",  # Master tasks are typically high priority
                 "category": "Mentorship Task",
@@ -4046,7 +4046,7 @@ def get_institution_tasks_data():
             "title": task.title,
             "description": task.description,
             "dueDate": task.due_date.isoformat() if task.due_date else None,
-            "status": task.status or "pending",
+            "status": compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id or None),
             "progress": task.progress or 0,
             "priority": task.priority or "medium",
             "category": getattr(task, 'category', None) or "Personal",
@@ -4078,7 +4078,7 @@ def get_institution_tasks_data():
             "title": master_task.purpose_of_call if master_task else "Mentorship Task",
             "description": master_task.mentee_focus if master_task else "No description",
             "dueDate": task.due_date.isoformat() if task.due_date else None,
-            "status": task.status or "pending",
+            "status": compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id),
             "progress": task.progress or 0,
             "priority": "high",
             "category": "Mentorship Task",
@@ -5444,14 +5444,45 @@ def mentee_tasks():
         # If we can't set attributes (unlikely), ignore and continue
         pass
 
-    # Calculate statistics
+    # Calculate statistics using computed task progress status
     total_tasks = len(assigned_tasks) + len(personal_tasks)
+<<<<<<< HEAD
+=======
     completed_tasks = len([t for t in assigned_tasks if t.status == 'completed']) + len([t for t in personal_tasks if t.status == 'completed'])
     pending_tasks = len([t for t in assigned_tasks if t.status in ('pending', 'in-progress')]) + len([t for t in personal_tasks if t.status in ('pending', 'in-progress')])
     
+>>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
     today = datetime.utcnow().date()
-    overdue_tasks = len([t for t in assigned_tasks if t.due_date and t.due_date.date() < today and t.status != 'completed']) + \
-                   len([t for t in personal_tasks if t.due_date and t.due_date.date() < today and t.status != 'completed'])
+
+    done_tasks = 0
+    active_tasks = 0
+    not_started_tasks = 0
+    overdue_tasks = 0
+
+    for t in assigned_tasks:
+        status = compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id)
+        if status == 'done':
+            done_tasks += 1
+        elif status in ('in-progress', 'committed'):
+            active_tasks += 1
+        elif status == 'not-started':
+            not_started_tasks += 1
+        if t.due_date and t.due_date.date() < today and status != 'done':
+            overdue_tasks += 1
+
+    for t in personal_tasks:
+        status = compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id)
+        if status == 'done':
+            done_tasks += 1
+        elif status in ('in-progress', 'committed'):
+            active_tasks += 1
+        elif status == 'not-started':
+            not_started_tasks += 1
+        if t.due_date and t.due_date.date() < today and status != 'done':
+            overdue_tasks += 1
+
+    completed_tasks = done_tasks
+    pending_tasks = active_tasks + not_started_tasks
     
     return render_template(
         "mentee/mentee_tasks.html",
@@ -5661,7 +5692,7 @@ def get_task_details(task_id):
                 "title": task.master_task.purpose_of_call,
                 "description": task.master_task.mentee_focus,
                 "due_date": task.due_date.strftime('%Y-%m-%d') if task.due_date else None,
-                "status": task.status,
+                "status": compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id),
                 "progress": task.progress or 0,
                 "assigned_by": task.mentor.name if task.mentor else "System",
                 "assigned_date": task.assigned_date.strftime('%Y-%m-%d') if task.assigned_date else None,
@@ -5691,7 +5722,7 @@ def get_task_details(task_id):
                 "title": task.title,
                 "description": task.description,
                 "due_date": task.due_date.strftime('%Y-%m-%d') if task.due_date else None,
-                "status": task.status,
+                "status": compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id or None),
                 "progress": task.progress or 0,
                 "priority": task.priority,
                 "assigned_by": "Self",
@@ -5767,14 +5798,29 @@ def mentor_tasks():
     except Exception:
         pass
 
-    # Calculate statistics
+    # Calculate statistics using computed status
     all_tasks = list(personal_tasks) + list(all_mentee_tasks)
     total_tasks = len(all_tasks)
-    completed_tasks = len([t for t in all_tasks if t.status == 'completed'])
-    pending_tasks = len([t for t in all_tasks if t.status in ['pending', 'in-progress']])
-    
+    done_count = 0
+    active_count = 0
+    not_started_count = 0
+    overdue_count = 0
     today = datetime.utcnow().date()
-    overdue_tasks = len([t for t in all_tasks if t.due_date and t.due_date.date() < today and t.status != 'completed'])
+    for t in all_tasks:
+        ttype = "master" if hasattr(t, 'meeting_number') and hasattr(t, 'task_id') else "personal"
+        st = compute_task_progress_status(ttype, t.id, t.mentee_id, t.mentor_id or None)
+        if st == 'done':
+            done_count += 1
+        elif st in ('in-progress', 'committed'):
+            active_count += 1
+        else:
+            not_started_count += 1
+        if t.due_date and hasattr(t.due_date, 'date') and t.due_date.date() < today and st != 'done':
+            overdue_count += 1
+
+    completed_tasks = done_count
+    pending_tasks = active_count + not_started_count
+    overdue_tasks = overdue_count
 
     return render_template(
         "mentor/mentor_tasks.html",
@@ -5902,7 +5948,7 @@ def collect_mentor_work_rows(user):
             "assigned_date": t.assigned_date,
             "due_date": t.due_date,
             "completed_date": t.completed_date,
-            "status": t.status,
+            "status": compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id),
             "progress": t.progress or 0,
             "priority": "N/A"
         })
@@ -5920,7 +5966,7 @@ def collect_mentor_work_rows(user):
             "assigned_date": t.created_date,
             "due_date": t.due_date,
             "completed_date": t.completed_date,
-            "status": t.status,
+            "status": compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id or None),
             "progress": t.progress or 0,
             "priority": t.priority or "medium"
         })
@@ -5952,7 +5998,7 @@ def collect_mentee_own_rows(user):
             "assigned_date": t.assigned_date,
             "due_date": t.due_date,
             "completed_date": t.completed_date,
-            "status": t.status,
+            "status": compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id),
             "progress": t.progress or 0,
             "priority": "N/A"
         })
@@ -5969,7 +6015,7 @@ def collect_mentee_own_rows(user):
             "assigned_date": t.created_date,
             "due_date": t.due_date,
             "completed_date": t.completed_date,
-            "status": t.status,
+            "status": compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id or None),
             "progress": t.progress or 0,
             "priority": t.priority or "medium"
         })
@@ -6266,7 +6312,7 @@ def get_mentor_task_details(task_id):
                 "purpose_of_call": task.master_task.journey_phase,
                 "description": task.master_task.mentee_focus,
                 "due_date": task.due_date.strftime('%Y-%m-%d') if task.due_date else None,
-                "status": task.status,
+                "status": compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id),
                 "progress": task.progress or 0,
                 "mentee_name": task.mentee.name if task.mentee else "Unknown",
                 "mentee_email": task.mentee.email if task.mentee else "",
@@ -6301,7 +6347,7 @@ def get_mentor_task_details(task_id):
                 "title": task.title,
                 "description": task.description,
                 "due_date": task.due_date.strftime('%Y-%m-%d') if task.due_date else None,
-                "status": task.status,
+                "status": compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id or None),
                 "progress": task.progress or 0,
                 "priority": task.priority,
                 "mentee_name": task.mentee.name if task.mentee else "Unknown",
@@ -6372,9 +6418,12 @@ def rate_task(task_type, task_id):
             )
             db.session.add(new_rating)
         
+<<<<<<< HEAD
+=======
         task.status = 'completed'
         task.progress = 100
         task.completed_date = datetime.utcnow()
+>>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
         db.session.commit()
         
         return jsonify({
@@ -6456,6 +6505,106 @@ def _get_all_meeting_participants():
     return result
 
 
+# ===== 4-STAGE TASK PROGRESS (computed, no DB changes) =====
+# Stages: not-started, committed, in-progress, done
+
+def _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id):
+    """Check if any meeting in meeting_participants_data is linked to this task."""
+    all_pdata = _get_all_meeting_participants()
+    for meeting_id, pdata in all_pdata.items():
+        if pdata.get("task_type") == task_type and str(pdata.get("task_id")) == str(task_id):
+            return True
+        if pdata.get("mentee_id") == mentee_id and pdata.get("mentor_id") == mentor_id:
+            if pdata.get("task_type") == task_type and str(pdata.get("task_id")) == str(task_id):
+                return True
+    return False
+
+
+def _meeting_is_completed(task_type, task_id):
+    """Check if the linked meeting has passed its date (i.e. meeting is completed)."""
+    all_pdata = _get_all_meeting_participants()
+    for meeting_id, pdata in all_pdata.items():
+        if pdata.get("task_type") == task_type and str(pdata.get("task_id")) == str(task_id):
+            meeting = MeetingRequest.query.get(meeting_id)
+            if meeting:
+                meeting_date = meeting.meeting_date
+                if meeting_date:
+                    from datetime import date as date_cls
+                    if meeting_date <= date_cls.today():
+                        return True
+    return False
+
+
+def _has_mentee_feedback(task_type, task_id):
+    """Check if mentee has submitted feedback for this task."""
+    path = _get_mentee_feedback_path(task_type, task_id)
+    if not os.path.exists(path):
+        return False
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return bool(data.get('text', '').strip() or data.get('rating', '').strip())
+    except Exception:
+        return False
+
+
+def _has_mentor_rating(task_type, task_id):
+    """Check if mentor has submitted rating for this task."""
+    rating = TaskRating.query.filter_by(task_id=task_id, task_type=task_type).first()
+    return rating is not None
+
+
+def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id):
+    """Compute the 4-stage task progress status dynamically.
+
+    Returns one of: 'not-started', 'committed', 'in-progress', 'done'
+    """
+    has_meeting = _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id)
+    if not has_meeting:
+        return 'not-started'
+
+    meeting_done = _meeting_is_completed(task_type, task_id)
+    has_mentee_fb = _has_mentee_feedback(task_type, task_id)
+    has_mentor_rt = _has_mentor_rating(task_type, task_id)
+
+    if not meeting_done and not has_mentee_fb and not has_mentor_rt:
+        return 'committed'
+
+    if meeting_done and (has_mentee_fb or has_mentor_rt):
+        if has_mentee_fb and has_mentor_rt:
+            return 'done'
+        return 'in-progress'
+
+    if has_mentee_fb or has_mentor_rt:
+        if has_mentee_fb and has_mentor_rt:
+            return 'done'
+        return 'in-progress'
+
+    return 'committed'
+
+
+def get_task_progress_label(status):
+    """Return human-readable label for a task progress status."""
+    labels = {
+        'not-started': 'Not Started',
+        'committed': 'Committed',
+        'in-progress': 'In Progress',
+        'done': 'Done',
+    }
+    return labels.get(status, 'Not Started')
+
+
+def get_task_progress_css(status):
+    """Return CSS classes for a task progress status badge."""
+    css = {
+        'not-started': 'bg-slate-100 text-slate-500',
+        'committed': 'bg-amber-50 text-amber-600',
+        'in-progress': 'bg-blue-50 text-blue-600',
+        'done': 'bg-emerald-50 text-emerald-600',
+    }
+    return css.get(status, 'bg-slate-100 text-slate-500')
+
+
 def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calendar_link,
                               platform, title, start_datetime, timezone,
                               mentor_id, mentee_id, supervisor, requested_to):
@@ -6489,7 +6638,7 @@ def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calend
         if meet_link:
             link_section = f'<p><a href="{meet_link}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Join Meeting</a></p>'
         elif platform == "teams" and teams_calendar_link:
-            link_section = f'<p><a href="{teams_calendar_link}" style="display:inline-block;padding:12px 24px;background:#6264a7;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Open in Outlook & Create Teams Meeting</a></p>'
+            link_section = f'<p><a href="{teams_calendar_link}" style="display:inline-block;padding:12px 24px;background:#6264a7;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Create Meeting in Microsoft Teams</a></p>'
         elif calendar_add_link:
             link_section = f'<p><a href="{calendar_add_link}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Add to Google Calendar</a></p>'
 
@@ -6498,11 +6647,15 @@ def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calend
         if not meet_link and platform == "google":
             fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No automatic meeting link was generated. Please open the Google Calendar event and click "Join with Google Meet" to get the link, then share it with participants.</p>'
         elif not meet_link and platform == "teams":
+<<<<<<< HEAD
+            fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">Click the link below to open Microsoft Teams and create your meeting with a join link.</p>'
+=======
             fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No automatic meeting link was generated. Open the Outlook event, enable the "Teams meeting" toggle, and send the invite to generate a Teams join link.</p>'
         elif not meet_link and platform == "custom":
             fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No meeting link was provided for this custom meeting.</p>'
 
         platform_display = "Other (Custom Link)" if platform == "custom" else ("Microsoft Teams" if platform == "teams" else "Google Meet")
+>>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
 
         html_body = f"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
@@ -6575,6 +6728,9 @@ def save_mentee_feedback():
         feedback.extra = data.get('extra', '')
         feedback.created_at = datetime.utcnow()
 
+<<<<<<< HEAD
+        return jsonify({'success': True, 'message': 'Feedback saved'})
+=======
         if task_type == 'master':
             task = MenteeTask.query.filter_by(id=task_id, mentee_id=mentee.id).first()
         else:
@@ -6585,6 +6741,7 @@ def save_mentee_feedback():
 
         db.session.commit()
         return jsonify({'success': True, 'message': 'Feedback saved', 'feedback': feedback.to_dict()})
+>>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -6736,7 +6893,7 @@ def get_supervisor_tasks_data():
                 'description': task.description or 'No description provided',
                 'dueDate': due_date.isoformat(),
                 'priority': task.priority,
-                'status': task.status,
+                'status': compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id or None),
                 'progress': task.progress or 0,
                 'mentorName': mentor.name if mentor else 'Self',
                 'menteeName': mentee.name if mentee else 'Unknown',
@@ -6771,7 +6928,7 @@ def get_supervisor_tasks_data():
                     'description': master_task.mentee_focus or 'No description provided',
                     'dueDate': due_date.isoformat(),
                     'priority': 'medium',
-                    'status': task.status,
+                    'status': compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id),
                     'progress': task.progress or 0,
                     'mentorName': mentor.name,
                     'menteeName': mentee.name,
@@ -6855,7 +7012,7 @@ def supervisor_tasks():
                 'description': task.description,
                 'due_date': task.due_date,
                 'priority': task.priority,
-                'status': task.status,
+                'status': compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id or None),
                 'progress': task.progress,
                 'mentee_name': user.name,
                 'mentor_name': mentor.name if mentor else 'Self',
@@ -6872,7 +7029,7 @@ def supervisor_tasks():
                 'description': master.mentee_focus,
                 'due_date': task.due_date,
                 'priority': 'medium',
-                'status': task.status,
+                'status': compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id),
                 'progress': task.progress,
                 'mentee_name': user.name,
                 'mentor_name': mentor.name if mentor else 'Unknown',
@@ -7525,6 +7682,17 @@ def mentor_response():
     # Update status
     mentorship_request.mentor_status = "accepted" if action == "accept" else "rejected"
 
+    # For anchor mentors: auto-approve and assign tasks when mentor accepts
+    assigned_tasks = []
+    if action == "accept" and mentorship_request.mentor_type == "anchor":
+        mentorship_request.supervisor_status = "approved"
+        mentorship_request.final_status = "approved"
+        if mentorship_request.duration_months == 12:
+            try:
+                assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
+            except Exception as e:
+                print(f"Task assignment error for anchor mentor: {e}")
+
     try:
         db.session.commit()
     except Exception as e:
@@ -7538,11 +7706,18 @@ def mentor_response():
     # Notify the mentee about the mentor's response
     if mentorship_request.mentee:
         if action == "accept":
-            create_notification(
-                mentorship_request.mentee.id,
-                f"A mentor ({mentor.name}) accepted your mentorship request.",
-                url_for("my_mentors")
-            )
+            if assigned_tasks:
+                create_notification(
+                    mentorship_request.mentee.id,
+                    f"Anchor mentor ({mentor.name}) accepted your request. {len(assigned_tasks)} tasks have been assigned.",
+                    url_for("my_mentors")
+                )
+            else:
+                create_notification(
+                    mentorship_request.mentee.id,
+                    f"A mentor ({mentor.name}) accepted your mentorship request.",
+                    url_for("my_mentors")
+                )
         else:
             create_notification(
                 mentorship_request.mentee.id,
@@ -7554,6 +7729,12 @@ def mentor_response():
         return jsonify({"success": True, "message": f"Request {action}ed successfully!"})
 
     flash(f"Request {action}ed successfully!", "success")
+
+    # For anchor mentorships, also send connection notifications and emails
+    if action == "accept" and mentorship_request.mentor_type == "anchor":
+        notify_mentorship_connection(mentorship_request)
+        send_mentorship_connected_email(mentorship_request)
+
     return redirect(url_for("mentor_mentorship_request"))
 
 #--------------x----- PROFILE PICTURE AT TOP ------------------
@@ -8338,7 +8519,7 @@ def my_certificate():
             tasks_list.append({
                 "id": t.id,
                 "title": task_name,
-                "status": t.status or "pending",
+                "status": compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id),
                 "with": mentee.name if mentee else "Unknown"
             })
         
@@ -8347,7 +8528,7 @@ def my_certificate():
             tasks_list.append({
                 "id": f"p{t.id}",
                 "title": t.title,
-                "status": t.status or "pending",
+                "status": compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id or None),
                 "with": "Personal"
             })
         
@@ -8390,7 +8571,7 @@ def my_certificate():
             tasks_list.append({
                 "id": t.id,
                 "title": task_name,
-                "status": t.status or "pending",
+                "status": compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id),
                 "with": mentor.name if mentor else "Unknown"
             })
         
@@ -8399,7 +8580,7 @@ def my_certificate():
             tasks_list.append({
                 "id": f"p{t.id}",
                 "title": t.title,
-                "status": t.status or "pending",
+                "status": compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id or None),
                 "with": "Personal"
             })
         
@@ -9009,7 +9190,7 @@ def supervisor_all_mentorships():
             "mentee_profile": mentee_profile,
             "tasks": tasks,
             "meetings": meetings,
-            "tasks_completed": len([t for t in tasks if t.status == "completed"]),
+            "tasks_completed": len([t for t in tasks if compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id) == "done"]),
             "tasks_total": len(tasks),
             "meetings_completed": len([m for m in meetings if m.status == "approved"]),
             "meetings_total": len(meetings)
@@ -9169,7 +9350,7 @@ def get_tasks_for_mentorship():
             "id": t.id,
             "meeting_number": t.meeting_number,
             "month": t.month,
-            "status": t.status,
+            "status": compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id),
             "due_date": t.due_date.strftime("%b %d, %Y") if t.due_date else "",
             "purpose": master.purpose_of_call if master else "",
             "mentor_focus": master.mentor_focus if master else "",
@@ -9388,26 +9569,13 @@ def create_meeting_ajax():
         if mentee_user and mentee_user.email not in all_emails_teams:
             all_emails_teams.append(mentee_user.email)
 
-        teams_body = (
-            "Meeting scheduled via Mentor Connect.\n\n"
-            f"Supervisor: {supervisor.email}\n"
-            f"Participant: {requested_to.email}\n"
-            f"Original timezone: {timezone}\n\n"
-            "Turn on the Teams meeting toggle in Outlook and send the invite "
-            "to generate your Microsoft Teams join link."
-        )
-
         teams_calendar_link = (
-            "https://outlook.office.com/calendar/0/deeplink/compose?"
+            "https://teams.microsoft.com/l/meeting/new?"
             + urlencode({
-                "path": "/calendar/action/compose",
-                "rru": "addevent",
                 "subject": title,
-                "startdt": start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "enddt": end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "to": ";".join(all_emails_teams),
-                "body": teams_body,
-                "location": "Microsoft Teams Meeting",
+                "startTime": start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "endTime": end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "attendees": ",".join(all_emails_teams),
             })
         )
 
@@ -9430,12 +9598,16 @@ def create_meeting_ajax():
 
         if mentee_id and mentor_id:
             try:
-                _save_meeting_participants(meeting.id, {
+                participants_data = {
                     "mentee_id": int(mentee_id),
                     "mentor_id": int(mentor_id),
                     "created_by": supervisor.id,
                     "created_by_name": supervisor.name
-                })
+                }
+                if task_id:
+                    participants_data["task_id"] = task_id
+                    participants_data["task_type"] = "master"
+                _save_meeting_participants(meeting.id, participants_data)
             except Exception as e:
                 app.logger.error(f"Failed to save meeting participants: {e}")
 

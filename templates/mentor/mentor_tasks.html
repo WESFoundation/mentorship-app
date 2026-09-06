@@ -59,6 +59,26 @@
         color: #dc2626;
     }
     
+    .status-not-started {
+        background: #f1f5f9;
+        color: #64748b;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
+    .status-committed {
+        background: #fef3c7;
+        color: #d97706;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
     .priority-high {
         color: #dc2626;
         font-weight: 600;
@@ -1033,14 +1053,17 @@ function populateTaskDetailsModal(task) {
         // Progress with null checks
         const progressText = getElement('detail-progress-text');
         if (progressText) {
-            if (task.status === 'completed') {
+            if (task.status === 'done') {
                 progressText.textContent = 'Done';
                 progressText.className = 'text-sm font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full';
             } else if (task.status === 'in-progress') {
                 progressText.textContent = 'In Progress';
                 progressText.className = 'text-sm font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-full';
+            } else if (task.status === 'committed') {
+                progressText.textContent = 'Committed';
+                progressText.className = 'text-sm font-medium bg-amber-100 text-amber-700 px-3 py-1 rounded-full';
             } else {
-                progressText.textContent = 'Not Done';
+                progressText.textContent = 'Not Started';
                 progressText.className = 'text-sm font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full';
             }
         }
@@ -1145,22 +1168,26 @@ function populateFromDOM(taskId, taskType) {
 
 function getStatusText(status) {
     const statusMap = {
-        'pending': 'To Do',
+        'not-started': 'Not Started',
+        'committed': 'Committed',
         'in-progress': 'In Progress',
-        'completed': 'Completed',
-        'overdue': 'Overdue'
+        'done': 'Done',
+        'pending': 'Not Started',
+        'completed': 'Done'
     };
-    return statusMap[status] || 'To Do';
+    return statusMap[status] || 'Not Started';
 }
 
 function getStatusClass(status) {
     const classMap = {
-        'pending': 'status-pending',
+        'not-started': 'status-not-started',
+        'committed': 'status-committed',
         'in-progress': 'status-in-progress',
-        'completed': 'status-completed',
-        'overdue': 'status-overdue'
+        'done': 'status-completed',
+        'pending': 'status-not-started',
+        'completed': 'status-completed'
     };
-    return classMap[status] || 'status-pending';
+    return classMap[status] || 'status-not-started';
 }
 
 function getPriorityText(priority) {

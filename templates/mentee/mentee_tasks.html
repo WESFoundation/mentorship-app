@@ -254,10 +254,11 @@
                     </div>
 
                     <span class="text-xs font-bold px-2 py-1 rounded-lg
-                        {% if task.status == 'completed' %}bg-emerald-50 text-emerald-600
+                        {% if task.status == 'done' %}bg-emerald-50 text-emerald-600
                         {% elif task.status == 'in-progress' %}bg-blue-50 text-blue-600
+                        {% elif task.status == 'committed' %}bg-amber-50 text-amber-600
                         {% else %}bg-slate-100 text-slate-500{% endif %}">
-                        {% if task.status == 'completed' %}Done{% elif task.status == 'in-progress' %}In Progress{% else %}Not Done{% endif %}
+                        {% if task.status == 'done' %}Done{% elif task.status == 'in-progress' %}In Progress{% elif task.status == 'committed' %}Committed{% else %}Not Started{% endif %}
                     </span>
                 </div>
             </div>
@@ -377,10 +378,11 @@
                     </div>
 
                     <span class="text-xs font-bold px-2 py-1 rounded-lg
-                        {% if task.status == 'completed' %}bg-emerald-50 text-emerald-600
+                        {% if task.status == 'done' %}bg-emerald-50 text-emerald-600
                         {% elif task.status == 'in-progress' %}bg-blue-50 text-blue-600
+                        {% elif task.status == 'committed' %}bg-amber-50 text-amber-600
                         {% else %}bg-slate-100 text-slate-500{% endif %}">
-                        {% if task.status == 'completed' %}Done{% elif task.status == 'in-progress' %}In Progress{% else %}Not Done{% endif %}
+                        {% if task.status == 'done' %}Done{% elif task.status == 'in-progress' %}In Progress{% elif task.status == 'committed' %}Committed{% else %}Not Started{% endif %}
                     </span>
                 </div>
             </div>
@@ -1082,15 +1084,18 @@
         badges.forEach(function(badge) {
             if (badge === statusBadge) return;
             var txt = badge.textContent.trim();
-            if (txt === 'Done' || txt === 'Not Done' || txt === 'In Progress') {
+            if (['Done', 'Not Done', 'In Progress', 'Committed', 'Not Started'].indexOf(txt) !== -1) {
                 if (state === 'done') {
                     badge.textContent = 'Done';
                     badge.className = 'text-xs font-bold px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600';
                 } else if (state === 'in-progress') {
                     badge.textContent = 'In Progress';
                     badge.className = 'text-xs font-bold px-2 py-1 rounded-lg bg-blue-50 text-blue-600';
+                } else if (state === 'committed') {
+                    badge.textContent = 'Committed';
+                    badge.className = 'text-xs font-bold px-2 py-1 rounded-lg bg-amber-50 text-amber-600';
                 } else {
-                    badge.textContent = 'Not Done';
+                    badge.textContent = 'Not Started';
                     badge.className = 'text-xs font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-500';
                 }
             }
@@ -1230,6 +1235,12 @@
                 if (details) details.classList.add('hidden');
                 if (noMsg) noMsg.classList.remove('hidden');
                 if (progressText) {
+<<<<<<< HEAD
+                    progressText.textContent = 'Not Started';
+                    progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
+                }
+                updateTaskCardBadge(taskId, taskType, 'not-started');
+=======
                     if (isCompleted) {
                         progressText.textContent = 'Done';
                         progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700';
@@ -1242,6 +1253,7 @@
                     }
                 }
                 updateTaskCardBadge(taskId, taskType, isCompleted ? 'done' : (taskStatus === 'in-progress' ? 'in-progress' : 'not-done'));
+>>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
                 return;
             }
             var data = JSON.parse(raw);
@@ -1420,10 +1432,10 @@
         }).catch(function(err) { console.error('Failed to sync clear to server:', err); });
         var progressText = document.getElementById('detail-progress-text');
         if (progressText) {
-            progressText.textContent = 'Not Done';
+            progressText.textContent = 'Not Started';
             progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
         }
-        updateTaskCardBadge(currentTaskId, currentTaskType, 'not-done');
+        updateTaskCardBadge(currentTaskId, currentTaskType, 'not-started');
         loadMenteeFeedback(currentTaskId, currentTaskType);
     }
 
