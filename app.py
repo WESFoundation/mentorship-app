@@ -5538,7 +5538,7 @@ def update_task_status():
             # Update master task
             task = MenteeTask.query.filter_by(id=task_id, mentee_id=mentee.id).first()
             if not task:
-                return jsonify({"success": False, "message": "Master task not found"})
+                return jsonify({"success": False, "message": "Mentorship task not found"})
             
             task.status = status
             if status == 'completed':
@@ -5646,7 +5646,7 @@ def get_task_details(task_id):
                 .first()
             
             if not task:
-                return jsonify({"success": False, "message": "Master task not found"})
+                return jsonify({"success": False, "message": "Mentorship task not found"})
             
             # Verify access rights
             user = User.query.filter_by(email=session["email"]).first()
@@ -6252,7 +6252,7 @@ def get_mentor_task_details(task_id):
                 .first()
             
             if not task:
-                return jsonify({"success": False, "message": "Master task not found"})
+                return jsonify({"success": False, "message": "Mentorship task not found"})
             
             # Verify the mentor has access to this task
             mentor = User.query.filter_by(email=session["email"]).first()
@@ -6775,7 +6775,7 @@ def get_supervisor_tasks_data():
                     'progress': task.progress or 0,
                     'mentorName': mentor.name,
                     'menteeName': mentee.name,
-                    'category': 'Mentorship Program',
+                    'category': 'Mentorship Task',
                     'rating': rating.rating if rating else None,
                     'isCritical': is_overdue,
                     'type': 'master',
@@ -6859,6 +6859,7 @@ def supervisor_tasks():
                 'progress': task.progress,
                 'mentee_name': user.name,
                 'mentor_name': mentor.name if mentor else 'Self',
+                'category': 'Personal Task',
                 'type': 'personal'
             })
         
@@ -6875,6 +6876,7 @@ def supervisor_tasks():
                 'progress': task.progress,
                 'mentee_name': user.name,
                 'mentor_name': mentor.name if mentor else 'Unknown',
+                'category': 'Mentorship Task',
                 'type': 'master'
             })
         

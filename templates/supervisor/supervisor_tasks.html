@@ -309,6 +309,23 @@
         color: #1e40af;
         font-weight: 500;
     }
+    
+    .task-serial {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 32px;
+        height: 32px;
+        padding: 0 8px;
+        background: #dbeafe;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 700;
+        line-height: 1;
+        flex-shrink: 0;
+    }
 </style>
 
 <!-- Main Content Container -->
@@ -822,9 +839,11 @@
         return `
         <div class="task-card p-6 ${task.status === 'completed' ? 'completed' : ''} ${task.isCritical || isOverdue ? 'urgent' : ''}">
             <div class="flex justify-between items-start mb-3">
-                <div class="flex items-center gap-3">
-                    <h3 class="text-lg font-semibold text-gray-900"><span class="text-sm text-gray-400 mr-2">#${task.serial || ''}</span>${task.title || 'Untitled'}</h3>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <span class="task-serial inline-flex items-center justify-center min-w-[32px] h-8 px-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-base font-bold shrink-0">#${task.serial || (index + 1)}</span>
+                    <h3 class="text-lg font-semibold text-gray-900">${task.title || 'Untitled'}</h3>
                     <span class="task-status ${getStatusClass(task.status)}">${getStatusText(task.status)}</span>
+                    <span class="badge ${task.type === 'master' ? 'badge-primary' : 'badge-secondary'}">${task.category || (task.type === 'master' ? 'Mentorship Task' : 'Personal Task')}</span>
                     ${task.isCritical ? '<span class="badge badge-danger">Critical</span>' : ''}
                     ${isOverdue ? '<span class="badge badge-warning">Overdue</span>' : ''}
                 </div>
