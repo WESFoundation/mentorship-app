@@ -406,8 +406,11 @@ async function createMeeting() {
   const ampm = document.getElementById("ampm").value;
   const duration = document.getElementById("duration").value;
   const timezone = document.getElementById("timezone").value;
-  const mentor_id = document.getElementById("mentor_id").value;
-  const mentee_id = document.getElementById("mentee_id").value;
+  const mentorIdEl = document.getElementById("mentor_id");
+  const mentorSelectEl = document.getElementById("mentor_select");
+  const mentor_id = mentorIdEl ? mentorIdEl.value : (mentorSelectEl ? mentorSelectEl.value : "");
+  const menteeIdEl = document.getElementById("mentee_id");
+  const mentee_id = menteeIdEl ? menteeIdEl.value : "";
   const platformEl = document.getElementById("platform");
   const platform = platformEl ? platformEl.value : "google";
   const customLinkEl = document.getElementById("custom_link");
@@ -416,13 +419,67 @@ async function createMeeting() {
   const menteeInstEl = document.getElementById("mentee_institute_id");
   const institution_id = mentorInstEl ? mentorInstEl.value : "";
 
-  if (!title || !date || !hour || !minute || !ampm || !duration || !timezone) {
-    Swal.fire("Error", "Please fill all fields including time zone!", "error");
-    return;
+  const missingFields = [];
+  let firstInvalidEl = null;
+
+  function markMissing(el, name) {
+    if (el) {
+      el.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+      if (!firstInvalidEl) firstInvalidEl = el;
+    }
+    missingFields.push(name);
+  }
+
+  if (!mentor_id) {
+    markMissing(mentorSelectEl, 'Mentor');
+  }
+
+  const titleEl = document.getElementById("title");
+  if (!title) {
+    markMissing(titleEl, 'Meeting Title');
+  }
+
+  const dateEl = document.getElementById("date");
+  if (!date) {
+    markMissing(dateEl, 'Meeting Date');
+  }
+
+  const hourEl = document.getElementById("hour");
+  const minuteEl = document.getElementById("minute");
+  const ampmEl = document.getElementById("ampm");
+  const timeMissing = [];
+  if (!hour) { hourEl.classList.add('border-red-500', 'ring-1', 'ring-red-500'); if (!firstInvalidEl) firstInvalidEl = hourEl; timeMissing.push('Hour'); }
+  if (!minute) { minuteEl.classList.add('border-red-500', 'ring-1', 'ring-red-500'); if (!firstInvalidEl) firstInvalidEl = minuteEl; timeMissing.push('Minute'); }
+  if (!ampm) { ampmEl.classList.add('border-red-500', 'ring-1', 'ring-red-500'); if (!firstInvalidEl) firstInvalidEl = ampmEl; timeMissing.push('AM/PM'); }
+  if (timeMissing.length > 0) {
+    missingFields.push('Meeting Time (' + timeMissing.join('/') + ')');
+  }
+
+  const durationEl = document.getElementById("duration");
+  if (!duration) {
+    markMissing(durationEl, 'Duration');
   }
 
   if (platform === "custom" && !custom_link) {
-    Swal.fire("Error", "Please paste your meeting link when using a custom platform.", "error");
+    markMissing(customLinkEl, 'Meeting Link for Other platform');
+  }
+
+  const timezoneEl = document.getElementById("timezone");
+  if (!timezone) {
+    markMissing(timezoneEl, 'Time Zone');
+  }
+
+  if (missingFields.length > 0) {
+    const errorMsg = missingFields.length === 1
+      ? `${missingFields[0]} is required. Please fill it in.`
+      : `Please fill in the missing fields: ${missingFields.join(', ')}.`;
+    Swal.fire({
+      icon: "error",
+      title: "Missing Field",
+      text: errorMsg,
+      confirmButtonColor: "#2563eb"
+    });
+    if (firstInvalidEl) firstInvalidEl.focus();
     return;
   }
 
@@ -526,6 +583,21 @@ document.addEventListener('DOMContentLoaded', function() {
   taskSel.addEventListener('blur', () => arrow.classList.remove('rotate-180'));
   taskSel.addEventListener('change', () => arrow.classList.remove('rotate-180'));
 })();
+
+// Clear red border styling on input/change
+[
+  'title', 'date', 'hour', 'minute', 'ampm', 'duration', 'platform', 'custom_link', 'timezone'
+].forEach(function(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('input', function() {
+      this.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+    });
+    el.addEventListener('change', function() {
+      this.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+    });
+  }
+});
 </script>
 
 {% endblock %}

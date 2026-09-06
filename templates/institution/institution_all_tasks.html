@@ -333,7 +333,7 @@
                     <span class="metric-value" id="personal-tasks">0</span>
                 </div>
                 <div class="metric-item">
-                    <span class="metric-label">Master Tasks</span>
+                    <span class="metric-label">Mentorship Tasks</span>
                     <span class="metric-value" id="master-tasks">0</span>
                 </div>
                 <div class="metric-item">
@@ -382,7 +382,7 @@
             <div class="flex flex-wrap gap-2">
                 <button class="filter-btn active" data-filter="all">All Tasks</button>
                 <button class="filter-btn" data-filter="personal">Personal Tasks</button>
-                <button class="filter-btn" data-filter="master">Master Tasks</button>
+                <button class="filter-btn" data-filter="master">Mentorship Tasks</button>
                 <button class="filter-btn" data-filter="pending">Pending</button>
                 <button class="filter-btn" data-filter="in-progress">In Progress</button>
                 <button class="filter-btn" data-filter="completed">Completed</button>
@@ -929,7 +929,7 @@ function createTaskHTML(task, index) {
                     <span class="task-serial inline-flex items-center justify-center min-w-[32px] h-8 px-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-base font-bold shrink-0">${index + 1}</span>
                     <h3 class="text-lg font-semibold text-gray-900">${task.title || 'Untitled'}</h3>
                     <span class="task-status ${getStatusClass(task.status)}">${getStatusText(task.status)}</span>
-                    <span class="badge ${taskTypeClass}">${task.type === 'master' ? 'Master Task' : 'Personal Task'}</span>
+                    <span class="badge ${taskTypeClass}">${task.type === 'master' ? 'Mentorship Task' : 'Personal Task'}</span>
                     ${task.isCritical ? '<span class="badge badge-danger">Critical</span>' : ''}
                     ${isOverdue ? '<span class="badge badge-warning">Overdue</span>' : ''}
                 </div>
@@ -1100,7 +1100,7 @@ function viewTaskDetails(taskId) {
     const statusEl = document.getElementById('detail-task-status');
     if (statusEl) statusEl.className = `task-status ${getStatusClass(task.status)}`;
     
-    setSafe('detail-task-type', task.type === 'master' ? 'Master Task' : 'Personal Task');
+    setSafe('detail-task-type', task.type === 'master' ? 'Mentorship Task' : 'Personal Task');
     const typeEl = document.getElementById('detail-task-type');
     if (typeEl) typeEl.className = `badge ${task.type === 'master' ? 'task-type-master' : 'task-type-personal'}`;
     

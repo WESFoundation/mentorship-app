@@ -261,24 +261,52 @@
                 </button>
             </div>
         </div>
-        <form id="scheduleMeetingForm" class="p-6 space-y-4">
+        <form id="scheduleMeetingForm" novalidate class="p-6 space-y-4">
+            <!-- Top Status Alert (prominently visible at top of form) -->
+            <div id="sched-status-top" class="hidden text-sm p-3 rounded-lg border"></div>
+
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentor *</label>
-                <select id="sched-mentor" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentor <span class="text-red-500">*</span></label>
+                <select id="sched-mentor" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                     <option value="">Choose a mentor...</option>
                     {% for mentor in mentors %}
-                    <option value="{{ mentor.id }}" data-name="{{ mentor.name }}">{{ mentor.name }} ({{ mentor.email }})</option>
+                    <option value="{{ mentor.id }}" data-name="{{ mentor.name }}" data-institution="{{ (mentor.institution or (mentor.institution_ref.name if mentor.institution_ref else '')) | trim }}" data-institution-id="{{ mentor.institution_id or '' }}">{{ mentor.name }} ({{ mentor.email }})</option>
                     {% endfor %}
                 </select>
+                <p id="sched-mentor-error" class="hidden text-xs text-red-600 mt-1 font-medium flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                    Mentor is required. Please select a mentor.
+                </p>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentee <span class="text-gray-400 font-normal">(optional)</span></label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentee <span class="text-red-500">*</span></label>
                 <select id="sched-mentee" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                     <option value="">Choose a mentee...</option>
                     {% for mentee in mentees %}
-                    <option value="{{ mentee.id }}" data-name="{{ mentee.name }}">{{ mentee.name }} ({{ mentee.email }})</option>
+                    <option value="{{ mentee.id }}" data-name="{{ mentee.name }}" data-institution="{{ (mentee.institution or (mentee.institution_ref.name if mentee.institution_ref else '')) | trim }}" data-institution-id="{{ mentee.institution_id or '' }}">{{ mentee.name }} ({{ mentee.email }})</option>
                     {% endfor %}
                 </select>
+                <p id="sched-mentee-error" class="hidden text-xs text-red-600 mt-1 font-medium flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                    Mentee is required. Please select a mentee.
+                </p>
+            </div>
+            <!-- Institute Fields -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Mentee's Institute</label>
+                    <input type="text" id="sched-mentee-institution" readonly
+                        value="Not specified"
+                        class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm cursor-not-allowed">
+                    <input type="hidden" id="sched-mentee-institute-id" value="">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Mentor's Institute</label>
+                    <input type="text" id="sched-mentor-institution" readonly
+                        value="Not specified"
+                        class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm cursor-not-allowed">
+                    <input type="hidden" id="sched-mentor-institute-id" value="">
+                </div>
             </div>
             <div id="sched-participant-banner" class="hidden p-3 bg-blue-50 rounded-lg border border-blue-200">
                 <p class="text-sm text-blue-600 font-medium">Meeting between</p>
@@ -333,11 +361,19 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Platform</label>
-                    <select id="sched-platform" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <select id="sched-platform" onchange="toggleSchedCustomLink()" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                         <option value="google">Google Meet</option>
                         <option value="teams">Microsoft Teams</option>
+                        <option value="custom">Other (Custom Link)</option>
                     </select>
                 </div>
+            </div>
+            <!-- Custom Meeting Link (for Other platform) -->
+            <div id="sched-custom-link-wrap" class="hidden">
+                <label for="sched-custom-link" class="block text-sm font-medium text-gray-700 mb-1">Meeting Link *</label>
+                <input type="url" id="sched-custom-link" placeholder="https://zoom.us/j/... or other meeting link"
+                    class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <p class="text-xs text-gray-400 mt-1">Paste your external meeting link (Zoom, Webex, Google Meet, etc.)</p>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Time Zone *</label>
@@ -925,8 +961,17 @@ function openAdminScheduleModal() {
     document.getElementById('sched-title').value = '';
     document.getElementById('sched-mentor').value = '';
     document.getElementById('sched-mentee').value = '';
+    document.getElementById('sched-mentor-institution').value = 'Not specified';
+    document.getElementById('sched-mentor-institute-id').value = '';
+    document.getElementById('sched-mentee-institution').value = 'Not specified';
+    document.getElementById('sched-mentee-institute-id').value = '';
     document.getElementById('sched-duration').value = '60';
     document.getElementById('sched-platform').value = 'google';
+    var wrap = document.getElementById('sched-custom-link-wrap');
+    if (wrap) wrap.classList.add('hidden');
+    var customLinkInput = document.getElementById('sched-custom-link');
+    if (customLinkInput) customLinkInput.value = '';
+    clearAllSchedErrors();
     try {
         var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
         if (tz === 'Asia/Calcutta') tz = 'Asia/Kolkata';
@@ -942,8 +987,77 @@ function closeScheduleMeetingModal() {
     document.getElementById('scheduleMeetingModal').classList.add('hidden');
     document.getElementById('scheduleMeetingModal').classList.remove('flex');
 }
-document.getElementById('sched-mentor').addEventListener('change', updateSchedBanner);
-document.getElementById('sched-mentee').addEventListener('change', updateSchedBanner);
+
+function toggleSchedCustomLink() {
+    var p = document.getElementById('sched-platform').value;
+    var wrap = document.getElementById('sched-custom-link-wrap');
+    var input = document.getElementById('sched-custom-link');
+    if (wrap) {
+        if (p === 'custom') {
+            wrap.classList.remove('hidden');
+            if (input) input.focus();
+        } else {
+            wrap.classList.add('hidden');
+            if (input) {
+                input.value = '';
+                input.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+            }
+        }
+    }
+}
+
+function clearAllSchedErrors() {
+    var fields = [
+        'sched-title', 'sched-date', 'sched-hour', 'sched-minute', 'sched-ampm',
+        'sched-duration', 'sched-platform', 'sched-custom-link', 'sched-timezone',
+        'sched-mentor', 'sched-mentee'
+    ];
+    fields.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+    });
+    ['sched-mentor-error', 'sched-mentee-error'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+    var statusTop = document.getElementById('sched-status-top');
+    if (statusTop) {
+        statusTop.classList.add('hidden');
+        statusTop.textContent = '';
+    }
+    var status = document.getElementById('sched-status');
+    if (status) {
+        status.classList.add('hidden');
+        status.textContent = '';
+    }
+}
+
+function updateSchedMentorInstitution() {
+    var mSel = document.getElementById('sched-mentor');
+    var opt = mSel.options[mSel.selectedIndex];
+    var instName = (opt && opt.dataset.institution) ? opt.dataset.institution : '';
+    var instId = (opt && opt.dataset.institutionId) ? opt.dataset.institutionId : '';
+    document.getElementById('sched-mentor-institution').value = instName || 'Not specified';
+    document.getElementById('sched-mentor-institute-id').value = instId || '';
+}
+
+function updateSchedMenteeInstitution() {
+    var eSel = document.getElementById('sched-mentee');
+    var opt = eSel.options[eSel.selectedIndex];
+    var instName = (opt && opt.dataset.institution) ? opt.dataset.institution : '';
+    var instId = (opt && opt.dataset.institutionId) ? opt.dataset.institutionId : '';
+    document.getElementById('sched-mentee-institution').value = instName || 'Not specified';
+    document.getElementById('sched-mentee-institute-id').value = instId || '';
+}
+
+document.getElementById('sched-mentor').addEventListener('change', function() {
+    updateSchedBanner();
+    updateSchedMentorInstitution();
+});
+document.getElementById('sched-mentee').addEventListener('change', function() {
+    updateSchedBanner();
+    updateSchedMenteeInstitution();
+});
 function updateSchedBanner() {
     var mSel = document.getElementById('sched-mentor');
     var eSel = document.getElementById('sched-mentee');
@@ -957,64 +1071,201 @@ function updateSchedBanner() {
     if (parts.length > 0) { namesEl.textContent = parts.join(' & '); banner.classList.remove('hidden'); }
     else { banner.classList.add('hidden'); }
 }
+
 document.getElementById('scheduleMeetingForm').addEventListener('submit', async function(e) {
     e.preventDefault();
-    var mentorId = document.getElementById('sched-mentor').value;
-    var menteeId = document.getElementById('sched-mentee').value;
-    var title = document.getElementById('sched-title').value.trim();
-    var date = document.getElementById('sched-date').value;
-    var hour = document.getElementById('sched-hour').value;
-    var minute = document.getElementById('sched-minute').value;
-    var ampm = document.getElementById('sched-ampm').value;
-    var duration = document.getElementById('sched-duration').value;
-    var platform = document.getElementById('sched-platform').value;
-    var timezone = document.getElementById('sched-timezone').value;
+    clearAllSchedErrors();
+
+    var mentorEl = document.getElementById('sched-mentor');
+    var mentorId = mentorEl.value;
+    var menteeEl = document.getElementById('sched-mentee');
+    var menteeId = menteeEl.value;
+    var titleEl = document.getElementById('sched-title');
+    var title = titleEl.value.trim();
+    var dateEl = document.getElementById('sched-date');
+    var date = dateEl.value;
+    var hourEl = document.getElementById('sched-hour');
+    var hour = hourEl.value;
+    var minuteEl = document.getElementById('sched-minute');
+    var minute = minuteEl.value;
+    var ampmEl = document.getElementById('sched-ampm');
+    var ampm = ampmEl.value;
+    var durationEl = document.getElementById('sched-duration');
+    var duration = durationEl.value;
+    var platformEl = document.getElementById('sched-platform');
+    var platform = platformEl.value;
+    var customLinkEl = document.getElementById('sched-custom-link');
+    var customLink = customLinkEl ? customLinkEl.value.trim() : '';
+    var timezoneEl = document.getElementById('sched-timezone');
+    var timezone = timezoneEl.value;
     var statusEl = document.getElementById('sched-status');
     var submitBtn = document.getElementById('sched-submit');
-    if (!mentorId || !title || !date || !hour || !minute || !ampm || !duration || !timezone) {
-        statusEl.textContent = 'Please fill in all required fields.';
-        statusEl.className = 'text-sm text-amber-600';
+
+    var missingFields = [];
+    var firstInvalidEl = null;
+
+    function markMissing(el, name) {
+        if (el) {
+            el.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+            if (!firstInvalidEl) firstInvalidEl = el;
+        }
+        missingFields.push(name);
+    }
+
+    // Check Participants (Mentor and Mentee)
+    var mentorErrEl = document.getElementById('sched-mentor-error');
+    var menteeErrEl = document.getElementById('sched-mentee-error');
+
+    if (!mentorId && !menteeId) {
+        markMissing(mentorEl, 'Mentor');
+        markMissing(menteeEl, 'Mentee');
+        if (mentorErrEl) mentorErrEl.classList.remove('hidden');
+        if (menteeErrEl) menteeErrEl.classList.remove('hidden');
+    } else if (!mentorId) {
+        markMissing(mentorEl, 'Mentor');
+        if (mentorErrEl) mentorErrEl.classList.remove('hidden');
+    } else if (!menteeId) {
+        markMissing(menteeEl, 'Mentee');
+        if (menteeErrEl) menteeErrEl.classList.remove('hidden');
+    }
+
+    if (!title) {
+        markMissing(titleEl, 'Meeting Title');
+    }
+
+    if (!date) {
+        markMissing(dateEl, 'Meeting Date');
+    }
+
+    var timeMissing = [];
+    if (!hour) { hourEl.classList.add('border-red-500', 'ring-1', 'ring-red-500'); if (!firstInvalidEl) firstInvalidEl = hourEl; timeMissing.push('Hour'); }
+    if (!minute) { minuteEl.classList.add('border-red-500', 'ring-1', 'ring-red-500'); if (!firstInvalidEl) firstInvalidEl = minuteEl; timeMissing.push('Minute'); }
+    if (!ampm) { ampmEl.classList.add('border-red-500', 'ring-1', 'ring-red-500'); if (!firstInvalidEl) firstInvalidEl = ampmEl; timeMissing.push('AM/PM'); }
+    if (timeMissing.length > 0) {
+        missingFields.push('Meeting Time (' + timeMissing.join('/') + ')');
+    }
+
+    if (!duration) {
+        markMissing(durationEl, 'Duration');
+    }
+
+    if (platform === 'custom' && !customLink) {
+        markMissing(customLinkEl, 'Meeting Link for Other platform');
+    }
+
+    if (!timezone) {
+        markMissing(timezoneEl, 'Time Zone');
+    }
+
+    if (missingFields.length > 0) {
+        var errorMsg = '';
+        if (missingFields.length === 1) {
+            errorMsg = 'Missing field: ' + missingFields[0] + '. Please fill it in.';
+        } else {
+            errorMsg = 'Please fill in the missing fields: ' + missingFields.join(', ') + '.';
+        }
+        var statusTopEl = document.getElementById('sched-status-top');
+        if (statusTopEl) {
+            statusTopEl.textContent = errorMsg;
+            statusTopEl.className = 'text-sm mb-4 text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
+            statusTopEl.classList.remove('hidden');
+        }
+        statusEl.textContent = errorMsg;
+        statusEl.className = 'text-sm text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
         statusEl.classList.remove('hidden');
+        if (firstInvalidEl) {
+            firstInvalidEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            firstInvalidEl.focus();
+        }
         return;
     }
+
     var h = parseInt(hour, 10);
     if (ampm === 'PM' && h !== 12) h += 12;
     if (ampm === 'AM' && h === 12) h = 0;
     var startTime = String(h).padStart(2, '0') + ':' + minute;
     document.getElementById('sched-start-time').value = startTime;
+
     var selectedDT = new Date(date + 'T' + startTime);
     if (selectedDT <= new Date()) {
-        statusEl.textContent = 'Please select a future date and time.';
-        statusEl.className = 'text-sm text-amber-600';
+        statusEl.textContent = 'Invalid Time: The selected meeting date and time (' + date + ' ' + startTime + ') must be in the future.';
+        statusEl.className = 'text-sm text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
         statusEl.classList.remove('hidden');
+        dateEl.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+        dateEl.focus();
         return;
     }
+
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Scheduling...';
     try {
         var res = await fetch('/create_meeting_ajax', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({title: title, date: date, start_time: startTime, duration: duration, mentor_id: mentorId, mentee_id: menteeId, platform: platform, timezone: timezone})
+            body: JSON.stringify({
+                title: title,
+                date: date,
+                start_time: startTime,
+                duration: duration,
+                mentor_id: mentorId,
+                mentee_id: menteeId,
+                institution_id: document.getElementById('sched-mentor-institute-id').value || document.getElementById('sched-mentee-institute-id').value || '',
+                platform: platform,
+                custom_link: customLink,
+                timezone: timezone
+            })
         });
         var result = await res.json();
         if (res.ok && result.message) {
             statusEl.textContent = 'Meeting scheduled successfully!';
-            statusEl.className = 'text-sm text-green-600';
+            statusEl.className = 'text-sm text-green-700 bg-green-50 p-3 rounded-lg border border-green-200';
             statusEl.classList.remove('hidden');
             setTimeout(function() { closeScheduleMeetingModal(); window.location.reload(); }, 1200);
         } else {
             statusEl.textContent = result.error || 'Failed to schedule meeting. Please try again.';
-            statusEl.className = 'text-sm text-red-600';
+            statusEl.className = 'text-sm text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
             statusEl.classList.remove('hidden');
         }
     } catch(err) {
-        statusEl.textContent = 'Network error. Please try again.';
-        statusEl.className = 'text-sm text-red-600';
+        statusEl.textContent = 'Network error. Please check your connection and try again.';
+        statusEl.className = 'text-sm text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
         statusEl.classList.remove('hidden');
     }
     submitBtn.disabled = false;
     submitBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg> Schedule Meeting';
+});
+
+// Clear validation styling when user interacts with fields
+[
+    'sched-title', 'sched-date', 'sched-hour', 'sched-minute', 'sched-ampm',
+    'sched-duration', 'sched-platform', 'sched-custom-link', 'sched-timezone',
+    'sched-mentor', 'sched-mentee'
+].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) {
+        el.addEventListener('input', function() {
+            this.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+            if (id === 'sched-mentor') {
+                var err = document.getElementById('sched-mentor-error');
+                if (err) err.classList.add('hidden');
+            }
+            if (id === 'sched-mentee') {
+                var err = document.getElementById('sched-mentee-error');
+                if (err) err.classList.add('hidden');
+            }
+        });
+        el.addEventListener('change', function() {
+            this.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+            if (id === 'sched-mentor') {
+                var err = document.getElementById('sched-mentor-error');
+                if (err) err.classList.add('hidden');
+            }
+            if (id === 'sched-mentee') {
+                var err = document.getElementById('sched-mentee-error');
+                if (err) err.classList.add('hidden');
+            }
+        });
+    }
 });
 document.getElementById('scheduleMeetingModal').addEventListener('click', function(e) {
     if (e.target === this) closeScheduleMeetingModal();

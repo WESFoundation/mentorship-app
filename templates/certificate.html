@@ -842,6 +842,15 @@
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
+
+        @keyframes certHighlight {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
+            50% { box-shadow: 0 0 25px 5px rgba(59, 130, 246, 0.35); }
+            100% { box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+        }
+        .certificate.cert-updated {
+            animation: certHighlight 1.5s ease-out;
+        }
     </style>
 </head>
 <body>
@@ -927,8 +936,11 @@
                 <div style="padding: 0.75rem 1rem; border-top: 1px solid #e5e7eb;">
                     <button onclick="generateCertificate()" id="generateBtn" style="width: 100%; padding: 0.625rem 1rem; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.2s;">
                         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                        Generate Certificate
+                        <span id="generateBtnText">Generate Certificate</span>
                     </button>
+                    <p id="pendingNotice" style="display: none; font-size: 0.75rem; color: #d97706; text-align: center; margin-top: 0.35rem; font-weight: 500;">
+                        Changes selected. Click "Generate Certificate" to update certificate.
+                    </p>
                 </div>
             </div>
         </div>
@@ -986,11 +998,11 @@
                 </p>
 
                 {% if user_type in ['1', '2'] %}
-                <p class="cert-description" style="margin-top: 0.5rem; font-size: 0.85rem; color: #374151;">
+                {% set completed_count = tasks_list|selectattr('status', 'equalto', 'completed')|list|length %}
+                <p class="cert-description" id="certSummaryDesc" style="margin-top: 0.5rem; font-size: 0.85rem; color: #374151;">
                     <strong>{{ user_name }}</strong>
-                    {% set completed_count = tasks_list|selectattr('status', 'equalto', 'completed')|list|length %}
-                    has {{ connections_list|length }} {{ 'Mentors' if user_type == '2' else 'Mentees' }}
-                    and has completed {{ completed_count }} out of {{ tasks_list|length }} tasks.
+                    has <span id="certSummaryConnections">{{ connections_list|length }}</span> {{ 'Mentors' if user_type == '2' else 'Mentees' }}
+                    and has completed <span id="certSummaryCompleted">{{ completed_count }}</span> out of <span id="certSummaryTotal">{{ tasks_list|length }}</span> tasks.
                 </p>
                 {% endif %}
 
@@ -1005,11 +1017,11 @@
                     </div>
                     <div class="stats-grid">
                         <div class="stat-card">
-                            <div class="stat-number" id="statConnections">0</div>
+                            <div class="stat-number" id="statConnections">{{ mentorship_stats.connected_count }}</div>
                             <div class="stat-label" id="statConnectionsLabel">{{ mentorship_stats.connected_type }}</div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-number" id="statSessions">0</div>
+                            <div class="stat-number" id="statSessions">{{ mentorship_stats.sessions_count }}</div>
                             <div class="stat-label" id="statSessionsLabel">{{ mentorship_stats.sessions_type }}</div>
                         </div>
                     </div>
@@ -1027,19 +1039,19 @@
                     </div>
                     <div class="tasks-grid">
                         <div class="task-card task-card-total">
-                            <div class="task-number" id="statTaskTotal">0</div>
+                            <div class="task-number" id="statTaskTotal">{{ task_stats.total }}</div>
                             <div class="task-label">Total</div>
                         </div>
                         <div class="task-card task-card-completed">
-                            <div class="task-number" id="statTaskCompleted">0</div>
+                            <div class="task-number" id="statTaskCompleted">{{ task_stats.completed }}</div>
                             <div class="task-label">Completed</div>
                         </div>
                         <div class="task-card task-card-progress">
-                            <div class="task-number" id="statTaskProgress">0</div>
+                            <div class="task-number" id="statTaskProgress">{{ task_stats.in_progress }}</div>
                             <div class="task-label">In Progress</div>
                         </div>
                         <div class="task-card task-card-pending">
-                            <div class="task-number" id="statTaskPending">0</div>
+                            <div class="task-number" id="statTaskPending">{{ task_stats.pending }}</div>
                             <div class="task-label">Pending</div>
                         </div>
                     </div>
@@ -1274,7 +1286,7 @@
                 var color = statusColors[item.status] || '#6b7280';
                 return item.title + '<span class="item-meta" style="color:' + color + '">' + item.status + ' &middot; ' + item.with + '</span>';
             });
-            updateStats();
+            updatePanelCounts();
         }
 
         function renderItems(containerId, items, type, labelFn) {
@@ -1295,14 +1307,50 @@
             container.innerHTML = html;
         }
 
+        function markChangesPending() {
+            var notice = document.getElementById('pendingNotice');
+            if (notice) notice.style.display = 'block';
+            var btnText = document.getElementById('generateBtnText');
+            if (btnText) btnText.textContent = 'Generate Certificate (Apply Changes)';
+            var btn = document.getElementById('generateBtn');
+            if (btn) btn.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.4)';
+        }
+
+        function clearChangesPending() {
+            var notice = document.getElementById('pendingNotice');
+            if (notice) notice.style.display = 'none';
+            var btnText = document.getElementById('generateBtnText');
+            if (btnText) btnText.textContent = 'Generate Certificate';
+            var btn = document.getElementById('generateBtn');
+            if (btn) btn.style.boxShadow = '';
+        }
+
+        function updatePanelCounts() {
+            var selConnections = document.querySelectorAll('input[data-type="connection"]:checked');
+            var selSessions = document.querySelectorAll('input[data-type="session"]:checked');
+            var selTasks = document.querySelectorAll('input[data-type="task"]:checked');
+
+            var connEl = document.getElementById('connectionsCount');
+            if (connEl) connEl.textContent = selConnections.length + ' / ' + (connectionsList ? connectionsList.length : 0);
+
+            var sessEl = document.getElementById('sessionsCount');
+            if (sessEl) sessEl.textContent = selSessions.length + ' / ' + (sessionsList ? sessionsList.length : 0);
+
+            var taskEl = document.getElementById('tasksCount');
+            if (taskEl) taskEl.textContent = selTasks.length + ' / ' + (tasksList ? tasksList.length : 0);
+        }
+
         function onCheckChange(checkbox) {
             var label = document.getElementById('label_' + checkbox.dataset.type + '_' + checkbox.dataset.id);
-            if (checkbox.checked) {
-                label.classList.add('checked');
-            } else {
-                label.classList.remove('checked');
+            if (label) {
+                if (checkbox.checked) {
+                    label.classList.add('checked');
+                } else {
+                    label.classList.remove('checked');
+                }
             }
-            updateStats();
+            updatePanelCounts();
+            markChangesPending();
         }
 
         function toggleAll(type, checked) {
@@ -1310,25 +1358,28 @@
             for (var i = 0; i < checkboxes.length; i++) {
                 checkboxes[i].checked = checked;
                 var label = document.getElementById('label_' + type + '_' + checkboxes[i].dataset.id);
-                if (checked) {
-                    label.classList.add('checked');
-                } else {
-                    label.classList.remove('checked');
+                if (label) {
+                    if (checked) {
+                        label.classList.add('checked');
+                    } else {
+                        label.classList.remove('checked');
+                    }
                 }
             }
-            updateStats();
+            updatePanelCounts();
+            markChangesPending();
         }
 
-        function updateStats() {
+        function applyCertificateStats() {
             var selConnections = document.querySelectorAll('input[data-type="connection"]:checked');
             var selSessions = document.querySelectorAll('input[data-type="session"]:checked');
             var selTasks = document.querySelectorAll('input[data-type="task"]:checked');
 
-            document.getElementById('statConnections').textContent = selConnections.length;
-            document.getElementById('statSessions').textContent = selSessions.length;
+            var statConn = document.getElementById('statConnections');
+            if (statConn) statConn.textContent = selConnections.length;
 
-            document.getElementById('connectionsCount').textContent = selConnections.length;
-            document.getElementById('sessionsCount').textContent = selSessions.length;
+            var statSess = document.getElementById('statSessions');
+            if (statSess) statSess.textContent = selSessions.length;
 
             var total = selTasks.length;
             var completed = 0, inProgress = 0, pending = 0;
@@ -1342,24 +1393,28 @@
                 }
             }
 
-            document.getElementById('statTaskTotal').textContent = total;
-            document.getElementById('statTaskCompleted').textContent = completed;
-            document.getElementById('statTaskProgress').textContent = inProgress;
-            document.getElementById('statTaskPending').textContent = pending;
-            document.getElementById('tasksCount').textContent = tasksList.length;
-        }
+            var statTotal = document.getElementById('statTaskTotal');
+            if (statTotal) statTotal.textContent = total;
+            var statComp = document.getElementById('statTaskCompleted');
+            if (statComp) statComp.textContent = completed;
+            var statProg = document.getElementById('statTaskProgress');
+            if (statProg) statProg.textContent = inProgress;
+            var statPend = document.getElementById('statTaskPending');
+            if (statPend) statPend.textContent = pending;
 
-        function generateCertificate() {
-            var btn = document.getElementById('generateBtn');
-            btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="animation: spin 1s linear infinite;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Generating...';
-            btn.disabled = true;
+            var sumConn = document.getElementById('certSummaryConnections');
+            if (sumConn) sumConn.textContent = selConnections.length;
+            var sumComp = document.getElementById('certSummaryCompleted');
+            if (sumComp) sumComp.textContent = completed;
+            var sumTotal = document.getElementById('certSummaryTotal');
+            if (sumTotal) sumTotal.textContent = total;
 
             var selConnectionIds = [];
-            document.querySelectorAll('input[data-type="connection"]:checked').forEach(function(cb) {
+            selConnections.forEach(function(cb) {
                 selConnectionIds.push(String(cb.dataset.id));
             });
             var selTaskIds = [];
-            document.querySelectorAll('input[data-type="task"]:checked').forEach(function(cb) {
+            selTasks.forEach(function(cb) {
                 selTaskIds.push(String(cb.dataset.id));
             });
 
@@ -1382,14 +1437,30 @@
                     row.style.display = found ? '' : 'none';
                 });
             }
+        }
 
-            updateStats();
+        function generateCertificate() {
+            var btn = document.getElementById('generateBtn');
+            btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="animation: spin 1s linear infinite;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> <span id="generateBtnText">Generating...</span>';
+            btn.disabled = true;
 
             setTimeout(function() {
-                btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Generated!';
+                applyCertificateStats();
+                clearChangesPending();
+
+                var cert = document.getElementById('certificate');
+                if (cert) {
+                    cert.classList.remove('cert-updated');
+                    void cert.offsetWidth;
+                    cert.classList.add('cert-updated');
+                    cert.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+
+                btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> <span id="generateBtnText">Certificate Generated!</span>';
                 btn.style.background = 'linear-gradient(135deg, #059669 0%, #047857 100%)';
+
                 setTimeout(function() {
-                    btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Generate Certificate';
+                    btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> <span id="generateBtnText">Generate Certificate</span>';
                     btn.style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
                     btn.disabled = false;
                 }, 2000);

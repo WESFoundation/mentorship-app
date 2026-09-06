@@ -369,15 +369,18 @@
       <p id="sm-participant-email" class="text-sm text-gray-600"></p>
     </div>
 
-    <form id="schedule-meeting-form" class="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+    <form id="schedule-meeting-form" novalidate class="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+      <!-- Top Status Alert (prominently visible at top of form) -->
+      <div id="sm-status-top" class="hidden text-sm p-3 rounded-lg border"></div>
+
       <!-- Mentorship Selection (top of form) -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Mentorship</label>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Mentorship <span class="text-gray-400 font-normal">(optional, auto-fills Mentor & Mentee)</span></label>
         <select id="sm-mentorship" name="mentorship_id"
           class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
           <option value="">Select a mentorship connection...</option>
           {% for m in mentorships %}
-          <option value="{{ m.id }}" data-mentor-id="{{ m.mentor_id }}" data-mentee-id="{{ m.mentee_id }}" data-mentor-name="{{ m.mentor_name }}" data-mentee-name="{{ m.mentee_name }}" data-inst-id="{{ m.inst_user_id }}">
+          <option value="{{ m.id }}" data-mentor-id="{{ m.mentor_id }}" data-mentee-id="{{ m.mentee_id }}" data-mentor-name="{{ m.mentor_name }}" data-mentee-name="{{ m.mentee_name }}" data-inst-id="{{ m.inst_user_id }}" data-mentor-institution="{{ m.mentor_institution }}" data-mentee-institution="{{ m.mentee_institution }}" data-mentor-inst-id="{{ m.mentor_inst_id }}" data-mentee-inst-id="{{ m.mentee_inst_id }}">
             {{ m.mentor_name }} &harr; {{ m.mentee_name }}{% if m.purpose %} ({{ m.purpose }}){% endif %}
           </option>
           {% endfor %}
@@ -387,39 +390,58 @@
 
       <!-- Mentor Selection -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentor</label>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentor <span class="text-red-500">*</span></label>
         <select id="sm-mentor" name="mentor_id"
           class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
           <option value="">Choose a mentor...</option>
           {% for mentor in mentors %}
-          <option value="{{ mentor.id }}" data-name="{{ mentor.name }}" data-email="{{ mentor.email }}" data-type="Mentor">{{ mentor.name }} ({{ mentor.email }})</option>
+          <option value="{{ mentor.id }}" data-name="{{ mentor.name }}" data-email="{{ mentor.email }}" data-type="Mentor" data-institution="{{ (mentor.institution or (mentor.institution_ref.name if mentor.institution_ref else '')) | trim }}" data-institution-id="{{ mentor.institution_id or '' }}">{{ mentor.name }} ({{ mentor.email }})</option>
           {% endfor %}
         </select>
+        <p id="sm-mentor-error" class="hidden text-xs text-red-600 mt-1 font-medium flex items-center gap-1">
+          <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+          Mentor is required. Please select a mentor.
+        </p>
       </div>
 
       <!-- Mentee Selection -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentee</label>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentee <span class="text-red-500">*</span></label>
         <select id="sm-mentee" name="mentee_id"
           class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
           <option value="">Choose a mentee...</option>
           {% for mentee in mentees %}
-          <option value="{{ mentee.id }}" data-name="{{ mentee.name }}" data-email="{{ mentee.email }}" data-type="Mentee">{{ mentee.name }} ({{ mentee.email }})</option>
+          <option value="{{ mentee.id }}" data-name="{{ mentee.name }}" data-email="{{ mentee.email }}" data-type="Mentee" data-institution="{{ (mentee.institution or (mentee.institution_ref.name if mentee.institution_ref else '')) | trim }}" data-institution-id="{{ mentee.institution_id or '' }}">{{ mentee.name }} ({{ mentee.email }})</option>
           {% endfor %}
         </select>
+        <p id="sm-mentee-error" class="hidden text-xs text-red-600 mt-1 font-medium flex items-center gap-1">
+          <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+          Mentee is required. Please select a mentee.
+        </p>
       </div>
 
-      <!-- Institution Selection -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Select Institution</label>
-        <select id="sm-institution" name="institution_id"
-          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
-          <option value="">Choose an institution...</option>
-          {% for inst in institutions %}
-          <option value="{{ inst.id }}" data-name="{{ inst.name }}" data-email="{{ inst.email }}" data-type="Institution">{{ inst.name }} ({{ inst.email }})</option>
-          {% endfor %}
-        </select>
+      <!-- Institute Fields -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            Mentee's Institute
+          </label>
+          <input type="text" id="sm-mentee-institution" readonly
+            value="Not specified"
+            class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm cursor-not-allowed">
+          <input type="hidden" id="sm-mentee-institute-id" value="">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            Mentor's Institute
+          </label>
+          <input type="text" id="sm-mentor-institution" readonly
+            value="Not specified"
+            class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm cursor-not-allowed">
+          <input type="hidden" id="sm-mentor-institute-id" value="">
+        </div>
       </div>
+      <input type="hidden" id="sm-institution" name="institution_id" value="">
 
       <!-- Participant Info Banner -->
       <div id="sm-participant-banner" class="p-4 bg-blue-50 rounded-lg border border-blue-200 hidden">
@@ -497,12 +519,21 @@
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Meeting Platform</label>
-          <select id="sm-platform" name="platform"
+          <select id="sm-platform" name="platform" onchange="toggleSmCustomLink()"
             class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
             <option value="google">Google Meet</option>
             <option value="teams">Microsoft Teams</option>
+            <option value="custom">Other (Custom Link)</option>
           </select>
         </div>
+      </div>
+
+      <!-- Custom Meeting Link (for Other platform) -->
+      <div id="sm-custom-link-wrap" class="hidden">
+        <label for="sm-custom-link" class="block text-sm font-medium text-gray-700 mb-1">Meeting Link *</label>
+        <input type="url" id="sm-custom-link" name="custom_link" placeholder="https://zoom.us/j/... or other meeting link"
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+        <p class="text-xs text-gray-400 mt-1">Paste your external meeting link (Zoom, Webex, Google Meet, etc.)</p>
       </div>
 
       <!-- Time Zone -->
@@ -860,16 +891,23 @@ function openScheduleMeetingModal() {
   document.getElementById('sm-mentor').value = '';
   document.getElementById('sm-mentee').value = '';
   document.getElementById('sm-institution').value = '';
+  document.getElementById('sm-mentor-institution').value = 'Not specified';
+  document.getElementById('sm-mentor-institute-id').value = '';
+  document.getElementById('sm-mentee-institution').value = 'Not specified';
+  document.getElementById('sm-mentee-institute-id').value = '';
   document.getElementById('sm-mentorship').value = '';
   // Unlock participant dropdowns
   document.getElementById('sm-mentor').style.pointerEvents = '';
   document.getElementById('sm-mentor').style.backgroundColor = '';
   document.getElementById('sm-mentee').style.pointerEvents = '';
   document.getElementById('sm-mentee').style.backgroundColor = '';
-  document.getElementById('sm-institution').style.pointerEvents = '';
-  document.getElementById('sm-institution').style.backgroundColor = '';
   document.getElementById('sm-duration').value = '';
   document.getElementById('sm-platform').value = 'google';
+  var smCustomWrap = document.getElementById('sm-custom-link-wrap');
+  if (smCustomWrap) smCustomWrap.classList.add('hidden');
+  var smCustomInput = document.getElementById('sm-custom-link');
+  if (smCustomInput) smCustomInput.value = '';
+  clearAllSmErrors();
   // Reset task section (keep visible)
   document.getElementById('sm-task').innerHTML = '<option value="">No task selected (general meeting)</option>';
   document.getElementById('sm-task-hint').textContent = 'Select a mentorship or mentor & mentee to load available tasks.';
@@ -891,6 +929,50 @@ function openScheduleMeetingModal() {
 
 function closeScheduleMeetingModal() {
   document.getElementById('schedule-meeting-modal').classList.add('hidden');
+}
+
+function toggleSmCustomLink() {
+  var p = document.getElementById('sm-platform').value;
+  var wrap = document.getElementById('sm-custom-link-wrap');
+  var input = document.getElementById('sm-custom-link');
+  if (wrap) {
+    if (p === 'custom') {
+      wrap.classList.remove('hidden');
+      if (input) input.focus();
+    } else {
+      wrap.classList.add('hidden');
+      if (input) {
+        input.value = '';
+        input.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+      }
+    }
+  }
+}
+
+function clearAllSmErrors() {
+  var fields = [
+    'sm-title', 'sm-date', 'sm-hour', 'sm-minute', 'sm-ampm',
+    'sm-duration', 'sm-platform', 'sm-custom-link', 'sm-timezone',
+    'sm-mentorship', 'sm-mentor', 'sm-mentee', 'sm-institution'
+  ];
+  fields.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+  });
+  ['sm-mentor-error', 'sm-mentee-error'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
+  var statusTop = document.getElementById('sm-status-top');
+  if (statusTop) {
+    statusTop.classList.add('hidden');
+    statusTop.textContent = '';
+  }
+  var status = document.getElementById('sm-status');
+  if (status) {
+    status.classList.add('hidden');
+    status.textContent = '';
+  }
 }
 
 // Participant banner update — show whichever dropdown has a selection
@@ -953,25 +1035,50 @@ async function loadTasksForSupervisorMeeting(menteeId, mentorId) {
   }
 }
 
-// Mentorship selection — auto-fill mentor/mentee/institution + load tasks
+// Update mentor institution
+function updateSmMentorInstitution() {
+  var mentorSel = document.getElementById('sm-mentor');
+  var opt = mentorSel.options[mentorSel.selectedIndex];
+  var instName = (opt && opt.dataset.institution) ? opt.dataset.institution : '';
+  var instId = (opt && opt.dataset.institutionId) ? opt.dataset.institutionId : '';
+  document.getElementById('sm-mentor-institution').value = instName || 'Not specified';
+  document.getElementById('sm-mentor-institute-id').value = instId || '';
+  if (instId && document.getElementById('sm-institution')) {
+    document.getElementById('sm-institution').value = instId;
+  }
+}
+
+// Update mentee institution
+function updateSmMenteeInstitution() {
+  var menteeSel = document.getElementById('sm-mentee');
+  var opt = menteeSel.options[menteeSel.selectedIndex];
+  var instName = (opt && opt.dataset.institution) ? opt.dataset.institution : '';
+  var instId = (opt && opt.dataset.institutionId) ? opt.dataset.institutionId : '';
+  document.getElementById('sm-mentee-institution').value = instName || 'Not specified';
+  document.getElementById('sm-mentee-institute-id').value = instId || '';
+  if (instId && document.getElementById('sm-institution') && !document.getElementById('sm-institution').value) {
+    document.getElementById('sm-institution').value = instId;
+  }
+}
+
+// Mentorship selection — auto-fill mentor/mentee/institutions + load tasks
 document.getElementById('sm-mentorship').addEventListener('change', async function() {
   var opt = this.options[this.selectedIndex];
   var mentorSel = document.getElementById('sm-mentor');
   var menteeSel = document.getElementById('sm-mentee');
-  var instSel = document.getElementById('sm-institution');
 
   if (!this.value) {
     mentorSel.value = '';
     menteeSel.value = '';
-    if (instSel) instSel.value = '';
+    document.getElementById('sm-mentor-institution').value = 'Not specified';
+    document.getElementById('sm-mentor-institute-id').value = '';
+    document.getElementById('sm-mentee-institution').value = 'Not specified';
+    document.getElementById('sm-mentee-institute-id').value = '';
+    if (document.getElementById('sm-institution')) document.getElementById('sm-institution').value = '';
     mentorSel.style.pointerEvents = '';
     mentorSel.style.backgroundColor = '';
     menteeSel.style.pointerEvents = '';
     menteeSel.style.backgroundColor = '';
-    if (instSel) {
-      instSel.style.pointerEvents = '';
-      instSel.style.backgroundColor = '';
-    }
     loadTasksForSupervisorMeeting(null, null);
     updateParticipantBanner();
     return;
@@ -979,45 +1086,46 @@ document.getElementById('sm-mentorship').addEventListener('change', async functi
 
   var mentorId = opt.dataset.mentorId;
   var menteeId = opt.dataset.menteeId;
+  var mentorInst = opt.dataset.mentorInstitution || '';
+  var menteeInst = opt.dataset.menteeInstitution || '';
+  var mentorInstId = opt.dataset.mentorInstId || '';
+  var menteeInstId = opt.dataset.menteeInstId || '';
   var instUserId = opt.dataset.instId || '';
 
   // Auto-fill mentor dropdown
   for (var i = 0; i < mentorSel.options.length; i++) {
     if (mentorSel.options[i].value === mentorId) { mentorSel.selectedIndex = i; break; }
   }
-  mentorSel.dispatchEvent(new Event('change'));
   // Auto-fill mentee dropdown
   for (var j = 0; j < menteeSel.options.length; j++) {
     if (menteeSel.options[j].value === menteeId) { menteeSel.selectedIndex = j; break; }
   }
-  menteeSel.dispatchEvent(new Event('change'));
-  // Auto-fill institution dropdown
-  if (instSel) {
-    instSel.value = '';
-    if (instUserId) {
-      for (var k = 0; k < instSel.options.length; k++) {
-        if (instSel.options[k].value === instUserId) { instSel.selectedIndex = k; break; }
-      }
-    }
-    instSel.dispatchEvent(new Event('change'));
+
+  // Auto-fill institute fields
+  updateSmMentorInstitution();
+  updateSmMenteeInstitution();
+  if (mentorInst) document.getElementById('sm-mentor-institution').value = mentorInst;
+  if (menteeInst) document.getElementById('sm-mentee-institution').value = menteeInst;
+  if (mentorInstId) document.getElementById('sm-mentor-institute-id').value = mentorInstId;
+  if (menteeInstId) document.getElementById('sm-mentee-institute-id').value = menteeInstId;
+  if (document.getElementById('sm-institution')) {
+    document.getElementById('sm-institution').value = mentorInstId || menteeInstId || instUserId || '';
   }
-  // Soft lock dropdowns (prevents visual glitch of disabled select appearing blank)
+
+  // Soft lock dropdowns
   mentorSel.style.pointerEvents = 'none';
   mentorSel.style.backgroundColor = '#f8fafc';
   menteeSel.style.pointerEvents = 'none';
   menteeSel.style.backgroundColor = '#f8fafc';
-  if (instSel) {
-    instSel.style.pointerEvents = 'none';
-    instSel.style.backgroundColor = '#f8fafc';
-  }
   updateParticipantBanner();
 
   // Load tasks
   await loadTasksForSupervisorMeeting(menteeId, mentorId);
 });
 
-// Also trigger task reload when mentor or mentee dropdown changes manually
+// Also trigger task reload and institute update when mentor or mentee dropdown changes manually
 document.getElementById('sm-mentor').addEventListener('change', function() {
+  updateSmMentorInstitution();
   if (!document.getElementById('sm-mentorship').value) {
     var mentorId = this.value;
     var menteeId = document.getElementById('sm-mentee').value;
@@ -1025,6 +1133,7 @@ document.getElementById('sm-mentor').addEventListener('change', function() {
   }
 });
 document.getElementById('sm-mentee').addEventListener('change', function() {
+  updateSmMenteeInstitution();
   if (!document.getElementById('sm-mentorship').value) {
     var menteeId = this.value;
     var mentorId = document.getElementById('sm-mentor').value;
@@ -1033,47 +1142,142 @@ document.getElementById('sm-mentee').addEventListener('change', function() {
 });
 
 async function handleScheduleMeeting() {
+  clearAllSmErrors();
+
   var mentorId = document.getElementById('sm-mentor').value;
   var menteeId = document.getElementById('sm-mentee').value;
-  var institutionId = document.getElementById('sm-institution').value;
+  var mentorInstId = document.getElementById('sm-mentor-institute-id') ? document.getElementById('sm-mentor-institute-id').value : '';
+  var menteeInstId = document.getElementById('sm-mentee-institute-id') ? document.getElementById('sm-mentee-institute-id').value : '';
+  var institutionId = mentorInstId || menteeInstId || (document.getElementById('sm-institution') ? document.getElementById('sm-institution').value : '') || '';
   var mentorshipId = document.getElementById('sm-mentorship').value;
   var taskId = document.getElementById('sm-task').value;
-  var title = document.getElementById('sm-title').value.trim();
-  var date = document.getElementById('sm-date').value;
-  var hour = document.getElementById('sm-hour').value;
-  var minute = document.getElementById('sm-minute').value;
-  var ampm = document.getElementById('sm-ampm').value;
-  var duration = document.getElementById('sm-duration').value;
-  var platform = document.getElementById('sm-platform').value;
-  var timezone = document.getElementById('sm-timezone').value;
+  var titleEl = document.getElementById('sm-title');
+  var title = titleEl.value.trim();
+  var dateEl = document.getElementById('sm-date');
+  var date = dateEl.value;
+  var hourEl = document.getElementById('sm-hour');
+  var hour = hourEl.value;
+  var minuteEl = document.getElementById('sm-minute');
+  var minute = minuteEl.value;
+  var ampmEl = document.getElementById('sm-ampm');
+  var ampm = ampmEl.value;
+  var durationEl = document.getElementById('sm-duration');
+  var duration = durationEl.value;
+  var platformEl = document.getElementById('sm-platform');
+  var platform = platformEl.value;
+  var customLinkEl = document.getElementById('sm-custom-link');
+  var customLink = customLinkEl ? customLinkEl.value.trim() : '';
+  var timezoneEl = document.getElementById('sm-timezone');
+  var timezone = timezoneEl.value;
   var statusEl = document.getElementById('sm-status');
   var submitBtn = document.getElementById('sm-submit-btn');
 
-  // Validate — at least one participant required
-  if (!mentorId && !menteeId && !institutionId) {
-    statusEl.textContent = 'Please select at least one participant (mentor, mentee, or institution).';
-    statusEl.className = 'text-sm mt-2 text-amber-600';
-    statusEl.classList.remove('hidden');
-    return;
+  var missingFields = [];
+  var firstInvalidEl = null;
+
+  function markMissing(el, name) {
+    if (el) {
+      el.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+      if (!firstInvalidEl) firstInvalidEl = el;
+    }
+    missingFields.push(name);
   }
 
-  // Validate — if a mentorship is selected, mentor/mentee must match
+  // Check Participants (Mentor and Mentee) FIRST
+  var mentorEl = document.getElementById('sm-mentor');
+  var menteeEl = document.getElementById('sm-mentee');
+  var mentorErrEl = document.getElementById('sm-mentor-error');
+  var menteeErrEl = document.getElementById('sm-mentee-error');
+
+  if (!mentorId && !menteeId) {
+    markMissing(mentorEl, 'Mentor');
+    markMissing(menteeEl, 'Mentee');
+    if (mentorErrEl) mentorErrEl.classList.remove('hidden');
+    if (menteeErrEl) menteeErrEl.classList.remove('hidden');
+  } else if (!mentorId) {
+    markMissing(mentorEl, 'Mentor');
+    if (mentorErrEl) mentorErrEl.classList.remove('hidden');
+  } else if (!menteeId) {
+    markMissing(menteeEl, 'Mentee');
+    if (menteeErrEl) menteeErrEl.classList.remove('hidden');
+  }
+
+  // Check Title
+  if (!title) {
+    markMissing(titleEl, 'Meeting Title');
+  }
+
   if (mentorshipId) {
     var msOpt = document.getElementById('sm-mentorship').options[document.getElementById('sm-mentorship').selectedIndex];
     var msMentorId = msOpt.dataset.mentorId;
     var msMenteeId = msOpt.dataset.menteeId;
     if ((mentorId && mentorId !== msMentorId) || (menteeId && menteeId !== msMenteeId)) {
-      statusEl.textContent = 'Selected mentor/mentee does not match the chosen mentorship. Please update the mentorship or the participants.';
-      statusEl.className = 'text-sm mt-2 text-amber-600';
+      var mismatchMsg = 'Selected mentor/mentee does not match the chosen mentorship. Please update the mentorship or participants.';
+      var statusTopEl = document.getElementById('sm-status-top');
+      if (statusTopEl) {
+        statusTopEl.textContent = mismatchMsg;
+        statusTopEl.className = 'text-sm mb-4 text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
+        statusTopEl.classList.remove('hidden');
+      }
+      statusEl.textContent = mismatchMsg;
+      statusEl.className = 'text-sm mt-2 text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
       statusEl.classList.remove('hidden');
+      document.getElementById('sm-mentorship').classList.add('border-red-500', 'ring-1', 'ring-red-500');
+      document.getElementById('sm-mentorship').focus();
       return;
     }
   }
 
-  if (!title || !date || !hour || !minute || !ampm || !duration || !timezone) {
-    statusEl.textContent = 'Please fill in all required fields.';
-    statusEl.className = 'text-sm mt-2 text-amber-600';
+  // Check Date
+  if (!date) {
+    markMissing(dateEl, 'Meeting Date');
+  }
+
+  // Check Time components
+  var timeMissing = [];
+  if (!hour) { hourEl.classList.add('border-red-500', 'ring-1', 'ring-red-500'); if (!firstInvalidEl) firstInvalidEl = hourEl; timeMissing.push('Hour'); }
+  if (!minute) { minuteEl.classList.add('border-red-500', 'ring-1', 'ring-red-500'); if (!firstInvalidEl) firstInvalidEl = minuteEl; timeMissing.push('Minute'); }
+  if (!ampm) { ampmEl.classList.add('border-red-500', 'ring-1', 'ring-red-500'); if (!firstInvalidEl) firstInvalidEl = ampmEl; timeMissing.push('AM/PM'); }
+  if (timeMissing.length > 0) {
+    missingFields.push('Meeting Time (' + timeMissing.join('/') + ')');
+  }
+
+  // Check Duration
+  if (!duration) {
+    markMissing(durationEl, 'Duration');
+  }
+
+  // Check Platform & Custom Link
+  if (platform === 'custom' && !customLink) {
+    markMissing(customLinkEl, 'Meeting Link for Other platform');
+  }
+
+  // Check Time Zone
+  if (!timezone) {
+    markMissing(timezoneEl, 'Time Zone');
+  }
+
+  // If any fields are missing, display explicit message specifying which field is missing
+  if (missingFields.length > 0) {
+    var errorMsg = '';
+    if (missingFields.length === 1) {
+      errorMsg = 'Missing field: ' + missingFields[0] + '. Please fill it in.';
+    } else {
+      errorMsg = 'Please fill in the missing fields: ' + missingFields.join(', ') + '.';
+    }
+    var statusTopEl = document.getElementById('sm-status-top');
+    if (statusTopEl) {
+      statusTopEl.textContent = errorMsg;
+      statusTopEl.className = 'text-sm mb-4 text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
+      statusTopEl.classList.remove('hidden');
+    }
+    statusEl.textContent = errorMsg;
+    statusEl.className = 'text-sm mt-2 text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
     statusEl.classList.remove('hidden');
+    if (firstInvalidEl) {
+      firstInvalidEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      firstInvalidEl.focus();
+    }
     return;
   }
 
@@ -1087,9 +1291,11 @@ async function handleScheduleMeeting() {
   // Validate future date/time
   var selectedDT = new Date(date + 'T' + startTime);
   if (selectedDT <= new Date()) {
-    statusEl.textContent = 'Please select a future date and time.';
-    statusEl.className = 'text-sm mt-2 text-amber-600';
+    statusEl.textContent = 'Invalid Time: The selected meeting date and time (' + date + ' ' + startTime + ') must be in the future.';
+    statusEl.className = 'text-sm mt-2 text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
     statusEl.classList.remove('hidden');
+    dateEl.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+    dateEl.focus();
     return;
   }
 
@@ -1111,6 +1317,7 @@ async function handleScheduleMeeting() {
         mentorship_id: mentorshipId || '',
         task_id: taskId || '',
         platform: platform,
+        custom_link: customLink,
         timezone: timezone
       })
     });
@@ -1119,7 +1326,7 @@ async function handleScheduleMeeting() {
 
     if (response.ok && result.message) {
       statusEl.textContent = 'Meeting scheduled successfully!';
-      statusEl.className = 'text-sm mt-2 text-green-600';
+      statusEl.className = 'text-sm mt-2 text-green-700 bg-green-50 p-3 rounded-lg border border-green-200';
       statusEl.classList.remove('hidden');
       setTimeout(function() {
         closeScheduleMeetingModal();
@@ -1127,18 +1334,51 @@ async function handleScheduleMeeting() {
       }, 1200);
     } else {
       statusEl.textContent = result.error || 'Failed to schedule meeting. Please try again.';
-      statusEl.className = 'text-sm mt-2 text-red-600';
+      statusEl.className = 'text-sm mt-2 text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
       statusEl.classList.remove('hidden');
     }
   } catch (err) {
     statusEl.textContent = 'Network error. Please check your connection and try again.';
-    statusEl.className = 'text-sm mt-2 text-red-600';
+    statusEl.className = 'text-sm mt-2 text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
     statusEl.classList.remove('hidden');
   }
 
   submitBtn.disabled = false;
   submitBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg> Create Meeting';
 }
+
+// Attach input listeners to clear red styling on typing
+[
+  'sm-title', 'sm-date', 'sm-hour', 'sm-minute', 'sm-ampm',
+  'sm-duration', 'sm-platform', 'sm-custom-link', 'sm-timezone',
+  'sm-mentorship', 'sm-mentor', 'sm-mentee', 'sm-institution'
+].forEach(function(id) {
+  var el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('input', function() {
+      this.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+      if (id === 'sm-mentor') {
+        var err = document.getElementById('sm-mentor-error');
+        if (err) err.classList.add('hidden');
+      }
+      if (id === 'sm-mentee') {
+        var err = document.getElementById('sm-mentee-error');
+        if (err) err.classList.add('hidden');
+      }
+    });
+    el.addEventListener('change', function() {
+      this.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+      if (id === 'sm-mentor') {
+        var err = document.getElementById('sm-mentor-error');
+        if (err) err.classList.add('hidden');
+      }
+      if (id === 'sm-mentee') {
+        var err = document.getElementById('sm-mentee-error');
+        if (err) err.classList.add('hidden');
+      }
+    });
+  }
+});
 </script>
 
 {% endblock %}
