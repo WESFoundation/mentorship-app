@@ -31,23 +31,46 @@
     </div>
   </div>
 
-  <!-- Search Only -->
+  <!-- Search and Filters -->
   <div class="mb-6 bg-gray-50 p-4 rounded-lg">
     <div class="flex flex-wrap gap-4 items-end">
       <!-- Search -->
-      <div class="flex-1 min-w-[300px]">
-        <label for="searchInput" class="block text-sm font-medium text-gray-700 mb-2">Search Meetings:</label>
+      <div class="flex-1 min-w-[250px]">
+        <label for="searchInput" class="block text-sm font-medium text-gray-700 mb-1">Search:</label>
         <input type="text" id="searchInput" placeholder="Search by title, mentee, or mentor..." 
-               class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+               class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm">
       </div>
       
-      <!-- Reset Filters -->
+      <!-- Meeting Type -->
+      <div class="min-w-[150px]">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Status:</label>
+        <select id="meetingTypeFilter" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500">
+          <option value="">All</option>
+          <option value="upcoming">Upcoming</option>
+          <option value="past">Past</option>
+        </select>
+      </div>
+
+      <!-- Date From -->
+      <div class="min-w-[150px]">
+        <label class="block text-sm font-medium text-gray-700 mb-1">From Date:</label>
+        <input type="date" id="dateFrom" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500">
+      </div>
+
+      <!-- Date To -->
+      <div class="min-w-[150px]">
+        <label class="block text-sm font-medium text-gray-700 mb-1">To Date:</label>
+        <input type="date" id="dateTo" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500">
+      </div>
+      
+      <!-- Reset -->
       <div>
-        <button id="resetFilters" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors">
-          Reset Search
+        <button id="resetFilters" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors text-sm">
+          Reset
         </button>
       </div>
     </div>
+    <div id="meetingResultsCount" class="text-xs text-gray-500 mt-2"></div>
   </div>
 
   {% if meetings and meetings|length > 0 %}
@@ -76,7 +99,8 @@
               {% for meeting in meetings|sort(attribute='datetime_obj') %}
               {% if meeting.is_upcoming %}
               <tr class="meeting-row hover:bg-green-50 transition-colors upcoming-meeting" 
-                  data-search="{{ meeting.title|lower }} {{ meeting.mentee_name|lower }} {{ meeting.mentee_email|lower }} {{ meeting.mentor_name|lower }} {{ meeting.mentor_email|lower }}">
+                  data-search="{{ meeting.title|lower }} {{ meeting.mentee_name|lower }} {{ meeting.mentee_email|lower }} {{ meeting.mentor_name|lower }} {{ meeting.mentor_email|lower }}"
+                  data-date="{{ meeting.date|default('', true) }}" data-upcoming="true">
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center">
                     <div class="flex-shrink-0 h-10 w-10 bg-green-100 rounded-lg flex items-center justify-center">
@@ -184,7 +208,8 @@
               {% for meeting in meetings|sort(attribute='datetime_obj') %}
               {% if not meeting.is_upcoming %}
               <tr class="meeting-row hover:bg-gray-50 transition-colors past-meeting" 
-                  data-search="{{ meeting.title|lower }} {{ meeting.mentee_name|lower }} {{ meeting.mentee_email|lower }} {{ meeting.mentor_name|lower }} {{ meeting.mentor_email|lower }}">
+                  data-search="{{ meeting.title|lower }} {{ meeting.mentee_name|lower }} {{ meeting.mentee_email|lower }} {{ meeting.mentor_name|lower }} {{ meeting.mentor_email|lower }}"
+                  data-date="{{ meeting.date|default('', true) }}" data-upcoming="false">
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center">
                     <div class="flex-shrink-0 h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center">
@@ -303,29 +328,45 @@
       pastVisibleCount.textContent = `${pastMeetings.length} meetings`;
     }
     
-    // Apply search filter
+    // Apply search and filters
     function applySearch() {
       const searchTerm = searchInput.value.toLowerCase();
+      const meetingType = document.getElementById('meetingTypeFilter').value;
+      const dateFrom = document.getElementById('dateFrom').value;
+      const dateTo = document.getElementById('dateTo').value;
       
       let upcomingVisible = 0;
       let pastVisible = 0;
       
+      function matchRow(row) {
+        const searchData = row.getAttribute('data-search') || '';
+        const matchSearch = searchTerm === '' || searchData.includes(searchTerm);
+        
+        const rowUpcoming = row.getAttribute('data-upcoming');
+        let matchType = true;
+        if (meetingType === 'upcoming') matchType = rowUpcoming === 'true';
+        else if (meetingType === 'past') matchType = rowUpcoming === 'false';
+        
+        const rowDate = row.getAttribute('data-date') || '';
+        let matchDate = true;
+        if (dateFrom && rowDate) matchDate = rowDate >= dateFrom;
+        if (dateTo && rowDate) matchDate = matchDate && rowDate <= dateTo;
+        
+        return matchSearch && matchType && matchDate;
+      }
+      
       // Filter upcoming meetings
       upcomingMeetings.forEach(row => {
-        const searchData = row.getAttribute('data-search');
-        const matchesSearch = searchTerm === '' || searchData.includes(searchTerm);
-        
-        row.style.display = matchesSearch ? '' : 'none';
-        if (matchesSearch) upcomingVisible++;
+        const show = matchRow(row);
+        row.style.display = show ? '' : 'none';
+        if (show) upcomingVisible++;
       });
       
       // Filter past meetings
       pastMeetings.forEach(row => {
-        const searchData = row.getAttribute('data-search');
-        const matchesSearch = searchTerm === '' || searchData.includes(searchTerm);
-        
-        row.style.display = matchesSearch ? '' : 'none';
-        if (matchesSearch) pastVisible++;
+        const show = matchRow(row);
+        row.style.display = show ? '' : 'none';
+        if (show) pastVisible++;
       });
       
       // Show/hide no results messages
@@ -348,16 +389,26 @@
       // Update visible counts
       upcomingVisibleCount.textContent = `${upcomingVisible} meeting${upcomingVisible !== 1 ? 's' : ''}`;
       pastVisibleCount.textContent = `${pastVisible} meeting${pastVisible !== 1 ? 's' : ''}`;
+      
+      const totalVisible = upcomingVisible + pastVisible;
+      const countEl = document.getElementById('meetingResultsCount');
+      if (countEl) countEl.textContent = `Showing ${totalVisible} of ${upcomingMeetings.length + pastMeetings.length} meetings`;
     }
     
-    // Reset search
+    // Reset search and filters
     function resetSearch() {
       searchInput.value = '';
+      document.getElementById('meetingTypeFilter').value = '';
+      document.getElementById('dateFrom').value = '';
+      document.getElementById('dateTo').value = '';
       applySearch();
     }
     
     // Event listeners
     searchInput.addEventListener('input', applySearch);
+    document.getElementById('meetingTypeFilter').addEventListener('change', applySearch);
+    document.getElementById('dateFrom').addEventListener('change', applySearch);
+    document.getElementById('dateTo').addEventListener('change', applySearch);
     resetFilters.addEventListener('click', resetSearch);
     
     // Initialize

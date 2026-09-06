@@ -135,6 +135,30 @@
     </span>
   </div>
 
+  <!-- Search and Filter Bar -->
+  <div class="mb-4 flex flex-wrap gap-3 items-center">
+    <div class="relative flex-1 min-w-[200px]">
+      <input type="text" id="instRequestSearch" placeholder="Search by mentee, mentor, purpose..." 
+             class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" onkeyup="filterInstRequests()">
+      <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+      </svg>
+    </div>
+    <select id="instRequestStatusFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterInstRequests()">
+      <option value="">All Status</option>
+      <option value="pending">Pending</option>
+      <option value="accepted">Accepted</option>
+      <option value="rejected">Rejected</option>
+      <option value="approved">Approved</option>
+    </select>
+    <select id="instRequestTypeFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterInstRequests()">
+      <option value="">All Types</option>
+      <option value="anchor">Anchor Mentor</option>
+      <option value="guidance">Guidance Mentor</option>
+    </select>
+  </div>
+  <div id="instRequestResultsCount" class="text-xs text-gray-500 mb-3"></div>
+
   {% if mentorship_requests and mentorship_requests|length > 0 %}
   <div class="overflow-x-auto rounded-xl border border-gray-200">
     <table class="min-w-full divide-y divide-gray-200">
@@ -150,7 +174,11 @@
       </thead>
       <tbody class="bg-white divide-y divide-gray-200">
         {% for request in mentorship_requests %}
-        <tr class="request-row hover:bg-gray-50 transition-colors">
+        <tr class="request-row hover:bg-gray-50 transition-colors"
+            data-search="{{ (request.mentee.name|lower if request.mentee else '') }} {{ (request.mentor.name|lower if request.mentor else '') }} {{ request.purpose|lower if request.purpose else '' }}"
+            data-status="{{ request.final_status|lower if request.final_status else '' }}"
+            data-mentor-status="{{ request.mentor_status|lower if request.mentor_status else '' }}"
+            data-type="{{ request.mentor_type|lower if request.mentor_type else '' }}">
           <td class="px-6 py-4 whitespace-nowrap">
             <div class="flex items-center">
               <!-- Mentee -->
@@ -401,6 +429,29 @@
 </div>
 
 <script>
+// Request filtering
+function filterInstRequests() {
+  const searchTerm = document.getElementById('instRequestSearch').value.toLowerCase();
+  const statusFilter = document.getElementById('instRequestStatusFilter').value.toLowerCase();
+  const typeFilter = document.getElementById('instRequestTypeFilter').value.toLowerCase();
+  const rows = document.querySelectorAll('.request-row');
+  let visible = 0;
+
+  rows.forEach(row => {
+    const matchSearch = !searchTerm || (row.dataset.search || '').includes(searchTerm);
+    const matchStatus = !statusFilter || 
+      (row.dataset.status || '').includes(statusFilter) || 
+      (row.dataset.mentorStatus || '').includes(statusFilter);
+    const matchType = !typeFilter || (row.dataset.type || '') === typeFilter;
+    const show = matchSearch && matchStatus && matchType;
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+
+  const countEl = document.getElementById('instRequestResultsCount');
+  if (countEl) countEl.textContent = `Showing ${visible} of ${rows.length} requests`;
+}
+
 // ---------- Shared helpers ----------
 function safeText(v) {
   if (!v) return '';

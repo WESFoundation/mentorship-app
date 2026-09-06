@@ -290,6 +290,99 @@
         line-height: 1;
         flex-shrink: 0;
     }
+
+    .advanced-filters {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-top: 12px;
+        display: none;
+    }
+
+    .advanced-filters.show {
+        display: block;
+    }
+
+    .filter-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: flex-end;
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 140px;
+    }
+
+    .filter-group label {
+        font-size: 11px;
+        font-weight: 600;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .filter-group select,
+    .filter-group input[type="date"] {
+        padding: 6px 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 13px;
+        color: #374151;
+        background: white;
+        min-width: 130px;
+    }
+
+    .filter-group select:focus,
+    .filter-group input[type="date"]:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+    }
+
+    .active-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+    }
+
+    .active-filter-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 10px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+        border-radius: 16px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .active-filter-tag button {
+        background: none;
+        border: none;
+        color: #1d4ed8;
+        cursor: pointer;
+        padding: 0;
+        font-size: 14px;
+        line-height: 1;
+    }
+
+    .active-filter-tag button:hover {
+        color: #dc2626;
+    }
+
+    .results-count {
+        font-size: 13px;
+        color: #6b7280;
+        margin-bottom: 8px;
+    }
 </style>
 
 <!-- Main Content Container -->
@@ -393,27 +486,67 @@
                 <button class="filter-btn active" data-filter="all">All Tasks</button>
                 <button class="filter-btn" data-filter="personal">Personal Tasks</button>
                 <button class="filter-btn" data-filter="master">Mentorship Tasks</button>
-                <button class="filter-btn" data-filter="pending">Pending</button>
+                <button class="filter-btn" data-filter="not-started">Not Started</button>
+                <button class="filter-btn" data-filter="committed">Committed</button>
                 <button class="filter-btn" data-filter="in-progress">In Progress</button>
-                <button class="filter-btn" data-filter="completed">Completed</button>
+                <button class="filter-btn" data-filter="done">Completed</button>
                 <button class="filter-btn" data-filter="overdue">Overdue</button>
+                <button class="filter-btn" data-filter="critical">Critical</button>
             </div>
             
-            <div class="flex gap-3">
+            <div class="flex gap-3 items-center">
                 <div class="relative">
-                    <input type="text" id="task-search" placeholder="Search tasks, mentors, mentees..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <svg class="w-5 h-5 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <input type="text" id="task-search" placeholder="Search tasks, mentors, mentees..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <svg class="w-4 h-4 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
                 </div>
-                <select id="mentor-filter" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <select id="mentor-filter" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                     <option value="all">All Mentors</option>
                 </select>
-                <select id="mentee-filter" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <select id="mentee-filter" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                     <option value="all">All Mentees</option>
                 </select>
+                <select id="category-filter" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="all">All Categories</option>
+                </select>
+                <button id="toggle-advanced" onclick="toggleAdvancedFilters()" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 transition flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                    Advanced
+                </button>
             </div>
         </div>
+
+        <!-- Advanced Filters Panel -->
+        <div id="advanced-filters" class="advanced-filters">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>Priority</label>
+                    <select id="priority-filter">
+                        <option value="all">All Priorities</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Due From</label>
+                    <input type="date" id="due-from">
+                </div>
+                <div class="filter-group">
+                    <label>Due To</label>
+                    <input type="date" id="due-to">
+                </div>
+                <div class="filter-group">
+                    <button onclick="clearAllFilters()" class="px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-sm font-medium text-red-600 transition mt-auto">
+                        Clear All Filters
+                    </button>
+                </div>
+            </div>
+            <div id="active-filters-display" class="active-filters"></div>
+        </div>
+
+        <div id="results-count" class="results-count mt-2"></div>
     </section>
     
     <!-- Tasks Grid -->
@@ -686,6 +819,10 @@ let currentFilter = 'all';
 let currentSearch = '';
 let currentMentorFilter = 'all';
 let currentMenteeFilter = 'all';
+let currentPriorityFilter = 'all';
+let currentCategoryFilter = 'all';
+let currentDueFrom = '';
+let currentDueTo = '';
 
 // Initialize the page
 async function initializePage() {
@@ -756,8 +893,8 @@ async function loadInstitutionTasks() {
 // Update statistics function
 function updateStatistics() {
     const total = allTasks.length;
-    const completed = allTasks.filter(t => t.status === 'completed').length;
-    const pending = allTasks.filter(t => t.status === 'pending').length;
+    const completed = allTasks.filter(t => t.status === 'completed' || t.status === 'done').length;
+    const pending = allTasks.filter(t => t.status === 'not-started' || t.status === 'pending' || t.status === 'committed').length;
     const inProgress = allTasks.filter(t => t.status === 'in-progress').length;
     const overdue = allTasks.filter(t => isTaskOverdue(t)).length;
     
@@ -769,8 +906,9 @@ function updateStatistics() {
 
 // Update institution insights
 function updateInstitutionInsights(institutionName) {
+    const completedCount = allTasks.filter(t => t.status === 'completed' || t.status === 'done').length;
     const completionRate = allTasks.length > 0 ? 
-        Math.round((allTasks.filter(t => t.status === 'completed').length / allTasks.length) * 100) : 0;
+        Math.round((completedCount / allTasks.length) * 100) : 0;
     const criticalTasks = allTasks.filter(t => t.isCritical).length;
     const avgRating = allTasks.length > 0 ?
         Math.round(allTasks.reduce((sum, task) => sum + (task.rating || 0), 0) / allTasks.length * 10) / 10 : 0;
@@ -814,7 +952,7 @@ function updateOverviewMetrics() {
     const activeMentees = new Set(allTasks.map(t => t.menteeId)).size;
     
     // Calculate completion rate
-    const completedTasks = allTasks.filter(t => t.status === 'completed').length;
+    const completedTasks = allTasks.filter(t => t.status === 'completed' || t.status === 'done').length;
     const completionRate = allTasks.length > 0 ? 
         Math.round((completedTasks / allTasks.length) * 100) : 0;
     
@@ -853,19 +991,31 @@ function populateFilters() {
         option.textContent = mentee.name;
         menteeFilter.appendChild(option);
     });
+
+    // Populate category filter
+    const categoryFilter = document.getElementById('category-filter');
+    const categories = new Set(allTasks.map(t => t.category).filter(c => c));
+    categories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
+        categoryFilter.appendChild(option);
+    });
 }
 
 // Render tasks based on filters
 function renderTasks() {
     const container = document.getElementById('tasks-container');
     const emptyState = document.getElementById('empty-state');
+    const resultsCount = document.getElementById('results-count');
     
     // Filter tasks
     let filteredTasks = allTasks.filter(task => {
         const matchesFilter = currentFilter === 'all' || 
                              (currentFilter === 'personal' ? task.type === 'personal' :
                              (currentFilter === 'master' ? task.type === 'master' :
-                             (currentFilter === 'overdue' ? isTaskOverdue(task) : task.status === currentFilter)));
+                             (currentFilter === 'overdue' ? isTaskOverdue(task) :
+                             (currentFilter === 'critical' ? task.isCritical : task.status === currentFilter))));
         const matchesSearch = currentSearch === '' || 
                             task.title.toLowerCase().includes(currentSearch.toLowerCase()) ||
                             (task.description && task.description.toLowerCase().includes(currentSearch.toLowerCase())) ||
@@ -873,9 +1023,32 @@ function renderTasks() {
                             task.menteeName.toLowerCase().includes(currentSearch.toLowerCase());
         const matchesMentor = currentMentorFilter === 'all' || task.mentorId == currentMentorFilter;
         const matchesMentee = currentMenteeFilter === 'all' || task.menteeId == currentMenteeFilter;
+        const matchesPriority = currentPriorityFilter === 'all' || task.priority === currentPriorityFilter;
+        const matchesCategory = currentCategoryFilter === 'all' || task.category === currentCategoryFilter;
+
+        let matchesDate = true;
+        if (currentDueFrom) {
+            const dueFrom = new Date(currentDueFrom);
+            const taskDue = new Date(task.dueDate);
+            if (taskDue < dueFrom) matchesDate = false;
+        }
+        if (currentDueTo) {
+            const dueTo = new Date(currentDueTo);
+            dueTo.setHours(23, 59, 59, 999);
+            const taskDue = new Date(task.dueDate);
+            if (taskDue > dueTo) matchesDate = false;
+        }
         
-        return matchesFilter && matchesSearch && matchesMentor && matchesMentee;
+        return matchesFilter && matchesSearch && matchesMentor && matchesMentee && matchesPriority && matchesCategory && matchesDate;
     });
+
+    // Update results count
+    if (resultsCount) {
+        resultsCount.textContent = `Showing ${filteredTasks.length} of ${allTasks.length} tasks`;
+    }
+
+    // Update active filters display
+    updateActiveFiltersDisplay();
     
     if (filteredTasks.length === 0) {
         container.classList.add('hidden');
@@ -902,7 +1075,7 @@ function renderTasks() {
 
 // Check if task is overdue
 function isTaskOverdue(task) {
-    if (task.status === 'completed') return false;
+    if (task.status === 'completed' || task.status === 'done') return false;
     if (!task.dueDate) return false;
     
     const dueDate = new Date(task.dueDate);
@@ -1005,15 +1178,29 @@ function createTaskHTML(task, index) {
                     <span class="priority-${task.priority || 'medium'}">${task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) + ' Priority' : 'No Priority'}</span>
                 </div>
                 
-                ${task.status === 'completed' ? `
+                ${(task.status === 'completed' || task.status === 'done') ? `
                 <span class="text-green-600 text-sm font-semibold flex items-center gap-1.5 bg-green-50 px-3 py-1 rounded-full border border-green-200">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                     </svg>
                     Done
                 </span>
-                ` : `
+                ` : task.status === 'in-progress' ? `
+                <span class="text-blue-600 text-sm font-semibold flex items-center gap-1.5 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    In Progress
+                </span>
+                ` : task.status === 'committed' ? `
                 <span class="text-amber-600 text-sm font-semibold flex items-center gap-1.5 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    Committed
+                </span>
+                ` : `
+                <span class="text-slate-500 text-sm font-semibold flex items-center gap-1.5 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
@@ -1088,55 +1275,89 @@ function filterByMentee(menteeId) {
     renderTasks();
 }
 
+function toggleAdvancedFilters() {
+    const panel = document.getElementById('advanced-filters');
+    panel.classList.toggle('show');
+}
+
+function clearAllFilters() {
+    currentFilter = 'all';
+    currentSearch = '';
+    currentMentorFilter = 'all';
+    currentMenteeFilter = 'all';
+    currentPriorityFilter = 'all';
+    currentCategoryFilter = 'all';
+    currentDueFrom = '';
+    currentDueTo = '';
+
+    document.getElementById('task-search').value = '';
+    document.getElementById('mentor-filter').value = 'all';
+    document.getElementById('mentee-filter').value = 'all';
+    document.getElementById('priority-filter').value = 'all';
+    document.getElementById('category-filter').value = 'all';
+    document.getElementById('due-from').value = '';
+    document.getElementById('due-to').value = '';
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.filter === 'all');
+    });
+
+    renderTasks();
+}
+
+function updateActiveFiltersDisplay() {
+    const container = document.getElementById('active-filters-display');
+    if (!container) return;
+    const tags = [];
+
+    if (currentFilter !== 'all') {
+        const filterLabels = { 'personal': 'Personal Tasks', 'master': 'Mentorship Tasks', 'not-started': 'Not Started', 'committed': 'Committed', 'in-progress': 'In Progress', 'done': 'Completed', 'overdue': 'Overdue', 'critical': 'Critical' };
+        tags.push({ label: `Status: ${filterLabels[currentFilter] || currentFilter}`, clear: () => { currentFilter = 'all'; document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === 'all')); renderTasks(); }});
+    }
+    if (currentSearch) {
+        tags.push({ label: `Search: "${currentSearch}"`, clear: () => { currentSearch = ''; document.getElementById('task-search').value = ''; renderTasks(); }});
+    }
+    if (currentMentorFilter !== 'all') {
+        tags.push({ label: `Mentor: ${allMentors.find(m => m.id == currentMentorFilter)?.name || currentMentorFilter}`, clear: () => { currentMentorFilter = 'all'; document.getElementById('mentor-filter').value = 'all'; renderTasks(); }});
+    }
+    if (currentMenteeFilter !== 'all') {
+        tags.push({ label: `Mentee: ${allMentees.find(m => m.id == currentMenteeFilter)?.name || currentMenteeFilter}`, clear: () => { currentMenteeFilter = 'all'; document.getElementById('mentee-filter').value = 'all'; renderTasks(); }});
+    }
+    if (currentPriorityFilter !== 'all') {
+        tags.push({ label: `Priority: ${currentPriorityFilter}`, clear: () => { currentPriorityFilter = 'all'; document.getElementById('priority-filter').value = 'all'; renderTasks(); }});
+    }
+    if (currentCategoryFilter !== 'all') {
+        tags.push({ label: `Category: ${currentCategoryFilter}`, clear: () => { currentCategoryFilter = 'all'; document.getElementById('category-filter').value = 'all'; renderTasks(); }});
+    }
+    if (currentDueFrom) {
+        tags.push({ label: `From: ${currentDueFrom}`, clear: () => { currentDueFrom = ''; document.getElementById('due-from').value = ''; renderTasks(); }});
+    }
+    if (currentDueTo) {
+        tags.push({ label: `To: ${currentDueTo}`, clear: () => { currentDueTo = ''; document.getElementById('due-to').value = ''; renderTasks(); }});
+    }
+
+    container.innerHTML = tags.map((tag, i) =>
+        `<span class="active-filter-tag">${tag.label} <button onclick="clearFilterTag(${i})">&times;</button></span>`
+    ).join('');
+
+    window._filterTags = tags;
+}
+
+function clearFilterTag(index) {
+    if (window._filterTags && window._filterTags[index]) {
+        window._filterTags[index].clear();
+    }
+}
+
 // Current active task selected for modal
 let currentSelectedTask = null;
 
 // Modal functions
-<<<<<<< HEAD
 async function viewTaskDetails(taskId) {
-    const task = allTasks.find(t => t.id === taskId);
-    if (task) {
-        document.getElementById('detail-task-title').textContent = task.title;
-        document.getElementById('detail-task-mentor').textContent = task.mentorName;
-        document.getElementById('detail-task-mentee').textContent = task.menteeName;
-        document.getElementById('detail-task-status').textContent = getStatusText(task.status);
-        document.getElementById('detail-task-status').className = `task-status ${getStatusClass(task.status)}`;
-        document.getElementById('detail-task-type').textContent = task.type === 'master' ? 'Master Task' : 'Personal Task';
-        document.getElementById('detail-task-type').className = `badge ${task.type === 'master' ? 'task-type-master' : 'task-type-personal'}`;
-        document.getElementById('detail-task-priority').textContent = task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) : 'Not set';
-        document.getElementById('detail-task-priority').className = `priority-${task.priority || 'medium'}`;
-        document.getElementById('detail-task-due-date').textContent = formatDate(task.dueDate);
-        document.getElementById('detail-task-created').textContent = formatDate(task.createdDate);
-        document.getElementById('detail-task-updated').textContent = formatDate(task.updatedAt);
-        document.getElementById('detail-task-description').textContent = task.description || 'No description available';
-        document.getElementById('detail-task-instructions').textContent = task.instructions || "No additional instructions provided.";
-        // Update status indicator
-        var statusEl = document.getElementById('detail-status-indicator');
-        if (task.status === 'done') {
-            statusEl.textContent = 'Done';
-            statusEl.className = 'text-sm font-semibold px-3 py-1.5 rounded-full border text-green-700 bg-green-50 border-green-200';
-        } else if (task.status === 'in-progress') {
-            statusEl.textContent = 'In Progress';
-            statusEl.className = 'text-sm font-semibold px-3 py-1.5 rounded-full border text-blue-700 bg-blue-50 border-blue-200';
-        } else if (task.status === 'committed') {
-            statusEl.textContent = 'Committed';
-            statusEl.className = 'text-sm font-semibold px-3 py-1.5 rounded-full border text-amber-700 bg-amber-50 border-amber-200';
-        } else {
-            statusEl.textContent = 'Not Started';
-            statusEl.className = 'text-sm font-semibold px-3 py-1.5 rounded-full border text-slate-700 bg-slate-50 border-slate-200';
-        }
-        
-        // Load and display rating
-        await loadAndDisplayRating(task.id);
-        
-        document.getElementById('task-details-modal').classList.remove('hidden');
-=======
-function viewTaskDetails(taskId) {
     const task = allTasks.find(t => String(t.id) === String(taskId));
     if (!task) {
         console.error("Task not found for id:", taskId);
         return;
->>>>>>> a2d168378e02299c42c8d50d168f366f9bd3a4c6
     }
     currentSelectedTask = task;
     
@@ -1530,6 +1751,29 @@ function setupEventListeners() {
     // Mentee filter
     document.getElementById('mentee-filter').addEventListener('change', (e) => {
         filterByMentee(e.target.value);
+    });
+
+    // Priority filter
+    document.getElementById('priority-filter').addEventListener('change', (e) => {
+        currentPriorityFilter = e.target.value;
+        renderTasks();
+    });
+
+    // Category filter
+    document.getElementById('category-filter').addEventListener('change', (e) => {
+        currentCategoryFilter = e.target.value;
+        renderTasks();
+    });
+
+    // Date range filters
+    document.getElementById('due-from').addEventListener('change', (e) => {
+        currentDueFrom = e.target.value;
+        renderTasks();
+    });
+
+    document.getElementById('due-to').addEventListener('change', (e) => {
+        currentDueTo = e.target.value;
+        renderTasks();
     });
 
     // Institute Reflection Form

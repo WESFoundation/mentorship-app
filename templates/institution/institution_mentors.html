@@ -11,10 +11,27 @@
       <p class="text-gray-600">Browse all mentors associated with your institution</p>
     </div>
 
-    <!-- Search Input -->
-    <div class="mb-6">
-      <input type="text" id="mentorSearch" placeholder="Search mentors by name, profession, location..."
-        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" onkeyup="filterMentors()">
+    <!-- Search and Filters -->
+    <div class="mb-6 flex flex-wrap gap-3 items-center">
+      <div class="relative flex-1 min-w-[200px]">
+        <input type="text" id="mentorSearch" placeholder="Search mentors by name, profession, location..."
+          class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" onkeyup="filterMentors()">
+        <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+      </div>
+      <select id="mentorStatusFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentors()">
+        <option value="">All Status</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+      <select id="mentorProfessionFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentors()">
+        <option value="">All Professions</option>
+      </select>
+      <select id="mentorLocationFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentors()">
+        <option value="">All Locations</option>
+      </select>
+      <div class="ml-auto text-xs text-gray-500" id="mentorResultsCountInstitution"></div>
     </div>
 
     {% if mentors and mentors|length > 0 %}
@@ -31,7 +48,10 @@
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
           {% for mentor in mentors %}
-          <tr class="mentor-row hover:bg-gray-50 transition-colors" data-mentor-id="{{ mentor.id }}">
+          <tr class="mentor-row hover:bg-gray-50 transition-colors" data-mentor-id="{{ mentor.id }}"
+              data-status="{{ mentor.status|lower if mentor.status else 'active' }}"
+              data-profession="{{ (mentor.mentor_profile.profession if mentor.mentor_profile else '')|lower }}"
+              data-location="{{ (mentor.mentor_profile.location if mentor.mentor_profile else '')|lower }}">
             <td class="px-6 py-4 whitespace-nowrap max-w-[280px]">
               <div class="flex items-center">
                 {% if mentor.mentor_profile and mentor.mentor_profile.profile_picture %}
@@ -399,21 +419,59 @@
   // Client-side filtering for Mentors
   function filterMentors() {
     const input = document.getElementById('mentorSearch').value.toLowerCase();
+    const statusFilter = document.getElementById('mentorStatusFilter').value.toLowerCase();
+    const professionFilter = document.getElementById('mentorProfessionFilter').value.toLowerCase();
+    const locationFilter = document.getElementById('mentorLocationFilter').value.toLowerCase();
     const rows = document.querySelectorAll('.mentor-row');
+    let visible = 0;
 
     rows.forEach(row => {
       const name = row.querySelector('.mentor-name').innerText.toLowerCase();
       const profession = row.querySelector('.mentor-profession').innerText.toLowerCase();
       const email = row.querySelector('.mentor-email').innerText.toLowerCase();
       const location = row.querySelector('.mentor-location').innerText.toLowerCase();
+      const rowStatus = (row.getAttribute('data-status') || '').toLowerCase();
+      const rowProfession = (row.getAttribute('data-profession') || '').toLowerCase();
+      const rowLocation = (row.getAttribute('data-location') || '').toLowerCase();
 
-      if (name.includes(input) || profession.includes(input) || email.includes(input) || location.includes(input)) {
-        row.style.display = '';
-      } else {
-        row.style.display = 'none';
-      }
+      const matchSearch = !input || name.includes(input) || profession.includes(input) || email.includes(input) || location.includes(input);
+      const matchStatus = !statusFilter || rowStatus === statusFilter;
+      const matchProfession = !professionFilter || rowProfession === professionFilter;
+      const matchLocation = !locationFilter || rowLocation === locationFilter;
+      const show = matchSearch && matchStatus && matchProfession && matchLocation;
+      row.style.display = show ? '' : 'none';
+      if (show) visible++;
     });
+
+    const countEl = document.getElementById('mentorResultsCountInstitution');
+    if (countEl) countEl.textContent = `Showing ${visible} of ${rows.length} mentors`;
   }
+
+  // Populate profession filter
+  (function() {
+    const professions = new Set();
+    const locations = new Set();
+    document.querySelectorAll('.mentor-row').forEach(row => {
+      const prof = row.getAttribute('data-profession');
+      const loc = row.getAttribute('data-location');
+      if (prof) professions.add(prof);
+      if (loc) locations.add(loc);
+    });
+    const profSelect = document.getElementById('mentorProfessionFilter');
+    [...professions].sort().forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p.charAt(0).toUpperCase() + p.slice(1);
+      profSelect.appendChild(opt);
+    });
+    const locSelect = document.getElementById('mentorLocationFilter');
+    [...locations].sort().forEach(l => {
+      const opt = document.createElement('option');
+      opt.value = l;
+      opt.textContent = l.charAt(0).toUpperCase() + l.slice(1);
+      locSelect.appendChild(opt);
+    });
+  })();
 
   function openProfileModal(mentor) {
     // ===== BASIC INFORMATION =====

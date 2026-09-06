@@ -41,6 +41,16 @@
         text-transform: uppercase;
     }
 
+    .status-not-started {
+        background: #f1f5f9;
+        color: #64748b;
+    }
+
+    .status-committed {
+        background: #fef3c7;
+        color: #d97706;
+    }
+
     .status-pending {
         background: #fef3c7;
         color: #d97706;
@@ -59,6 +69,11 @@
     .status-overdue {
         background: #fee2e2;
         color: #dc2626;
+    }
+
+    .status-done {
+        background: #d1fae5;
+        color: #065f46;
     }
 
     .priority-high {
@@ -103,6 +118,99 @@
         background: #3b82f6;
         color: white;
         border-color: #3b82f6;
+    }
+
+    .advanced-filters {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-top: 12px;
+        display: none;
+    }
+
+    .advanced-filters.show {
+        display: block;
+    }
+
+    .filter-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: flex-end;
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 140px;
+    }
+
+    .filter-group label {
+        font-size: 11px;
+        font-weight: 600;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .filter-group select,
+    .filter-group input[type="date"] {
+        padding: 6px 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 13px;
+        color: #374151;
+        background: white;
+        min-width: 130px;
+    }
+
+    .filter-group select:focus,
+    .filter-group input[type="date"]:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+    }
+
+    .active-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+    }
+
+    .active-filter-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 10px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+        border-radius: 16px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .active-filter-tag button {
+        background: none;
+        border: none;
+        color: #1d4ed8;
+        cursor: pointer;
+        padding: 0;
+        font-size: 14px;
+        line-height: 1;
+    }
+
+    .active-filter-tag button:hover {
+        color: #dc2626;
+    }
+
+    .results-count {
+        font-size: 13px;
+        color: #6b7280;
+        margin-bottom: 8px;
     }
 
     .empty-state {
@@ -427,37 +535,75 @@
         <div class="flex flex-wrap gap-4 items-center justify-between">
             <div class="flex flex-wrap gap-2">
                 <button class="filter-btn active" data-filter="all">All Tasks</button>
-                <button class="filter-btn" data-filter="pending">To Do</button>
+                <button class="filter-btn" data-filter="not-started">Not Started</button>
+                <button class="filter-btn" data-filter="committed">Committed</button>
                 <button class="filter-btn" data-filter="in-progress">In Progress</button>
-                <button class="filter-btn" data-filter="completed">Completed</button>
+                <button class="filter-btn" data-filter="done">Completed</button>
                 <button class="filter-btn" data-filter="overdue">Overdue</button>
                 <button class="filter-btn" data-filter="critical">Critical</button>
             </div>
 
-            <div class="flex gap-3">
+            <div class="flex gap-3 items-center">
                 <div class="relative">
                     <input type="text" id="task-search" placeholder="Search tasks, mentors, mentees..."
-                        class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <svg class="w-5 h-5 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor"
+                        class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <svg class="w-4 h-4 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor"
                         viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
                 </div>
                 <select id="priority-filter"
-                    class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                     <option value="all">All Priorities</option>
-                    <option value="high">High Priority</option>
-                    <option value="medium">Medium Priority</option>
-                    <option value="low">Low Priority</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
                 </select>
                 <select id="category-filter"
-                    class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                     <option value="all">All Categories</option>
-                    <!-- Category options will be populated by JavaScript -->
                 </select>
+                <button id="toggle-advanced" onclick="toggleAdvancedFilters()" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 transition flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                    Advanced
+                </button>
             </div>
         </div>
+
+        <!-- Advanced Filters Panel -->
+        <div id="advanced-filters" class="advanced-filters">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>Mentor</label>
+                    <select id="mentor-filter">
+                        <option value="all">All Mentors</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Mentee</label>
+                    <select id="mentee-filter">
+                        <option value="all">All Mentees</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Due From</label>
+                    <input type="date" id="due-from">
+                </div>
+                <div class="filter-group">
+                    <label>Due To</label>
+                    <input type="date" id="due-to">
+                </div>
+                <div class="filter-group">
+                    <button onclick="clearAllFilters()" class="px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-sm font-medium text-red-600 transition mt-auto">
+                        Clear All Filters
+                    </button>
+                </div>
+            </div>
+            <div id="active-filters-display" class="active-filters"></div>
+        </div>
+
+        <div id="results-count" class="results-count mt-2"></div>
     </section>
 
     <!-- Tasks Grid -->
@@ -607,6 +753,10 @@
     let currentSearch = '';
     let currentPriorityFilter = 'all';
     let currentCategoryFilter = 'all';
+    let currentMentorFilter = 'all';
+    let currentMenteeFilter = 'all';
+    let currentDueFrom = '';
+    let currentDueTo = '';
 
     // Initialize the page
     async function initializePage() {
@@ -687,23 +837,25 @@
     // Update statistics function
     function updateStatistics() {
         const total = allTasks.length;
-        const completed = allTasks.filter(t => t.status === 'completed').length;
-        const pending = allTasks.filter(t => t.status === 'pending').length;
+        const completed = allTasks.filter(t => t.status === 'completed' || t.status === 'done').length;
         const inProgress = allTasks.filter(t => t.status === 'in-progress').length;
-        const overdue = allTasks.filter(t => t.isCritical).length;
+        const notStarted = allTasks.filter(t => t.status === 'not-started' || t.status === 'pending').length;
+        const committed = allTasks.filter(t => t.status === 'committed').length;
+        const overdue = allTasks.filter(t => t.isCritical || isTaskOverdue(t)).length;
 
         document.getElementById('total-tasks').textContent = total;
         document.getElementById('completed-tasks').textContent = completed;
-        document.getElementById('pending-tasks').textContent = pending + inProgress;
+        document.getElementById('pending-tasks').textContent = notStarted + committed + inProgress;
         document.getElementById('overdue-tasks').textContent = overdue;
 
-        console.log(`📊 Stats - Total: ${total}, Completed: ${completed}, Pending: ${pending}, Overdue: ${overdue}`);
+        console.log(`📊 Stats - Total: ${total}, Completed: ${completed}, In Progress: ${inProgress}, Not Started: ${notStarted}, Committed: ${committed}, Overdue: ${overdue}`);
     }
 
     // Update platform insights
     function updatePlatformInsights() {
+        const completedCount = allTasks.filter(t => t.status === 'completed' || t.status === 'done').length;
         const completionRate = allTasks.length > 0 ?
-            Math.round((allTasks.filter(t => t.status === 'completed').length / allTasks.length) * 100) : 0;
+            Math.round((completedCount / allTasks.length) * 100) : 0;
         const criticalTasks = allTasks.filter(t => t.isCritical).length;
         const activeMentors = new Set(allTasks.map(t => t.mentorName)).size;
 
@@ -727,34 +879,29 @@
         const activeMentorsCount = allMentors.length;
         const activeMenteesCount = allMentees.length;
 
-        // Calculate completion rate
-        const completedTasks = allTasks.filter(t => t.status === 'completed');
+        const completedTasks = allTasks.filter(t => t.status === 'completed' || t.status === 'done').length;
         const completionRate = allTasks.length > 0 ?
-            Math.round((completedTasks.length / allTasks.length) * 100) : 0;
+            Math.round((completedTasks / allTasks.length) * 100) : 0;
 
-        // Simplified metrics for demo
         document.getElementById('tasks-by-mentors').textContent = tasksByMentors;
         document.getElementById('tasks-by-category').textContent = `${tasksByCategory} categories`;
-        document.getElementById('avg-completion-time').textContent = '7 days'; // Placeholder
+        document.getElementById('avg-completion-time').textContent = '7 days';
         document.getElementById('active-mentors').textContent = activeMentorsCount;
         document.getElementById('active-mentees').textContent = activeMenteesCount;
-        document.getElementById('tasks-this-month').textContent = allTasks.length; // Placeholder
+        document.getElementById('tasks-this-month').textContent = allTasks.length;
         document.getElementById('completion-rate').textContent = `${completionRate}%`;
-        document.getElementById('on-time-rate').textContent = '75%'; // Placeholder
-        document.getElementById('avg-task-score').textContent = '4.2/5'; // Placeholder
+        document.getElementById('on-time-rate').textContent = '75%';
+        document.getElementById('avg-task-score').textContent = '4.2/5';
     }
 
     // Populate filters
     function populateFilters() {
         // Populate category filter
-        const categories = [...new Set(allTasks.map(task => task.category))];
+        const categories = [...new Set(allTasks.map(task => task.category))].sort();
         const categoryFilter = document.getElementById('category-filter');
-
-        // Clear existing options except "All"
         while (categoryFilter.children.length > 1) {
             categoryFilter.removeChild(categoryFilter.lastChild);
         }
-
         categories.forEach(category => {
             const option = document.createElement('option');
             option.value = category;
@@ -762,13 +909,40 @@
             categoryFilter.appendChild(option);
         });
 
-        console.log(`🎯 Populated ${categories.length} categories`);
+        // Populate mentor filter
+        const mentorFilter = document.getElementById('mentor-filter');
+        const uniqueMentors = [...new Map(allTasks.map(t => [t.mentorId, { id: t.mentorId, name: t.mentorName }])).values()].sort((a, b) => a.name.localeCompare(b.name));
+        while (mentorFilter.children.length > 1) {
+            mentorFilter.removeChild(mentorFilter.lastChild);
+        }
+        uniqueMentors.forEach(m => {
+            const option = document.createElement('option');
+            option.value = m.id;
+            option.textContent = m.name;
+            mentorFilter.appendChild(option);
+        });
+
+        // Populate mentee filter
+        const menteeFilter = document.getElementById('mentee-filter');
+        const uniqueMentees = [...new Map(allTasks.map(t => [t.menteeId, { id: t.menteeId, name: t.menteeName }])).values()].sort((a, b) => a.name.localeCompare(b.name));
+        while (menteeFilter.children.length > 1) {
+            menteeFilter.removeChild(menteeFilter.lastChild);
+        }
+        uniqueMentees.forEach(m => {
+            const option = document.createElement('option');
+            option.value = m.id;
+            option.textContent = m.name;
+            menteeFilter.appendChild(option);
+        });
+
+        console.log(`🎯 Populated ${categories.length} categories, ${uniqueMentors.length} mentors, ${uniqueMentees.length} mentees`);
     }
 
     // Render tasks based on filters
     function renderTasks() {
         const container = document.getElementById('tasks-container');
         const emptyState = document.getElementById('empty-state');
+        const resultsCount = document.getElementById('results-count');
 
         // Filter tasks
         let filteredTasks = allTasks.filter(task => {
@@ -782,9 +956,32 @@
                 task.menteeName.toLowerCase().includes(currentSearch.toLowerCase());
             const matchesPriority = currentPriorityFilter === 'all' || task.priority === currentPriorityFilter;
             const matchesCategory = currentCategoryFilter === 'all' || task.category === currentCategoryFilter;
+            const matchesMentor = currentMentorFilter === 'all' || task.mentorId == currentMentorFilter;
+            const matchesMentee = currentMenteeFilter === 'all' || task.menteeId == currentMenteeFilter;
 
-            return matchesFilter && matchesSearch && matchesPriority && matchesCategory;
+            let matchesDate = true;
+            if (currentDueFrom) {
+                const dueFrom = new Date(currentDueFrom);
+                const taskDue = new Date(task.dueDate);
+                if (taskDue < dueFrom) matchesDate = false;
+            }
+            if (currentDueTo) {
+                const dueTo = new Date(currentDueTo);
+                dueTo.setHours(23, 59, 59, 999);
+                const taskDue = new Date(task.dueDate);
+                if (taskDue > dueTo) matchesDate = false;
+            }
+
+            return matchesFilter && matchesSearch && matchesPriority && matchesCategory && matchesMentor && matchesMentee && matchesDate;
         });
+
+        // Update results count
+        if (resultsCount) {
+            resultsCount.textContent = `Showing ${filteredTasks.length} of ${allTasks.length} tasks`;
+        }
+
+        // Update active filters display
+        updateActiveFiltersDisplay();
 
         if (filteredTasks.length === 0) {
             container.classList.add('hidden');
@@ -804,21 +1001,23 @@
             return new Date(a.dueDate) - new Date(b.dueDate);
         });
 
-        container.innerHTML = filteredTasks.map(task => createTaskHTML(task)).join('');
+        container.innerHTML = filteredTasks.map((task, index) => createTaskHTML(task, index)).join('');
         console.log(`🎯 Rendered ${filteredTasks.length} tasks`);
     }
 
     // Check if task is overdue
     function isTaskOverdue(task) {
-        if (task.status === 'completed') return false;
+        if (task.status === 'completed' || task.status === 'done') return false;
+        if (!task.dueDate) return false;
         const dueDate = new Date(task.dueDate);
         const today = new Date();
+        today.setHours(0, 0, 0, 0);
         return dueDate < today;
     }
 
     // Create individual task HTML
     // Create individual task HTML with rating display
-    function createTaskHTML(task) {
+    function createTaskHTML(task, index) {
         const isOverdue = isTaskOverdue(task);
 
         // Generate stars HTML based on rating
@@ -837,10 +1036,10 @@
         };
 
         return `
-        <div class="task-card p-6 ${task.status === 'completed' ? 'completed' : ''} ${task.isCritical || isOverdue ? 'urgent' : ''}">
+        <div class="task-card p-6 ${(task.status === 'completed' || task.status === 'done') ? 'completed' : ''} ${task.isCritical || isOverdue ? 'urgent' : ''}">
             <div class="flex justify-between items-start mb-3">
                 <div class="flex items-center gap-3 flex-wrap">
-                    <span class="task-serial inline-flex items-center justify-center min-w-[32px] h-8 px-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-base font-bold shrink-0">#${task.serial || (index + 1)}</span>
+                    <span class="task-serial inline-flex items-center justify-center min-w-[32px] h-8 px-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-base font-bold shrink-0">#${task.serial || (index !== undefined ? index + 1 : '')}</span>
                     <h3 class="text-lg font-semibold text-gray-900">${task.title || 'Untitled'}</h3>
                     <span class="task-status ${getStatusClass(task.status)}">${getStatusText(task.status)}</span>
                     <span class="badge ${task.type === 'master' ? 'badge-primary' : 'badge-secondary'}">${task.category || (task.type === 'master' ? 'Mentorship Task' : 'Personal Task')}</span>
@@ -903,7 +1102,7 @@
                     <span class="badge badge-primary">${task.category || 'N/A'}</span>
                 </div>
                 
-                ${task.status !== 'completed' ? `
+                ${(task.status !== 'completed' && task.status !== 'done') ? `
                 <div class="flex items-center gap-3">
                     <div class="w-24">
                         <div class="progress-bar">
@@ -929,22 +1128,28 @@
     // Helper functions
     function getStatusClass(status) {
         const statusClasses = {
-            'pending': 'status-pending',
+            'not-started': 'status-not-started',
+            'committed': 'status-committed',
+            'pending': 'status-not-started',
             'in-progress': 'status-in-progress',
             'completed': 'status-completed',
+            'done': 'status-done',
             'overdue': 'status-overdue'
         };
-        return statusClasses[status] || 'status-pending';
+        return statusClasses[status] || 'status-not-started';
     }
 
     function getStatusText(status) {
         const statusTexts = {
-            'pending': 'To Do',
+            'not-started': 'Not Started',
+            'committed': 'Committed',
+            'pending': 'Not Started',
             'in-progress': 'In Progress',
             'completed': 'Completed',
+            'done': 'Completed',
             'overdue': 'Overdue'
         };
-        return statusTexts[status] || 'To Do';
+        return statusTexts[status] || 'Not Started';
     }
 
     function formatDate(dateString) {
@@ -983,6 +1188,79 @@
     function filterByCategory(category) {
         currentCategoryFilter = category;
         renderTasks();
+    }
+
+    function toggleAdvancedFilters() {
+        const panel = document.getElementById('advanced-filters');
+        panel.classList.toggle('show');
+    }
+
+    function clearAllFilters() {
+        currentFilter = 'all';
+        currentSearch = '';
+        currentPriorityFilter = 'all';
+        currentCategoryFilter = 'all';
+        currentMentorFilter = 'all';
+        currentMenteeFilter = 'all';
+        currentDueFrom = '';
+        currentDueTo = '';
+
+        document.getElementById('task-search').value = '';
+        document.getElementById('priority-filter').value = 'all';
+        document.getElementById('category-filter').value = 'all';
+        document.getElementById('mentor-filter').value = 'all';
+        document.getElementById('mentee-filter').value = 'all';
+        document.getElementById('due-from').value = '';
+        document.getElementById('due-to').value = '';
+
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === 'all');
+        });
+
+        renderTasks();
+    }
+
+    function updateActiveFiltersDisplay() {
+        const container = document.getElementById('active-filters-display');
+        if (!container) return;
+        const tags = [];
+
+        if (currentFilter !== 'all') {
+            tags.push({ label: `Status: ${getStatusText(currentFilter)}`, clear: () => { currentFilter = 'all'; document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === 'all')); renderTasks(); }});
+        }
+        if (currentSearch) {
+            tags.push({ label: `Search: "${currentSearch}"`, clear: () => { currentSearch = ''; document.getElementById('task-search').value = ''; renderTasks(); }});
+        }
+        if (currentPriorityFilter !== 'all') {
+            tags.push({ label: `Priority: ${currentPriorityFilter}`, clear: () => { currentPriorityFilter = 'all'; document.getElementById('priority-filter').value = 'all'; renderTasks(); }});
+        }
+        if (currentCategoryFilter !== 'all') {
+            tags.push({ label: `Category: ${currentCategoryFilter}`, clear: () => { currentCategoryFilter = 'all'; document.getElementById('category-filter').value = 'all'; renderTasks(); }});
+        }
+        if (currentMentorFilter !== 'all') {
+            tags.push({ label: `Mentor: ${allTasks.find(t => t.mentorId == currentMentorFilter)?.mentorName || currentMentorFilter}`, clear: () => { currentMentorFilter = 'all'; document.getElementById('mentor-filter').value = 'all'; renderTasks(); }});
+        }
+        if (currentMenteeFilter !== 'all') {
+            tags.push({ label: `Mentee: ${allTasks.find(t => t.menteeId == currentMenteeFilter)?.menteeName || currentMenteeFilter}`, clear: () => { currentMenteeFilter = 'all'; document.getElementById('mentee-filter').value = 'all'; renderTasks(); }});
+        }
+        if (currentDueFrom) {
+            tags.push({ label: `From: ${currentDueFrom}`, clear: () => { currentDueFrom = ''; document.getElementById('due-from').value = ''; renderTasks(); }});
+        }
+        if (currentDueTo) {
+            tags.push({ label: `To: ${currentDueTo}`, clear: () => { currentDueTo = ''; document.getElementById('due-to').value = ''; renderTasks(); }});
+        }
+
+        container.innerHTML = tags.map((tag, i) =>
+            `<span class="active-filter-tag">${tag.label} <button onclick="clearFilterTag(${i})">&times;</button></span>`
+        ).join('');
+
+        window._filterTags = tags;
+    }
+
+    function clearFilterTag(index) {
+        if (window._filterTags && window._filterTags[index]) {
+            window._filterTags[index].clear();
+        }
     }
 
     // Modal functions
@@ -1068,6 +1346,29 @@
         // Category filter
         document.getElementById('category-filter').addEventListener('change', (e) => {
             filterByCategory(e.target.value);
+        });
+
+        // Mentor filter
+        document.getElementById('mentor-filter').addEventListener('change', (e) => {
+            currentMentorFilter = e.target.value;
+            renderTasks();
+        });
+
+        // Mentee filter
+        document.getElementById('mentee-filter').addEventListener('change', (e) => {
+            currentMenteeFilter = e.target.value;
+            renderTasks();
+        });
+
+        // Date range filters
+        document.getElementById('due-from').addEventListener('change', (e) => {
+            currentDueFrom = e.target.value;
+            renderTasks();
+        });
+
+        document.getElementById('due-to').addEventListener('change', (e) => {
+            currentDueTo = e.target.value;
+            renderTasks();
         });
     }
 
@@ -1212,8 +1513,8 @@
 
             const statusEl = document.getElementById('detail-task-status');
             if (statusEl) {
-                statusEl.textContent = getStatusText(task.status || 'pending');
-                statusEl.className = `task-status ${getStatusClass(task.status || 'pending')}`;
+                statusEl.textContent = getStatusText(task.status || 'not-started');
+                statusEl.className = `task-status ${getStatusClass(task.status || 'not-started')}`;
             }
 
             const priorityEl = document.getElementById('detail-task-priority');

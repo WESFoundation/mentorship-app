@@ -161,16 +161,36 @@
 
   <!-- Status Filter -->
   <div class="section-card p-4 mb-6">
-    <form method="GET" action="{{ url_for('view_requests') }}" class="flex flex-wrap items-center gap-3">
-      <label class="text-sm font-medium text-gray-700">Filter by Status:</label>
-      <select name="status" onchange="this.form.submit()"
-        class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
-        <option value="all" {% if status_filter=='all' %}selected{% endif %}>All Requests</option>
-        <option value="pending" {% if status_filter=='pending' %}selected{% endif %}>Pending</option>
-        <option value="approved" {% if status_filter=='approved' %}selected{% endif %}>Approved</option>
-        <option value="rejected" {% if status_filter=='rejected' %}selected{% endif %}>Rejected</option>
+    <div class="flex flex-wrap items-center gap-3">
+      <div class="relative flex-1 min-w-[200px]">
+        <input type="text" id="requestSearch" placeholder="Search by mentee, mentor, purpose..." 
+               class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm" onkeyup="filterRequests()">
+        <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+      </div>
+      <select id="mentorTypeFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterRequests()">
+        <option value="">All Types</option>
+        <option value="anchor">Anchor Mentor</option>
+        <option value="guidance">Guidance Mentor</option>
       </select>
-    </form>
+      <select id="durationFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterRequests()">
+        <option value="">All Durations</option>
+        <option value="1">1 Month</option>
+        <option value="3">3 Months</option>
+        <option value="6">6 Months</option>
+        <option value="12">12 Months</option>
+      </select>
+      <select id="mentorStatusFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterRequests()">
+        <option value="">All Mentor Status</option>
+        <option value="accepted">Accepted</option>
+        <option value="pending">Pending</option>
+        <option value="rejected">Rejected</option>
+      </select>
+    </div>
+    <div class="flex flex-wrap gap-2 mt-3">
+      <span class="results-count" id="requestResultsCount"></span>
+    </div>
   </div>
 
   <!-- Mentorship Requests Section -->
@@ -203,7 +223,12 @@
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
           {% for req in all_requests %}
-          <tr class="request-row hover:bg-gray-50 transition-colors">
+          <tr class="request-row hover:bg-gray-50 transition-colors"
+              data-search="{{ (req.mentee.name|lower if req.mentee else '') }} {{ (req.mentor.name|lower if req.mentor else '') }} {{ req.purpose|lower if req.purpose else '' }}"
+              data-mentor-type="{{ req.mentor_type|lower if req.mentor_type else '' }}"
+              data-duration="{{ req.duration_months if req.duration_months else '' }}"
+              data-mentor-status="{{ req.mentor_status|lower if req.mentor_status else '' }}"
+              data-supervisor-status="{{ req.supervisor_status|lower if req.supervisor_status else '' }}">
             <td class="px-6 py-4 whitespace-nowrap">
               <div class="flex items-center">
                 <!-- Mentee -->
@@ -1013,6 +1038,29 @@
 </div>
 
 <script>
+  // Request filtering
+  function filterRequests() {
+    const searchTerm = document.getElementById('requestSearch').value.toLowerCase();
+    const mentorType = document.getElementById('mentorTypeFilter').value.toLowerCase();
+    const duration = document.getElementById('durationFilter').value;
+    const mentorStatus = document.getElementById('mentorStatusFilter').value.toLowerCase();
+    const rows = document.querySelectorAll('.request-row');
+    let visible = 0;
+
+    rows.forEach(row => {
+      const matchSearch = !searchTerm || (row.dataset.search || '').includes(searchTerm);
+      const matchType = !mentorType || row.dataset.mentorType === mentorType;
+      const matchDuration = !duration || String(row.dataset.duration) === duration;
+      const matchMentorStatus = !mentorStatus || row.dataset.mentorStatus === mentorStatus;
+      const show = matchSearch && matchType && matchDuration && matchMentorStatus;
+      row.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+
+    const countEl = document.getElementById('requestResultsCount');
+    if (countEl) countEl.textContent = `${visible} of ${rows.length} requests shown`;
+  }
+
   // Mentee Profile Functions
   function openMenteeProfileModal(mentee) {
     console.log("Opening modal with mentee data:", mentee);

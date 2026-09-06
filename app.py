@@ -6895,7 +6895,9 @@ def get_supervisor_tasks_data():
                 'priority': task.priority,
                 'status': compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id or None),
                 'progress': task.progress or 0,
+                'mentorId': task.mentor_id,
                 'mentorName': mentor.name if mentor else 'Self',
+                'menteeId': task.mentee_id,
                 'menteeName': mentee.name if mentee else 'Unknown',
                 'category': 'Personal Task',
                 'rating': rating.rating if rating else None,
@@ -6930,7 +6932,9 @@ def get_supervisor_tasks_data():
                     'priority': 'medium',
                     'status': compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id),
                     'progress': task.progress or 0,
+                    'mentorId': task.mentor_id,
                     'mentorName': mentor.name,
+                    'menteeId': task.mentee_id,
                     'menteeName': mentee.name,
                     'category': 'Mentorship Task',
                     'rating': rating.rating if rating else None,
@@ -6949,8 +6953,10 @@ def get_supervisor_tasks_data():
             except Exception:
                 pass
 
-        mentors = list(set([task['mentorName'] for task in tasks]))
-        mentees = list(set([task['menteeName'] for task in tasks]))
+        mentors = [{'id': mid, 'name': mname} for mid, mname in 
+                   {t.get('mentorId'): t['mentorName'] for t in tasks if t.get('mentorId')}.items()]
+        mentees = [{'id': mid, 'name': mname} for mid, mname in 
+                   {t.get('menteeId'): t['menteeName'] for t in tasks if t.get('menteeId')}.items()]
 
         return jsonify({
             "success": True,

@@ -58,16 +58,31 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
       <input id="mentorshipSearch" type="text" placeholder="Search by mentor, mentee, profession or purpose…"
-        class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+        class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
     </div>
     <select id="statusFilter"
-      class="w-full sm:w-56 px-4 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+      class="w-full sm:w-44 px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
       <option value="">All Statuses</option>
       <option value="pending">Pending Approval</option>
       <option value="approved">Active</option>
       <option value="rejected">Rejected</option>
     </select>
+    <select id="durationFilter"
+      class="w-full sm:w-40 px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+      <option value="">All Durations</option>
+      <option value="1">1 Month</option>
+      <option value="3">3 Months</option>
+      <option value="6">6 Months</option>
+      <option value="12">12 Months</option>
+    </select>
+    <select id="typeFilter"
+      class="w-full sm:w-44 px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+      <option value="">All Types</option>
+      <option value="anchor">Anchor Mentor</option>
+      <option value="guidance">Guidance Mentor</option>
+    </select>
   </div>
+  <div id="mentorshipResultsCount" class="text-sm text-gray-500 mb-2 px-1"></div>
 
   <!-- Mentorships Table -->
   {% if mentorships_data %}
@@ -85,7 +100,10 @@
       </thead>
       <tbody class="bg-white divide-y divide-gray-200">
         {% for mentorship in mentorships_data %}
-        <tr class="mentorship-row hover:bg-gray-50 transition-colors" data-status="{{ mentorship.request.final_status|default('') }}">
+        <tr class="mentorship-row hover:bg-gray-50 transition-colors" 
+            data-status="{{ mentorship.request.final_status|default('') }}"
+            data-duration="{{ mentorship.request.duration_months|default('') }}"
+            data-type="{{ mentorship.request.mentor_type|default('')|lower }}">
           <td class="px-6 py-4">
             <div class="text-sm font-semibold text-gray-900">
               {{ mentorship.mentor.name if mentorship.mentor else 'Unknown Mentor' }}
@@ -233,19 +251,27 @@
   function filterMentorships() {
     const term = (document.getElementById('mentorshipSearch').value || '').toLowerCase();
     const status = document.getElementById('statusFilter').value;
+    const duration = document.getElementById('durationFilter').value;
+    const type = document.getElementById('typeFilter').value;
     let visible = 0;
     document.querySelectorAll('.mentorship-row').forEach(row => {
-      const textMatch = row.textContent.toLowerCase().includes(term);
+      const textMatch = !term || row.textContent.toLowerCase().includes(term);
       const statusMatch = !status || row.getAttribute('data-status') === status;
-      const show = textMatch && statusMatch;
+      const durationMatch = !duration || String(row.getAttribute('data-duration')) === duration;
+      const typeMatch = !type || row.getAttribute('data-type') === type;
+      const show = textMatch && statusMatch && durationMatch && typeMatch;
       row.style.display = show ? '' : 'none';
       if (show) visible++;
     });
     const emptyMsg = document.getElementById('filterEmptyMessage');
     if (emptyMsg) emptyMsg.classList.toggle('hidden', visible > 0);
+    const countEl = document.getElementById('mentorshipResultsCount');
+    if (countEl) countEl.textContent = `Showing ${visible} of ${document.querySelectorAll('.mentorship-row').length} mentorships`;
   }
   document.getElementById('mentorshipSearch').addEventListener('input', filterMentorships);
   document.getElementById('statusFilter').addEventListener('change', filterMentorships);
+  document.getElementById('durationFilter').addEventListener('change', filterMentorships);
+  document.getElementById('typeFilter').addEventListener('change', filterMentorships);
 
   // Make navigation buttons active on click
   document.addEventListener('DOMContentLoaded', function() {

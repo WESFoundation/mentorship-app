@@ -379,9 +379,43 @@
       </div>
 
       {% if all_requests and all_requests|length > 0 %}
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Filtering Controls -->
+      <div class="mb-6 flex flex-wrap gap-3 items-center">
+        <div class="relative flex-1 min-w-[200px]">
+          <input type="text" id="requestSearch" placeholder="Search by mentee or mentor name..."
+            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" onkeyup="filterRequests()">
+          <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </div>
+        <select id="requestSupervisorStatusFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterRequests()">
+          <option value="">All Supervisor Status</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <select id="requestMentorStatusFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterRequests()">
+          <option value="">All Mentor Status</option>
+          <option value="accepted">Accepted</option>
+          <option value="rejected">Rejected</option>
+          <option value="pending">Pending</option>
+        </select>
+        <select id="requestTypeFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterRequests()">
+          <option value="">All Types</option>
+          <option value="anchor">Anchor</option>
+          <option value="special">Special</option>
+        </select>
+      </div>
+      <div id="requestResultsCount" class="text-xs text-gray-500 mb-3"></div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="requestsGrid">
         {% for request in all_requests %}
-        <div class="relative bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-lg">
+        <div class="relative bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-lg request-card"
+             data-mentee-name="{{ (request.mentee.name or '')|lower }}"
+             data-mentor-name="{{ (request.mentor.name or '')|lower }}"
+             data-supervisor-status="{{ request.supervisor_status or '' }}"
+             data-mentor-status="{{ request.mentor_status or '' }}"
+             data-request-type="{{ request.mentor_type or '' }}">
           <!-- Mentee Info -->
           <div class="flex items-center gap-4 mb-4">
             {% if request.mentee.mentee_profile and request.mentee.mentee_profile.profile_picture %}
@@ -483,6 +517,18 @@
         {% endfor %}
       </div>
 
+      <div id="requestsEmptyState" class="hidden text-center py-12">
+        <div class="mx-auto w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 mb-1">No matching requests</h3>
+        <p class="text-gray-500">Try adjusting your search or filters.</p>
+      </div>
+
       {% else %}
       <div class="text-center py-12">
         <div class="mx-auto w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mb-4">
@@ -505,12 +551,31 @@
         <p class="text-gray-600">Review and approve or reject mentor and mentee profile requests.</p>
       </div>
 
-      <div class="mb-8">
+      <!-- Filtering Controls -->
+      <div class="mb-6 flex flex-wrap gap-3 items-center">
+        <div class="relative flex-1 min-w-[200px]">
+          <input type="text" id="profileRequestSearch" placeholder="Search by name, profession, school..."
+            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" onkeyup="filterProfileRequests()">
+          <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </div>
+        <select id="profileRequestTypeFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterProfileRequests()">
+          <option value="">All Types</option>
+          <option value="mentor">Mentors</option>
+          <option value="mentee">Mentees</option>
+        </select>
+      </div>
+      <div id="profileRequestResultsCount" class="text-xs text-gray-500 mb-3"></div>
+
+      <div class="mb-8" id="mentorProfileRequestsContainer">
         <h3 class="text-lg font-semibold text-gray-800 mb-4">Mentor Requests</h3>
         {% if mentor_requests and mentor_requests|length > 0 %}
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="mentorProfileRequestsGrid">
           {% for mentor in mentor_requests %}
-          <div class="bg-gray-50 rounded-xl border border-gray-200 p-5">
+          <div class="bg-gray-50 rounded-xl border border-gray-200 p-5 profile-request-card"
+               data-type="mentor"
+               data-search-text="{{ (mentor.user.name ~ ' ' ~ mentor.profession ~ ' ' ~ mentor.organisation ~ ' ' ~ mentor.user.email)|lower }}">
             <h4 class="font-bold text-gray-800">{{ mentor.user.name }}</h4>
             <p class="text-sm text-gray-600 mt-1 break-words">{{ mentor.profession }} at {{ mentor.organisation }}</p>
             <div class="flex items-center text-sm text-gray-500 mt-2">
@@ -541,17 +606,19 @@
           {% endfor %}
         </div>
         {% else %}
-        <p class="text-gray-500 text-center py-4 bg-gray-50 rounded-lg border border-gray-200">No mentor requests
+        <p class="text-gray-500 text-center py-4 bg-gray-50 rounded-lg border border-gray-200 mentor-profile-empty">No mentor requests
           pending.</p>
         {% endif %}
       </div>
 
-      <div>
+      <div id="menteeProfileRequestsContainer">
         <h3 class="text-lg font-semibold text-gray-800 mb-4">Mentee Requests</h3>
         {% if mentee_requests and mentee_requests|length > 0 %}
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="menteeProfileRequestsGrid">
           {% for mentee in mentee_requests %}
-          <div class="bg-gray-50 rounded-xl border border-gray-200 p-5">
+          <div class="bg-gray-50 rounded-xl border border-gray-200 p-5 profile-request-card"
+               data-type="mentee"
+               data-search-text="{{ (mentee.user.name ~ ' ' ~ mentee.school_college_name ~ ' ' ~ mentee.goal)|lower }}">
             <h4 class="font-bold text-gray-800">{{ mentee.user.name }}</h4>
             <p class="text-sm text-gray-600 mt-1 break-words">{{ mentee.school_college_name }}</p>
             <div class="flex items-start text-sm text-gray-500 mt-2 min-w-0">
@@ -582,9 +649,21 @@
           {% endfor %}
         </div>
         {% else %}
-        <p class="text-gray-500 text-center py-4 bg-gray-50 rounded-lg border border-gray-200">No mentee requests
+        <p class="text-gray-500 text-center py-4 bg-gray-50 rounded-lg border border-gray-200 mentee-profile-empty">No mentee requests
           pending.</p>
         {% endif %}
+      </div>
+
+      <div id="profileRequestsEmptyState" class="hidden text-center py-8">
+        <div class="mx-auto w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 mb-1">No matching profiles</h3>
+        <p class="text-gray-500">Try adjusting your search or filters.</p>
       </div>
     </section>
 
@@ -663,6 +742,105 @@
         card.style.display = 'none';
       }
     });
+  }
+
+  // Client-side filtering for Mentorship Requests
+  function filterRequests() {
+    const searchTerm = document.getElementById('requestSearch').value.toLowerCase();
+    const supervisorStatus = document.getElementById('requestSupervisorStatusFilter').value.toLowerCase();
+    const mentorStatus = document.getElementById('requestMentorStatusFilter').value.toLowerCase();
+    const requestType = document.getElementById('requestTypeFilter').value.toLowerCase();
+
+    const cards = document.querySelectorAll('.request-card');
+    let visibleCount = 0;
+
+    cards.forEach(card => {
+      const menteeName = card.dataset.menteeName || '';
+      const mentorName = card.dataset.mentorName || '';
+      const cardSupervisorStatus = card.dataset.supervisorStatus || '';
+      const cardMentorStatus = card.dataset.mentorStatus || '';
+      const cardRequestType = card.dataset.requestType || '';
+
+      const matchesSearch = !searchTerm || menteeName.includes(searchTerm) || mentorName.includes(searchTerm);
+      const matchesSupervisorStatus = !supervisorStatus || cardSupervisorStatus === supervisorStatus;
+      const matchesMentorStatus = !mentorStatus || cardMentorStatus === mentorStatus;
+      const matchesType = !requestType || cardRequestType === requestType;
+
+      if (matchesSearch && matchesSupervisorStatus && matchesMentorStatus && matchesType) {
+        card.style.display = '';
+        visibleCount++;
+      } else {
+        card.style.display = 'none';
+      }
+    });
+
+    // Update results count
+    const countEl = document.getElementById('requestResultsCount');
+    if (countEl) {
+      countEl.textContent = visibleCount + ' of ' + cards.length + ' requests shown';
+    }
+
+    // Show/hide empty state
+    const emptyState = document.getElementById('requestsEmptyState');
+    if (emptyState) {
+      emptyState.classList.toggle('hidden', visibleCount > 0);
+    }
+
+    // Show/hide grid
+    const grid = document.getElementById('requestsGrid');
+    if (grid) {
+      grid.classList.toggle('hidden', visibleCount === 0);
+    }
+  }
+
+  // Client-side filtering for Profile Approval Requests
+  function filterProfileRequests() {
+    const searchTerm = document.getElementById('profileRequestSearch').value.toLowerCase();
+    const typeFilter = document.getElementById('profileRequestTypeFilter').value.toLowerCase();
+
+    const cards = document.querySelectorAll('.profile-request-card');
+    let visibleCount = 0;
+
+    cards.forEach(card => {
+      const searchText = card.dataset.searchText || '';
+      const cardType = card.dataset.type || '';
+
+      const matchesSearch = !searchTerm || searchText.includes(searchTerm);
+      const matchesType = !typeFilter || cardType === typeFilter;
+
+      if (matchesSearch && matchesType) {
+        card.style.display = '';
+        visibleCount++;
+      } else {
+        card.style.display = 'none';
+      }
+    });
+
+    // Update results count
+    const countEl = document.getElementById('profileRequestResultsCount');
+    if (countEl) {
+      countEl.textContent = visibleCount + ' of ' + cards.length + ' profiles shown';
+    }
+
+    // Show/hide empty state
+    const emptyState = document.getElementById('profileRequestsEmptyState');
+    if (emptyState) {
+      emptyState.classList.toggle('hidden', visibleCount > 0);
+    }
+
+    // Show/hide containers
+    const mentorCards = document.querySelectorAll('#mentorProfileRequestsGrid .profile-request-card');
+    const menteeCards = document.querySelectorAll('#menteeProfileRequestsGrid .profile-request-card');
+    const mentorContainer = document.getElementById('mentorProfileRequestsContainer');
+    const menteeContainer = document.getElementById('menteeProfileRequestsContainer');
+
+    let mentorVisible = 0;
+    let menteeVisible = 0;
+    mentorCards.forEach(c => { if (c.style.display !== 'none') mentorVisible++; });
+    menteeCards.forEach(c => { if (c.style.display !== 'none') menteeVisible++; });
+
+    if (mentorContainer) mentorContainer.style.display = mentorVisible > 0 ? '' : 'none';
+    if (menteeContainer) menteeContainer.style.display = menteeVisible > 0 ? '' : 'none';
   }
 </script>
 
