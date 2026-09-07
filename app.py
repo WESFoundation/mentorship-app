@@ -1746,28 +1746,30 @@ def signin():
 
         # Check if user exists
         if not user:
-            return "User not found! Please sign up first."
+            flash("User not found! Please check your email or sign up first.", "error")
+            return render_template("auth/signin.html")
 
         # Check password
         if not check_password_hash(user.password, password):
-            return "Incorrect password!"
+            flash("Incorrect password! Please try again.", "error")
+            return render_template("auth/signin.html")
 
         # Save session
+        user_type_str = str(user.user_type).strip() if user.user_type is not None else ""
         session["email"] = user.email
-        session["user_type"] = user.user_type
+        session["user_type"] = user_type_str
         session["user_id"] = user.id
         session["user_name"] = user.name
 
         # Redirect based on role
-        if user.user_type == "1":
+        if user_type_str == "1":
             return redirect(url_for("mentordashboard"))
-        elif user.user_type == "2":
+        elif user_type_str == "2":
             return redirect(url_for("menteedashboard"))
-        elif user.user_type == "0":
+        elif user_type_str == "0":
             return redirect(url_for("supervisordashboard"))
-        elif user.user_type == "3":
+        elif user_type_str == "3":
             return redirect(url_for("institutiondashboard"))
-        
         
         return redirect(url_for("home"))
 
@@ -7044,12 +7046,11 @@ def get_supervisor_tasks_data():
             rating_obj = ratings_map.get(('personal', task.id))
             
             due_date = task.due_date or default_due
-            is_critical = task.priority == 'high' and status != 'done'
-            
             status = compute_task_progress_status(
                 "personal", task.id, task.mentee_id, task.mentor_id or None,
                 ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
             )
+            is_critical = task.priority == 'high' and status != 'done'
             
             tasks.append({
                 'id': f"personal_{task.id}",
