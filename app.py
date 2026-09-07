@@ -1,7 +1,7 @@
 from flask import Flask, redirect, url_for, render_template, request, session, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, login_user, LoginManager, login_required, logout_user, current_user
-from sqlalchemy import cast, Integer, or_, and_, text
+from sqlalchemy import cast, Integer, or_, and_, text, func
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
@@ -3412,6 +3412,119 @@ def delete_user(user_id):
         return redirect(url_for("manage_created_accounts"))
 
 
+def _get_institution_details(user):
+    """Resolve institution record, ID, name, and matching aliases for an institution user."""
+    institution = None
+    if user.institution_id:
+        institution = db.session.get(Institution, user.institution_id)
+    if not institution and user.id:
+        institution = Institution.query.filter_by(user_id=user.id).first()
+    if not institution and user.institution:
+        institution = Institution.query.join(User, Institution.user_id == User.id).filter(
+            func.trim(func.lower(User.name)) == user.institution.strip().lower()
+        ).first()
+
+    inst_id = institution.id if institution else user.institution_id
+    inst_name = (institution.name if institution else user.name) or user.institution or ""
+
+    clean_name = inst_name.strip()
+    aliases = {clean_name.lower()}
+    if "(" in clean_name and ")" in clean_name:
+        p1 = clean_name.split("(")[0].strip().lower()
+        p2 = clean_name.split("(")[1].split(")")[0].strip().lower()
+        if p1:
+            aliases.add(p1)
+        if p2:
+            aliases.add(p2)
+    if user.institution and user.institution.strip():
+        aliases.add(user.institution.strip().lower())
+
+    return institution, inst_id, inst_name, aliases
+
+
+def _get_institution_members(user, include_paired=False):
+    """
+    Returns (mentors, mentees) belonging to this institution.
+    Matches across User and Profile fields without modifying the database.
+    If include_paired=True, also includes mentors/mentees linked via mentorship requests.
+    """
+    institution, inst_id, inst_name, aliases = _get_institution_details(user)
+
+    # 1. Direct mentees
+    all_mentees = User.query.filter_by(user_type="2").all()
+    direct_mentees = []
+    for m in all_mentees:
+        matched = False
+        if inst_id and m.institution_id == inst_id:
+            matched = True
+        u_inst = (m.institution or "").strip().lower()
+        if u_inst and any(a == u_inst or a in u_inst for a in aliases):
+            matched = True
+        mp = m.mentee_profile
+        if mp:
+            mp_inst = (mp.institution or "").strip().lower()
+            mp_inst_name = (mp.institution_name or "").strip().lower()
+            mp_school = (mp.school_college_name or "").strip().lower()
+            if mp_inst and any(a == mp_inst or a in mp_inst for a in aliases):
+                matched = True
+            if mp_inst_name and any(a == mp_inst_name or a in mp_inst_name for a in aliases):
+                matched = True
+            if mp_school and any(a in mp_school for a in aliases):
+                matched = True
+        if matched:
+            direct_mentees.append(m)
+
+    # 2. Direct mentors
+    all_mentors = User.query.filter_by(user_type="1").all()
+    direct_mentors = []
+    for m in all_mentors:
+        matched = False
+        if inst_id and m.institution_id == inst_id:
+            matched = True
+        u_inst = (m.institution or "").strip().lower()
+        if u_inst and any(a == u_inst or a in u_inst for a in aliases):
+            matched = True
+        mp = m.mentor_profile
+        if mp:
+            mp_uni = (mp.university_name or "").strip().lower()
+            if mp_uni and any(a in mp_uni for a in aliases):
+                matched = True
+        if matched:
+            direct_mentors.append(m)
+
+    if not include_paired:
+        direct_mentors.sort(key=lambda u: (u.name or "").lower())
+        direct_mentees.sort(key=lambda u: (u.name or "").lower())
+        return direct_mentors, direct_mentees
+
+    # 3. Include mentors paired with this institution's mentees, and mentees paired with this institution's mentors
+    mentee_ids = [m.id for m in direct_mentees]
+    mentor_ids = [m.id for m in direct_mentors]
+
+    paired_mentors = []
+    if mentee_ids:
+        requests_with_mentees = MentorshipRequest.query.filter(MentorshipRequest.mentee_id.in_(mentee_ids)).all()
+        for r in requests_with_mentees:
+            m_user = db.session.get(User, r.mentor_id)
+            if m_user:
+                paired_mentors.append(m_user)
+
+    paired_mentees = []
+    if mentor_ids:
+        requests_with_mentors = MentorshipRequest.query.filter(MentorshipRequest.mentor_id.in_(mentor_ids)).all()
+        for r in requests_with_mentors:
+            e_user = db.session.get(User, r.mentee_id)
+            if e_user:
+                paired_mentees.append(e_user)
+
+    dropdown_mentors = list({m.id: m for m in (direct_mentors + paired_mentors)}.values())
+    dropdown_mentees = list({m.id: m for m in (direct_mentees + paired_mentees)}.values())
+
+    dropdown_mentors.sort(key=lambda u: (u.name or "").lower())
+    dropdown_mentees.sort(key=lambda u: (u.name or "").lower())
+    return dropdown_mentors, dropdown_mentees
+
+
 # ✅ UPDATE THIS ROUTE (remove profile references)
 
 @app.route("/institutiondashboard")
@@ -3423,42 +3536,19 @@ def institutiondashboard():
     user = User.query.filter_by(email=session["email"]).first()
     profile_complete = check_profile_complete(user.id, "3")
 
-    # Get institution details by ID (primary) or fall back to name (legacy)
-    institution = None
-    if user.institution_id:
-        institution = Institution.query.filter_by(id=user.institution_id).first()
-    if not institution:
-        institution = Institution.query.filter_by(name=user.institution).first()
+    institution, inst_id, institution_name, aliases = _get_institution_details(user)
     
-    # Get mentors and mentees who selected this institution
-    # Match by either institution_id (new) or institution name (legacy)
-    institution_name = institution.name if institution else user.institution
-    
-    institution_mentors = User.query.filter(
-        (User.user_type == "1") & (
-            (User.institution_id == user.institution_id) |
-            (User.institution == institution_name)
-        )
-    ).all()
-    
-    institution_mentees = User.query.filter(
-        (User.user_type == "2") & (
-            (User.institution_id == user.institution_id) |
-            (User.institution == institution_name)
-        )
-    ).all()
+    # Get direct mentors and mentees who belong to this institution
+    institution_mentors, institution_mentees = _get_institution_members(user, include_paired=False)
 
     # Get mentorship requests involving institution members
-    institution_mentorship_requests = MentorshipRequest.query\
-        .join(User, MentorshipRequest.mentee_id == User.id)\
-        .filter(
-            (User.institution_id == user.institution_id) |
-            (User.institution == institution_name)
-        )\
-        .all()
+    mentee_ids = [m.id for m in institution_mentees]
+    institution_mentorship_requests = (
+        MentorshipRequest.query.filter(MentorshipRequest.mentee_id.in_(mentee_ids)).all()
+        if mentee_ids else []
+    )
 
     # Notes written by or tagging the institution in the Resources Hub
-    inst_id = institution.id if institution else user.institution_id
     all_res_notes = ResourceNote.query.all()
     institution_notes = 0
     for rn in all_res_notes:
@@ -3466,7 +3556,6 @@ def institutiondashboard():
             institution_notes += 1
         elif inst_id and (rn.institution_id == inst_id or rn.tags_dict.get("inst") == inst_id):
             institution_notes += 1
-
 
     return render_template(
         "institution/institutiondashboard.html",
@@ -3487,15 +3576,7 @@ def institution_mentors():
         return redirect(url_for("signin"))
     
     user = User.query.filter_by(email=session["email"]).first()
-    institution_name = user.institution
-    
-    # Get mentors who selected this institution (by ID or name)
-    institution_mentors = User.query.filter(
-        (User.user_type == "1") & (
-            (User.institution_id == user.institution_id) |
-            (User.institution == institution_name)
-        )
-    ).all()
+    institution_mentors, _ = _get_institution_members(user, include_paired=False)
     
     return render_template(
         "institution/institution_mentors.html",
@@ -3509,21 +3590,12 @@ def institution_mentees():
         return redirect(url_for("signin"))
     
     user = User.query.filter_by(email=session["email"]).first()
-    institution_name = user.institution
-    
-    # Get mentees who selected this institution (by ID or name)
-    institution_mentees = User.query.filter(
-        (User.user_type == "2") & (
-            (User.institution_id == user.institution_id) |
-            (User.institution == institution_name)
-        )
-    ).all()
+    _, institution_mentees = _get_institution_members(user, include_paired=False)
     
     return render_template(
         "institution/institution_mentees.html",
         show_sidebar=True,
         mentees=institution_mentees
-        
     )
 
 @app.route("/institution_mentorships")
@@ -7125,17 +7197,7 @@ def institution_calendar():
     
     user = User.query.filter_by(email=session["email"]).first()
 
-    # Resolve institution details by ID, user_id, or name
-    institution = None
-    if user.institution_id:
-        institution = Institution.query.filter_by(id=user.institution_id).first()
-    if not institution and user.id:
-        institution = Institution.query.filter_by(user_id=user.id).first()
-    if not institution and user.institution:
-        institution = Institution.query.filter_by(name=user.institution).first()
-
-    institution_name = institution.name if institution else user.institution
-    institution_id = institution.id if institution else user.institution_id
+    institution, institution_id, institution_name, aliases = _get_institution_details(user)
 
     if institution_name and not user.institution:
         user.institution = institution_name
@@ -7143,6 +7205,10 @@ def institution_calendar():
             db.session.commit()
         except Exception:
             db.session.rollback()
+
+    # Direct members of the institution
+    direct_mentors, direct_mentees = _get_institution_members(user, include_paired=False)
+    member_user_ids = [m.id for m in direct_mentors + direct_mentees]
 
     # Fetch all meetings involving this institution:
     # 1) Meetings created BY this institution (requester_id = institution user)
@@ -7157,20 +7223,19 @@ def institution_calendar():
         institution_meeting_ids.add(m.id)
 
     # Case 2: meetings involving a mentor/mentee from this institution
-    linked = (
-        MeetingRequest.query
-        .join(User, or_(MeetingRequest.requester_id == User.id, MeetingRequest.requested_to_id == User.id))
-        .filter(
-            (User.user_type.in_(["1", "2"])) &
-            (
-                (User.institution_id == institution_id) |
-                (User.institution == institution_name)
+    if member_user_ids:
+        linked = (
+            MeetingRequest.query
+            .filter(
+                or_(
+                    MeetingRequest.requester_id.in_(member_user_ids),
+                    MeetingRequest.requested_to_id.in_(member_user_ids)
+                )
             )
+            .all()
         )
-        .all()
-    )
-    for m in linked:
-        institution_meeting_ids.add(m.id)
+        for m in linked:
+            institution_meeting_ids.add(m.id)
 
     meetings = MeetingRequest.query.filter(
         MeetingRequest.id.in_(institution_meeting_ids)
@@ -7183,8 +7248,8 @@ def institution_calendar():
 
     calendar_meetings = []
     for meeting in meetings:
-        requester = User.query.get(meeting.requester_id)
-        requested_to = User.query.get(meeting.requested_to_id)
+        requester = db.session.get(User, meeting.requester_id)
+        requested_to = db.session.get(User, meeting.requested_to_id)
 
         # Determine which is mentor and which is mentee by user_type
         mentee = None
@@ -7229,27 +7294,18 @@ def institution_calendar():
             "created_at": meeting.created_at
         })
     
-    # Filter mentors and mentees who belong to this institution
-    inst_conditions = []
-    if institution_id:
-        inst_conditions.append(User.institution_id == institution_id)
-    if institution_name:
-        inst_conditions.append(User.institution == institution_name)
-
-    if inst_conditions:
-        inst_filter = or_(*inst_conditions)
-        mentors = User.query.filter(User.user_type == "1", inst_filter).all()
-        mentees = User.query.filter(User.user_type == "2", inst_filter).all()
-    else:
-        mentors = []
-        mentees = []
+    # Filter mentors and mentees who can be selected for scheduling
+    # Includes all mentors/mentees of this institution + paired mentorship participants
+    dropdown_mentors, dropdown_mentees = _get_institution_members(user, include_paired=True)
 
     return render_template(
         "institution/institution_calendar.html",
         show_sidebar=True,
         meetings=calendar_meetings,
-        mentors=mentors,
-        mentees=mentees
+        mentors=dropdown_mentors,
+        mentees=dropdown_mentees,
+        institution_id=institution_id,
+        institution_name=institution_name
     )
 
 

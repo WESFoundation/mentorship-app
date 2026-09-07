@@ -270,7 +270,7 @@
                 <select id="sched-mentor" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                     <option value="">Choose a mentor...</option>
                     {% for mentor in mentors %}
-                    <option value="{{ mentor.id }}" data-name="{{ mentor.name }}" data-institution="{{ (mentor.institution or (mentor.institution_ref.name if mentor.institution_ref else '')) | trim }}" data-institution-id="{{ mentor.institution_id or '' }}">{{ mentor.name }} ({{ mentor.email }})</option>
+                    <option value="{{ mentor.id }}" data-name="{{ mentor.name }}" data-institution="{{ (mentor.institution or (mentor.mentor_profile.university_name if mentor.mentor_profile else '') or (mentor.institution_ref.name if mentor.institution_ref else '')) | trim }}" data-institution-id="{{ mentor.institution_id or (mentor.institution_ref.id if mentor.institution_ref else '') }}">{{ mentor.name }} ({{ mentor.email }})</option>
                     {% endfor %}
                 </select>
                 <p id="sched-mentor-error" class="hidden text-xs text-red-600 mt-1 font-medium flex items-center gap-1">
@@ -283,7 +283,7 @@
                 <select id="sched-mentee" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                     <option value="">Choose a mentee...</option>
                     {% for mentee in mentees %}
-                    <option value="{{ mentee.id }}" data-name="{{ mentee.name }}" data-institution="{{ (mentee.institution or (mentee.institution_ref.name if mentee.institution_ref else '')) | trim }}" data-institution-id="{{ mentee.institution_id or '' }}">{{ mentee.name }} ({{ mentee.email }})</option>
+                    <option value="{{ mentee.id }}" data-name="{{ mentee.name }}" data-institution="{{ (mentee.institution or (mentee.mentee_profile.institution if mentee.mentee_profile else '') or (mentee.mentee_profile.institution_name if mentee.mentee_profile else '') or (mentee.institution_ref.name if mentee.institution_ref else '')) | trim }}" data-institution-id="{{ mentee.institution_id or (mentee.institution_ref.id if mentee.institution_ref else '') }}">{{ mentee.name }} ({{ mentee.email }})</option>
                     {% endfor %}
                 </select>
                 <p id="sched-mentee-error" class="hidden text-xs text-red-600 mt-1 font-medium flex items-center gap-1">
@@ -1037,8 +1037,8 @@ function updateSchedMentorInstitution() {
     var opt = mSel.options[mSel.selectedIndex];
     var instName = (opt && opt.dataset.institution) ? opt.dataset.institution : '';
     var instId = (opt && opt.dataset.institutionId) ? opt.dataset.institutionId : '';
-    document.getElementById('sched-mentor-institution').value = instName || 'Not specified';
-    document.getElementById('sched-mentor-institute-id').value = instId || '';
+    document.getElementById('sched-mentor-institution').value = instName || '{{ institution_name or "" }}' || 'Not specified';
+    document.getElementById('sched-mentor-institute-id').value = instId || '{{ institution_id or "" }}';
 }
 
 function updateSchedMenteeInstitution() {
@@ -1046,8 +1046,8 @@ function updateSchedMenteeInstitution() {
     var opt = eSel.options[eSel.selectedIndex];
     var instName = (opt && opt.dataset.institution) ? opt.dataset.institution : '';
     var instId = (opt && opt.dataset.institutionId) ? opt.dataset.institutionId : '';
-    document.getElementById('sched-mentee-institution').value = instName || 'Not specified';
-    document.getElementById('sched-mentee-institute-id').value = instId || '';
+    document.getElementById('sched-mentee-institution').value = instName || '{{ institution_name or "" }}' || 'Not specified';
+    document.getElementById('sched-mentee-institute-id').value = instId || '{{ institution_id or "" }}';
 }
 
 document.getElementById('sched-mentor').addEventListener('change', function() {
@@ -1209,7 +1209,7 @@ document.getElementById('scheduleMeetingForm').addEventListener('submit', async 
                 duration: duration,
                 mentor_id: mentorId,
                 mentee_id: menteeId,
-                institution_id: document.getElementById('sched-mentor-institute-id').value || document.getElementById('sched-mentee-institute-id').value || '',
+                institution_id: document.getElementById('sched-mentor-institute-id').value || document.getElementById('sched-mentee-institute-id').value || '{{ institution_id or "" }}',
                 platform: platform,
                 custom_link: customLink,
                 timezone: timezone
