@@ -26,7 +26,7 @@
         border-left-color: #ef4444;
     }
     
-    .task-card.completed {
+    .task-card.done-card {
         border-left-color: #10b981;
         opacity: 0.8;
     }
@@ -39,7 +39,12 @@
         text-transform: uppercase;
     }
     
-    .status-pending {
+    .status-not-started {
+        background: #f1f5f9;
+        color: #64748b;
+    }
+    
+    .status-committed {
         background: #fef3c7;
         color: #d97706;
     }
@@ -49,7 +54,7 @@
         color: #1d4ed8;
     }
     
-    .status-completed {
+    .status-done {
         background: #d1fae5;
         color: #065f46;
     }
@@ -336,9 +341,10 @@
         <div class="flex flex-wrap gap-4 items-center justify-between">
             <div class="flex flex-wrap gap-2">
                 <button class="filter-btn active" onclick="filterTasks('all')">All Tasks</button>
-                <button class="filter-btn" onclick="filterTasks('pending')">To Do</button>
+                <button class="filter-btn" onclick="filterTasks('not-started')">Not Started</button>
+                <button class="filter-btn" onclick="filterTasks('committed')">Committed</button>
                 <button class="filter-btn" onclick="filterTasks('in-progress')">In Progress</button>
-                <button class="filter-btn" onclick="filterTasks('completed')">Completed</button>
+                <button class="filter-btn" onclick="filterTasks('done')">Done</button>
                 <button class="filter-btn" onclick="filterTasks('overdue')">Overdue</button>
             </div>
             
@@ -368,9 +374,9 @@
             <div class="space-y-4">
                 {% for task in mentee_tasks %}
                 <div class="task-card p-6 
-                    {% if task.status == 'completed' %}completed{% endif %} 
-                    {% if task.due_date and task.due_date.date() < today and task.status != 'completed' %}urgent{% endif %}"
-                    data-task-type="master" data-task-id="{{ task.id }}" data-mentee-id="{{ task.mentee_id }}">
+                    {% if task.status == 'done' %}done-card{% endif %} 
+                    {% if task.due_date and task.due_date.date() < today and task.status != 'done' %}urgent{% endif %}"
+                    data-task-type="master" data-task-id="{{ task.id }}" data-task-status="{{ task.status }}" data-mentee-id="{{ task.mentee_id }}">
                     
                     <div class="flex justify-between items-start mb-3">
                         <div class="flex items-center gap-3 flex-wrap">
@@ -382,15 +388,15 @@
                                 <span class="task-badge">Mentorship Task</span>
                             </div>
                             <span class="task-status 
-                                {% if task.status == 'pending' or task.status == 'not-started' %}status-pending
+                                {% if task.status == 'done' %}status-done
                                 {% elif task.status == 'in-progress' %}status-in-progress
-                                {% elif task.status == 'completed' or task.status == 'done' %}status-completed
-                                {% else %}status-pending{% endif %}">
+                                {% elif task.status == 'committed' %}status-committed
+                                {% else %}status-not-started{% endif %}">
                                 
-                                {% if task.status == 'pending' or task.status == 'not-started' %}To Do
+                                {% if task.status == 'done' %}Done
                                 {% elif task.status == 'in-progress' %}In Progress
-                                {% elif task.status == 'completed' or task.status == 'done' %}Completed
-                                {% else %}To Do{% endif %}
+                                {% elif task.status == 'committed' %}Committed
+                                {% else %}Not Started{% endif %}
                             </span>
                         </div>
                         <div class="task-actions flex gap-2">
@@ -424,15 +430,19 @@
                             <span>Meeting: #{{ task.meeting_number }}</span>
                         </div>
                         
-                        {% if task.status != 'completed' %}
-                        <span class="text-sm font-medium text-slate-500">Not Done</span>
-                        {% else %}
+                        {% if task.status == 'done' %}
                         <span class="text-green-600 text-sm font-medium flex items-center gap-1">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                             </svg>
                             Done
                         </span>
+                        {% elif task.status == 'in-progress' %}
+                        <span class="text-blue-600 text-sm font-medium">In Progress</span>
+                        {% elif task.status == 'committed' %}
+                        <span class="text-amber-600 text-sm font-medium">Committed</span>
+                        {% else %}
+                        <span class="text-sm font-medium text-slate-500">Not Started</span>
                         {% endif %}
                     </div>
                 </div>
@@ -448,9 +458,9 @@
             <div class="space-y-4">
                 {% for task in personal_tasks %}
                 <div class="task-card p-6 
-                    {% if task.status == 'completed' %}completed{% endif %} 
-                    {% if task.due_date and task.due_date.date() < today and task.status != 'completed' %}urgent{% endif %}"
-                    data-task-type="personal" data-task-id="{{ task.id }}" data-mentee-id="{{ task.mentee_id }}">
+                    {% if task.status == 'done' %}done-card{% endif %} 
+                    {% if task.due_date and task.due_date.date() < today and task.status != 'done' %}urgent{% endif %}"
+                    data-task-type="personal" data-task-id="{{ task.id }}" data-task-status="{{ task.status }}" data-mentee-id="{{ task.mentee_id }}">
                     
                     <div class="flex justify-between items-start mb-3">
                         <div class="flex items-center gap-3 flex-wrap">
@@ -469,15 +479,15 @@
                                 {% endif %}
                             </div>
                             <span class="task-status 
-                                {% if task.status == 'pending' or task.status == 'not-started' %}status-pending
+                                {% if task.status == 'done' %}status-done
                                 {% elif task.status == 'in-progress' %}status-in-progress
-                                {% elif task.status == 'completed' or task.status == 'done' %}status-completed
-                                {% else %}status-pending{% endif %}">
+                                {% elif task.status == 'committed' %}status-committed
+                                {% else %}status-not-started{% endif %}">
                                 
-                                {% if task.status == 'pending' or task.status == 'not-started' %}To Do
+                                {% if task.status == 'done' %}Done
                                 {% elif task.status == 'in-progress' %}In Progress
-                                {% elif task.status == 'completed' or task.status == 'done' %}Completed
-                                {% else %}To Do{% endif %}
+                                {% elif task.status == 'committed' %}Committed
+                                {% else %}Not Started{% endif %}
                             </span>
                         </div>
                         <div class="task-actions flex gap-2">
@@ -510,15 +520,19 @@
                             </div>
                         </div>
                         
-                        {% if task.status != 'completed' %}
-                        <span class="text-sm font-medium text-slate-500">Not Done</span>
-                        {% else %}
+                        {% if task.status == 'done' %}
                         <span class="text-green-600 text-sm font-medium flex items-center gap-1">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                             </svg>
                             Done
                         </span>
+                        {% elif task.status == 'in-progress' %}
+                        <span class="text-blue-600 text-sm font-medium">In Progress</span>
+                        {% elif task.status == 'committed' %}
+                        <span class="text-amber-600 text-sm font-medium">Committed</span>
+                        {% else %}
+                        <span class="text-sm font-medium text-slate-500">Not Started</span>
                         {% endif %}
                     </div>
                 </div>
@@ -642,13 +656,15 @@
                     <span class="meta-label">Due Date</span>
                     <span id="detail-task-due-date" class="meta-value">2024-01-15</span>
                 </div>
-                <div class="meta-item">
-                    <span class="meta-label">Month</span>
-                    <span id="detail-task-month" class="meta-value">Month 1</span>
-                </div>
-                <div class="meta-item">
-                    <span class="meta-label">Meeting</span>
-                    <span id="detail-task-meeting-number" class="meta-value">#1</span>
+                <div id="master-task-details" class="contents">
+                    <div class="meta-item">
+                        <span class="meta-label">Month</span>
+                        <span id="detail-task-month" class="meta-value">Month 1</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Meeting</span>
+                        <span id="detail-task-meeting-number" class="meta-value">#1</span>
+                    </div>
                 </div>
             </div>
             
@@ -1167,27 +1183,35 @@ function populateFromDOM(taskId, taskType) {
 }
 
 function getStatusText(status) {
+    if (!status) return 'Not Started';
+    const s = String(status).trim().toLowerCase().replace(/\s+/g, '-');
     const statusMap = {
         'not-started': 'Not Started',
         'committed': 'Committed',
         'in-progress': 'In Progress',
         'done': 'Done',
         'pending': 'Not Started',
-        'completed': 'Done'
+        'completed': 'Done',
+        'to-do': 'Not Started',
+        'overdue': 'Overdue'
     };
-    return statusMap[status] || 'Not Started';
+    return statusMap[s] || 'Not Started';
 }
 
 function getStatusClass(status) {
+    if (!status) return 'status-not-started';
+    const s = String(status).trim().toLowerCase().replace(/\s+/g, '-');
     const classMap = {
         'not-started': 'status-not-started',
         'committed': 'status-committed',
         'in-progress': 'status-in-progress',
-        'done': 'status-completed',
+        'done': 'status-done',
         'pending': 'status-not-started',
-        'completed': 'status-completed'
+        'completed': 'status-done',
+        'to-do': 'status-not-started',
+        'overdue': 'status-overdue'
     };
-    return classMap[status] || 'status-not-started';
+    return classMap[s] || 'status-not-started';
 }
 
 function getPriorityText(priority) {
@@ -1245,7 +1269,7 @@ function filterTasks(filter) {
         
         const menteeId = parseInt(card.dataset.menteeId) || 0;
         const statusElement = card.querySelector('.task-status');
-        const status = statusElement ? statusElement.textContent.trim().toLowerCase().replace(' ', '-') : '';
+        const status = (card.dataset.taskStatus || (statusElement ? statusElement.textContent.trim().toLowerCase().replace(/\s+/g, '-') : '')).toLowerCase();
         const priorityElement = card.querySelector('.priority-high, .priority-medium, .priority-low');
         const priority = priorityElement ? priorityElement.textContent.toLowerCase() : '';
         const searchInput = document.getElementById('task-search');
@@ -1257,10 +1281,10 @@ function filterTasks(filter) {
         
         const matchesMentee = currentMenteeTab === 'all' || menteeId === currentMenteeTab;
         const matchesFilter = currentFilter === 'all' || 
-                             (currentFilter === 'pending' && status === 'to-do') ||
-                             (currentFilter === 'in-progress' && status === 'in-progress') ||
-                             (currentFilter === 'completed' && status === 'completed') ||
-                             (currentFilter === 'overdue' && status === 'overdue');
+                             (currentFilter === status) ||
+                             (currentFilter === 'done' && (status === 'done' || status === 'completed')) ||
+                             (currentFilter === 'not-started' && (status === 'not-started' || status === 'pending' || status === 'to-do')) ||
+                             (currentFilter === 'overdue' && (card.classList.contains('urgent') || status === 'overdue'));
         const matchesPriority = currentPriorityFilter === 'all' || priority.includes(currentPriorityFilter);
         const matchesSearch = searchTerm === '' || title.includes(searchTerm) || description.includes(searchTerm);
         
@@ -1272,11 +1296,8 @@ function filterTasks(filter) {
     
     // Update filter buttons
     document.querySelectorAll('.filter-btn').forEach(btn => {
-        if (btn.textContent.toLowerCase().includes(filter)) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
+        const btnFilter = btn.getAttribute('onclick')?.match(/filterTasks\('([^']+)'\)/)?.[1];
+        btn.classList.toggle('active', btnFilter === filter);
     });
     
     // Show/hide empty state
@@ -1636,18 +1657,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (result.success) {
                     alert('Rating submitted successfully!');
                     closeRatingModal();
-                    // Update task card in DOM to Completed / Done
-                    updateMentorTaskCardBadge(currentTaskId, currentTaskType, true);
-                    var pt = document.getElementById('detail-progress-text');
-                    if (pt) {
-                        pt.textContent = 'Done';
-                        pt.className = 'text-sm font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full';
-                    }
-                    var st = document.getElementById('detail-task-status');
-                    if (st) {
-                        st.textContent = 'Completed';
-                        st.className = 'task-status status-completed';
-                    }
+                    updateMentorTaskCardBadge(currentTaskId, currentTaskType, result.status || 'done');
                     // Reload the rating display
                     await loadAndDisplayRating(currentTaskId, currentTaskType);
                 } else {
@@ -1733,33 +1743,51 @@ async function loadAndDisplayRating(taskId, taskType) {
 // ===== MENTOR SELF-REFLECTION (UI-only, localStorage — no DB/Github) =====
 function getMentorReflectionKey(taskId, taskType) { return 'mentorReflection_' + taskType + '_' + taskId; }
 
-function updateMentorTaskCardBadge(taskId, taskType, isDone) {
+function updateMentorTaskCardBadge(taskId, taskType, newStatus) {
     var card = document.querySelector('.task-card[data-task-id="' + taskId + '"][data-task-type="' + taskType + '"]');
     if (!card) return;
-    
+
+    var status = typeof newStatus === 'boolean' ? (newStatus ? 'done' : 'in-progress') : (newStatus || 'in-progress');
+    card.dataset.taskStatus = status;
+
     var statusBadge = card.querySelector('.task-status');
     if (statusBadge) {
-        if (isDone) {
-            statusBadge.textContent = 'Completed';
-            statusBadge.className = 'task-status status-completed';
-        } else {
-            statusBadge.textContent = 'In Progress';
-            statusBadge.className = 'task-status status-in-progress';
-        }
+        statusBadge.textContent = getStatusText(status);
+        statusBadge.className = 'task-status ' + getStatusClass(status);
     }
 
     var spans = card.querySelectorAll('span');
     spans.forEach(function(span) {
         if (span === statusBadge || span.classList.contains('task-badge') || span.classList.contains('priority-high') || span.classList.contains('priority-medium') || span.classList.contains('priority-low')) return;
         var txt = span.textContent.trim();
-        if (txt === 'Done' || txt === 'Not Done' || txt === 'In Progress') {
-            if (isDone) {
+        if (['Done', 'Not Done', 'In Progress', 'Committed', 'Not Started'].indexOf(txt) !== -1) {
+            if (status === 'done') {
                 span.outerHTML = '<span class="text-green-600 text-sm font-medium flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Done</span>';
+            } else if (status === 'in-progress') {
+                span.outerHTML = '<span class="text-blue-600 text-sm font-medium">In Progress</span>';
+            } else if (status === 'committed') {
+                span.outerHTML = '<span class="text-amber-600 text-sm font-medium">Committed</span>';
             } else {
-                span.outerHTML = '<span class="text-sm font-medium text-slate-500">Not Done</span>';
+                span.outerHTML = '<span class="text-sm font-medium text-slate-500">Not Started</span>';
             }
         }
     });
+
+    if (currentTaskId == taskId && currentTaskType == taskType) {
+        var st = document.getElementById('detail-task-status');
+        if (st) {
+            st.textContent = getStatusText(status);
+            st.className = 'task-status ' + getStatusClass(status);
+        }
+        var pt = document.getElementById('detail-progress-text');
+        if (pt) {
+            pt.textContent = getStatusText(status);
+            pt.className = 'text-sm font-medium px-3 py-1 rounded-full ' +
+                (status === 'done' ? 'bg-emerald-100 text-emerald-700' :
+                 status === 'in-progress' ? 'bg-blue-100 text-blue-700' :
+                 status === 'committed' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600');
+        }
+    }
 }
 
 function openMentorFeedbackModal() {
@@ -1936,19 +1964,12 @@ function saveMentorFeedback() {
         })
     }).then(function(r) { return r.json(); }).then(function(res) {
         console.log('Mentor reflection sync result:', res);
+        if (res.success && res.status) {
+            updateMentorTaskCardBadge(currentTaskId, currentTaskType, res.status);
+        }
     }).catch(function(err) { console.error('Failed to sync mentor reflection:', err); });
 
-    var progressText = document.getElementById('detail-progress-text');
-    if (progressText) {
-        progressText.textContent = 'Done';
-        progressText.className = 'text-sm font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full';
-    }
-    var st = document.getElementById('detail-task-status');
-    if (st) {
-        st.textContent = 'Completed';
-        st.className = 'task-status status-completed';
-    }
-    updateMentorTaskCardBadge(currentTaskId, currentTaskType, true);
+    updateMentorTaskCardBadge(currentTaskId, currentTaskType, 'in-progress');
     closeMentorFeedbackModal();
 }
 
@@ -1958,12 +1979,24 @@ function clearMentorFeedback() {
     if (!currentTaskId || !currentTaskType) return;
     if (!confirm('Clear your reflection for this task?')) return;
     localStorage.removeItem(getMentorReflectionKey(currentTaskId, currentTaskType));
-    var progressText = document.getElementById('detail-progress-text');
-    if (progressText) {
-        progressText.textContent = 'Not Done';
-        progressText.className = 'text-sm font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full';
-    }
-    updateMentorTaskCardBadge(currentTaskId, currentTaskType, false);
+    fetch('/save_mentor_reflection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+            task_type: currentTaskType,
+            task_id: currentTaskId,
+            text: '',
+            extra: '',
+            date: ''
+        })
+    }).then(function(r) { return r.json(); }).then(function(res) {
+        console.log('Mentor reflection clear sync result:', res);
+        if (res.success && res.status) {
+            updateMentorTaskCardBadge(currentTaskId, currentTaskType, res.status);
+        }
+    }).catch(function(err) { console.error('Failed to sync clear mentor reflection:', err); });
+    updateMentorTaskCardBadge(currentTaskId, currentTaskType, 'not-started');
     loadMentorFeedback(currentTaskId, currentTaskType);
 }
 

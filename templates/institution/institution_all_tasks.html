@@ -62,7 +62,8 @@
         color: #1d4ed8;
     }
     
-    .status-completed {
+    .status-completed,
+    .status-done {
         background: #d1fae5;
         color: #065f46;
     }
@@ -1191,7 +1192,7 @@ function createTaskHTML(task, index) {
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
-                    Not Done
+                    Not Started
                 </span>
                 `}
             </div>
@@ -1205,9 +1206,9 @@ function getStatusClass(status) {
         'not-started': 'status-not-started',
         'committed': 'status-committed',
         'in-progress': 'status-in-progress',
-        'done': 'status-completed',
+        'done': 'status-done',
         'pending': 'status-not-started',
-        'completed': 'status-completed'
+        'completed': 'status-done'
     };
     return classMap[status] || 'status-not-started';
 }
@@ -1650,11 +1651,23 @@ async function saveInstituteReflection(e) {
     
     // Save to server
     try {
-        await fetch('/save_institution_reflection', {
+        const res = await fetch('/save_institution_reflection', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.status) {
+                currentSelectedTask.status = data.status;
+                const statusEl = document.getElementById('detail-task-status');
+                if (statusEl) {
+                    statusEl.textContent = getStatusText(data.status);
+                    statusEl.className = `task-status ${getStatusClass(data.status)}`;
+                }
+                renderTasks();
+            }
+        }
     } catch(e) { console.error('Error saving reflection:', e); }
     
     btn.disabled = false;
@@ -1676,7 +1689,7 @@ async function clearInstituteReflection() {
     } catch(e) {}
     
     try {
-        await fetch('/save_institution_reflection', {
+        const res = await fetch('/save_institution_reflection', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1687,6 +1700,18 @@ async function clearInstituteReflection() {
                 date: new Date().toISOString()
             })
         });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.status) {
+                currentSelectedTask.status = data.status;
+                const statusEl = document.getElementById('detail-task-status');
+                if (statusEl) {
+                    statusEl.textContent = getStatusText(data.status);
+                    statusEl.className = `task-status ${getStatusClass(data.status)}`;
+                }
+                renderTasks();
+            }
+        }
     } catch(e) {}
     
     await loadInstituteReflection(currentSelectedTask.id);

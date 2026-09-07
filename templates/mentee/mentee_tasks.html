@@ -147,13 +147,16 @@
                     data-filter="all">All Tasks</button>
                 <button
                     class="filter-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all"
-                    data-filter="pending">To Do</button>
+                    data-filter="not-started">Not Started</button>
+                <button
+                    class="filter-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all"
+                    data-filter="committed">Committed</button>
                 <button
                     class="filter-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all"
                     data-filter="in-progress">In Progress</button>
                 <button
                     class="filter-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all"
-                    data-filter="completed">Completed</button>
+                    data-filter="done">Done</button>
                 <button
                     class="filter-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all"
                     data-filter="overdue">Overdue</button>
@@ -179,9 +182,9 @@
             <!-- Mentorship Tasks -->
             {% for task in assigned_tasks %}
             <div class="task-card bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden
-                {% if task.status == 'completed' or task.status == 'done' %}border-l-4 border-l-emerald-500 opacity-75 hover:opacity-100{% endif %} 
-                {% if task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed' and task.status != 'done') %}border-l-4 border-l-rose-500{% else %}border-l-4 border-l-blue-500{% endif %}"
-                data-task-type="master" data-task-id="{{ task.id }}">
+                {% if task.status == 'done' %}border-l-4 border-l-emerald-500 opacity-75 hover:opacity-100{% endif %} 
+                {% if task.due_date and task.due_date.date() < today and task.status != 'done' %}border-l-4 border-l-rose-500{% else %}border-l-4 border-l-blue-500{% endif %}"
+                data-task-type="master" data-task-id="{{ task.id }}" data-task-status="{{ task.status }}">
 
                 <div class="flex flex-col md:flex-row justify-between items-start gap-4 mb-4">
                     <div class="flex-1">
@@ -198,14 +201,16 @@
                             </span>
 
                             <span class="task-status px-2.5 py-0.5 rounded-full text-xs font-bold border 
-                                {% if task.status == 'completed' or task.status == 'done' %}bg-emerald-50 text-emerald-600 border-emerald-100
-                                {% elif task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed' and task.status != 'done') %}bg-rose-50 text-rose-600 border-rose-100
+                                {% if task.status == 'done' %}bg-emerald-50 text-emerald-600 border-emerald-100
+                                {% elif task.due_date and task.due_date.date() < today and task.status != 'done' %}bg-rose-50 text-rose-600 border-rose-100
                                 {% elif task.status == 'in-progress' %}bg-blue-50 text-blue-600 border-blue-100
-                                {% else %}bg-amber-50 text-amber-600 border-amber-100{% endif %}">
-                                {% if task.status == 'completed' or task.status == 'done' %}Completed
-                                {% elif task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed' and task.status != 'done') %}Overdue
+                                {% elif task.status == 'committed' %}bg-amber-50 text-amber-600 border-amber-100
+                                {% else %}bg-slate-100 text-slate-500 border-slate-200{% endif %}">
+                                {% if task.status == 'done' %}Done
+                                {% elif task.due_date and task.due_date.date() < today and task.status != 'done' %}Overdue
                                 {% elif task.status == 'in-progress' %}In Progress
-                                {% else %}To Do{% endif %}
+                                {% elif task.status == 'committed' %}Committed
+                                {% else %}Not Started{% endif %}
                             </span>
                         </div>
                         <h3 class="text-lg font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{{
@@ -267,9 +272,9 @@
             <!-- Personal Tasks -->
             {% for task in personal_tasks %}
             <div class="task-card bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden
-                {% if task.status == 'completed' or task.status == 'done' %}border-l-4 border-l-emerald-500 opacity-75 hover:opacity-100{% endif %} 
-                {% if task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed' and task.status != 'done') %}border-l-4 border-l-rose-500{% else %}border-l-4 border-l-green-500{% endif %}"
-                data-task-type="personal" data-task-id="{{ task.id }}">
+                {% if task.status == 'done' %}border-l-4 border-l-emerald-500 opacity-75 hover:opacity-100{% endif %} 
+                {% if task.due_date and task.due_date.date() < today and task.status != 'done' %}border-l-4 border-l-rose-500{% else %}border-l-4 border-l-green-500{% endif %}"
+                data-task-type="personal" data-task-id="{{ task.id }}" data-task-status="{{ task.status }}">
 
                 <div class="flex flex-col md:flex-row justify-between items-start gap-4 mb-4">
                     <div class="flex-1">
@@ -315,14 +320,16 @@
 
                             <!-- Status Badge -->
                             <span class="task-status px-2.5 py-0.5 rounded-full text-xs font-bold border 
-                                {% if task.status == 'completed' or task.status == 'done' %}bg-emerald-50 text-emerald-600 border-emerald-100
-                                {% elif task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed' and task.status != 'done') %}bg-rose-50 text-rose-600 border-rose-100
+                                {% if task.status == 'done' %}bg-emerald-50 text-emerald-600 border-emerald-100
+                                {% elif task.due_date and task.due_date.date() < today and task.status != 'done' %}bg-rose-50 text-rose-600 border-rose-100
                                 {% elif task.status == 'in-progress' %}bg-blue-50 text-blue-600 border-blue-100
-                                {% else %}bg-amber-50 text-amber-600 border-amber-100{% endif %}">
-                                {% if task.status == 'completed' or task.status == 'done' %}Completed
-                                {% elif task.status == 'overdue' or (task.due_date and task.due_date.date() < today and task.status != 'completed' and task.status != 'done') %}Overdue
+                                {% elif task.status == 'committed' %}bg-amber-50 text-amber-600 border-amber-100
+                                {% else %}bg-slate-100 text-slate-500 border-slate-200{% endif %}">
+                                {% if task.status == 'done' %}Done
+                                {% elif task.due_date and task.due_date.date() < today and task.status != 'done' %}Overdue
                                 {% elif task.status == 'in-progress' %}In Progress
-                                {% else %}To Do{% endif %}
+                                {% elif task.status == 'committed' %}Committed
+                                {% else %}Not Started{% endif %}
                             </span>
                         </div>
                         <h3 class="text-lg font-bold text-slate-800 group-hover:text-green-600 transition-colors">{{
@@ -853,13 +860,14 @@
             const statusBadge = card.querySelector('.task-status');
             if (!statusBadge) return;
             
-            const status = statusBadge.textContent.trim().toLowerCase().replace(/\s+/g, '-');
-            const isOverdue = card.classList.contains('border-l-rose-500') || status === 'overdue';
+            const status = card.dataset.taskStatus || statusBadge.textContent.trim().toLowerCase().replace(/\s+/g, '-');
+            const isOverdue = card.classList.contains('border-l-rose-500') || statusBadge.textContent.trim().toLowerCase() === 'overdue';
 
             const shouldShow = filter === 'all' ||
-                (filter === 'pending' && (status === 'to-do' || status === 'pending') && !isOverdue) ||
-                (filter === 'in-progress' && status === 'in-progress' && !isOverdue) ||
-                (filter === 'completed' && status === 'completed') ||
+                (filter === 'not-started' && status === 'not-started') ||
+                (filter === 'committed' && status === 'committed') ||
+                (filter === 'in-progress' && status === 'in-progress') ||
+                (filter === 'done' && status === 'done') ||
                 (filter === 'overdue' && isOverdue);
 
             card.style.display = shouldShow ? 'block' : 'none';
@@ -938,31 +946,37 @@
                 // Update status
                 const statusElement = document.getElementById('detail-task-status');
                 if (statusElement) {
-                    statusElement.textContent = task.status.charAt(0).toUpperCase() + task.status.slice(1);
+                    const statusLabels = {'not-started': 'Not Started', 'committed': 'Committed', 'in-progress': 'In Progress', 'done': 'Done'};
+                    statusElement.textContent = statusLabels[task.status] || task.status;
                     statusElement.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium';
                     
-                    if (task.status === 'pending') {
+                    if (task.status === 'not-started') {
+                        statusElement.classList.add('bg-slate-100', 'text-slate-600');
+                    } else if (task.status === 'committed') {
                         statusElement.classList.add('bg-amber-100', 'text-amber-800');
                     } else if (task.status === 'in-progress') {
                         statusElement.classList.add('bg-blue-100', 'text-blue-800');
-                    } else if (task.status === 'completed') {
+                    } else if (task.status === 'done') {
                         statusElement.classList.add('bg-emerald-100', 'text-emerald-800');
                     } else {
-                        statusElement.classList.add('bg-rose-100', 'text-rose-800');
+                        statusElement.classList.add('bg-slate-100', 'text-slate-600');
                     }
                 }
 
                 // Update status display
                 const progressText = document.getElementById('detail-progress-text');
                 if (progressText) {
-                    if (task.status === 'completed') {
+                    if (task.status === 'done') {
                         progressText.textContent = 'Done';
                         progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700';
                     } else if (task.status === 'in-progress') {
                         progressText.textContent = 'In Progress';
                         progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-blue-100 text-blue-700';
+                    } else if (task.status === 'committed') {
+                        progressText.textContent = 'Committed';
+                        progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-700';
                     } else {
-                        progressText.textContent = 'Not Done';
+                        progressText.textContent = 'Not Started';
                         progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
                     }
                 }
@@ -1066,17 +1080,21 @@
         var card = document.querySelector('.task-card[data-task-id="' + taskId + '"][data-task-type="' + taskType + '"]');
         if (!card) return;
         
+        card.dataset.taskStatus = state;
         var statusBadge = card.querySelector('.task-status');
         if (statusBadge) {
             if (state === 'done') {
-                statusBadge.textContent = 'Completed';
+                statusBadge.textContent = 'Done';
                 statusBadge.className = 'task-status px-2.5 py-0.5 rounded-full text-xs font-bold border bg-emerald-50 text-emerald-600 border-emerald-100';
             } else if (state === 'in-progress') {
                 statusBadge.textContent = 'In Progress';
                 statusBadge.className = 'task-status px-2.5 py-0.5 rounded-full text-xs font-bold border bg-blue-50 text-blue-600 border-blue-100';
-            } else {
-                statusBadge.textContent = 'To Do';
+            } else if (state === 'committed') {
+                statusBadge.textContent = 'Committed';
                 statusBadge.className = 'task-status px-2.5 py-0.5 rounded-full text-xs font-bold border bg-amber-50 text-amber-600 border-amber-100';
+            } else {
+                statusBadge.textContent = 'Not Started';
+                statusBadge.className = 'task-status px-2.5 py-0.5 rounded-full text-xs font-bold border bg-slate-100 text-slate-500 border-slate-200';
             }
         }
 
@@ -1100,6 +1118,28 @@
                 }
             }
         });
+
+        // Also update modal details if this task is open in modal
+        if (currentTaskId == taskId && currentTaskType == taskType) {
+            var modalStatus = document.getElementById('detail-task-status');
+            var progressText = document.getElementById('detail-progress-text');
+            const statusLabels = {'not-started': 'Not Started', 'committed': 'Committed', 'in-progress': 'In Progress', 'done': 'Done'};
+            const label = statusLabels[state] || state;
+            if (modalStatus) {
+                modalStatus.textContent = label;
+                modalStatus.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' +
+                    (state === 'done' ? 'bg-emerald-100 text-emerald-800' :
+                     state === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                     state === 'committed' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600');
+            }
+            if (progressText) {
+                progressText.textContent = label;
+                progressText.className = 'text-sm font-bold px-3 py-1 rounded-full ' +
+                    (state === 'done' ? 'bg-emerald-100 text-emerald-700' :
+                     state === 'in-progress' ? 'bg-blue-100 text-blue-700' :
+                     state === 'committed' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600');
+            }
+        }
     }
 
     const menteeRatingLabels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
@@ -1398,13 +1438,11 @@
             })
         }).then(function(r) { return r.json(); }).then(function(res) {
             console.log('Mentee feedback sync result:', res);
+            if (res.success && res.status) {
+                updateTaskCardBadge(currentTaskId, currentTaskType, res.status);
+            }
         }).catch(function(err) { console.error('Failed to sync feedback to server:', err); });
 
-        var progressText = document.getElementById('detail-progress-text');
-        if (progressText) {
-            progressText.textContent = 'In Progress';
-            progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-blue-100 text-blue-700';
-        }
         updateTaskCardBadge(currentTaskId, currentTaskType, 'in-progress');
         closeMenteeFeedbackModal();
     }
@@ -1422,12 +1460,10 @@
             body: JSON.stringify({ task_type: currentTaskType, task_id: currentTaskId, text: '', extra: '', challenges: '', nextSteps: '', rating: '', mentor_rating: '', date: '' })
         }).then(function(r) { return r.json(); }).then(function(res) {
             console.log('Mentee feedback clear sync result:', res);
+            if (res.success && res.status) {
+                updateTaskCardBadge(currentTaskId, currentTaskType, res.status);
+            }
         }).catch(function(err) { console.error('Failed to sync clear to server:', err); });
-        var progressText = document.getElementById('detail-progress-text');
-        if (progressText) {
-            progressText.textContent = 'Not Started';
-            progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
-        }
         updateTaskCardBadge(currentTaskId, currentTaskType, 'not-started');
         loadMenteeFeedback(currentTaskId, currentTaskType);
     }

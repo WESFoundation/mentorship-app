@@ -893,6 +893,7 @@ class MentorshipRequest(db.Model):
     term = db.Column(db.String(20))          # short / long
     duration_months = db.Column(db.Integer)  # auto set depending on rules
     why_need_mentor = db.Column(db.Text, nullable=False)
+    linkedin_profile = db.Column(db.String(500), nullable=True)  # optional LinkedIn or similar reference profile
     
     # Request status tracking
     mentor_status = db.Column(db.String(20), default="pending") # 'pending', 'accepted', 'rejected'
@@ -1415,6 +1416,7 @@ class MentorSourcingRequest(db.Model):
     target_industry = db.Column(db.String(200), nullable=True)
     skills_needed = db.Column(db.String(300), nullable=True)
     preferred_experience = db.Column(db.String(100), nullable=True)
+    linkedin_profile = db.Column(db.String(500), nullable=True)  # optional LinkedIn or similar reference profile
     message = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(50), default="pending")  # pending, sourcing, resolved
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -3947,6 +3949,13 @@ def institution_all_tasks():
     
     institution_user_ids = [user.id for user in institution_users]
 
+    all_ratings = TaskRating.query.all()
+    ratings_map = {(r.task_type, r.task_id): r for r in all_ratings}
+    all_mentee_fb = MenteeFeedback.query.all()
+    mentee_fb_map = {(f.task_type, f.task_id): f for f in all_mentee_fb}
+    all_inst_refl = InstitutionReflection.query.all()
+    inst_refl_set = {(r.task_type, r.task_id) for r in all_inst_refl}
+
     # 1. PERSONAL TASKS (Self-assigned by mentees)
     personal_tasks_self = PersonalTask.query.filter(
         PersonalTask.mentee_id.in_(institution_user_ids),
@@ -3955,6 +3964,9 @@ def institution_all_tasks():
 
     for task in personal_tasks_self:
         mentee = db.session.get(User, task.mentee_id)
+        r_obj = ratings_map.get(('personal', task.id))
+        mf_obj = mentee_fb_map.get(('personal', task.id))
+        has_ref = ('personal', task.id) in inst_refl_set
         all_institution_tasks.append({
             "id": f"personal_{task.id}",
             "serial": f"P-{task.id}",
@@ -3971,7 +3983,9 @@ def institution_all_tasks():
             "mentee_name": mentee.name if mentee else "Unknown",
             "mentee_email": mentee.email if mentee else "",
             "type": "personal",
-            "rating": getattr(task, 'rating', 0) or 0,
+            "rating": r_obj.rating if r_obj else 0,
+            "menteeRating": mf_obj.rating if mf_obj else None,
+            "hasReflection": has_ref,
             "isCritical": task.is_critical if hasattr(task, 'is_critical') else False,
             "comments": task.comments if hasattr(task, 'comments') else None
         })
@@ -3988,6 +4002,9 @@ def institution_all_tasks():
         
         # Check if mentor belongs to same institution
         if mentor and (mentor.institution == institution_name or mentor.institution_id == institution_id):
+            r_obj = ratings_map.get(('personal', task.id))
+            mf_obj = mentee_fb_map.get(('personal', task.id))
+            has_ref = ('personal', task.id) in inst_refl_set
             all_institution_tasks.append({
                 "id": f"personal_{task.id}",
                 "serial": f"P-{task.id}",
@@ -4005,7 +4022,9 @@ def institution_all_tasks():
                 "mentee_name": mentee.name if mentee else "Unknown",
                 "mentee_email": mentee.email if mentee else "",
                 "type": "personal",
-                "rating": getattr(task, 'rating', 0) or 0,
+                "rating": r_obj.rating if r_obj else 0,
+                "menteeRating": mf_obj.rating if mf_obj else None,
+                "hasReflection": has_ref,
                 "isCritical": task.is_critical if hasattr(task, 'is_critical') else False,
                 "comments": task.comments if hasattr(task, 'comments') else None
             })
@@ -4021,6 +4040,9 @@ def institution_all_tasks():
         master_task = db.session.get(MasterTask, task.task_id) if task.task_id else None
         
         if mentor and (mentor.institution == institution_name or mentor.institution_id == institution_id):
+            r_obj = ratings_map.get(('master', task.id))
+            mf_obj = mentee_fb_map.get(('master', task.id))
+            has_ref = ('master', task.id) in inst_refl_set
             all_institution_tasks.append({
                 "id": f"master_{task.id}",
                 "serial": f"M-{task.id}",
@@ -4038,6 +4060,9 @@ def institution_all_tasks():
                 "mentee_name": mentee.name if mentee else "Unknown",
                 "mentee_email": mentee.email if mentee else "",
                 "type": "master",
+                "rating": r_obj.rating if r_obj else 0,
+                "menteeRating": mf_obj.rating if mf_obj else None,
+                "hasReflection": has_ref,
                 "isCritical": True,  # Master tasks are always critical
                 "comments": task.comments if hasattr(task, 'comments') else None
             })
@@ -4556,6 +4581,7 @@ def submit_mentor_sourcing_request():
     target_industry = (request.form.get("target_industry") or "").strip()
     skills_needed = (request.form.get("skills_needed") or "").strip()
     preferred_experience = (request.form.get("preferred_experience") or "").strip()
+    linkedin_profile = (request.form.get("linkedin_profile") or "").strip()
     message = (request.form.get("message") or "").strip()
 
     if not target_role:
@@ -4574,6 +4600,7 @@ def submit_mentor_sourcing_request():
             target_industry=target_industry,
             skills_needed=skills_needed,
             preferred_experience=preferred_experience,
+            linkedin_profile=linkedin_profile,
             message=message,
             status="pending",
             created_at=datetime.utcnow()
@@ -5528,6 +5555,7 @@ def mentee_tasks():
 
     for t in assigned_tasks:
         status = compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id)
+        setattr(t, 'status', status)  # Override DB status with computed 4-stage status
         if status == 'done':
             done_tasks += 1
         elif status in ('in-progress', 'committed'):
@@ -5539,6 +5567,7 @@ def mentee_tasks():
 
     for t in personal_tasks:
         status = compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id)
+        setattr(t, 'status', status)  # Override DB status with computed 4-stage status
         if status == 'done':
             done_tasks += 1
         elif status in ('in-progress', 'committed'):
@@ -5780,9 +5809,9 @@ def get_task_details(task_id):
             
             # Verify access rights
             user = User.query.filter_by(email=session["email"]).first()
-            if task.mentee_id != user.id:
-                return jsonify({"success": False, "message": "Access denied"})
-            
+            mentor = db.session.get(User, task.mentor_id) if task.mentor_id else None
+            assigned_by = mentor.name if mentor else "Self"
+
             task_data = {
                 "id": task.id,
                 "type": "personal",
@@ -5792,7 +5821,7 @@ def get_task_details(task_id):
                 "status": compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id or None),
                 "progress": task.progress or 0,
                 "priority": task.priority,
-                "assigned_by": "Self",
+                "assigned_by": assigned_by,
                 "created_date": task.created_date.strftime('%Y-%m-%d') if task.created_date else None,
                 "completed_date": task.completed_date.strftime('%Y-%m-%d') if task.completed_date else None
             }
@@ -5876,6 +5905,7 @@ def mentor_tasks():
     for t in all_tasks:
         ttype = "master" if hasattr(t, 'meeting_number') and hasattr(t, 'task_id') else "personal"
         st = compute_task_progress_status(ttype, t.id, t.mentee_id, t.mentor_id or None)
+        setattr(t, 'status', st)  # Override DB status with computed 4-stage status
         if st == 'done':
             done_count += 1
         elif st in ('in-progress', 'committed'):
@@ -6376,7 +6406,7 @@ def get_mentor_task_details(task_id):
                 "id": task.id,
                 "type": "master",
                 "title": task.master_task.purpose_of_call,
-                "purpose_of_call": task.master_task.journey_phase,
+                "purpose_of_call": task.master_task.purpose_of_call,
                 "description": task.master_task.mentee_focus,
                 "due_date": task.due_date.strftime('%Y-%m-%d') if task.due_date else None,
                 "status": compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id),
@@ -6485,14 +6515,14 @@ def rate_task(task_type, task_id):
             )
             db.session.add(new_rating)
         
-        task.status = 'completed'
-        task.progress = 100
-        task.completed_date = datetime.utcnow()
         db.session.commit()
+        mentor_id = mentor.id
+        new_status = compute_task_progress_status(task_type, task_id, task.mentee_id, mentor_id)
         
         return jsonify({
             'success': True, 
-            'message': 'Task rated successfully'
+            'message': 'Task rated successfully',
+            'status': new_status
         })
         
     except Exception as e:
@@ -6621,15 +6651,10 @@ def _meeting_is_completed(task_type, task_id, meetings_map=None, all_pdata=None)
 
 def _has_mentee_feedback(task_type, task_id):
     """Check if mentee has submitted feedback for this task."""
-    path = _get_mentee_feedback_path(task_type, task_id)
-    if not os.path.exists(path):
+    fb = MenteeFeedback.query.filter_by(task_type=task_type, task_id=task_id).first()
+    if not fb:
         return False
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            return bool(data.get('text', '').strip() or data.get('rating', '').strip())
-    except Exception:
-        return False
+    return bool((fb.text or '').strip() or fb.rating)
 
 
 def _has_mentor_rating(task_type, task_id):
@@ -6638,31 +6663,75 @@ def _has_mentor_rating(task_type, task_id):
     return rating is not None
 
 
+def _has_mentor_reflection(task_type, task_id):
+    """Check if mentor has submitted a reflection for this task."""
+    refl = MentorReflection.query.filter_by(task_type=task_type, task_id=task_id).first()
+    if not refl:
+        return False
+    return bool((refl.text or '').strip())
+
+
+def _has_institution_reflection(task_type, task_id):
+    """Check if institution has submitted a reflection for this task."""
+    refl = InstitutionReflection.query.filter_by(task_type=task_type, task_id=task_id).first()
+    if not refl:
+        return False
+    return bool((refl.text or '').strip())
+
+
 def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratings_set=None, meetings_map=None, all_pdata=None):
     """Compute the 4-stage task progress status dynamically.
 
+    Stages:
+      not-started : No feedback from anyone AND no meeting scheduled for this task.
+      committed   : Task is attached to a scheduled meeting, but no feedback/ratings yet.
+      in-progress : At least one persona has submitted feedback, but not all required personas have.
+      done        : All involved personas have submitted their feedback/ratings.
+
     Returns one of: 'not-started', 'committed', 'in-progress', 'done'
     """
-    has_meeting = _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id, all_pdata=all_pdata)
-    if not has_meeting:
-        return 'not-started'
-
-    meeting_done = _meeting_is_completed(task_type, task_id, meetings_map=meetings_map, all_pdata=all_pdata)
+    # Gather feedback from all personas
     has_mentee_fb = _has_mentee_feedback(task_type, task_id)
     if ratings_set is not None:
         has_mentor_rt = (task_type, task_id) in ratings_set
     else:
         has_mentor_rt = _has_mentor_rating(task_type, task_id)
+    has_mentor_refl = _has_mentor_reflection(task_type, task_id)
+    has_inst_refl = _has_institution_reflection(task_type, task_id)
 
-    if not meeting_done and not has_mentee_fb and not has_mentor_rt:
-        return 'committed'
+    mentor_submitted = has_mentor_rt or has_mentor_refl
+    any_feedback = has_mentee_fb or mentor_submitted or has_inst_refl
 
-    if (meeting_done or True) and (has_mentee_fb or has_mentor_rt):
-        if has_mentee_fb and has_mentor_rt:
-            return 'done'
+    # Determine which personas are required for 'done'
+    # Mentor required only if task has an assigned mentor
+    mentor_done = mentor_submitted if mentor_id else True
+
+    # Institution reflection required only for master tasks if mentee belongs to an institution
+    inst_required = False
+    if task_type == 'master' and mentee_id:
+        mentee = db.session.get(User, mentee_id)
+        if mentee and (mentee.institution_id or mentee.institution):
+            inst_required = True
+    inst_done = has_inst_refl if inst_required else True
+
+    all_feedback = has_mentee_fb and mentor_done and inst_done
+
+    has_meeting = _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id, all_pdata=all_pdata)
+
+    if not has_meeting and not any_feedback:
+        return 'not-started'
+
+    if all_feedback:
+        return 'done'
+
+    if any_feedback:
         return 'in-progress'
 
-    return 'committed'
+    if has_meeting:
+        return 'committed'
+
+    return 'not-started'
+
 
 
 def get_task_progress_label(status):
@@ -6806,16 +6875,16 @@ def save_mentee_feedback():
         feedback.extra = data.get('extra', '')
         feedback.created_at = datetime.utcnow()
 
-        if task_type == 'master':
-            task = MenteeTask.query.filter_by(id=task_id, mentee_id=mentee.id).first()
-        else:
-            task = PersonalTask.query.filter_by(id=task_id, mentee_id=mentee.id).first()
-        if task and task.status in ('pending', None, ''):
-            task.status = 'in-progress'
-            task.progress = 50
-
         db.session.commit()
-        return jsonify({'success': True, 'message': 'Feedback saved', 'feedback': feedback.to_dict()})
+        mentor_id = None
+        if task_type == 'master':
+            t = db.session.get(MenteeTask, task_id)
+            mentor_id = t.mentor_id if t else None
+        else:
+            t = db.session.get(PersonalTask, task_id)
+            mentor_id = t.mentor_id if t else None
+        new_status = compute_task_progress_status(task_type, task_id, mentee.id, mentor_id)
+        return jsonify({'success': True, 'message': 'Feedback saved', 'feedback': feedback.to_dict(), 'status': new_status})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -6861,18 +6930,16 @@ def save_mentor_reflection():
         reflection.extra = (data.get('extra') or '').strip()
         reflection.created_at = datetime.utcnow()
 
-        # Update task status to completed
-        if task_type == 'master':
-            task = MenteeTask.query.filter_by(id=task_id, mentor_id=mentor.id).first()
-        else:
-            task = PersonalTask.query.filter_by(id=task_id, mentor_id=mentor.id).first()
-        if task:
-            task.status = 'completed'
-            task.progress = 100
-            task.completed_date = datetime.utcnow()
-
         db.session.commit()
-        return jsonify({'success': True, 'message': 'Reflection saved', 'reflection': reflection.to_dict()})
+        mentee_id = None
+        if task_type == 'master':
+            t = db.session.get(MenteeTask, task_id)
+            mentee_id = t.mentee_id if t else None
+        else:
+            t = db.session.get(PersonalTask, task_id)
+            mentee_id = t.mentee_id if t else None
+        new_status = compute_task_progress_status(task_type, task_id, mentee_id, mentor.id)
+        return jsonify({'success': True, 'message': 'Reflection saved', 'reflection': reflection.to_dict(), 'status': new_status})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -6915,7 +6982,20 @@ def save_institution_reflection():
         refl.created_at = datetime.utcnow()
         db.session.commit()
 
-        return jsonify({'success': True, 'message': 'Reflection saved', 'reflection': refl.to_dict()})
+        mentee_id = None
+        mentor_id = None
+        if task_type == 'master':
+            t = db.session.get(MenteeTask, task_id)
+            if t:
+                mentee_id = t.mentee_id
+                mentor_id = t.mentor_id
+        else:
+            t = db.session.get(PersonalTask, task_id)
+            if t:
+                mentee_id = t.mentee_id
+                mentor_id = t.mentor_id
+        new_status = compute_task_progress_status(task_type, task_id, mentee_id, mentor_id)
+        return jsonify({'success': True, 'message': 'Reflection saved', 'reflection': refl.to_dict(), 'status': new_status})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -6964,7 +7044,7 @@ def get_supervisor_tasks_data():
             rating_obj = ratings_map.get(('personal', task.id))
             
             due_date = task.due_date or default_due
-            is_critical = task.priority == 'high' and task.status != 'completed'
+            is_critical = task.priority == 'high' and status != 'done'
             
             status = compute_task_progress_status(
                 "personal", task.id, task.mentee_id, task.mentor_id or None,
@@ -7001,12 +7081,11 @@ def get_supervisor_tasks_data():
             if master_task and mentee and mentor:
                 rating_obj = ratings_map.get(('master', task.id))
                 due_date = task.due_date or default_due
-                is_overdue = due_date < now_dt and task.status != 'completed'
-                
                 status = compute_task_progress_status(
                     "master", task.id, task.mentee_id, task.mentor_id,
                     ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
                 )
+                is_overdue = due_date < now_dt and status != 'done'
                 
                 tasks.append({
                     'id': f"master_{task.id}",
@@ -7074,6 +7153,7 @@ def supervisor_tasks():
     try:
         users_map = {u.id: u for u in User.query.all()}
         all_ratings = TaskRating.query.all()
+        ratings_map = {(r.task_type, r.task_id): r for r in all_ratings}
         ratings_set = {(r.task_type, r.task_id) for r in all_ratings}
         meetings_map = {m.id: m for m in MeetingRequest.query.all()}
         all_pdata = _get_all_meeting_participants()
@@ -7095,6 +7175,7 @@ def supervisor_tasks():
         # Process personal tasks
         for task, user in personal_tasks:
             mentor = users_map.get(task.mentor_id) if task.mentor_id else None
+            r_obj = ratings_map.get(('personal', task.id))
             status = compute_task_progress_status(
                 "personal", task.id, task.mentee_id, task.mentor_id or None,
                 ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
@@ -7110,12 +7191,14 @@ def supervisor_tasks():
                 'mentee_name': user.name,
                 'mentor_name': mentor.name if mentor else 'Self',
                 'category': 'Personal Task',
-                'type': 'personal'
+                'type': 'personal',
+                'rating': r_obj.rating if r_obj else None
             })
         
         # Process mentee tasks  
         for task, master, user in mentee_tasks:
             mentor = users_map.get(task.mentor_id)
+            r_obj = ratings_map.get(('master', task.id))
             status = compute_task_progress_status(
                 "master", task.id, task.mentee_id, task.mentor_id,
                 ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
@@ -7131,7 +7214,8 @@ def supervisor_tasks():
                 'mentee_name': user.name,
                 'mentor_name': mentor.name if mentor else 'Unknown',
                 'category': 'Mentorship Task',
-                'type': 'master'
+                'type': 'master',
+                'rating': r_obj.rating if r_obj else None
             })
         
         # Add serial numbers to all_tasks (dicts) for display
@@ -7295,8 +7379,8 @@ def institution_calendar():
         })
     
     # Filter mentors and mentees who can be selected for scheduling
-    # Includes all mentors/mentees of this institution + paired mentorship participants
-    dropdown_mentors, dropdown_mentees = _get_institution_members(user, include_paired=True)
+    # Only internal institution members (no paired/external)
+    dropdown_mentors, dropdown_mentees = _get_institution_members(user, include_paired=False)
 
     return render_template(
         "institution/institution_calendar.html",
@@ -7628,6 +7712,7 @@ def request_mentorship():
         term = data.get("term")
         duration_months = data.get("duration_months")
         why_need_mentor = data.get("why_need_mentor")
+        linkedin_profile = (data.get("linkedin_profile") or "").strip()
 
         # Validate required fields
         if not all([mentor_id, purpose, mentor_type, term, duration_months, why_need_mentor]):
@@ -7690,6 +7775,7 @@ def request_mentorship():
             term=str(term).strip()[:20] if term else "",
             duration_months=duration_months,
             why_need_mentor=str(why_need_mentor).strip() if why_need_mentor else "",
+            linkedin_profile=str(linkedin_profile).strip()[:500] if linkedin_profile else None,
             mentor_status="pending",
             supervisor_status="pending",
             final_status="pending"
@@ -9439,6 +9525,44 @@ def get_tasks_for_mentorship():
 
     return jsonify({"tasks": task_list})
 
+@app.route("/get_external_mentors/<int:mentee_id>")
+def get_external_mentors(mentee_id):
+    """Return all mentors from OTHER institutes (not the current institution's mentors)."""
+    if "email" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return jsonify({"mentors": []})
+
+    _, inst_id, _, _ = _get_institution_details(user)
+
+    all_mentors = User.query.filter_by(user_type="1").all()
+    result = []
+    for m in all_mentors:
+        if inst_id and m.institution_id == inst_id:
+            continue
+        m_inst_name = ""
+        if m.institution_id:
+            inst = Institution.query.get(m.institution_id)
+            if inst:
+                m_inst_name = inst.name
+        if not m_inst_name:
+            m_inst_name = getattr(m, "institution", "") or ""
+        if not m_inst_name and hasattr(m, "mentor_profile") and m.mentor_profile:
+            m_inst_name = getattr(m.mentor_profile, "university_name", "") or ""
+        result.append({
+            "id": m.id,
+            "name": m.name,
+            "email": m.email,
+            "institution": m_inst_name,
+            "institution_id": m.institution_id or ""
+        })
+
+    return jsonify({"mentors": result})
+
+    return jsonify({"mentors": result})
+
 @app.route("/create_meeting_ajax", methods=["POST"])
 def create_meeting_ajax():
     if "email" not in session:
@@ -9498,6 +9622,15 @@ def create_meeting_ajax():
             return jsonify({"error": f"{missing_fields[0]} is required. Please fill it in."}), 400
         else:
             return jsonify({"error": f"Please fill in the required fields: {', '.join(missing_fields)}."}), 400
+
+    if mentor_id and mentee_id:
+        active_connection = MentorshipRequest.query.filter(
+            MentorshipRequest.mentor_id == int(mentor_id),
+            MentorshipRequest.mentee_id == int(mentee_id),
+            MentorshipRequest.final_status == "approved"
+        ).first()
+        if not active_connection:
+            return jsonify({"error": "No active mentorship connection found between this Mentor and Mentee. Meetings can only be scheduled for connected pairs."}), 400
 
     supervisor = User.query.filter_by(email=session["email"]).first()
 

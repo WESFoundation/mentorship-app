@@ -86,6 +86,7 @@
         .ss-option.ss-nodisplay { display: none; }
         .ss-no-results { padding: 0.75rem; font-size: 0.8125rem; color: #94a3b8; text-align: center; }
     </style>
+    {% block style %}{% endblock %}
 </head>
 
 <body class="flex flex-col h-screen overflow-hidden text-slate-800">
@@ -297,6 +298,15 @@
                             d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                     All Requests
+                </a>
+
+                <a href="{{ url_for('supervisor_sourcing_requests')}}"
+                    class="sidebar-nav-item {% if request.endpoint == 'supervisor_sourcing_requests' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    Sourcing Requests
                 </a>
 
                 <a href="{{ url_for('supervisor_meeting_details')}}"
