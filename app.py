@@ -1427,6 +1427,54 @@ class MentorSourcingRequest(db.Model):
         return f"<MentorSourcingRequest {self.id}: {self.target_role} - {self.target_industry}>"
 
 
+# ============================================================
+# AUTOMATIC SCHEMA MIGRATION / SELF-HEALING
+# ============================================================
+_schema_migrated = False
+
+def auto_migrate_schema():
+    """Safely ensure newly added columns and tables exist in the database upon startup."""
+    global _schema_migrated
+    if _schema_migrated:
+        return
+    try:
+        from sqlalchemy import inspect, text
+        with app.app_context():
+            inspector = inspect(db.engine)
+            existing_tables = set(inspector.get_table_names())
+
+            # 1. Ensure any missing tables in metadata are created
+            db.create_all()
+
+            # 2. Add missing columns for any declared models
+            for table_name, table in db.metadata.tables.items():
+                if table_name in existing_tables:
+                    existing_cols = {c["name"] for c in inspector.get_columns(table_name)}
+                    for col in table.columns:
+                        if col.name not in existing_cols:
+                            try:
+                                col_type = col.type.compile(db.engine.dialect)
+                                with db.engine.connect() as conn:
+                                    conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type}"))
+                                    conn.commit()
+                                print(f"✅ Auto-migrated column: {table_name}.{col.name} ({col_type})")
+                            except Exception as col_err:
+                                print(f"⚠️ Notice adding column {table_name}.{col.name}: {col_err}")
+            _schema_migrated = True
+    except Exception as e:
+        print(f"⚠️ Auto-migrate schema notice: {e}")
+
+try:
+    auto_migrate_schema()
+except Exception:
+    pass
+
+@app.before_request
+def ensure_schema_on_request():
+    global _schema_migrated
+    if not _schema_migrated:
+        auto_migrate_schema()
+
 
 def assign_master_tasks_to_mentorship(mentorship_request):
     print("🔧 assign_master_tasks_to_mentorship function called")
