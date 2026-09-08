@@ -29,14 +29,11 @@
       <p class="text-gray-600">View and manage all registered mentees.</p>
     </div>
 
-    <div class="mb-6 space-y-4">
-      <input type="text" id="menteeSearch" placeholder="Search mentees by name, school, goal..."
-        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" onkeyup="filterMentees()">
-
-      <form method="GET" action="{{ url_for('supervisor_find_mentee') }}" class="flex flex-wrap items-center gap-3">
-        
-        <!-- Stream -->
-        <select name="stream" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+    <!-- Search and Filters -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
+      <form method="GET" action="{{ url_for('supervisor_find_mentee') }}" class="flex flex-wrap gap-3 items-center">
+        <!-- Stream Dropdown -->
+        <select name="stream" class="max-w-full sm:max-w-[180px] truncate px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
           <option value="" {% if not request.args.get('stream') %}selected{% endif %}>All Streams</option>
           {% for stream in mentee_streams %}
           <option value="{{ stream }}" {% if request.args.get('stream')==stream %}selected{% endif %}>
@@ -45,8 +42,19 @@
           {% endfor %}
         </select>
 
+        <!-- Search Bar -->
+        <div class="relative flex-1 min-w-[200px]">
+          <input type="text" id="menteeSearch" name="search" value="{{ request.args.get('search', '') }}"
+            placeholder="Search mentees by name, school, goal..."
+            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white transition"
+            onkeyup="filterMentees()">
+          <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </div>
+
         <!-- School/College -->
-        <select name="school" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+        <select name="school" class="max-w-full sm:max-w-[180px] truncate px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
           <option value="" {% if not request.args.get('school') %}selected{% endif %}>All Schools</option>
           {% for school in mentee_schools %}
           <option value="{{ school }}" {% if request.args.get('school')==school %}selected{% endif %}>
@@ -56,7 +64,7 @@
         </select>
 
         <!-- Who Am I -->
-        <select name="who_am_i" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+        <select name="who_am_i" class="max-w-full sm:max-w-[160px] truncate px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
           <option value="" {% if not request.args.get('who_am_i') %}selected{% endif %}>All Types</option>
           {% for w in mentee_who_am_i %}
           <option value="{{ w }}" {% if request.args.get('who_am_i')==w %}selected{% endif %}>
@@ -66,7 +74,7 @@
         </select>
 
         <!-- Parent Consent Status -->
-        <select name="consent_status" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+        <select name="consent_status" class="max-w-full sm:max-w-[160px] truncate px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
           <option value="" {% if not request.args.get('consent_status') %}selected{% endif %}>Consent Status</option>
           {% for status in mentee_consent_statuses %}
           <option value="{{ status }}" {% if request.args.get('consent_status')==status %}selected{% endif %}>
@@ -76,7 +84,7 @@
         </select>
 
         <!-- Institution Type -->
-        <select name="govt_private" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+        <select name="govt_private" class="max-w-full sm:max-w-[140px] truncate px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
           <option value="" {% if not request.args.get('govt_private') %}selected{% endif %}>Inst. Type</option>
           {% for gp in mentee_govt_private %}
           <option value="{{ gp }}" {% if request.args.get('govt_private')==gp %}selected{% endif %}>
@@ -86,7 +94,7 @@
         </select>
 
         <!-- Education Level -->
-        <select name="education_level" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+        <select name="education_level" class="max-w-full sm:max-w-[140px] truncate px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
           <option value="" {% if not request.args.get('education_level') %}selected{% endif %}>Edu. Level</option>
           {% for el in mentee_education_levels %}
           <option value="{{ el }}" {% if request.args.get('education_level')==el %}selected{% endif %}>
@@ -96,7 +104,7 @@
         </select>
 
         <!-- City -->
-        <select name="city" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+        <select name="city" class="max-w-full sm:max-w-[130px] truncate px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
           <option value="" {% if not request.args.get('city') %}selected{% endif %}>City</option>
           {% for city in mentee_cities %}
           <option value="{{ city }}" {% if request.args.get('city')==city %}selected{% endif %}>
@@ -106,7 +114,7 @@
         </select>
 
         <!-- State -->
-        <select name="state" class="max-w-full sm:max-w-[200px] truncate px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+        <select name="state" class="max-w-full sm:max-w-[130px] truncate px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
           <option value="" {% if not request.args.get('state') %}selected{% endif %}>State</option>
           {% for state in mentee_states %}
           <option value="{{ state }}" {% if request.args.get('state')==state %}selected{% endif %}>
@@ -115,11 +123,11 @@
           {% endfor %}
         </select>
 
-        <button type="submit" class="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition">
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition">
           Filter
         </button>
         
-        <a href="{{ url_for('supervisor_find_mentee') }}" class="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition">
+        <a href="{{ url_for('supervisor_find_mentee') }}" class="px-3 py-2 rounded-lg border border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium transition">
           Reset
         </a>
       </form>

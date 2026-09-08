@@ -535,69 +535,63 @@
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <div class="flex flex-wrap gap-3 items-center">
                 <select id="status-filter"
-                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white font-medium">
                     <option value="all">All Status</option>
                     <option value="not-started">Not Started</option>
                     <option value="committed">Committed</option>
                     <option value="in-progress">In Progress</option>
-                    <option value="done">Done</option>
+                    <option value="done">Completed</option>
                     <option value="overdue">Overdue</option>
                     <option value="critical">Critical</option>
                 </select>
                 <div class="relative flex-1 min-w-[200px]">
                     <input type="text" id="task-search" placeholder="Search tasks, mentors, mentees..."
-                        class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
-                    <svg class="w-4 h-4 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor"
+                        class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white transition">
+                    <svg class="w-4 h-4 absolute left-3 top-3 text-gray-400" fill="none" stroke="currentColor"
                         viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
                 </div>
                 <select id="priority-filter"
-                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
                     <option value="all">All Priorities</option>
                     <option value="high">High</option>
                     <option value="medium">Medium</option>
                     <option value="low">Low</option>
                 </select>
                 <select id="category-filter"
-                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
                     <option value="all">All Categories</option>
                 </select>
+                <select id="mentor-filter"
+                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+                    <option value="all">All Mentors</option>
+                </select>
+                <select id="mentee-filter"
+                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+                    <option value="all">All Mentees</option>
+                </select>
                 <button id="toggle-advanced" onclick="toggleAdvancedFilters()" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 transition flex items-center gap-1.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
-                    Advanced
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    Dates
+                </button>
+                <button onclick="clearAllFilters()" class="px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-sm font-medium text-red-600 transition">
+                    Clear
                 </button>
             </div>
         </div>
 
-        <!-- Advanced Filters Panel -->
+        <!-- Advanced Filters Panel (Date Range) -->
         <div id="advanced-filters" class="advanced-filters">
             <div class="filter-row">
                 <div class="filter-group">
-                    <label>Mentor</label>
-                    <select id="mentor-filter">
-                        <option value="all">All Mentors</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label>Mentee</label>
-                    <select id="mentee-filter">
-                        <option value="all">All Mentees</option>
-                    </select>
-                </div>
-                <div class="filter-group">
                     <label>Due From</label>
-                    <input type="date" id="due-from">
+                    <input type="date" id="due-from" onchange="currentDueFrom = this.value; renderTasks();">
                 </div>
                 <div class="filter-group">
                     <label>Due To</label>
-                    <input type="date" id="due-to">
-                </div>
-                <div class="filter-group">
-                    <button onclick="clearAllFilters()" class="px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-sm font-medium text-red-600 transition mt-auto">
-                        Clear All Filters
-                    </button>
+                    <input type="date" id="due-to" onchange="currentDueTo = this.value; renderTasks();">
                 </div>
             </div>
             <div id="active-filters-display" class="active-filters"></div>
@@ -1189,6 +1183,7 @@
         currentDueFrom = '';
         currentDueTo = '';
 
+        document.getElementById('status-filter').value = 'all';
         document.getElementById('task-search').value = '';
         document.getElementById('priority-filter').value = 'all';
         document.getElementById('category-filter').value = 'all';
@@ -1210,7 +1205,7 @@
         const tags = [];
 
         if (currentFilter !== 'all') {
-            tags.push({ label: `Status: ${getStatusText(currentFilter)}`, clear: () => { currentFilter = 'all'; document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === 'all')); renderTasks(); }});
+            tags.push({ label: `Status: ${getStatusText(currentFilter)}`, clear: () => { currentFilter = 'all'; document.getElementById('status-filter').value = 'all'; document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === 'all')); renderTasks(); }});
         }
         if (currentSearch) {
             tags.push({ label: `Search: "${currentSearch}"`, clear: () => { currentSearch = ''; document.getElementById('task-search').value = ''; renderTasks(); }});

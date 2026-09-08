@@ -239,13 +239,16 @@
     </div>
 
     <!-- Controls Row: Filters + Calendar Navigation -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-      <div class="filter-options mb-0">
-        <button class="filter-btn active" data-type="all">All Sessions</button>
-        <button class="filter-btn" data-type="upcoming">Upcoming</button>
-        <button class="filter-btn" data-type="completed">Completed</button>
-        <button class="filter-btn" data-type="today">Today</button>
-        <button class="filter-btn" data-type="this_week">This Week</button>
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <select id="calendarFilter"
+          class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+          <option value="all">All Sessions</option>
+          <option value="upcoming">Upcoming</option>
+          <option value="completed">Completed</option>
+          <option value="today">Today</option>
+          <option value="this_week">This Week</option>
+        </select>
       </div>
       <div class="flex items-center gap-3">
         <h3 id="current-month-year" class="text-base font-semibold text-gray-700 whitespace-nowrap">January 2023</h3>
@@ -843,7 +846,15 @@ document.addEventListener('DOMContentLoaded', function() {
     renderCalendar();
   });
   
-  // Filter buttons
+  // Filter select dropdown
+  const calFilter = document.getElementById('calendarFilter');
+  if (calFilter) {
+    calFilter.addEventListener('change', function() {
+      filterEvents(this.value);
+    });
+  }
+
+  // Filter buttons (backwards compatibility)
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', function() {
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));

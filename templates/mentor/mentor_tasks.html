@@ -341,14 +341,15 @@
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <div class="flex flex-wrap gap-3 items-center">
                 <select id="status-filter"
-                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white font-medium"
                     onchange="filterTasks(this.value)">
                     <option value="all">All Status</option>
                     <option value="not-started">Not Started</option>
                     <option value="committed">Committed</option>
                     <option value="in-progress">In Progress</option>
-                    <option value="done">Done</option>
+                    <option value="done">Completed</option>
                     <option value="overdue">Overdue</option>
+                    <option value="critical">Critical</option>
                 </select>
                 <div class="relative flex-1 min-w-[200px]">
                     <input type="text" id="task-search" placeholder="Search tasks..."
@@ -1286,7 +1287,8 @@ function filterTasks(filter) {
                              (currentFilter === status) ||
                              (currentFilter === 'done' && (status === 'done' || status === 'completed')) ||
                              (currentFilter === 'not-started' && (status === 'not-started' || status === 'pending' || status === 'to-do')) ||
-                             (currentFilter === 'overdue' && (card.classList.contains('urgent') || status === 'overdue'));
+                             (currentFilter === 'overdue' && (card.classList.contains('urgent') || status === 'overdue')) ||
+                             (currentFilter === 'critical' && (priority.includes('high') && status !== 'done' && status !== 'completed'));
         const matchesPriority = currentPriorityFilter === 'all' || priority.includes(currentPriorityFilter);
         const matchesSearch = searchTerm === '' || title.includes(searchTerm) || description.includes(searchTerm);
         

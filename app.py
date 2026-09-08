@@ -2951,6 +2951,73 @@ def supervisordashboard():
     mentor_requests = MentorProfile.query.filter_by(status="pending").all()
     mentee_requests = MenteeProfile.query.filter_by(status="pending").all()
 
+    # ----------------- Dashboard Breakdown Data -----------------
+    mentor_by_location = {}
+    mentor_by_institution = {}
+    mentor_by_profession = {}
+    for m in mentors:
+        loc = getattr(m, "location", "") or "Unknown"
+        inst = getattr(m, "institution_name", "") or (m.user.institution if m.user and hasattr(m.user, 'institution') else "") or "Unknown"
+        prof = getattr(m, "profession", "") or "Unknown"
+        mentor_by_location.setdefault(loc, []).append(m)
+        mentor_by_institution.setdefault(inst, []).append(m)
+        mentor_by_profession.setdefault(prof, []).append(m)
+
+    mentor_scores = {}
+    for mr in all_requests:
+        if mr.final_status == "approved":
+            mid = mr.mentor_id
+            if mid not in mentor_scores:
+                mentor_scores[mid] = {"completed": 0, "total": 0}
+            mentor_scores[mid]["completed"] += 1
+            mentor_scores[mid]["total"] += 1
+        elif mr.mentor_id:
+            mid = mr.mentor_id
+            if mid not in mentor_scores:
+                mentor_scores[mid] = {"completed": 0, "total": 0}
+            mentor_scores[mid]["total"] += 1
+
+    def get_mentor_score(mentor_user_id):
+        s = mentor_scores.get(mentor_user_id, {"completed": 0, "total": 0})
+        if s["total"] == 0:
+            return 0
+        return round((s["completed"] / s["total"]) * 100)
+
+    for group in [mentor_by_location, mentor_by_institution, mentor_by_profession]:
+        for key in group:
+            group[key].sort(key=lambda m: get_mentor_score(m.user_id) if m.user else 0, reverse=True)
+
+    mentee_by_location = {}
+    mentee_by_institution = {}
+    mentee_by_stream = {}
+    for m in all_mentees:
+        loc = "Unknown"
+        inst = "Unknown"
+        stream = getattr(m, "stream", "") or "Unknown"
+        if m.user:
+            loc = getattr(m.user, "institution", "") or "Unknown"
+        if hasattr(m, "institution"):
+            inst = m.institution or "Unknown"
+        elif hasattr(m, "institution_name"):
+            inst = m.institution_name or "Unknown"
+        mentee_by_location.setdefault(loc, []).append(m)
+        mentee_by_institution.setdefault(inst, []).append(m)
+        mentee_by_stream.setdefault(stream, []).append(m)
+
+    active_requests = [r for r in all_requests if r.final_status == "approved"]
+    active_by_type = {"anchor": [], "special": []}
+    for r in active_requests:
+        t = getattr(r, "mentor_type", "") or "special"
+        active_by_type.setdefault(t, []).append(r)
+
+    pending_requests = [r for r in all_requests if r.supervisor_status == "pending"]
+    pending_by_type = {"mentor": [], "mentee": []}
+    for r in pending_requests:
+        if r.mentor_status == "pending":
+            pending_by_type["mentor"].append(r)
+        else:
+            pending_by_type["mentee"].append(r)
+
     return render_template(
         "supervisor/supervisordashboard.html",
         show_sidebar=True,
@@ -2969,7 +3036,16 @@ def supervisordashboard():
         mentee_goals=mentee_goals,
         active_section="dashboard",
         source_page=source_page,
-        profile_complete=profile_complete
+        profile_complete=profile_complete,
+        mentor_by_location=mentor_by_location,
+        mentor_by_institution=mentor_by_institution,
+        mentor_by_profession=mentor_by_profession,
+        mentee_by_location=mentee_by_location,
+        mentee_by_institution=mentee_by_institution,
+        mentee_by_stream=mentee_by_stream,
+        active_by_type=active_by_type,
+        pending_by_type=pending_by_type,
+        get_mentor_score=get_mentor_score
     )
     
 @app.route("/institution")

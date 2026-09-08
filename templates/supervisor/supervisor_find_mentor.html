@@ -30,14 +30,10 @@
     </div>
 
     <!-- Search and Filters -->
-    <div class="mb-6 space-y-4">
-      <input type="text" id="mentorSearch" placeholder="Search mentors by name, profession, location..."
-        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" onkeyup="filterMentors()">
-
-      <!-- Filters -->
-      <form method="GET" action="{{ url_for('supervisor_find_mentor') }}" class="flex flex-wrap items-center gap-3">
-        <!-- Profession -->
-        <select name="profession" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
+      <form method="GET" action="{{ url_for('supervisor_find_mentor') }}" class="flex flex-wrap gap-3 items-center">
+        <!-- Profession Dropdown -->
+        <select name="profession" class="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
           <option value="" {% if not request.args.get('profession') %}selected{% endif %}>All Professions</option>
           {% for profession in professions %}
           <option value="{{ profession }}" {% if request.args.get('profession')==profession %}selected{% endif %}>
@@ -46,8 +42,19 @@
           {% endfor %}
         </select>
 
+        <!-- Search Bar -->
+        <div class="relative flex-1 min-w-[200px]">
+          <input type="text" id="mentorSearch" name="search" value="{{ request.args.get('search', '') }}"
+            placeholder="Search mentors by name, profession, location..."
+            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white transition"
+            onkeyup="filterMentors()">
+          <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </div>
+
         <!-- Location -->
-        <select name="location" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+        <select name="location" class="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
           <option value="" {% if not request.args.get('location') %}selected{% endif %}>All Locations</option>
           {% for location in locations %}
           <option value="{{ location }}" {% if request.args.get('location')==location %}selected{% endif %}>
@@ -57,7 +64,7 @@
         </select>
 
         <!-- Education -->
-        <select name="education" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+        <select name="education" class="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
           <option value="" {% if not request.args.get('education') %}selected{% endif %}>All Education</option>
           {% for education in educations %}
           <option value="{{ education }}" {% if request.args.get('education')==education %}selected{% endif %}>
@@ -67,7 +74,7 @@
         </select>
 
         <!-- Experience -->
-        <select name="experience" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white focus:ring-2 focus:ring-blue-500">
+        <select name="experience" class="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
           <option value="" {% if not request.args.get('experience') %}selected{% endif %}>Any Experience</option>
           <option value="0-2" {% if request.args.get('experience')=='0-2' %}selected{% endif %}>0 - 2 years</option>
           <option value="3-5" {% if request.args.get('experience')=='3-5' %}selected{% endif %}>3 - 5 years</option>
@@ -76,11 +83,11 @@
         </select>
 
         <!-- Search Button -->
-        <button type="submit" class="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition">
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition">
           Search
         </button>
-        <!-- Cancel/Reset Button -->
-        <a href="{{ url_for('supervisor_find_mentor') }}" class="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition">
+        <!-- Reset Button -->
+        <a href="{{ url_for('supervisor_find_mentor') }}" class="px-3 py-2 rounded-lg border border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium transition">
           Reset
         </a>
       </form>
