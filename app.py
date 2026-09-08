@@ -5480,7 +5480,7 @@ def add_mentors_to_sourcing_request(req_id):
 
     # Rebuild message
     message = req.message or ""
-    lines = [l for l in message.split('\n') if not l.startswith('[Resolved Mentors]:']
+    lines = [l for l in message.split('\n') if not l.startswith('[Resolved Mentors]:')]
     resolved_line = _build_resolved_mentors_line(existing)
     if resolved_line:
         lines.append(resolved_line)
