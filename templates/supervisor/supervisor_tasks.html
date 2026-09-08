@@ -126,6 +126,20 @@
         align-items: center;
         gap: 8px;
     }
+    .filter-bar-stacked select {
+        width: auto !important;
+        max-width: max-content !important;
+        flex: 0 0 auto !important;
+        cursor: pointer;
+    }
+    .filter-bar-stacked .ss-wrapper {
+        width: auto !important;
+        flex: 0 0 auto !important;
+        display: inline-block;
+    }
+    .filter-bar-stacked .ss-display {
+        width: auto !important;
+    }
 
     .advanced-filters {
         background: white;
@@ -554,8 +568,8 @@
             <!-- Filters (Compact and Stacking on wrap) -->
             <div class="filter-bar-stacked flex flex-wrap items-center gap-2">
                 <!-- Status Filter -->
-                <select id="status-filter"
-                    class="px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white font-medium text-gray-700 transition">
+                <select id="status-filter" data-no-search
+                    class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white font-medium text-gray-700 cursor-pointer transition">
                     <option value="all">All Status</option>
                     <option value="not-started">Not Started</option>
                     <option value="committed">Committed</option>
@@ -566,8 +580,8 @@
                 </select>
 
                 <!-- Priority Filter -->
-                <select id="priority-filter"
-                    class="px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
+                <select id="priority-filter" data-no-search
+                    class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 cursor-pointer transition">
                     <option value="all">All Priorities</option>
                     <option value="high">High</option>
                     <option value="medium">Medium</option>
@@ -575,20 +589,20 @@
                 </select>
 
                 <!-- Category Filter -->
-                <select id="category-filter"
-                    class="px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
+                <select id="category-filter" data-no-search
+                    class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 cursor-pointer transition">
                     <option value="all">All Categories</option>
                 </select>
 
                 <!-- Mentor Filter -->
-                <select id="mentor-filter"
-                    class="px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
+                <select id="mentor-filter" data-no-search
+                    class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 cursor-pointer transition">
                     <option value="all">All Mentors</option>
                 </select>
 
                 <!-- Mentee Filter -->
-                <select id="mentee-filter"
-                    class="px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
+                <select id="mentee-filter" data-no-search
+                    class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 cursor-pointer transition">
                     <option value="all">All Mentees</option>
                 </select>
 

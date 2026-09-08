@@ -3018,6 +3018,17 @@ def supervisordashboard():
         else:
             pending_by_type["mentee"].append(r)
 
+    today = dt.date.today()
+    pending_by_age = {"Today": [], "This Week": [], "Older": []}
+    for r in pending_requests:
+        created = r.created_at.date() if r.created_at else today
+        if created == today:
+            pending_by_age["Today"].append(r)
+        elif (today - created).days <= 7:
+            pending_by_age["This Week"].append(r)
+        else:
+            pending_by_age["Older"].append(r)
+
     return render_template(
         "supervisor/supervisordashboard.html",
         show_sidebar=True,
@@ -3045,6 +3056,7 @@ def supervisordashboard():
         mentee_by_stream=mentee_by_stream,
         active_by_type=active_by_type,
         pending_by_type=pending_by_type,
+        pending_by_age=pending_by_age,
         get_mentor_score=get_mentor_score
     )
     

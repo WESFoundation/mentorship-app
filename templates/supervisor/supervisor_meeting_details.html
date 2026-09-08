@@ -32,39 +32,40 @@
   </div>
 
   <!-- Search and Filters -->
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
-    <div class="flex flex-wrap gap-3 items-center">
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-3.5 mb-6">
+    <!-- Search Bar (Above Filters) -->
+    <div class="relative mb-3">
+      <input type="text" id="searchInput" placeholder="Search by title, mentee, or mentor..." 
+             class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white transition">
+      <svg class="w-4 h-4 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+      </svg>
+    </div>
+
+    <!-- Filters (Compact and Stacking on wrap) -->
+    <div class="filter-bar-stacked flex flex-wrap items-center gap-2">
       <!-- Status Dropdown -->
-      <select id="meetingTypeFilter"
-        class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+      <select id="meetingTypeFilter" data-no-search
+        class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs sm:text-sm bg-white font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
         <option value="">All Meetings</option>
         <option value="upcoming">Upcoming</option>
         <option value="past">Past</option>
       </select>
 
-      <!-- Search Input -->
-      <div class="relative flex-1 min-w-[200px]">
-        <input type="text" id="searchInput" placeholder="Search by title, mentee, or mentor..." 
-               class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white transition">
-        <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-        </svg>
-      </div>
-
       <!-- Date From -->
-      <div class="flex items-center gap-1.5 text-xs text-gray-600">
+      <div class="flex items-center gap-1.5 text-xs text-gray-600 shrink-0">
         <span>From:</span>
-        <input type="date" id="dateFrom" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        <input type="date" id="dateFrom" class="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
       </div>
 
       <!-- Date To -->
-      <div class="flex items-center gap-1.5 text-xs text-gray-600">
+      <div class="flex items-center gap-1.5 text-xs text-gray-600 shrink-0">
         <span>To:</span>
-        <input type="date" id="dateTo" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        <input type="date" id="dateTo" class="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
       </div>
       
       <!-- Reset -->
-      <button id="resetFilters" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-700 rounded-lg transition-colors text-sm font-medium">
+      <button id="resetFilters" class="shrink-0 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-700 rounded-lg transition-colors text-xs sm:text-sm font-medium">
         Reset
       </button>
     </div>
@@ -422,6 +423,27 @@
   .meeting-row:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+
+  .filter-bar-stacked {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .filter-bar-stacked select {
+    width: auto !important;
+    max-width: max-content !important;
+    flex: 0 0 auto !important;
+    cursor: pointer;
+  }
+  .filter-bar-stacked .ss-wrapper {
+    width: auto !important;
+    flex: 0 0 auto !important;
+    display: inline-block;
+  }
+  .filter-bar-stacked .ss-display {
+    width: auto !important;
   }
 </style>
 

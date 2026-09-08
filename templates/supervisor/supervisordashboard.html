@@ -30,7 +30,7 @@
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-      <div class="bg-blue-50 p-5 rounded-xl border border-blue-100">
+      <div class="bg-blue-50 p-5 rounded-xl border border-blue-100 cursor-pointer hover:shadow-md transition" onclick="toggleCard('mentors')">
         <div class="flex items-center">
           <div class="rounded-full bg-blue-100 p-3 mr-4">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24"
@@ -46,7 +46,7 @@
         </div>
       </div>
 
-      <div class="bg-teal-50 p-5 rounded-xl border border-teal-100">
+      <div class="bg-teal-50 p-5 rounded-xl border border-teal-100 cursor-pointer hover:shadow-md transition" onclick="toggleCard('mentees')">
         <div class="flex items-center">
           <div class="rounded-full bg-teal-100 p-3 mr-4">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-teal-600" fill="none" viewBox="0 0 24 24"
@@ -62,7 +62,7 @@
         </div>
       </div>
 
-      <div class="bg-indigo-50 p-5 rounded-xl border border-indigo-100">
+      <div class="bg-indigo-50 p-5 rounded-xl border border-indigo-100 cursor-pointer hover:shadow-md transition" onclick="toggleCard('active')">
         <div class="flex items-center">
           <div class="rounded-full bg-indigo-100 p-3 mr-4">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24"
@@ -79,7 +79,7 @@
         </div>
       </div>
 
-      <div class="bg-sky-50 p-5 rounded-xl border border-sky-100">
+      <div class="bg-sky-50 p-5 rounded-xl border border-sky-100 cursor-pointer hover:shadow-md transition" onclick="toggleCard('pending')">
         <div class="flex items-center">
           <div class="rounded-full bg-sky-100 p-3 mr-4">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-sky-600" fill="none" viewBox="0 0 24 24"
@@ -96,6 +96,251 @@
         </div>
       </div>
 
+    </div>
+
+    <!-- Mentor Breakdown Panel -->
+    <div id="panel-mentors" class="hidden mb-8 bg-white rounded-xl shadow-sm border border-gray-100">
+      <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+        <h3 class="font-semibold text-gray-800">Mentor Breakdown</h3>
+        <div class="flex gap-1 bg-gray-100 rounded-lg p-1">
+          <button onclick="switchMentorView('location')" id="btn-mentor-location" class="px-3 py-1 text-xs font-medium rounded-md bg-blue-600 text-white transition">By City</button>
+          <button onclick="switchMentorView('institution')" id="btn-mentor-institution" class="px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition">By Institution</button>
+          <button onclick="switchMentorView('profession')" id="btn-mentor-profession" class="px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition">By Profession</button>
+        </div>
+      </div>
+      <div class="p-4">
+        <div id="mentor-view-location" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {% for location, items in mentor_by_location.items()|sort(attribute='1|length', reverse=true) %}
+          <div class="bg-blue-50 rounded-lg p-3 border border-blue-100">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-medium text-gray-800 text-sm">{{ location }}</span>
+              <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
+            </div>
+            <div class="space-y-1 max-h-40 overflow-y-auto">
+              {% for m in items[:10] %}
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-gray-600 truncate">{{ m.user.name if m.user else 'Unknown' }}</span>
+                <span class="font-bold text-blue-600">{{ get_mentor_score(m.user_id) }}%</span>
+              </div>
+              {% endfor %}
+              {% if items|length > 10 %}
+              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div id="mentor-view-institution" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {% for inst, items in mentor_by_institution.items()|sort(attribute='1|length', reverse=true) %}
+          <div class="bg-blue-50 rounded-lg p-3 border border-blue-100">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-medium text-gray-800 text-sm">{{ inst }}</span>
+              <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
+            </div>
+            <div class="space-y-1 max-h-40 overflow-y-auto">
+              {% for m in items[:10] %}
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-gray-600 truncate">{{ m.user.name if m.user else 'Unknown' }}</span>
+                <span class="font-bold text-blue-600">{{ get_mentor_score(m.user_id) }}%</span>
+              </div>
+              {% endfor %}
+              {% if items|length > 10 %}
+              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div id="mentor-view-profession" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {% for prof, items in mentor_by_profession.items()|sort(attribute='1|length', reverse=true) %}
+          <div class="bg-blue-50 rounded-lg p-3 border border-blue-100">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-medium text-gray-800 text-sm">{{ prof }}</span>
+              <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
+            </div>
+            <div class="space-y-1 max-h-40 overflow-y-auto">
+              {% for m in items[:10] %}
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-gray-600 truncate">{{ m.user.name if m.user else 'Unknown' }}</span>
+                <span class="font-bold text-blue-600">{{ get_mentor_score(m.user_id) }}%</span>
+              </div>
+              {% endfor %}
+              {% if items|length > 10 %}
+              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Mentee Breakdown Panel -->
+    <div id="panel-mentees" class="hidden mb-8 bg-white rounded-xl shadow-sm border border-gray-100">
+      <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+        <h3 class="font-semibold text-gray-800">Mentee Breakdown</h3>
+        <div class="flex gap-1 bg-gray-100 rounded-lg p-1">
+          <button onclick="switchMenteeView('location')" id="btn-mentee-location" class="px-3 py-1 text-xs font-medium rounded-md bg-teal-600 text-white transition">By City</button>
+          <button onclick="switchMenteeView('institution')" id="btn-mentee-institution" class="px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition">By Institution</button>
+          <button onclick="switchMenteeView('stream')" id="btn-mentee-stream" class="px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition">By Stream</button>
+        </div>
+      </div>
+      <div class="p-4">
+        <div id="mentee-view-location" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {% for location, items in mentee_by_location.items()|sort(attribute='1|length', reverse=true) %}
+          <div class="bg-teal-50 rounded-lg p-3 border border-teal-100">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-medium text-gray-800 text-sm">{{ location }}</span>
+              <span class="bg-teal-100 text-teal-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
+            </div>
+            <div class="space-y-1 max-h-40 overflow-y-auto">
+              {% for m in items[:10] %}
+              <div class="text-xs text-gray-600 truncate">{{ m.user.name if m.user else 'Unknown' }}</div>
+              {% endfor %}
+              {% if items|length > 10 %}
+              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div id="mentee-view-institution" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {% for inst, items in mentee_by_institution.items()|sort(attribute='1|length', reverse=true) %}
+          <div class="bg-teal-50 rounded-lg p-3 border border-teal-100">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-medium text-gray-800 text-sm">{{ inst }}</span>
+              <span class="bg-teal-100 text-teal-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
+            </div>
+            <div class="space-y-1 max-h-40 overflow-y-auto">
+              {% for m in items[:10] %}
+              <div class="text-xs text-gray-600 truncate">{{ m.user.name if m.user else 'Unknown' }}</div>
+              {% endfor %}
+              {% if items|length > 10 %}
+              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div id="mentee-view-stream" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {% for stream, items in mentee_by_stream.items()|sort(attribute='1|length', reverse=true) %}
+          <div class="bg-teal-50 rounded-lg p-3 border border-teal-100">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-medium text-gray-800 text-sm">{{ stream }}</span>
+              <span class="bg-teal-100 text-teal-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
+            </div>
+            <div class="space-y-1 max-h-40 overflow-y-auto">
+              {% for m in items[:10] %}
+              <div class="text-xs text-gray-600 truncate">{{ m.user.name if m.user else 'Unknown' }}</div>
+              {% endfor %}
+              {% if items|length > 10 %}
+              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Mentorships Breakdown Panel -->
+    <div id="panel-active" class="hidden mb-8 bg-white rounded-xl shadow-sm border border-gray-100">
+      <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+        <h3 class="font-semibold text-gray-800">Active Mentorships Breakdown</h3>
+        <div class="flex gap-1 bg-gray-100 rounded-lg p-1">
+          <button onclick="switchActiveView('type')" id="btn-active-type" class="px-3 py-1 text-xs font-medium rounded-md bg-indigo-600 text-white transition">By Type</button>
+          <button onclick="switchActiveView('mentor')" id="btn-active-mentor" class="px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition">By Mentor</button>
+        </div>
+      </div>
+      <div class="p-4">
+        <div id="active-view-type" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {% for type_name, items in active_by_type.items() %}
+          {% if items %}
+          <div class="bg-indigo-50 rounded-lg p-3 border border-indigo-100">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-medium text-gray-800 text-sm capitalize">{{ type_name }} Mentorship</span>
+              <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
+            </div>
+            <div class="space-y-1 max-h-40 overflow-y-auto">
+              {% for r in items[:10] %}
+              <div class="text-xs text-gray-600">
+                {{ r.mentor.name if r.mentor else 'Mentor' }} &rarr; {{ r.mentee.name if r.mentee else 'Mentee' }}
+              </div>
+              {% endfor %}
+              {% if items|length > 10 %}
+              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+        <div id="active-view-mentor" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {% for type_name, items in active_by_type.items() %}
+          {% for r in items %}
+          <div class="bg-indigo-50 rounded-lg p-3 border border-indigo-100">
+            <div class="text-sm font-medium text-gray-800 mb-1">{{ r.mentor.name if r.mentor else 'Mentor' }}</div>
+            <div class="text-xs text-gray-600">Mentee: {{ r.mentee.name if r.mentee else 'Unknown' }}</div>
+          </div>
+          {% endfor %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Pending Requests Breakdown Panel -->
+    <div id="panel-pending" class="hidden mb-8 bg-white rounded-xl shadow-sm border border-gray-100">
+      <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+        <h3 class="font-semibold text-gray-800">Pending Requests Breakdown</h3>
+        <div class="flex gap-1 bg-gray-100 rounded-lg p-1">
+          <button onclick="switchPendingView('type')" id="btn-pending-type" class="px-3 py-1 text-xs font-medium rounded-md bg-sky-600 text-white transition">By Type</button>
+          <button onclick="switchPendingView('age')" id="btn-pending-age" class="px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition">By Age</button>
+        </div>
+      </div>
+      <div class="p-4">
+        <div id="pending-view-type" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {% for type_name, items in pending_by_type.items() %}
+          {% if items %}
+          <div class="bg-sky-50 rounded-lg p-3 border border-sky-100">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-medium text-gray-800 text-sm capitalize">{{ type_name }} Requests</span>
+              <span class="bg-sky-100 text-sky-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
+            </div>
+            <div class="space-y-1 max-h-40 overflow-y-auto">
+              {% for r in items[:10] %}
+              <div class="text-xs text-gray-600">
+                {{ r.mentor.name if r.mentor else 'Mentor' }} &rarr; {{ r.mentee.name if r.mentee else 'Mentee' }}
+              </div>
+              {% endfor %}
+              {% if items|length > 10 %}
+              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+        <div id="pending-view-age" class="hidden grid grid-cols-1 md:grid-cols-3 gap-3">
+          {% for bucket_name, items in pending_by_age.items() %}
+          <div class="bg-sky-50 rounded-lg p-3 border border-sky-100">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-medium text-gray-800 text-sm">{{ bucket_name }}</span>
+              <span class="bg-sky-100 text-sky-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
+            </div>
+            <div class="space-y-1 max-h-40 overflow-y-auto">
+              {% for r in items[:10] %}
+              <div class="text-xs text-gray-600">
+                {{ r.mentor.name if r.mentor else 'Mentor' }} &rarr; {{ r.mentee.name if r.mentee else 'Mentee' }}
+              </div>
+              {% endfor %}
+              {% if items|length > 10 %}
+              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
     </div>
 
 
@@ -701,10 +946,73 @@
 
   // Auto-open correct section using Jinja-injected variable
   document.addEventListener("DOMContentLoaded", function () {
-    // Assuming a context variable `active_section` is passed from the backend
     var activeSection = "{{ active_section|default('dashboard') }}";
     showSection(activeSection);
   });
+
+  // Dashboard card toggle
+  var openPanel = null;
+  function toggleCard(type) {
+    var panel = document.getElementById('panel-' + type);
+    if (!panel) return;
+    if (openPanel && openPanel !== panel) {
+      openPanel.classList.add('hidden');
+    }
+    panel.classList.toggle('hidden');
+    openPanel = panel.classList.contains('hidden') ? null : panel;
+  }
+
+  function switchMentorView(view) {
+    ['location', 'institution', 'profession'].forEach(function(v) {
+      var el = document.getElementById('mentor-view-' + v);
+      var btn = document.getElementById('btn-mentor-' + v);
+      if (el) el.classList.toggle('hidden', v !== view);
+      if (btn) {
+        btn.className = v === view
+          ? 'px-3 py-1 text-xs font-medium rounded-md bg-blue-600 text-white transition'
+          : 'px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition';
+      }
+    });
+  }
+
+  function switchMenteeView(view) {
+    ['location', 'institution', 'stream'].forEach(function(v) {
+      var el = document.getElementById('mentee-view-' + v);
+      var btn = document.getElementById('btn-mentee-' + v);
+      if (el) el.classList.toggle('hidden', v !== view);
+      if (btn) {
+        btn.className = v === view
+          ? 'px-3 py-1 text-xs font-medium rounded-md bg-teal-600 text-white transition'
+          : 'px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition';
+      }
+    });
+  }
+
+  function switchActiveView(view) {
+    ['type', 'mentor'].forEach(function(v) {
+      var el = document.getElementById('active-view-' + v);
+      var btn = document.getElementById('btn-active-' + v);
+      if (el) el.classList.toggle('hidden', v !== view);
+      if (btn) {
+        btn.className = v === view
+          ? 'px-3 py-1 text-xs font-medium rounded-md bg-indigo-600 text-white transition'
+          : 'px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition';
+      }
+    });
+  }
+
+  function switchPendingView(view) {
+    ['type', 'age'].forEach(function(v) {
+      var el = document.getElementById('pending-view-' + v);
+      var btn = document.getElementById('btn-pending-' + v);
+      if (el) el.classList.toggle('hidden', v !== view);
+      if (btn) {
+        btn.className = v === view
+          ? 'px-3 py-1 text-xs font-medium rounded-md bg-sky-600 text-white transition'
+          : 'px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition';
+      }
+    });
+  }
 
   // Client-side filtering for Mentors
   function filterMentors() {
