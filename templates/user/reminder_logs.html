@@ -1,0 +1,176 @@
+{% extends "base2.html" %}
+{% block title %}Profile Completion Reminders{% endblock %}
+{% block user %}{{ session.get('email', 'User') }}{% endblock %}
+{% block profiledrop %}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-8">
+  <!-- Page Header -->
+  <div class="rounded-2xl p-6 sm:p-8 mb-8 text-white shadow-lg bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div>
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-xs font-semibold uppercase tracking-wider mb-2 backdrop-blur-sm">
+        <span>📬</span> Notification Center
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Profile Completion Reminders</h1>
+      <p class="text-blue-100 text-sm sm:text-base mt-1">Review reminders sent to help you build a complete, impactful mentorship profile.</p>
+    </div>
+    {% if session.get('user_type') == '1' %}
+      <a href="{{ url_for('editmentorprofile') }}" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-blue-700 font-bold hover:bg-blue-50 shadow transition-all hover:scale-105 text-sm">
+        ✏️ Edit Profile
+      </a>
+    {% elif session.get('user_type') == '2' %}
+      <a href="{{ url_for('editmenteeprofile') }}" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-blue-700 font-bold hover:bg-blue-50 shadow transition-all hover:scale-105 text-sm">
+        ✏️ Edit Profile
+      </a>
+    {% endif %}
+  </div>
+
+  <!-- Profile Status Card -->
+  <div class="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 mb-8">
+    <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="w-full md:w-2/3">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Current Profile Status</span>
+          <span class="text-2xl font-black text-blue-600">{{ completion_percentage }}%</span>
+        </div>
+        <!-- Progress Bar -->
+        <div class="w-full bg-slate-100 rounded-full h-4 overflow-hidden p-0.5 border border-slate-200">
+          <div class="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-500 transition-all duration-500" style="width: {{ completion_percentage }}%;"></div>
+        </div>
+        <p class="text-xs text-slate-500 mt-2">
+          {% if completion_percentage >= 100 %}
+            🎉 Outstanding! Your profile is 100% complete and fully visible across the network.
+          {% else %}
+            Completing all profile fields significantly increases your mentorship matches and visibility.
+          {% endif %}
+        </p>
+      </div>
+
+      <div class="flex items-center gap-4 w-full md:w-auto justify-end border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6">
+        <div class="text-center px-4">
+          <span class="block text-2xl font-bold text-slate-800">{{ reminders|length }}</span>
+          <span class="text-xs text-slate-500 font-medium">Reminders Sent</span>
+        </div>
+        <div class="text-center px-4">
+          <span class="block text-2xl font-bold text-slate-800">{{ completion_info.completed_fields if completion_info is defined else '-' }}</span>
+          <span class="text-xs text-slate-500 font-medium">Fields Filled</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reminders List -->
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+      <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+        <span>📜</span> Reminder History
+      </h2>
+      <span class="text-xs font-semibold px-2.5 py-1 bg-slate-200 text-slate-700 rounded-full">
+        {{ reminders|length }} Total
+      </span>
+    </div>
+
+    {% if reminders %}
+      <div class="divide-y divide-slate-100">
+        {% for r in reminders %}
+          <div class="p-6 hover:bg-slate-50/80 transition-colors">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div class="flex-1">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide
+                    {% if r.email_style == 'friendly' %} bg-emerald-100 text-emerald-800
+                    {% elif r.email_style == 'professional' %} bg-blue-100 text-blue-800
+                    {% elif r.email_style == 'motivational' %} bg-purple-100 text-purple-800
+                    {% elif r.email_style == 'achievement' %} bg-amber-100 text-amber-800
+                    {% else %} bg-indigo-100 text-indigo-800 {% endif %}">
+                    {{ r.email_style|capitalize }}
+                  </span>
+                  <span class="text-xs text-slate-400 font-medium">
+                    {{ r.sent_at.strftime('%b %d, %Y at %I:%M %p') if r.sent_at else '' }}
+                  </span>
+                </div>
+                <h3 class="text-sm font-bold text-slate-800 mt-1">
+                  Profile Completion Reminder (Recorded {{ r.completion_percentage }}% complete)
+                </h3>
+                <p class="text-xs text-slate-500 mt-0.5">
+                  Fields completed at time of reminder: {{ r.completed_fields }} of {{ r.total_fields }}
+                </p>
+              </div>
+
+              <div class="flex items-center gap-3">
+                <button type="button" onclick="openPreviewModal({{ r.id }})" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-white hover:border-slate-400 shadow-sm transition-all">
+                  👁️ View Email
+                </button>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="text-center py-16 px-4">
+        <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center text-2xl">
+          ✉️
+        </div>
+        <h3 class="text-base font-bold text-slate-800">No Reminders Yet</h3>
+        <p class="text-sm text-slate-500 max-w-sm mx-auto mt-1">
+          You haven't received any profile completion reminders yet. Keep your profile up to date to get the best matches!
+        </p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Email Preview Modal -->
+<div id="emailPreviewModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+    <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+      <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+        <span>📧</span> Email Message Preview
+      </h3>
+      <button type="button" onclick="closePreviewModal()" class="text-slate-400 hover:text-slate-600 rounded-lg p-1 transition-colors">
+        ✕
+      </button>
+    </div>
+    <div id="modalEmailBody" class="p-6 overflow-y-auto flex-1 text-sm text-slate-700 leading-relaxed font-mono whitespace-pre-wrap bg-slate-50/50">
+      Loading email preview...
+    </div>
+    <div class="px-6 py-3 border-t border-slate-100 bg-slate-50 flex justify-end">
+      <button type="button" onclick="closePreviewModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-white text-xs font-semibold hover:bg-slate-900 transition-colors">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openPreviewModal(reminderId) {
+  const modal = document.getElementById('emailPreviewModal');
+  const body = document.getElementById('modalEmailBody');
+  body.textContent = 'Loading email preview...';
+  modal.classList.remove('hidden');
+
+  fetch(`/api/reminder/${reminderId}/content`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.email_body || data.content) {
+        body.innerHTML = data.email_body || data.content;
+      } else if (data.error) {
+        body.textContent = 'Error: ' + data.error;
+      } else {
+        body.textContent = JSON.stringify(data, null, 2);
+      }
+    })
+    .catch(err => {
+      body.textContent = 'Failed to load email preview: ' + err;
+    });
+}
+
+function closePreviewModal() {
+  document.getElementById('emailPreviewModal').classList.add('hidden');
+}
+
+document.getElementById('emailPreviewModal')?.addEventListener('click', function(e) {
+  if (e.target === this) closePreviewModal();
+});
+</script>
+{% endblock %}

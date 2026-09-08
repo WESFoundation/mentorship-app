@@ -1960,13 +1960,13 @@ def parent_consent_approval(token):
     
     if not profile:
         flash("Invalid or expired consent link.", "error")
-        return redirect(url_for("index"))
+        return redirect(url_for("home"))
     
     # Get mentee user details
     mentee = User.query.get(profile.user_id)
     if not mentee:
         flash("Mentee not found.", "error")
-        return redirect(url_for("index"))
+        return redirect(url_for("home"))
     
     # Check if already approved/rejected
     if profile.parent_consent_status in ["approved", "rejected"]:
@@ -4530,10 +4530,11 @@ def find_mentor():
     # Get current mentee's profile for suggestions
     current_user_id = None
     mentee_profile = None
+    current_user = None
     
-    if "email" in session and session.get("user_type") == "2":
+    if "email" in session:
         current_user = User.query.filter_by(email=session["email"]).first()
-        if current_user:
+        if current_user and session.get("user_type") == "2":
             current_user_id = current_user.id
             mentee_profile = MenteeProfile.query.filter_by(user_id=current_user_id).first()
 
@@ -4668,9 +4669,10 @@ def find_mentor():
     }
 
     # Dynamic render/redirect based on source
-    if source_page == "supervisor_find_mentor":
+    if source_page == "supervisor_find_mentor" or session.get("user_type") in ("0", "3"):
         return render_template(
         "supervisor/supervisor_find_mentor.html",
+        mentors=all_mentors,
         all_mentors=all_mentors,
         suggested_mentors=suggested_mentors,
         professions=options["professions"],
@@ -6605,10 +6607,56 @@ def collect_mentee_own_rows(user):
         })
     return rows
 
+def collect_all_system_work_rows():
+    """Collect all mentee work rows across the system for supervisors/admins."""
+    rows = []
+    master_tasks = MenteeTask.query.order_by(MenteeTask.assigned_date.desc()).all()
+    personal_tasks = PersonalTask.query.order_by(PersonalTask.created_date.desc()).all()
+
+    for t in master_tasks:
+        mentee_user = t.mentee
+        mentor_user = t.mentor
+        rows.append({
+            "mentee": mentee_user.name if mentee_user else "N/A",
+            "mentee_email": mentee_user.email if mentee_user else "",
+            "mentor": mentor_user.name if mentor_user else "N/A",
+            "task_type": "Mentorship Task",
+            "title": t.master_task.mentee_focus if t.master_task else "",
+            "description": t.master_task.purpose_of_call if t.master_task else "",
+            "month": t.month or (t.master_task.month if t.master_task else ""),
+            "meeting_number": t.meeting_number,
+            "assigned_date": t.assigned_date,
+            "due_date": t.due_date,
+            "completed_date": t.completed_date,
+            "status": compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id),
+            "progress": t.progress or 0,
+            "priority": "N/A"
+        })
+    for t in personal_tasks:
+        mentee_user = t.mentee
+        mentor_user = t.mentor
+        rows.append({
+            "mentee": mentee_user.name if mentee_user else "N/A",
+            "mentee_email": mentee_user.email if mentee_user else "",
+            "mentor": mentor_user.name if mentor_user else "N/A",
+            "task_type": "Personal Task",
+            "title": t.title,
+            "description": t.description or "",
+            "month": "",
+            "meeting_number": "N/A",
+            "assigned_date": t.created_date,
+            "due_date": t.due_date,
+            "completed_date": t.completed_date,
+            "status": compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id or None),
+            "progress": t.progress or 0,
+            "priority": t.priority or "medium"
+        })
+    return rows
+
 @app.route("/export_mentee_work", methods=["GET"])
 def export_mentee_work():
     """Export all tasks (master + personal) of mentees as an Excel file.
-    Usable by both the mentee themselves and their mentors."""
+    Usable by mentees, mentors, and supervisors/admins."""
     if "email" not in session:
         return redirect(url_for("signin"))
 
@@ -6617,15 +6665,17 @@ def export_mentee_work():
         return redirect(url_for("signin"))
 
     user_type = session.get("user_type")
-    if user_type not in ["1", "2"]:
-        return jsonify({"error": "Only mentees and mentors can export tasks."}), 403
-
     if user_type == "2":
         rows = collect_mentee_own_rows(user)
         file_label = "My_Work"
-    else:
+    elif user_type == "1":
         rows = collect_mentor_work_rows(user)
         file_label = "Mentee_Work_All"
+    elif user_type in ["0", "3"]:
+        rows = collect_all_system_work_rows()
+        file_label = "All_Mentees_Work"
+    else:
+        return jsonify({"error": "Unauthorized user type."}), 403
 
     from flask import send_file
     buffer, filename = build_mentee_work_book(rows, file_label)
@@ -9840,7 +9890,7 @@ def my_certificate():
     elif user_type == "3":
         back_url = url_for("institutiondashboard")
     else:
-        back_url = url_for("index")
+        back_url = url_for("home")
     
     return render_template(
         "certificate.html",
@@ -12307,6 +12357,8 @@ def user_reminder_logs():
         return redirect(url_for("signin"))
     
     user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return redirect(url_for("signin"))
     user_type = session.get("user_type")
     
     reminders = ProfileCompletionReminder.query.filter_by(
@@ -12314,11 +12366,20 @@ def user_reminder_logs():
         user_type=user_type
     ).order_by(ProfileCompletionReminder.sent_at.desc()).all()
     
+    if user_type == "1":
+        completion_info = calculate_mentor_profile_completion(user.id)
+    elif user_type == "2":
+        completion_info = calculate_mentee_profile_completion(user.id)
+    else:
+        completion_info = {'percentage': 100, 'missing_fields': [], 'completed_fields': 0, 'total_fields': 0}
+
     return render_template(
         "user/reminder_logs.html",
         show_sidebar=True,
         reminders=reminders,
-        completion_percentage=calculate_mentor_profile_completion(user.id)['percentage'] if user_type == "1" else calculate_mentee_profile_completion(user.id)['percentage']
+        completion_percentage=completion_info.get('percentage', 0),
+        completion_info=completion_info,
+        user=user
     )
 
 
