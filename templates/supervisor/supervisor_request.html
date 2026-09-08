@@ -131,8 +131,14 @@
   </div>
 
   <!-- Status Filter -->
-  <div class="section-card p-4 mb-6">
-    <div class="flex flex-wrap items-center gap-3">
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+    <div class="flex flex-wrap gap-3 items-center">
+      <select id="statusFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterRequests()">
+        <option value="" {% if status_filter == 'all' %}selected{% endif %}>All Status</option>
+        <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+        <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Approved</option>
+        <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
+      </select>
       <div class="relative flex-1 min-w-[200px]">
         <input type="text" id="requestSearch" placeholder="Search by mentee, mentor, purpose..." 
                class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm" onkeyup="filterRequests()">

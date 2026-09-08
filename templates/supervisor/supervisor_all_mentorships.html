@@ -52,35 +52,37 @@
   </div>
 
   <!-- Search + Filter -->
-  <div class="bg-white rounded-xl shadow-sm p-4 mb-4 flex flex-col sm:flex-row gap-3">
-    <div class="relative flex-1">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-      </svg>
-      <input id="mentorshipSearch" type="text" placeholder="Search by mentor, mentee, profession or purpose…"
-        class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-4">
+    <div class="flex flex-wrap gap-3 items-center">
+      <select id="statusFilter"
+        class="px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+        <option value="">All Statuses</option>
+        <option value="pending">Pending Approval</option>
+        <option value="approved">Active</option>
+        <option value="rejected">Rejected</option>
+      </select>
+      <div class="relative flex-1 min-w-[200px]">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input id="mentorshipSearch" type="text" placeholder="Search by mentor, mentee, profession or purpose..."
+          class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+      </div>
+      <select id="durationFilter"
+        class="px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+        <option value="">All Durations</option>
+        <option value="1">1 Month</option>
+        <option value="3">3 Months</option>
+        <option value="6">6 Months</option>
+        <option value="12">12 Months</option>
+      </select>
+      <select id="typeFilter"
+        class="px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+        <option value="">All Types</option>
+        <option value="anchor">Anchor Mentor</option>
+        <option value="guidance">Guidance Mentor</option>
+      </select>
     </div>
-    <select id="statusFilter"
-      class="w-full sm:w-44 px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
-      <option value="">All Statuses</option>
-      <option value="pending">Pending Approval</option>
-      <option value="approved">Active</option>
-      <option value="rejected">Rejected</option>
-    </select>
-    <select id="durationFilter"
-      class="w-full sm:w-40 px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
-      <option value="">All Durations</option>
-      <option value="1">1 Month</option>
-      <option value="3">3 Months</option>
-      <option value="6">6 Months</option>
-      <option value="12">12 Months</option>
-    </select>
-    <select id="typeFilter"
-      class="w-full sm:w-44 px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
-      <option value="">All Types</option>
-      <option value="anchor">Anchor Mentor</option>
-      <option value="guidance">Guidance Mentor</option>
-    </select>
   </div>
   <div id="mentorshipResultsCount" class="text-sm text-gray-500 mb-2 px-1"></div>
 
@@ -95,6 +97,7 @@
           <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tasks</th>
           <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meetings</th>
           <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor Rating</th>
           <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
         </tr>
       </thead>
@@ -165,6 +168,24 @@
             </span>
             {% endif %}
           </td>
+          <td class="px-6 py-4">
+            {% if mentorship.rating and mentorship.rating.final_score > 0 %}
+            <div class="flex items-center gap-2">
+              <div class="flex text-yellow-400">
+                {% for i in range(5) %}
+                  {% if i < mentorship.rating.star_rating|int %}
+                    <span>&#9733;</span>
+                  {% else %}
+                    <span class="text-gray-300">&#9733;</span>
+                  {% endif %}
+                {% endfor %}
+              </div>
+              <span class="text-sm font-medium text-gray-700">{{ mentorship.rating.final_score }}/100</span>
+            </div>
+            {% else %}
+            <span class="text-sm text-gray-400">No ratings yet</span>
+            {% endif %}
+          </td>
           <td class="px-6 py-4 text-right">
             <div class="flex flex-wrap justify-end gap-2">
               <a href="{{ url_for('supervisor_meeting_details') }}?mentor_id={{ mentorship.mentor.id if mentorship.mentor else '' }}&mentee_id={{ mentorship.mentee.id if mentorship.mentee else '' }}"
@@ -175,6 +196,10 @@
                  class="px-4 py-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-sm font-medium transition-colors">
                 View Tasks
               </a>
+              <button onclick="openSupervisorReviewModal({{ mentorship.mentor.id if mentorship.mentor else 0 }}, '{{ mentorship.mentor.name if mentorship.mentor else ''|replace("'", "\\'") }}')"
+                      class="px-4 py-2 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg text-sm font-medium transition-colors">
+                Rate Mentor
+              </button>
               <button onclick="showMentorshipDetails({{ loop.index0 }})"
                       class="px-4 py-2 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors">
                 View Details
@@ -505,5 +530,124 @@
     </div>
   </div>
 </div>
+
+<!-- Supervisor Mentor Review Modal -->
+<div id="supervisorReviewModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div class="p-6 border-b border-gray-200">
+      <div class="flex justify-between items-center">
+        <h3 class="text-xl font-bold text-gray-800">Review Mentor</h3>
+        <button onclick="closeSupervisorReviewModal()" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="p-6 space-y-5">
+      <p class="text-gray-600">Rate the overall performance of <strong id="sup-review-mentor-name"></strong> as a mentor.</p>
+
+      <!-- Star Rating -->
+      <div class="flex justify-center gap-2">
+        <button onclick="setSupReviewRating(1)" class="sup-review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+        <button onclick="setSupReviewRating(2)" class="sup-review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+        <button onclick="setSupReviewRating(3)" class="sup-review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+        <button onclick="setSupReviewRating(4)" class="sup-review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+        <button onclick="setSupReviewRating(5)" class="sup-review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Review</label>
+        <textarea id="sup-review-text" rows="4" placeholder="Share your review of this mentor's performance..." class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"></textarea>
+      </div>
+
+      <div id="sup-review-error" class="hidden text-sm text-red-700 bg-red-50 p-3 rounded-lg border border-red-200"></div>
+      <div id="sup-review-success" class="hidden text-sm text-green-700 bg-green-50 p-3 rounded-lg border border-green-200"></div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+        <button onclick="closeSupervisorReviewModal()" class="px-5 py-2.5 text-gray-600 hover:text-gray-800 font-medium">Cancel</button>
+        <button onclick="submitSupervisorReview()" class="px-6 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium transition">Submit Review</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentSupReviewMentorId = null;
+let selectedSupReviewRating = 0;
+
+function openSupervisorReviewModal(mentorId, mentorName) {
+  currentSupReviewMentorId = mentorId;
+  selectedSupReviewRating = 0;
+  document.getElementById('sup-review-mentor-name').textContent = mentorName;
+  document.getElementById('sup-review-text').value = '';
+  document.getElementById('sup-review-error').classList.add('hidden');
+  document.getElementById('sup-review-success').classList.add('hidden');
+  updateSupReviewStarDisplay(0);
+  fetch('/api/get_supervisor_mentor_review/' + mentorId)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success && data.review) {
+        selectedSupReviewRating = data.review.rating;
+        updateSupReviewStarDisplay(selectedSupReviewRating);
+        document.getElementById('sup-review-text').value = data.review.review || '';
+      }
+    }).catch(function() {});
+  document.getElementById('supervisorReviewModal').classList.remove('hidden');
+}
+
+function closeSupervisorReviewModal() {
+  document.getElementById('supervisorReviewModal').classList.add('hidden');
+  currentSupReviewMentorId = null;
+  selectedSupReviewRating = 0;
+}
+
+function setSupReviewRating(rating) {
+  selectedSupReviewRating = rating;
+  updateSupReviewStarDisplay(rating);
+}
+
+function updateSupReviewStarDisplay(rating) {
+  var stars = document.querySelectorAll('.sup-review-star');
+  stars.forEach(function(star, idx) {
+    if (idx < rating) {
+      star.classList.add('text-yellow-400');
+      star.classList.remove('text-gray-300');
+    } else {
+      star.classList.remove('text-yellow-400');
+      star.classList.add('text-gray-300');
+    }
+  });
+}
+
+function submitSupervisorReview() {
+  if (!currentSupReviewMentorId || selectedSupReviewRating < 1) {
+    document.getElementById('sup-review-error').textContent = 'Please select a star rating (1-5).';
+    document.getElementById('sup-review-error').classList.remove('hidden');
+    return;
+  }
+  fetch('/api/submit_supervisor_mentor_review', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      mentor_id: currentSupReviewMentorId,
+      rating: selectedSupReviewRating,
+      review: document.getElementById('sup-review-text').value
+    })
+  }).then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        document.getElementById('sup-review-success').textContent = 'Review submitted successfully!';
+        document.getElementById('sup-review-success').classList.remove('hidden');
+        document.getElementById('sup-review-error').classList.add('hidden');
+        setTimeout(function() { closeSupervisorReviewModal(); }, 1500);
+      } else {
+        document.getElementById('sup-review-error').textContent = data.message || 'Failed to submit review.';
+        document.getElementById('sup-review-error').classList.remove('hidden');
+      }
+    }).catch(function() {
+      document.getElementById('sup-review-error').textContent = 'Network error. Please try again.';
+      document.getElementById('sup-review-error').classList.remove('hidden');
+    });
+}
+</script>
 
 {% endblock %}

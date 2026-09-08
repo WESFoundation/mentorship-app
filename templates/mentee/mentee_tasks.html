@@ -139,37 +139,23 @@
 
     <!-- Filters and Search -->
     <section class="mb-8">
-        <div
-            class="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-            <div class="flex flex-wrap gap-2 w-full md:w-auto">
-                <button
-                    class="filter-btn active px-4 py-2 rounded-lg text-sm font-medium transition-all bg-blue-600 text-white shadow-md shadow-blue-500/20"
-                    data-filter="all">All Tasks</button>
-                <button
-                    class="filter-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all"
-                    data-filter="not-started">Not Started</button>
-                <button
-                    class="filter-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all"
-                    data-filter="committed">Committed</button>
-                <button
-                    class="filter-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all"
-                    data-filter="in-progress">In Progress</button>
-                <button
-                    class="filter-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all"
-                    data-filter="done">Done</button>
-                <button
-                    class="filter-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all"
-                    data-filter="overdue">Overdue</button>
-            </div>
-
-            <div class="w-full md:w-auto">
-                <div class="relative group">
+        <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+            <div class="flex flex-wrap gap-3 items-center">
+                <select id="status-filter"
+                    class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    onchange="filterTasks(this.value)">
+                    <option value="all">All Status</option>
+                    <option value="not-started">Not Started</option>
+                    <option value="committed">Committed</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="done">Done</option>
+                    <option value="overdue">Overdue</option>
+                </select>
+                <div class="relative flex-1 min-w-[200px]">
                     <input type="text" id="task-search" placeholder="Search tasks..."
-                        class="w-full md:w-64 pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all group-hover:bg-white text-sm">
-                    <svg class="w-5 h-5 absolute left-3 top-2.5 text-slate-400 group-hover:text-blue-500 transition-colors"
-                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm">
+                    <svg class="w-5 h-5 absolute left-3 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
                 </div>
             </div>
@@ -874,17 +860,6 @@
             if (shouldShow) visibleCount++;
         });
 
-        // Update filter buttons
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.classList.remove('active', 'bg-blue-600', 'text-white', 'shadow-md', 'shadow-blue-500/20');
-            btn.classList.add('text-slate-600', 'hover:bg-slate-50', 'border', 'border-transparent', 'hover:border-slate-200');
-            
-            if (btn.dataset.filter === filter) {
-                btn.classList.remove('text-slate-600', 'hover:bg-slate-50', 'border', 'border-transparent', 'hover:border-slate-200');
-                btn.classList.add('active', 'bg-blue-600', 'text-white', 'shadow-md', 'shadow-blue-500/20');
-            }
-        });
-
         // Show/hide empty state
         if (emptyState) {
             emptyState.classList.toggle('hidden', visibleCount > 0);
@@ -1512,11 +1487,6 @@
 
     // Initialize event listeners
     document.addEventListener('DOMContentLoaded', function () {
-        // Filter buttons
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => filterTasks(btn.dataset.filter));
-        });
-
         // Create task form
         const createTaskForm = document.getElementById('create-task-form');
         if (createTaskForm) {

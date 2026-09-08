@@ -482,22 +482,27 @@
     
     <!-- Filters and Search -->
     <section class="mb-6">
-        <div class="flex flex-wrap gap-4 items-center justify-between">
-            <div class="flex flex-wrap gap-2">
-                <button class="filter-btn active" data-filter="all">All Tasks</button>
-                <button class="filter-btn" data-filter="personal">Personal Tasks</button>
-                <button class="filter-btn" data-filter="master">Mentorship Tasks</button>
-                <button class="filter-btn" data-filter="not-started">Not Started</button>
-                <button class="filter-btn" data-filter="committed">Committed</button>
-                <button class="filter-btn" data-filter="in-progress">In Progress</button>
-                <button class="filter-btn" data-filter="done">Completed</button>
-                <button class="filter-btn" data-filter="overdue">Overdue</button>
-                <button class="filter-btn" data-filter="critical">Critical</button>
-            </div>
-            
-            <div class="flex gap-3 items-center">
-                <div class="relative">
-                    <input type="text" id="task-search" placeholder="Search tasks, mentors, mentees..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <div class="flex flex-wrap gap-3 items-center">
+                <select id="task-type-filter"
+                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+                    <option value="all">All Tasks</option>
+                    <option value="personal">Personal Tasks</option>
+                    <option value="master">Mentorship Tasks</option>
+                </select>
+                <select id="status-filter"
+                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+                    <option value="all">All Status</option>
+                    <option value="not-started">Not Started</option>
+                    <option value="committed">Committed</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="done">Completed</option>
+                    <option value="overdue">Overdue</option>
+                    <option value="critical">Critical</option>
+                </select>
+                <div class="relative flex-1 min-w-[200px]">
+                    <input type="text" id="task-search" placeholder="Search tasks, mentors, mentees..."
+                        class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                     <svg class="w-4 h-4 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
@@ -804,6 +809,7 @@ let allTasks = [];
 let allMentors = [];
 let allMentees = [];
 let currentFilter = 'all';
+let currentTaskTypeFilter = 'all';
 let currentSearch = '';
 let currentMentorFilter = 'all';
 let currentMenteeFilter = 'all';
@@ -999,11 +1005,12 @@ function renderTasks() {
     
     // Filter tasks
     let filteredTasks = allTasks.filter(task => {
+        const matchesTaskType = currentTaskTypeFilter === 'all' ||
+                               (currentTaskTypeFilter === 'personal' && task.type === 'personal') ||
+                               (currentTaskTypeFilter === 'master' && task.type === 'master');
         const matchesFilter = currentFilter === 'all' || 
-                             (currentFilter === 'personal' ? task.type === 'personal' :
-                             (currentFilter === 'master' ? task.type === 'master' :
                              (currentFilter === 'overdue' ? isTaskOverdue(task) :
-                             (currentFilter === 'critical' ? task.isCritical : task.status === currentFilter))));
+                             (currentFilter === 'critical' ? task.isCritical : task.status === currentFilter));
         const matchesSearch = currentSearch === '' || 
                             task.title.toLowerCase().includes(currentSearch.toLowerCase()) ||
                             (task.description && task.description.toLowerCase().includes(currentSearch.toLowerCase())) ||
@@ -1027,7 +1034,7 @@ function renderTasks() {
             if (taskDue > dueTo) matchesDate = false;
         }
         
-        return matchesFilter && matchesSearch && matchesMentor && matchesMentee && matchesPriority && matchesCategory && matchesDate;
+        return matchesTaskType && matchesFilter && matchesSearch && matchesMentor && matchesMentee && matchesPriority && matchesCategory && matchesDate;
     });
 
     // Update results count
@@ -1242,9 +1249,11 @@ function formatDate(dateString) {
 // Filter functions
 function filterTasks(filter) {
     currentFilter = filter;
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.filter === filter);
-    });
+    renderTasks();
+}
+
+function filterByTaskType(type) {
+    currentTaskTypeFilter = type;
     renderTasks();
 }
 
@@ -1270,6 +1279,7 @@ function toggleAdvancedFilters() {
 
 function clearAllFilters() {
     currentFilter = 'all';
+    currentTaskTypeFilter = 'all';
     currentSearch = '';
     currentMentorFilter = 'all';
     currentMenteeFilter = 'all';
@@ -1279,16 +1289,14 @@ function clearAllFilters() {
     currentDueTo = '';
 
     document.getElementById('task-search').value = '';
+    document.getElementById('status-filter').value = 'all';
+    document.getElementById('task-type-filter').value = 'all';
     document.getElementById('mentor-filter').value = 'all';
     document.getElementById('mentee-filter').value = 'all';
     document.getElementById('priority-filter').value = 'all';
     document.getElementById('category-filter').value = 'all';
     document.getElementById('due-from').value = '';
     document.getElementById('due-to').value = '';
-
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.filter === 'all');
-    });
 
     renderTasks();
 }
@@ -1298,9 +1306,13 @@ function updateActiveFiltersDisplay() {
     if (!container) return;
     const tags = [];
 
+    if (currentTaskTypeFilter !== 'all') {
+        const typeLabels = { 'personal': 'Personal Tasks', 'master': 'Mentorship Tasks' };
+        tags.push({ label: `Type: ${typeLabels[currentTaskTypeFilter] || currentTaskTypeFilter}`, clear: () => { currentTaskTypeFilter = 'all'; document.getElementById('task-type-filter').value = 'all'; renderTasks(); }});
+    }
     if (currentFilter !== 'all') {
-        const filterLabels = { 'personal': 'Personal Tasks', 'master': 'Mentorship Tasks', 'not-started': 'Not Started', 'committed': 'Committed', 'in-progress': 'In Progress', 'done': 'Completed', 'overdue': 'Overdue', 'critical': 'Critical' };
-        tags.push({ label: `Status: ${filterLabels[currentFilter] || currentFilter}`, clear: () => { currentFilter = 'all'; document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === 'all')); renderTasks(); }});
+        const filterLabels = { 'not-started': 'Not Started', 'committed': 'Committed', 'in-progress': 'In Progress', 'done': 'Completed', 'overdue': 'Overdue', 'critical': 'Critical' };
+        tags.push({ label: `Status: ${filterLabels[currentFilter] || currentFilter}`, clear: () => { currentFilter = 'all'; document.getElementById('status-filter').value = 'all'; renderTasks(); }});
     }
     if (currentSearch) {
         tags.push({ label: `Search: "${currentSearch}"`, clear: () => { currentSearch = ''; document.getElementById('task-search').value = ''; renderTasks(); }});
@@ -1741,9 +1753,14 @@ function exportTasks() {
 
 // Setup event listeners
 function setupEventListeners() {
-    // Filter buttons
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => filterTasks(btn.dataset.filter));
+    // Status filter dropdown
+    document.getElementById('status-filter').addEventListener('change', (e) => {
+        filterTasks(e.target.value);
+    });
+
+    // Task type filter dropdown
+    document.getElementById('task-type-filter').addEventListener('change', (e) => {
+        filterByTaskType(e.target.value);
     });
     
     // Search input

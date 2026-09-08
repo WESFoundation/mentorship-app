@@ -25,6 +25,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import sys
+import requests as http_requests
 
 # Force UTF-8 output so emoji-heavy logs do not crash on Windows consoles (cp1252).
 if hasattr(sys.stdout, "reconfigure"):
@@ -4633,6 +4634,8 @@ def submit_mentor_sourcing_request():
     preferred_experience = (request.form.get("preferred_experience") or "").strip()
     linkedin_profile = (request.form.get("linkedin_profile") or "").strip()
     message = (request.form.get("message") or "").strip()
+    countries = (request.form.get("countries") or "").strip()
+    languages = (request.form.get("languages") or "").strip()
 
     if not target_role:
         return jsonify({"success": False, "error": "Please enter the target role or title."}), 400
@@ -4640,6 +4643,15 @@ def submit_mentor_sourcing_request():
         return jsonify({"success": False, "error": "Please enter the target industry or domain."}), 400
     if not message:
         return jsonify({"success": False, "error": "Please provide details on what you are looking for."}), 400
+
+    # Prepend country and language metadata to message if provided
+    meta_parts = []
+    if countries:
+        meta_parts.append("[Preferred Countries]: " + countries)
+    if languages:
+        meta_parts.append("[Preferred Languages]: " + languages)
+    if meta_parts:
+        message = "\n".join(meta_parts) + "\n\n" + message
 
     try:
         req = MentorSourcingRequest(
@@ -4852,14 +4864,24 @@ def my_mentors():
 
     my_mentors = []
     for req in accepted_requests:
-        # req.mentor is the Mentor's User object.
-        # req.mentor.mentor_profile is the MentorProfile object attached to that User.
         if req.mentor:
+            mentor_data = {
+                "mentorship_id": req.id,
+                "completed": False,
+                "completion_pct": 0
+            }
+            done, pct = _check_mentorship_completed(req.mentee_id, req.mentor_id)
+            mentor_data["completed"] = done
+            mentor_data["completion_pct"] = pct
+            mentor_data["rating"] = compute_mentorship_composite_rating(req.mentee_id, req.mentor_id)
             if req.mentor.mentor_profile:
-                my_mentors.append(req.mentor.mentor_profile)
+                mp = req.mentor.mentor_profile
+                mentor_data["profile"] = mp
+                mentor_data["user"] = req.mentor
             else:
-                # Mentor has no completed profile yet - still show them as connected
-                my_mentors.append(MentorLite(req.mentor))
+                mentor_data["profile"] = MentorLite(req.mentor)
+                mentor_data["user"] = req.mentor
+            my_mentors.append(mentor_data)
 
     return render_template(
         "mentee/mentee_my_mentors.html",
@@ -4892,11 +4914,15 @@ def my_mentees():
     for req in accepted_requests:
         if req.mentee:
             mentee_profile = req.mentee.mentee_profile
+            done, pct = _check_mentorship_completed(req.mentee_id, req.mentor_id)
             if mentee_profile:
-                # Use the check_profile_complete function instead of accessing non-existent attribute
                 mentee_profile_complete = check_profile_complete(req.mentee.id, "2")
                 
                 my_mentees_data.append({
+                    "mentorship_id": req.id,
+                    "completed": done,
+                    "completion_pct": pct,
+                    "rating": compute_mentorship_composite_rating(req.mentee_id, req.mentor_id),
                     "user": {
                         "name": req.mentee.name,
                         "email": req.mentee.email
@@ -5276,9 +5302,344 @@ def update_mentor_sourcing_request_status(req_id):
     if new_status not in ("pending", "sourcing", "resolved"):
         return jsonify({"success": False, "error": "Invalid status."}), 400
 
+    old_status = req.status
     req.status = new_status
     db.session.commit()
+
+    # Notify mentee on status changes (except when resolving, which has its own endpoint)
+    if new_status != "resolved" and req.mentee:
+        status_labels = {"pending": "Pending", "sourcing": "In Progress", "resolved": "Resolved"}
+        label = status_labels.get(new_status, new_status.capitalize())
+        msg_parts = []
+        if '[Preferred Countries]:' in (req.message or ''):
+            for line in req.message.split('\n'):
+                if line.startswith('[Preferred Countries]:'):
+                    msg_parts.append(line.replace('[Preferred Countries]:', '').strip())
+        create_notification(
+            req.mentee.id,
+            f"Your mentor sourcing request for '{req.target_role}' has been updated to '{label}'.",
+            url_for("mentee_sourcing_requests")
+        )
+
     return jsonify({"success": True, "message": f"Status updated to {new_status.capitalize()}."})
+
+
+def _parse_resolved_mentors(message_text):
+    """Parse resolved mentors from message metadata. Returns list of dicts."""
+    mentors = []
+    if not message_text:
+        return mentors
+    for line in message_text.split('\n'):
+        if line.startswith('[Resolved Mentors]:'):
+            mentors_str = line.replace('[Resolved Mentors]:', '').strip()
+            if mentors_str:
+                for part in mentors_str.split('||'):
+                    part = part.strip()
+                    if '(ID:' in part:
+                        name = part.split('(ID:')[0].strip()
+                        try:
+                            mid = int(part.split('(ID:')[1].rstrip(')').strip())
+                        except (ValueError, IndexError):
+                            mid = None
+                        mentors.append({"name": name, "id": mid})
+    return mentors
+
+
+def _build_resolved_mentors_line(mentors_list):
+    """Build the [Resolved Mentors] metadata line from a list of dicts."""
+    if not mentors_list:
+        return ""
+    parts = []
+    for m in mentors_list:
+        if m.get("id"):
+            parts.append(f"{m['name']} (ID:{m['id']})")
+        else:
+            parts.append(m.get("name", "Unknown"))
+    return "[Resolved Mentors]: " + " || ".join(parts)
+
+
+@app.route("/api/mentor_sourcing_request/<int:req_id>/resolve", methods=["POST"])
+def resolve_mentor_sourcing_request(req_id):
+    """Resolve a sourcing request with attached mentor profiles and notify mentee."""
+    if "email" not in session or session.get("user_type") != "0":
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    req = MentorSourcingRequest.query.get_or_404(req_id)
+    mentee = req.mentee
+
+    # Get mentor IDs from form (comma-separated)
+    mentor_ids_str = (request.form.get("mentor_ids") or "").strip()
+    mentor_names_str = (request.form.get("mentor_names") or "").strip()
+
+    mentors_list = []
+    if mentor_ids_str:
+        ids = [int(x.strip()) for x in mentor_ids_str.split(",") if x.strip().isdigit()]
+        names = [n.strip() for n in mentor_names_str.split(",")] if mentor_names_str else []
+        for i, mid in enumerate(ids):
+            # Verify mentor exists
+            mentor_user = User.query.get(mid)
+            if mentor_user and mentor_user.user_type == "1":
+                name = names[i] if i < len(names) else mentor_user.name
+                mentors_list.append({"name": name, "id": mid})
+
+    # Build message with resolved mentors metadata
+    message = req.message or ""
+    # Remove any existing resolved mentors line
+    lines = [l for l in message.split('\n') if not l.startswith('[Resolved Mentors]:')]
+    resolved_line = _build_resolved_mentors_line(mentors_list)
+    if resolved_line:
+        lines.append(resolved_line)
+    # Add resolution date
+    lines.append(f"[Resolution Date]: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+    req.message = '\n'.join(lines)
+
+    req.status = "resolved"
+    db.session.commit()
+
+    # Notify mentee
+    if mentee:
+        mentor_names = [m["name"] for m in mentors_list]
+        if mentor_names:
+            mentor_list_str = ", ".join(mentor_names[:-1]) + " and " + mentor_names[-1] if len(mentor_names) > 1 else mentor_names[0]
+            notif_msg = f"Your mentor sourcing request for '{req.target_role}' has been resolved! Mentors found: {mentor_list_str}."
+        else:
+            notif_msg = f"Your mentor sourcing request for '{req.target_role}' has been resolved."
+        create_notification(
+            mentee.id,
+            notif_msg,
+            url_for("mentee_sourcing_requests")
+        )
+
+        # Send email notification
+        try:
+            subject = "Your Mentor Sourcing Request Has Been Resolved"
+            mentor_rows = ""
+            for m in mentors_list:
+                mentor_rows += f"""
+                <tr>
+                    <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#111827;">{m['name']}</td>
+                    <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;">{m.get('id', 'N/A')}</td>
+                </tr>"""
+            html_content = f"""
+            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+                <div style="background:linear-gradient(135deg,#2563eb,#7c3aed);padding:24px;border-radius:12px 12px 0 0;text-align:center;">
+                    <h1 style="color:white;margin:0;font-size:22px;">Mentor Connect</h1>
+                </div>
+                <div style="background:#f9fafb;padding:24px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 12px 12px;">
+                    <h2 style="color:#111827;margin-top:0;">Hello {mentee.name},</h2>
+                    <p style="color:#374151;line-height:1.6;">Great news! Your mentor sourcing request has been resolved. Here are the mentors our team has sourced for you:</p>
+                    <table style="width:100%;border-collapse:collapse;margin:16px 0;background:white;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
+                        <thead><tr style="background:#f3f4f6;"><th style="padding:8px 12px;text-align:left;font-size:12px;color:#6b7280;text-transform:uppercase;">Mentor Name</th><th style="padding:8px 12px;text-align:left;font-size:12px;color:#6b7280;text-transform:uppercase;">Profile ID</th></tr></thead>
+                        <tbody>{mentor_rows}</tbody>
+                    </table>
+                    <p style="color:#374151;line-height:1.6;">You can now browse the Find Mentors page to view these mentors and send mentorship requests.</p>
+                    <div style="text-align:center;margin-top:24px;">
+                        <a href="{url_for('find_mentor', _external=True)}" style="display:inline-block;padding:12px 28px;background:#2563eb;color:white;border-radius:8px;text-decoration:none;font-weight:600;">Browse Mentors</a>
+                    </div>
+                </div>
+            </div>"""
+            send_email_reminder(mentee.email, subject, html_content)
+        except Exception as e:
+            print(f"Error sending resolve email: {e}")
+
+    return jsonify({
+        "success": True,
+        "message": f"Request resolved with {len(mentors_list)} mentor(s). Mentee has been notified."
+    })
+
+
+@app.route("/api/mentor_sourcing_request/<int:req_id>/add_mentors", methods=["POST"])
+def add_mentors_to_sourcing_request(req_id):
+    """Add more mentors to an already resolved sourcing request."""
+    if "email" not in session or session.get("user_type") != "0":
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    req = MentorSourcingRequest.query.get_or_404(req_id)
+    if req.status != "resolved":
+        return jsonify({"success": False, "error": "Request must be resolved before adding mentors."}), 400
+
+    mentor_ids_str = (request.form.get("mentor_ids") or "").strip()
+    mentor_names_str = (request.form.get("mentor_names") or "").strip()
+
+    # Parse existing resolved mentors
+    existing = _parse_resolved_mentors(req.message)
+    existing_ids = {m["id"] for m in existing if m.get("id")}
+
+    # Add new mentors
+    added = 0
+    if mentor_ids_str:
+        ids = [int(x.strip()) for x in mentor_ids_str.split(",") if x.strip().isdigit()]
+        names = [n.strip() for n in mentor_names_str.split(",")] if mentor_names_str else []
+        for i, mid in enumerate(ids):
+            if mid not in existing_ids:
+                mentor_user = User.query.get(mid)
+                if mentor_user and mentor_user.user_type == "1":
+                    name = names[i] if i < len(names) else mentor_user.name
+                    existing.append({"name": name, "id": mid})
+                    added += 1
+
+    # Rebuild message
+    message = req.message or ""
+    lines = [l for l in message.split('\n') if not l.startswith('[Resolved Mentors]:']
+    resolved_line = _build_resolved_mentors_line(existing)
+    if resolved_line:
+        lines.append(resolved_line)
+    req.message = '\n'.join(lines)
+    db.session.commit()
+
+    # Notify mentee about new mentors
+    if added > 0 and req.mentee:
+        new_names = [m["name"] for m in existing if m.get("id") not in existing_ids or m.get("id") in {int(x.strip()) for x in mentor_ids_str.split(",") if x.strip().isdigit()}]
+        create_notification(
+            req.mentee.id,
+            f"Additional mentors have been added to your resolved sourcing request for '{req.target_role}'.",
+            url_for("mentee_sourcing_requests")
+        )
+
+    return jsonify({
+        "success": True,
+        "message": f"Added {added} new mentor(s). Total: {len(existing)}."
+    })
+
+
+@app.route("/api/mentor_sourcing_request/<int:req_id>/resolved_mentors", methods=["GET"])
+def get_resolved_mentors(req_id):
+    """Get the list of resolved mentors for a sourcing request."""
+    if "email" not in session or session.get("user_type") != "0":
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    req = MentorSourcingRequest.query.get_or_404(req_id)
+    mentors = _parse_resolved_mentors(req.message)
+
+    # Enrich with profile data
+    enriched = []
+    for m in mentors:
+        if m.get("id"):
+            mentor_user = User.query.get(m["id"])
+            if mentor_user:
+                mp = mentor_user.mentor_profile
+                enriched.append({
+                    "id": m["id"],
+                    "name": mentor_user.name,
+                    "profession": mp.profession if mp else None,
+                    "organisation": mp.organisation if mp else None,
+                    "location": mp.location if mp else None,
+                    "skills": mp.skills if mp else None,
+                    "profile_picture": mp.profile_picture if mp else None,
+                })
+            else:
+                enriched.append({"id": m["id"], "name": m["name"]})
+        else:
+            enriched.append({"name": m.get("name", "Unknown")})
+
+    return jsonify({"success": True, "mentors": enriched})
+
+
+@app.route("/api/search_mentors", methods=["GET"])
+def api_search_mentors():
+    """Search mentors by name, profession, or skills for sourcing request modal."""
+    if "email" not in session:
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 2:
+        return jsonify({"success": True, "mentors": []})
+
+    like_q = f"%{q}%"
+    mentor_users = User.query.filter_by(user_type="1").options(
+        joinedload(User.mentor_profile)
+    ).filter(
+        db.or_(
+            User.name.ilike(like_q),
+            User.email.ilike(like_q)
+        )
+    ).limit(50).all()
+
+    # Also search by profession/skills in MentorProfile
+    profile_matches = MentorProfile.query.filter(
+        db.or_(
+            MentorProfile.profession.ilike(like_q),
+            MentorProfile.skills.ilike(like_q),
+            MentorProfile.role.ilike(like_q),
+            MentorProfile.organisation.ilike(like_q)
+        )
+    ).all()
+
+    seen_ids = set()
+    results = []
+
+    for user in mentor_users:
+        if user.id not in seen_ids:
+            seen_ids.add(user.id)
+            mp = user.mentor_profile
+            results.append({
+                "id": user.id,
+                "name": user.name,
+                "profession": mp.profession if mp else None,
+                "organisation": mp.organisation if mp else None,
+                "location": mp.location if mp else None,
+                "skills": mp.skills if mp else None,
+            })
+
+    for mp in profile_matches:
+        if mp.user_id not in seen_ids:
+            seen_ids.add(mp.user_id)
+            results.append({
+                "id": mp.user_id,
+                "name": mp.user.name if mp.user else "Unknown",
+                "profession": mp.profession,
+                "organisation": mp.organisation,
+                "location": mp.location,
+                "skills": mp.skills,
+            })
+
+    return jsonify({"success": True, "mentors": results[:30]})
+
+
+@app.route("/mentee/sourcing_requests")
+def mentee_sourcing_requests():
+    """Mentee view of their own sourcing requests and resolved mentors."""
+    if "email" not in session or session.get("user_type") != "2":
+        return redirect(url_for("signin"))
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return redirect(url_for("signin"))
+
+    requests_list = MentorSourcingRequest.query.filter_by(mentee_id=user.id).order_by(
+        MentorSourcingRequest.created_at.desc()
+    ).all()
+
+    # Enrich each resolved request with mentor data
+    enriched_requests = []
+    for req in requests_list:
+        mentors = _parse_resolved_mentors(req.message)
+        enriched_mentors = []
+        for m in mentors:
+            if m.get("id"):
+                mentor_user = User.query.get(m["id"])
+                if mentor_user:
+                    mp = mentor_user.mentor_profile
+                    enriched_mentors.append({
+                        "id": m["id"],
+                        "name": mentor_user.name,
+                        "profession": mp.profession if mp else None,
+                        "organisation": mp.organisation if mp else None,
+                        "location": mp.location if mp else None,
+                        "skills": mp.skills if mp else None,
+                        "profile_picture": mp.profile_picture if mp else None,
+                    })
+        enriched_requests.append({
+            "request": req,
+            "resolved_mentors": enriched_mentors,
+        })
+
+    return render_template(
+        "mentee/mentee_sourcing_requests.html",
+        requests=enriched_requests,
+        active_section="sourcing_requests",
+        show_sidebar=True
+    )
 
 
 @app.route("/mentee_calendar")
@@ -6848,7 +7209,7 @@ def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calend
         if not meet_link and platform == "google":
             fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No automatic meeting link was generated. Please open the Google Calendar event and click "Join with Google Meet" to get the link, then share it with participants.</p>'
         elif not meet_link and platform == "teams":
-            fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No automatic meeting link was generated. Open the Outlook event, enable the "Teams meeting" toggle, and send the invite to generate a Teams join link.</p>'
+            fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No automatic Teams meeting link was generated. Please set up Microsoft Graph API credentials (MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_USER_EMAIL) to enable automatic Teams meeting link generation, or use a custom link instead.</p>'
         elif not meet_link and platform == "custom":
             fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No meeting link was provided for this custom meeting.</p>'
 
@@ -7064,6 +7425,506 @@ def get_institution_reflection(task_type, task_id):
         return jsonify({'success': True, 'reflection': refl.to_dict()})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+
+
+# ===== MENTORSHIP RATING SYSTEM =====
+
+def _count_skills(skill_string):
+    """Count individual skills from a comma/semicolon separated skill string."""
+    if not skill_string:
+        return 0
+    parts = [s.strip() for s in skill_string.replace(";", ",").split(",") if s.strip()]
+    return len(parts)
+
+def _check_mentorship_completed(mentee_id, mentor_id):
+    """Check if a mentorship is considered completed: all tasks done or enough time has passed."""
+    tasks = MenteeTask.query.filter_by(mentee_id=mentee_id, mentor_id=mentor_id).all()
+    if not tasks:
+        return False, 0
+    completed = sum(1 for t in tasks if t.status == "completed")
+    pct = round((completed / len(tasks)) * 100) if tasks else 0
+    return pct >= 80 or completed == len(tasks), pct
+
+def _compute_profile_completeness_score(user_id, user_type):
+    """Return profile completeness as a 0-100 score."""
+    if user_type == "1":
+        result = calculate_mentor_profile_completion(user_id)
+    elif user_type == "2":
+        result = calculate_mentee_profile_completion(user_id)
+    else:
+        return 0
+    return result.get("percentage", 0)
+
+def _compute_profile_attractiveness_score(user_id, user_type):
+    """Profile attractiveness based on skill count. Score = min(skill_count * 10, 100)."""
+    if user_type == "1":
+        profile = MentorProfile.query.filter_by(user_id=user_id).first()
+        skills = profile.skills if profile else ""
+    elif user_type == "2":
+        profile = MenteeProfile.query.filter_by(user_id=user_id).first()
+        skills = profile.key_skills if profile else ""
+    else:
+        return 0
+    count = _count_skills(skills)
+    return min(count * 10, 100)
+
+def _compute_supervisor_review_score(mentor_id):
+    """Dynamic supervisor review score based on mentor's track record.
+    Returns score 0-100. Used to compute supervisor review weight dynamically:
+    - 0 completed mentorships: weight=40%
+    - 1-2 completed mentorships: weight=20%
+    - 3+ completed mentorships: weight=0% (not factored in)
+    The score itself reflects mentor quality from supervisor's perspective."""
+    completed_count = 0
+    total_tasks = 0
+    completed_tasks = 0
+    total_ratings = 0
+    rating_sum = 0
+
+    mentorships = MentorshipRequest.query.filter_by(
+        mentor_id=mentor_id, final_status="approved"
+    ).all()
+    for mr in mentorships:
+        done, _ = _check_mentorship_completed(mr.mentee_id, mr.mentor_id)
+        if done:
+            completed_count += 1
+        pair_tasks = MenteeTask.query.filter_by(mentee_id=mr.mentee_id, mentor_id=mr.mentor_id).all()
+        total_tasks += len(pair_tasks)
+        completed_tasks += sum(1 for t in pair_tasks if t.status == "completed")
+        for t in pair_tasks:
+            tr = TaskRating.query.filter_by(task_type="master", task_id=t.id, mentor_id=mentor_id).first()
+            if tr:
+                total_ratings += 1
+                rating_sum += tr.rating
+
+    profile_score = _compute_profile_completeness_score(mentor_id, "1")
+    task_completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+    avg_rating = (rating_sum / total_ratings * 20) if total_ratings > 0 else 50
+
+    score = (profile_score * 0.3 + task_completion_rate * 0.4 + avg_rating * 0.3)
+    return min(round(score), 100), completed_count
+
+def _compute_mentorship_rating_score(mentee_id, mentor_id):
+    """Compute mentee's overall mentorship rating (0-100 scale).
+    Uses explicit mentorship-level rating if submitted, else averages task-level mentor_ratings."""
+    explicit = MenteeFeedback.query.filter_by(
+        mentee_id=mentee_id, task_type="mentorship"
+    ).first()
+    if explicit and explicit.mentor_rating:
+        return explicit.mentor_rating * 20
+    feedbacks = MenteeFeedback.query.filter(
+        MenteeFeedback.mentee_id == mentee_id,
+        MenteeFeedback.task_type == "master",
+        MenteeFeedback.mentor_rating.isnot(None)
+    ).all()
+    if not feedbacks:
+        return 0
+    avg = sum(f.mentor_rating for f in feedbacks) / len(feedbacks)
+    return round(avg * 20)
+
+def _compute_task_performance_score(mentee_id, mentor_id):
+    """Compute task performance rating from TaskRating (0-100 scale)."""
+    task_ids = [t.id for t in MenteeTask.query.filter_by(
+        mentee_id=mentee_id, mentor_id=mentor_id, status="completed"
+    ).all()]
+    if not task_ids:
+        return 0
+    ratings = TaskRating.query.filter(
+        TaskRating.task_type == "master",
+        TaskRating.task_id.in_(task_ids)
+    ).all()
+    if not ratings:
+        return 0
+    avg = sum(r.rating for r in ratings) / len(ratings)
+    return round(avg * 20)
+
+def _compute_supervisor_review_weight(completed_mentorships):
+    """Dynamic weight for supervisor review based on experience."""
+    if completed_mentorships >= 3:
+        return 0
+    elif completed_mentorships >= 1:
+        return 20
+    else:
+        return 40
+
+def compute_mentorship_composite_rating(mentee_id, mentor_id):
+    """Compute the full composite rating for a mentorship pair.
+    Returns dict with all components and the final weighted score."""
+    profile_completeness = _compute_profile_completeness_score(mentor_id, "1")
+    profile_attractiveness = _compute_profile_attractiveness_score(mentor_id, "1")
+    sup_score, completed_count = _compute_supervisor_review_score(mentor_id)
+    mentorship_rating = _compute_mentorship_rating_score(mentee_id, mentor_id)
+    task_performance = _compute_task_performance_score(mentee_id, mentor_id)
+
+    sup_weight = _compute_supervisor_review_weight(completed_count)
+    other_weight = 100 - sup_weight
+    remaining_weights = 20 + 20 + 20 + 40
+    if remaining_weights > 0:
+        pc_w = round(20 * other_weight / remaining_weights, 1)
+        pa_w = round(20 * other_weight / remaining_weights, 1)
+        mr_w = round(20 * other_weight / remaining_weights, 1)
+        tp_w = round(40 * other_weight / remaining_weights, 1)
+    else:
+        pc_w = pa_w = mr_w = tp_w = 0
+
+    final_score = (
+        profile_completeness * (pc_w / 100) +
+        profile_attractiveness * (pa_w / 100) +
+        sup_score * (sup_weight / 100) +
+        mentorship_rating * (mr_w / 100) +
+        task_performance * (tp_w / 100)
+    )
+
+    return {
+        "profile_completeness": profile_completeness,
+        "profile_completeness_weight": round(pc_w, 1),
+        "profile_attractiveness": profile_attractiveness,
+        "profile_attractiveness_weight": round(pa_w, 1),
+        "supervisor_review": sup_score,
+        "supervisor_review_weight": sup_weight,
+        "supervisor_review_completed_count": completed_count,
+        "mentorship_rating": mentorship_rating,
+        "mentorship_rating_weight": round(mr_w, 1),
+        "task_performance": task_performance,
+        "task_performance_weight": round(tp_w, 1),
+        "final_score": round(final_score, 1),
+        "star_rating": min(5, max(0, round(final_score / 20, 1)))
+    }
+
+
+@app.route("/api/mentorship_completion_status/<int:mentorship_id>")
+def api_mentorship_completion_status(mentorship_id):
+    """Check if a mentorship is completed and return task completion percentage."""
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"})
+    mr = db.session.get(MentorshipRequest, mentorship_id)
+    if not mr:
+        return jsonify({"success": False, "message": "Mentorship not found"})
+    done, pct = _check_mentorship_completed(mr.mentee_id, mr.mentor_id)
+    return jsonify({"success": True, "completed": done, "completion_pct": pct, "mentorship_id": mentorship_id})
+
+
+@app.route("/api/mentorship_rating/<int:mentorship_id>")
+def api_mentorship_rating(mentorship_id):
+    """Get the composite rating for a mentorship."""
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"})
+    mr = db.session.get(MentorshipRequest, mentorship_id)
+    if not mr:
+        return jsonify({"success": False, "message": "Mentorship not found"})
+    rating_data = compute_mentorship_composite_rating(mr.mentee_id, mr.mentor_id)
+    done, pct = _check_mentorship_completed(mr.mentee_id, mr.mentor_id)
+    rating_data["completed"] = done
+    rating_data["completion_pct"] = pct
+    return jsonify({"success": True, "rating": rating_data})
+
+
+@app.route("/api/submit_mentorship_rating", methods=["POST"])
+def api_submit_mentorship_rating():
+    """Mentee submits an overall mentorship rating. Stores in MenteeFeedback with task_type='mentorship'."""
+    if "email" not in session or session.get("user_type") != "2":
+        return jsonify({"success": False, "message": "Unauthorized"})
+    data = request.get_json(force=True)
+    mentorship_id = data.get("mentorship_id")
+    rating = data.get("rating")
+    feedback = data.get("feedback", "")
+    if not mentorship_id or not rating:
+        return jsonify({"success": False, "message": "mentorship_id and rating required"})
+    try:
+        rating = int(rating)
+        if rating < 1 or rating > 5:
+            return jsonify({"success": False, "message": "Rating must be 1-5"})
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid rating"})
+    mr = db.session.get(MentorshipRequest, mentorship_id)
+    if not mr:
+        return jsonify({"success": False, "message": "Mentorship not found"})
+    mentee = User.query.filter_by(email=session["email"]).first()
+    if not mentee or mr.mentee_id != mentee.id:
+        return jsonify({"success": False, "message": "Not your mentorship"})
+    done, _ = _check_mentorship_completed(mr.mentee_id, mr.mentor_id)
+    if not done:
+        return jsonify({"success": False, "message": "Mentorship is not yet completed"})
+    existing = MenteeFeedback.query.filter_by(
+        mentee_id=mentee.id, task_type="mentorship", task_id=mentorship_id
+    ).first()
+    if existing:
+        existing.mentor_rating = rating
+        existing.text = feedback
+        existing.created_at = datetime.utcnow()
+    else:
+        fb = MenteeFeedback(
+            mentee_id=mentee.id,
+            task_id=mentorship_id,
+            task_type="mentorship",
+            mentor_rating=rating,
+            text=feedback,
+            created_at=datetime.utcnow()
+        )
+        db.session.add(fb)
+    db.session.commit()
+    return jsonify({"success": True, "message": "Rating submitted"})
+
+
+@app.route("/api/submit_mentor_review", methods=["POST"])
+def api_submit_mentor_review():
+    """Mentor submits a review of the mentee. Stores in MentorReflection with task_type='mentorship'."""
+    if "email" not in session or session.get("user_type") != "1":
+        return jsonify({"success": False, "message": "Unauthorized"})
+    data = request.get_json(force=True)
+    mentorship_id = data.get("mentorship_id")
+    rating = data.get("rating")
+    feedback = data.get("feedback", "")
+    strengths = data.get("strengths", "")
+    improvements = data.get("improvements", "")
+    if not mentorship_id or not rating:
+        return jsonify({"success": False, "message": "mentorship_id and rating required"})
+    try:
+        rating = int(rating)
+        if rating < 1 or rating > 5:
+            return jsonify({"success": False, "message": "Rating must be 1-5"})
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid rating"})
+    mr = db.session.get(MentorshipRequest, mentorship_id)
+    if not mr:
+        return jsonify({"success": False, "message": "Mentorship not found"})
+    mentor = User.query.filter_by(email=session["email"]).first()
+    if not mentor or mr.mentor_id != mentor.id:
+        return jsonify({"success": False, "message": "Not your mentorship"})
+    done, _ = _check_mentorship_completed(mr.mentee_id, mr.mentor_id)
+    if not done:
+        return jsonify({"success": False, "message": "Mentorship is not yet completed"})
+    import json as _json
+    review_data = _json.dumps({
+        "rating": rating, "strengths": strengths,
+        "improvements": improvements, "feedback": feedback
+    })
+    existing = MentorReflection.query.filter_by(
+        mentor_id=mentor.id, task_type="mentorship", task_id=mentorship_id
+    ).first()
+    if existing:
+        existing.text = feedback
+        existing.extra = review_data
+        existing.created_at = datetime.utcnow()
+    else:
+        refl = MentorReflection(
+            mentor_id=mentor.id,
+            task_id=mentorship_id,
+            task_type="mentorship",
+            text=feedback,
+            extra=review_data,
+            created_at=datetime.utcnow()
+        )
+        db.session.add(refl)
+    db.session.commit()
+    return jsonify({"success": True, "message": "Review submitted"})
+
+
+@app.route("/api/get_mentorship_rating_data/<int:mentorship_id>")
+def api_get_mentorship_rating_data(mentorship_id):
+    """Get existing rating data for a mentorship (both mentee's and mentor's reviews)."""
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"})
+    mr = db.session.get(MentorshipRequest, mentorship_id)
+    if not mr:
+        return jsonify({"success": False, "message": "Mentorship not found"})
+    mentee_fb = MenteeFeedback.query.filter_by(
+        mentee_id=mr.mentee_id, task_type="mentorship", task_id=mentorship_id
+    ).first()
+    mentor_ref = MentorReflection.query.filter_by(
+        mentor_id=mr.mentor_id, task_type="mentorship", task_id=mentorship_id
+    ).first()
+    import json as _json
+    mentee_rating = None
+    if mentee_fb:
+        mentee_rating = {"rating": mentee_fb.mentor_rating, "feedback": mentee_fb.text or ""}
+    mentor_review = None
+    if mentor_ref:
+        try:
+            extra = _json.loads(mentor_ref.extra) if mentor_ref.extra else {}
+        except Exception:
+            extra = {}
+        mentor_review = {
+            "rating": extra.get("rating", 0),
+            "feedback": mentor_ref.text or "",
+            "strengths": extra.get("strengths", ""),
+            "improvements": extra.get("improvements", "")
+        }
+    rating_info = compute_mentorship_composite_rating(mr.mentee_id, mr.mentor_id)
+    return jsonify({
+        "success": True,
+        "mentee_rating": mentee_rating,
+        "mentor_review": mentor_review,
+        "composite": rating_info
+    })
+
+
+@app.route("/api/submit_supervisor_mentor_review", methods=["POST"])
+def api_submit_supervisor_mentor_review():
+    """Supervisor reviews and rates a mentor. Stores in InstitutionReflection with task_type='mentor_review'."""
+    if "email" not in session or session.get("user_type") != "0":
+        return jsonify({"success": False, "message": "Unauthorized"})
+    data = request.get_json(force=True)
+    mentor_id = data.get("mentor_id")
+    rating = data.get("rating")
+    review = data.get("review", "")
+    if not mentor_id or not rating:
+        return jsonify({"success": False, "message": "mentor_id and rating required"})
+    try:
+        rating = int(rating)
+        if rating < 1 or rating > 5:
+            return jsonify({"success": False, "message": "Rating must be 1-5"})
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid rating"})
+    mentor = db.session.get(User, int(mentor_id))
+    if not mentor:
+        return jsonify({"success": False, "message": "Mentor not found"})
+    supervisor = User.query.filter_by(email=session["email"]).first()
+    import json as _json
+    review_data = _json.dumps({
+        "rating": rating, "review": review,
+        "supervisor_id": supervisor.id, "supervisor_name": supervisor.name
+    })
+    existing = InstitutionReflection.query.filter_by(
+        institution_id=supervisor.id, task_type="mentor_review", task_id=mentor_id
+    ).first()
+    if existing:
+        existing.text = review
+        existing.notes = review_data
+        existing.created_at = datetime.utcnow()
+    else:
+        refl = InstitutionReflection(
+            institution_id=supervisor.id,
+            task_id=mentor_id,
+            task_type="mentor_review",
+            text=review,
+            notes=review_data,
+            created_at=datetime.utcnow()
+        )
+        db.session.add(refl)
+    db.session.commit()
+    return jsonify({"success": True, "message": "Supervisor review submitted"})
+
+
+@app.route("/api/get_supervisor_mentor_review/<int:mentor_id>")
+def api_get_supervisor_mentor_review(mentor_id):
+    """Get supervisor review for a mentor."""
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"})
+    user = User.query.filter_by(email=session["email"]).first()
+    import json as _json
+    refl = InstitutionReflection.query.filter_by(
+        task_type="mentor_review", task_id=mentor_id
+    ).order_by(InstitutionReflection.created_at.desc()).first()
+    if not refl:
+        return jsonify({"success": True, "review": None})
+    try:
+        extra = _json.loads(refl.notes) if refl.notes else {}
+    except Exception:
+        extra = {}
+    return jsonify({
+        "success": True,
+        "review": {
+            "rating": extra.get("rating", 0),
+            "review": refl.text or "",
+            "supervisor_name": extra.get("supervisor_name", ""),
+            "date": refl.created_at.isoformat() if refl.created_at else ""
+        }
+    })
+
+
+@app.route("/api/get_all_supervisor_mentor_reviews")
+def api_get_all_supervisor_mentor_reviews():
+    """Get all supervisor reviews for all mentors (supervisor dashboard)."""
+    if "email" not in session or session.get("user_type") != "0":
+        return jsonify({"success": False, "message": "Unauthorized"})
+    import json as _json
+    reflections = InstitutionReflection.query.filter_by(task_type="mentor_review").all()
+    reviews = []
+    for r in reflections:
+        try:
+            extra = _json.loads(r.notes) if r.notes else {}
+        except Exception:
+            extra = {}
+        mentor_user = db.session.get(User, r.task_id)
+        reviews.append({
+            "mentor_id": r.task_id,
+            "mentor_name": mentor_user.name if mentor_user else "Unknown",
+            "rating": extra.get("rating", 0),
+            "review": r.text or "",
+            "supervisor_name": extra.get("supervisor_name", ""),
+            "date": r.created_at.isoformat() if r.created_at else ""
+        })
+    return jsonify({"success": True, "reviews": reviews})
+
+
+@app.route("/api/get_mentor_rating_breakdown/<int:mentor_id>")
+def api_get_mentor_rating_breakdown(mentor_id):
+    """Get the full rating breakdown for a mentor (all components)."""
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"})
+    mentor = db.session.get(User, mentor_id)
+    if not mentor:
+        return jsonify({"success": False, "message": "Mentor not found"})
+    sup_score, completed_count = _compute_supervisor_review_score(mentor_id)
+    profile_comp = _compute_profile_completeness_score(mentor_id, "1")
+    profile_att = _compute_profile_attractiveness_score(mentor_id, "1")
+    mentorships = MentorshipRequest.query.filter_by(
+        mentor_id=mentor_id, final_status="approved"
+    ).all()
+    avg_mentorship_rating = 0
+    avg_task_perf = 0
+    mr_count = 0
+    tp_count = 0
+    mr_sum = 0
+    tp_sum = 0
+    for mr in mentorships:
+        mr_score = _compute_mentorship_rating_score(mr.mentee_id, mr.mentor_id)
+        if mr_score > 0:
+            mr_sum += mr_score
+            mr_count += 1
+        tp_score = _compute_task_performance_score(mr.mentee_id, mr.mentor_id)
+        if tp_score > 0:
+            tp_sum += tp_score
+            tp_count += 1
+    if mr_count > 0:
+        avg_mentorship_rating = round(mr_sum / mr_count, 1)
+    if tp_count > 0:
+        avg_task_perf = round(tp_sum / tp_count, 1)
+    sup_weight = _compute_supervisor_review_weight(completed_count)
+    other_weight = 100 - sup_weight
+    remaining_weights = 20 + 20 + 20 + 40
+    if remaining_weights > 0:
+        pc_w = round(20 * other_weight / remaining_weights, 1)
+        pa_w = round(20 * other_weight / remaining_weights, 1)
+        mr_w = round(20 * other_weight / remaining_weights, 1)
+        tp_w = round(40 * other_weight / remaining_weights, 1)
+    else:
+        pc_w = pa_w = mr_w = tp_w = 0
+    final_score = (
+        profile_comp * (pc_w / 100) + profile_att * (pa_w / 100) +
+        sup_score * (sup_weight / 100) + avg_mentorship_rating * (mr_w / 100) +
+        avg_task_perf * (tp_w / 100)
+    )
+    return jsonify({
+        "success": True,
+        "breakdown": {
+            "profile_completeness": profile_comp,
+            "profile_completeness_weight": round(pc_w, 1),
+            "profile_attractiveness": profile_att,
+            "profile_attractiveness_weight": round(pa_w, 1),
+            "supervisor_review": sup_score,
+            "supervisor_review_weight": sup_weight,
+            "completed_mentorships": completed_count,
+            "mentorship_rating": avg_mentorship_rating,
+            "mentorship_rating_weight": round(mr_w, 1),
+            "task_performance": avg_task_perf,
+            "task_performance_weight": round(tp_w, 1),
+            "final_score": round(final_score, 1),
+            "star_rating": min(5, max(0, round(final_score / 20, 1)))
+        }
+    })
+
 
 @app.route("/get_supervisor_tasks_data")
 def get_supervisor_tasks_data():
@@ -7431,6 +8292,20 @@ def institution_calendar():
     # Only internal institution members (no paired/external)
     dropdown_mentors, dropdown_mentees = _get_institution_members(user, include_paired=False)
 
+    # Build active mentorship pairs for this institution (for dual-view filtering)
+    mentor_ids = set(m.id for m in dropdown_mentors)
+    mentee_ids = set(m.id for m in dropdown_mentees)
+    active_mentorships = MentorshipRequest.query.filter(
+        MentorshipRequest.mentor_id.in_(mentor_ids) if mentor_ids else MentorshipRequest.id == -1,
+        MentorshipRequest.mentee_id.in_(mentee_ids) if mentee_ids else MentorshipRequest.id == -1,
+        MentorshipRequest.final_status == "approved"
+    ).all()
+    mentee_to_mentors = {}
+    mentor_to_mentees = {}
+    for mr in active_mentorships:
+        mentee_to_mentors.setdefault(str(mr.mentee_id), []).append(str(mr.mentor_id))
+        mentor_to_mentees.setdefault(str(mr.mentor_id), []).append(str(mr.mentee_id))
+
     return render_template(
         "institution/institution_calendar.html",
         show_sidebar=True,
@@ -7438,7 +8313,9 @@ def institution_calendar():
         mentors=dropdown_mentors,
         mentees=dropdown_mentees,
         institution_id=institution_id,
-        institution_name=institution_name
+        institution_name=institution_name,
+        mentee_to_mentors=mentee_to_mentors,
+        mentor_to_mentees=mentor_to_mentees
     )
 
 
@@ -9408,7 +10285,8 @@ def supervisor_all_mentorships():
             "tasks_completed": len([t for t in tasks if compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id) == "done"]),
             "tasks_total": len(tasks),
             "meetings_completed": len([m for m in meetings if m.status == "approved"]),
-            "meetings_total": len(meetings)
+            "meetings_total": len(meetings),
+            "rating": compute_mentorship_composite_rating(mentorship.mentee_id, mentorship.mentor_id) if mentor else None
         })
     
     return render_template(
@@ -9475,7 +10353,60 @@ def get_calendar_service():
     except Exception as e:
         app.logger.error(f"Could not initialize Google Calendar service: {e}")
         return None
- 
+
+# ---------- Microsoft Graph API for Teams Meetings ----------
+MS_TENANT_ID = os.environ.get("MS_TENANT_ID", "")
+MS_CLIENT_ID = os.environ.get("MS_CLIENT_ID", "")
+MS_CLIENT_SECRET = os.environ.get("MS_CLIENT_SECRET", "")
+MS_USER_EMAIL = os.environ.get("MS_USER_EMAIL", "info@wazireducationsociety.com")
+
+def get_ms_graph_token():
+    """Obtain an OAuth2 access token for Microsoft Graph using client_credentials flow."""
+    if not MS_TENANT_ID or not MS_CLIENT_ID or not MS_CLIENT_SECRET:
+        return None
+    try:
+        token_url = f"https://login.microsoftonline.com/{MS_TENANT_ID}/oauth2/v2.0/token"
+        resp = http_requests.post(token_url, data={
+            "grant_type": "client_credentials",
+            "client_id": MS_CLIENT_ID,
+            "client_secret": MS_CLIENT_SECRET,
+            "scope": "https://graph.microsoft.com/.default"
+        }, timeout=15)
+        if resp.status_code == 200:
+            return resp.json().get("access_token")
+        app.logger.error(f"MS Graph token error: {resp.status_code} {resp.text}")
+    except Exception as e:
+        app.logger.error(f"MS Graph token request failed: {e}")
+    return None
+
+def create_teams_online_meeting(title, start_utc, end_utc, attendee_emails):
+    """Create a Microsoft Teams online meeting via Graph API and return the join URL."""
+    token = get_ms_graph_token()
+    if not token:
+        return None
+    try:
+        url = f"https://graph.microsoft.com/v1.0/users/{MS_USER_EMAIL}/onlineMeetings"
+        body = {
+            "subject": title,
+            "startDateTime": start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "endDateTime": end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "lobbyBypassSettings": {
+                "enabled": True,
+                "scope": "everyone"
+            }
+        }
+        resp = http_requests.post(url, json=body, headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }, timeout=30)
+        if resp.status_code in (200, 201):
+            meeting_data = resp.json()
+            return meeting_data.get("joinWebUrl")
+        app.logger.error(f"Teams meeting creation failed: {resp.status_code} {resp.text}")
+    except Exception as e:
+        app.logger.error(f"Teams meeting creation error: {e}")
+    return None
+
 #-------------------creat meeting request---------------------------------
 @app.route("/mentee_create_meeting_request/<int:mentor_id>", methods=["GET"])
 def mentee_create_meeting_request(mentor_id):
@@ -9607,8 +10538,6 @@ def get_external_mentors(mentee_id):
             "institution": m_inst_name,
             "institution_id": m.institution_id or ""
         })
-
-    return jsonify({"mentors": result})
 
     return jsonify({"mentors": result})
 
@@ -9831,15 +10760,15 @@ def create_meeting_ajax():
         if mentee_user and mentee_user.email not in all_emails_teams:
             all_emails_teams.append(mentee_user.email)
 
-        teams_calendar_link = (
-            "https://teams.microsoft.com/l/meeting/new?"
-            + urlencode({
-                "subject": title,
-                "startTime": start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "endTime": end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "attendees": ",".join(all_emails_teams),
-            })
-        )
+        teams_meet_link = create_teams_online_meeting(title, start_utc, end_utc, all_emails_teams)
+        if teams_meet_link:
+            meet_link = teams_meet_link
+        else:
+            calendar_warning = (
+                "Meeting saved without a Teams join link. Microsoft Graph API is not configured. "
+                "Set MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, and MS_USER_EMAIL environment "
+                "variables to enable automatic Teams meeting link generation."
+            )
 
     try:
         meeting = MeetingRequest(

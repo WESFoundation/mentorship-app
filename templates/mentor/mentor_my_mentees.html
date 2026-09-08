@@ -70,6 +70,22 @@
             </p>
           </div>
         </div>
+
+        {% if mentee_data.completed %}
+        <div class="mb-3 p-2 bg-green-50 border border-green-200 rounded-lg">
+          <div class="flex items-center gap-2 text-sm text-green-700 font-medium">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Completed ({{ mentee_data.completion_pct }}%)
+          </div>
+        </div>
+        {% else %}
+        <div class="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+          <div class="flex items-center gap-2 text-sm text-blue-700">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            In Progress ({{ mentee_data.completion_pct }}% complete)
+          </div>
+        </div>
+        {% endif %}
         
         <div class="space-y-2 mb-4">
           <div class="flex items-center text-sm text-gray-600">
@@ -92,11 +108,31 @@
             </svg>
             <span>Email: {{ mentee.email }}</span>
           </div>
+          {% if mentee_data.rating and mentee_data.rating.final_score > 0 %}
+          <div class="flex items-center text-sm text-gray-600">
+            <div class="flex text-yellow-400 mr-2">
+              {% for i in range(5) %}
+                {% if i < mentee_data.rating.star_rating|int %}
+                  <span>&#9733;</span>
+                {% else %}
+                  <span class="text-gray-300">&#9733;</span>
+                {% endif %}
+              {% endfor %}
+            </div>
+            <span class="font-medium">Mentor Rating: {{ mentee_data.rating.final_score }}/100</span>
+          </div>
+          {% endif %}
         </div>
         
-        <div class="flex space-x-2">
+        <div class="flex flex-wrap gap-2">
+          {% if mentee_data.completed %}
+          <button onclick="openMentorReviewModal({{ mentee_data.mentorship_id }}, '{{ mentee.name|default('')|replace("'", "\\'") }}')"
+            class="flex-1 px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition text-center">
+            Review Mentee
+          </button>
+          {% endif %}
           <button 
-              class="view-profile-btn w-full px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition"
+              class="view-profile-btn flex-1 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition"
               data-mentee-id="{{ profile.id }}"
               data-mentee-user-id="{{ profile.user_id }}"
               data-mentee-name="{{ mentee.name }}"
@@ -809,6 +845,140 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     });
 });
+
+// ===== MENTOR REVIEW MODAL =====
+let currentReviewMentorshipId = null;
+let selectedMentorReviewRating = 0;
+
+function openMentorReviewModal(mentoshipId, menteeName) {
+  currentReviewMentorshipId = mentoshipId;
+  selectedMentorReviewRating = 0;
+  document.getElementById('review-mentee-name').textContent = menteeName;
+  document.getElementById('review-feedback').value = '';
+  document.getElementById('review-strengths').value = '';
+  document.getElementById('review-improvements').value = '';
+  document.getElementById('review-error').classList.add('hidden');
+  document.getElementById('review-success').classList.add('hidden');
+  updateReviewStarDisplay(0);
+  fetch('/api/get_mentorship_rating_data/' + mentoshipId)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success && data.mentor_review) {
+        selectedMentorReviewRating = data.mentor_review.rating;
+        updateReviewStarDisplay(selectedMentorReviewRating);
+        document.getElementById('review-feedback').value = data.mentor_review.feedback || '';
+        document.getElementById('review-strengths').value = data.mentor_review.strengths || '';
+        document.getElementById('review-improvements').value = data.mentor_review.improvements || '';
+      }
+    }).catch(function() {});
+  document.getElementById('mentorReviewModal').classList.remove('hidden');
+}
+
+function closeMentorReviewModal() {
+  document.getElementById('mentorReviewModal').classList.add('hidden');
+  currentReviewMentorshipId = null;
+  selectedMentorReviewRating = 0;
+}
+
+function setMentorReviewRating(rating) {
+  selectedMentorReviewRating = rating;
+  updateReviewStarDisplay(rating);
+}
+
+function updateReviewStarDisplay(rating) {
+  var stars = document.querySelectorAll('.review-star');
+  stars.forEach(function(star, idx) {
+    if (idx < rating) {
+      star.classList.add('text-yellow-400');
+      star.classList.remove('text-gray-300');
+    } else {
+      star.classList.remove('text-yellow-400');
+      star.classList.add('text-gray-300');
+    }
+  });
+}
+
+function submitMentorReview() {
+  if (!currentReviewMentorshipId || selectedMentorReviewRating < 1) {
+    document.getElementById('review-error').textContent = 'Please select a star rating (1-5).';
+    document.getElementById('review-error').classList.remove('hidden');
+    return;
+  }
+  fetch('/api/submit_mentor_review', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      mentorship_id: currentReviewMentorshipId,
+      rating: selectedMentorReviewRating,
+      feedback: document.getElementById('review-feedback').value,
+      strengths: document.getElementById('review-strengths').value,
+      improvements: document.getElementById('review-improvements').value
+    })
+  }).then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        document.getElementById('review-success').textContent = 'Review submitted successfully!';
+        document.getElementById('review-success').classList.remove('hidden');
+        document.getElementById('review-error').classList.add('hidden');
+        setTimeout(function() { closeMentorReviewModal(); }, 1500);
+      } else {
+        document.getElementById('review-error').textContent = data.message || 'Failed to submit review.';
+        document.getElementById('review-error').classList.remove('hidden');
+      }
+    }).catch(function() {
+      document.getElementById('review-error').textContent = 'Network error. Please try again.';
+      document.getElementById('review-error').classList.remove('hidden');
+    });
+}
 </script>
+
+<!-- Mentor Review Modal -->
+<div id="mentorReviewModal" class="fixed inset-0 hidden bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div class="p-6 border-b border-gray-200">
+      <div class="flex justify-between items-center">
+        <h3 class="text-xl font-bold text-gray-800">Review Mentee</h3>
+        <button onclick="closeMentorReviewModal()" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="p-6 space-y-5">
+      <p class="text-gray-600">How would you rate <strong id="review-mentee-name"></strong>'s performance during the mentorship?</p>
+
+      <!-- Star Rating -->
+      <div class="flex justify-center gap-2">
+        <button onclick="setMentorReviewRating(1)" class="review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+        <button onclick="setMentorReviewRating(2)" class="review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+        <button onclick="setMentorReviewRating(3)" class="review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+        <button onclick="setMentorReviewRating(4)" class="review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+        <button onclick="setMentorReviewRating(5)" class="review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Strengths</label>
+        <textarea id="review-strengths" rows="2" placeholder="What did this mentee do well?" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"></textarea>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Areas for Improvement</label>
+        <textarea id="review-improvements" rows="2" placeholder="What could this mentee improve?" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"></textarea>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Additional Feedback (optional)</label>
+        <textarea id="review-feedback" rows="2" placeholder="Any other feedback..." class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"></textarea>
+      </div>
+
+      <div id="review-error" class="hidden text-sm text-red-700 bg-red-50 p-3 rounded-lg border border-red-200"></div>
+      <div id="review-success" class="hidden text-sm text-green-700 bg-green-50 p-3 rounded-lg border border-green-200"></div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+        <button onclick="closeMentorReviewModal()" class="px-5 py-2.5 text-gray-600 hover:text-gray-800 font-medium">Cancel</button>
+        <button onclick="submitMentorReview()" class="px-6 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium transition">Submit Review</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 {% endblock %}

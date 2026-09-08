@@ -265,8 +265,18 @@
             <!-- Top Status Alert (prominently visible at top of form) -->
             <div id="sched-status-top" class="hidden text-sm p-3 rounded-lg border"></div>
 
+            <!-- Dual-View Selection Toggle -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentor <span class="text-red-500">*</span></label>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Selection Mode</label>
+                <div class="flex bg-gray-100 rounded-lg p-1 border border-gray-300">
+                    <button type="button" id="toggleMenteeView" onclick="switchScheduleView('mentee')" class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors bg-indigo-600 text-white">Mentee</button>
+                    <button type="button" id="toggleMentorView" onclick="switchScheduleView('mentor')" class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors text-gray-600 hover:text-gray-800">Mentor</button>
+                </div>
+                <p id="sched-view-hint" class="text-xs text-gray-500 mt-1">Select a mentee to see their connected mentors</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentor-label">Select Mentor</span> <span class="text-red-500">*</span></label>
                 <select id="sched-mentor" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                     <option value="">Choose a mentor...</option>
                     {% for mentor in mentors %}
@@ -279,7 +289,7 @@
                 </p>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentee <span class="text-red-500">*</span></label>
+                <label class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentee-label">Select Mentee</span> <span class="text-red-500">*</span></label>
                 <select id="sched-mentee" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                     <option value="">Choose a mentee...</option>
                     {% for mentee in mentees %}
@@ -311,18 +321,6 @@
             <div id="sched-participant-banner" class="hidden p-3 bg-blue-50 rounded-lg border border-blue-200">
                 <p class="text-sm text-blue-600 font-medium">Meeting between</p>
                 <p id="sched-participant-names" class="font-semibold text-gray-900"></p>
-            </div>
-            <!-- External Mentor Selection (shown when only Mentee is selected) -->
-            <div id="sched-external-mentor-wrap" class="hidden">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Select External Mentor <span class="text-red-500">*</span></label>
-                <select id="sched-external-mentor" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
-                    <option value="">Choose a mentor from any institute...</option>
-                </select>
-                <p class="text-xs text-gray-500 mt-1">Cross-institute mentors with an active connection to this mentee are shown below.</p>
-                <p id="sched-external-mentor-error" class="hidden text-xs text-red-600 mt-1 font-medium flex items-center gap-1">
-                    <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-                    Please select a mentor for this mentee.
-                </p>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Meeting Title *</label>
@@ -440,6 +438,12 @@
 let currentDate = new Date();
 let meetings = {{ meetings|tojson|safe }};
 let currentView = 'month';
+let scheduleViewMode = 'mentee';
+let menteeToMentors = {{ mentee_to_mentors|tojson|safe }};
+let mentorToMentees = {{ mentor_to_mentees|tojson|safe }};
+let mentor_to_mentees_js = mentorToMentees;
+var savedMentorOptions = [];
+var savedMenteeOptions = [];
 
 // Initialize calendar
 document.addEventListener('DOMContentLoaded', function() {
@@ -983,10 +987,6 @@ function openAdminScheduleModal() {
     if (wrap) wrap.classList.add('hidden');
     var customLinkInput = document.getElementById('sched-custom-link');
     if (customLinkInput) customLinkInput.value = '';
-    var extWrap = document.getElementById('sched-external-mentor-wrap');
-    if (extWrap) extWrap.classList.add('hidden');
-    var extSel = document.getElementById('sched-external-mentor');
-    if (extSel) { extSel.innerHTML = '<option value="">Choose a mentor from any institute...</option>'; extSel.value = ''; }
     clearAllSchedErrors();
     try {
         var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -998,6 +998,17 @@ function openAdminScheduleModal() {
     } catch(e) {}
     document.getElementById('sched-participant-banner').classList.add('hidden');
     var s = document.getElementById('sched-status'); s.classList.add('hidden'); s.textContent = '';
+    savedMentorOptions = [];
+    savedMenteeOptions = [];
+    var mentorSelOrig = document.getElementById('sched-mentor');
+    var menteeSelOrig = document.getElementById('sched-mentee');
+    for (var i = 0; i < mentorSelOrig.options.length; i++) {
+        if (mentorSelOrig.options[i].dataset.name) savedMentorOptions.push(mentorSelOrig.options[i].cloneNode(true));
+    }
+    for (var j = 0; j < menteeSelOrig.options.length; j++) {
+        if (menteeSelOrig.options[j].dataset.name) savedMenteeOptions.push(menteeSelOrig.options[j].cloneNode(true));
+    }
+    switchScheduleView('mentee');
 }
 function closeScheduleMeetingModal() {
     document.getElementById('scheduleMeetingModal').classList.add('hidden');
@@ -1050,16 +1061,9 @@ function clearAllSchedErrors() {
 
 function updateSchedMentorInstitution() {
     var mSel = document.getElementById('sched-mentor');
-    var extSel = document.getElementById('sched-external-mentor');
     var opt = mSel.options[mSel.selectedIndex];
-    var instName = (opt && opt.dataset.institution) ? opt.dataset.institution : '';
-    var instId = (opt && opt.dataset.institutionId) ? opt.dataset.institutionId : '';
-
-    if (!instName && extSel && extSel.value) {
-        var extOpt = extSel.options[extSel.selectedIndex];
-        if (extOpt && extOpt.dataset.institution) instName = extOpt.dataset.institution;
-    }
-
+    var instName = (opt && opt.dataset && opt.dataset.institution) ? opt.dataset.institution : '';
+    var instId = (opt && opt.dataset && opt.dataset.institutionId) ? opt.dataset.institutionId : '';
     document.getElementById('sched-mentor-institution').value = instName || '{{ institution_name or "" }}' || 'Not specified';
     document.getElementById('sched-mentor-institute-id').value = instId || '{{ institution_id or "" }}';
 }
@@ -1076,87 +1080,133 @@ function updateSchedMenteeInstitution() {
 document.getElementById('sched-mentor').addEventListener('change', function() {
     updateSchedBanner();
     updateSchedMentorInstitution();
-    toggleExternalMentorField();
+    onPrimarySelectionChange();
 });
 document.getElementById('sched-mentee').addEventListener('change', function() {
     updateSchedBanner();
     updateSchedMenteeInstitution();
-    toggleExternalMentorField();
+    onPrimarySelectionChange();
 });
 
-function toggleExternalMentorField() {
+function switchScheduleView(mode) {
+    scheduleViewMode = mode;
+    var btnMentee = document.getElementById('toggleMenteeView');
+    var btnMentor = document.getElementById('toggleMentorView');
+    var hint = document.getElementById('sched-view-hint');
+    var mentorLabel = document.getElementById('sched-mentor-label');
+    var menteeLabel = document.getElementById('sched-mentee-label');
     var mentorSel = document.getElementById('sched-mentor');
     var menteeSel = document.getElementById('sched-mentee');
-    var extWrap = document.getElementById('sched-external-mentor-wrap');
-    var extSel = document.getElementById('sched-external-mentor');
 
-    if (menteeSel.value && !mentorSel.value) {
-        extWrap.classList.remove('hidden');
-        loadExternalMentors(menteeSel.value);
+    if (mode === 'mentee') {
+        btnMentee.className = 'flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors bg-indigo-600 text-white';
+        btnMentor.className = 'flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors text-gray-600 hover:text-gray-800';
+        hint.textContent = 'Select a mentee to see their connected mentors';
+        mentorLabel.textContent = 'Mentor (filtered by mentee)';
+        menteeLabel.textContent = 'Select Mentee';
+        menteeSel.value = '';
+        resetMentorDropdown();
     } else {
-        extWrap.classList.add('hidden');
-        extSel.innerHTML = '<option value="">Choose a mentor from any institute...</option>';
-        extSel.value = '';
+        btnMentor.className = 'flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors bg-indigo-600 text-white';
+        btnMentee.className = 'flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors text-gray-600 hover:text-gray-800';
+        hint.textContent = 'Select a mentor to see their connected mentees';
+        menteeLabel.textContent = 'Mentee (filtered by mentor)';
+        mentorLabel.textContent = 'Select Mentor';
+        mentorSel.value = '';
+        resetMenteeDropdown();
+    }
+    updateSchedBanner();
+    updateSchedMentorInstitution();
+    updateSchedMenteeInstitution();
+}
+
+function resetMentorDropdown() {
+    var mentorSel = document.getElementById('sched-mentor');
+    mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+    for (var i = 0; i < savedMentorOptions.length; i++) {
+        mentorSel.appendChild(savedMentorOptions[i].cloneNode(true));
     }
 }
 
-function loadExternalMentors(menteeId) {
-    var extSel = document.getElementById('sched-external-mentor');
-    extSel.innerHTML = '<option value="">Loading mentors...</option>';
-    extSel.disabled = true;
-
-    fetch('/get_external_mentors/' + menteeId)
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-            extSel.innerHTML = '<option value="">Choose a mentor from any institute...</option>';
-            var mentors = data.mentors || [];
-            for (var i = 0; i < mentors.length; i++) {
-                var m = mentors[i];
-                var opt = document.createElement('option');
-                opt.value = m.id;
-                opt.textContent = m.name + ' (' + m.email + ')' + (m.institution ? ' - ' + m.institution : '');
-                opt.dataset.name = m.name;
-                opt.dataset.institution = m.institution || '';
-                opt.dataset.institutionId = m.institution_id || '';
-                extSel.appendChild(opt);
-            }
-            if (mentors.length === 0) {
-                extSel.innerHTML = '<option value="">No connected mentors found</option>';
-            }
-            extSel.disabled = false;
-        })
-        .catch(function() {
-            extSel.innerHTML = '<option value="">Failed to load mentors</option>';
-            extSel.disabled = false;
-        });
+function resetMenteeDropdown() {
+    var menteeSel = document.getElementById('sched-mentee');
+    menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
+    for (var i = 0; i < savedMenteeOptions.length; i++) {
+        menteeSel.appendChild(savedMenteeOptions[i].cloneNode(true));
+    }
 }
 
-document.getElementById('sched-external-mentor').addEventListener('change', function() {
+function onPrimarySelectionChange() {
+    if (scheduleViewMode === 'mentee') {
+        var menteeSel = document.getElementById('sched-mentee');
+        var mentorSel = document.getElementById('sched-mentor');
+        var selectedMenteeId = menteeSel.value;
+        var connectedMentorIds = (selectedMenteeId && menteeToMentors[selectedMenteeId]) ? menteeToMentors[selectedMenteeId] : [];
+        var currentVal = mentorSel.value;
+        mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+        var restored = false;
+        for (var i = 0; i < savedMentorOptions.length; i++) {
+            var opt = savedMentorOptions[i].cloneNode(true);
+            if (selectedMenteeId) {
+                if (connectedMentorIds.indexOf(opt.value) !== -1) {
+                    mentorSel.appendChild(opt);
+                    if (opt.value === currentVal) restored = true;
+                }
+            } else {
+                mentorSel.appendChild(opt);
+                if (opt.value === currentVal) restored = true;
+            }
+        }
+        if (restored && currentVal) {
+            mentorSel.value = currentVal;
+        } else {
+            mentorSel.value = '';
+        }
+    } else {
+        var mentorSel2 = document.getElementById('sched-mentor');
+        var menteeSel2 = document.getElementById('sched-mentee');
+        var selectedMentorId = mentorSel2.value;
+        var connectedMenteeIds = (selectedMentorId && mentor_to_mentees_js[selectedMentorId]) ? mentor_to_mentees_js[selectedMentorId] : [];
+        var currentVal2 = menteeSel2.value;
+        menteeSel2.innerHTML = '<option value="">Choose a mentee...</option>';
+        var restored2 = false;
+        for (var j = 0; j < savedMenteeOptions.length; j++) {
+            var opt2 = savedMenteeOptions[j].cloneNode(true);
+            if (selectedMentorId) {
+                if (connectedMenteeIds.indexOf(opt2.value) !== -1) {
+                    menteeSel2.appendChild(opt2);
+                    if (opt2.value === currentVal2) restored2 = true;
+                }
+            } else {
+                menteeSel2.appendChild(opt2);
+                if (opt2.value === currentVal2) restored2 = true;
+            }
+        }
+        if (restored2 && currentVal2) {
+            menteeSel2.value = currentVal2;
+        } else {
+            menteeSel2.value = '';
+        }
+    }
     updateSchedBanner();
     updateSchedMentorInstitution();
-});
+    updateSchedMenteeInstitution();
+}
 
 function updateSchedBanner() {
     var mSel = document.getElementById('sched-mentor');
     var eSel = document.getElementById('sched-mentee');
-    var extSel = document.getElementById('sched-external-mentor');
     var banner = document.getElementById('sched-participant-banner');
     var namesEl = document.getElementById('sched-participant-names');
     var mOpt = mSel.options[mSel.selectedIndex];
     var eOpt = eSel.options[eSel.selectedIndex];
     var parts = [];
-    var effectiveMentorName = '';
-    if (mSel.value && mOpt.dataset.name) {
-        effectiveMentorName = mOpt.dataset.name;
+    if (mSel.value && mOpt && mOpt.dataset && mOpt.dataset.name) {
         parts.push(mOpt.dataset.name + ' (Mentor)');
-    } else if (extSel && extSel.value) {
-        var extOpt = extSel.options[extSel.selectedIndex];
-        if (extOpt && extOpt.dataset.name) {
-            effectiveMentorName = extOpt.dataset.name;
-            parts.push(extOpt.dataset.name + ' (External Mentor)');
-        }
     }
-    if (eSel.value && eOpt.dataset.name) parts.push(eOpt.dataset.name + ' (Mentee)');
+    if (eSel.value && eOpt && eOpt.dataset && eOpt.dataset.name) {
+        parts.push(eOpt.dataset.name + ' (Mentee)');
+    }
     if (parts.length > 0) { namesEl.textContent = parts.join(' & '); banner.classList.remove('hidden'); }
     else { banner.classList.add('hidden'); }
 }
@@ -1190,13 +1240,6 @@ document.getElementById('scheduleMeetingForm').addEventListener('submit', async 
     var statusEl = document.getElementById('sched-status');
     var submitBtn = document.getElementById('sched-submit');
 
-    var extMentorEl = document.getElementById('sched-external-mentor');
-    var extMentorId = (extMentorEl && !extMentorEl.classList.contains('hidden')) ? extMentorEl.value : '';
-
-    if (!mentorId && extMentorId) {
-        mentorId = extMentorId;
-    }
-
     var missingFields = [];
     var firstInvalidEl = null;
 
@@ -1211,20 +1254,15 @@ document.getElementById('scheduleMeetingForm').addEventListener('submit', async 
     // Check Participants (Mentor and Mentee)
     var mentorErrEl = document.getElementById('sched-mentor-error');
     var menteeErrEl = document.getElementById('sched-mentee-error');
-    var extMentorErrEl = document.getElementById('sched-external-mentor-error');
 
     if (!mentorId && !menteeId) {
         markMissing(mentorEl, 'Mentor');
         markMissing(menteeEl, 'Mentee');
         if (mentorErrEl) mentorErrEl.classList.remove('hidden');
         if (menteeErrEl) menteeErrEl.classList.remove('hidden');
-    } else if (!mentorId && menteeId && !extMentorId) {
-        if (extMentorEl) {
-            extMentorEl.classList.add('border-red-500', 'ring-1', 'ring-red-500');
-            if (!firstInvalidEl) firstInvalidEl = extMentorEl;
-        }
-        missingFields.push('External Mentor');
-        if (extMentorErrEl) extMentorErrEl.classList.remove('hidden');
+    } else if (!mentorId) {
+        markMissing(mentorEl, 'Mentor');
+        if (mentorErrEl) mentorErrEl.classList.remove('hidden');
     } else if (!menteeId) {
         markMissing(menteeEl, 'Mentee');
         if (menteeErrEl) menteeErrEl.classList.remove('hidden');

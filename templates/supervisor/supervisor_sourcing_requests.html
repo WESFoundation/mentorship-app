@@ -42,6 +42,38 @@
     color: #065f46;
     border: 1px solid #a7f3d0;
   }
+
+  .mentor-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.625rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #166534;
+  }
+
+  .mentor-search-result {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .mentor-search-result:hover {
+    background: #eff6ff;
+  }
+
+  .mentor-search-result.selected {
+    background: #dbeafe;
+    border: 1px solid #93c5fd;
+  }
 </style>
 {% endblock %}
 
@@ -60,6 +92,36 @@
       <span class="text-xs font-semibold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
         {{ requests|length }} Total Filtered
       </span>
+    </div>
+  </div>
+
+  <!-- Status Lifecycle Guide -->
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 mb-6">
+    <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Request Lifecycle</h3>
+    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
+      <div class="flex items-center gap-2">
+        <span class="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">1</span>
+        <div>
+          <p class="text-xs font-bold text-amber-700">Pending</p>
+          <p class="text-[11px] text-gray-500">Search has not started</p>
+        </div>
+      </div>
+      <svg class="w-4 h-4 text-gray-300 shrink-0 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      <div class="flex items-center gap-2">
+        <span class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">2</span>
+        <div>
+          <p class="text-xs font-bold text-indigo-700">Sourcing</p>
+          <p class="text-[11px] text-gray-500">Actively searching for mentors</p>
+        </div>
+      </div>
+      <svg class="w-4 h-4 text-gray-300 shrink-0 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      <div class="flex items-center gap-2">
+        <span class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">3</span>
+        <div>
+          <p class="text-xs font-bold text-emerald-700">Resolved</p>
+          <p class="text-[11px] text-gray-500">Mentors attached &amp; mentee notified</p>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -184,7 +246,7 @@
             <span id="status-text-{{ req.id }}">{{ (req.status or 'pending')|capitalize }}</span>
           </span>
 
-          <select onchange="updateRequestStatus({{ req.id }}, this.value)"
+          <select onchange="handleStatusChange({{ req.id }}, this.value)"
             class="text-xs font-semibold px-3 py-1.5 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="pending" {% if req.status=='pending' %}selected{% endif %}>Pending</option>
             <option value="sourcing" {% if req.status=='sourcing' %}selected{% endif %}>Sourcing</option>
@@ -223,6 +285,40 @@
       </div>
       {% endif %}
 
+      <!-- Country & Language from message metadata -->
+      {%- if '[Preferred Countries]:' in req.message or '[Preferred Languages]:' in req.message -%}
+      <div class="mb-3 flex flex-wrap gap-3">
+        {%- if '[Preferred Countries]:' in req.message -%}
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs font-semibold text-gray-500">Countries:</span>
+          {%- for line in req.message.split('\n') -%}
+            {%- if line.startswith('[Preferred Countries]:') -%}
+              {%- for country in line.replace('[Preferred Countries]:', '').strip().split(',') -%}
+          <span class="inline-block px-2.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-md text-xs font-medium border border-emerald-100">
+            {{ country.strip() }}
+          </span>
+              {%- endfor -%}
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+        {%- endif -%}
+        {%- if '[Preferred Languages]:' in req.message -%}
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs font-semibold text-gray-500">Languages:</span>
+          {%- for line in req.message.split('\n') -%}
+            {%- if line.startswith('[Preferred Languages]:') -%}
+              {%- for lang in line.replace('[Preferred Languages]:', '').strip().split(',') -%}
+          <span class="inline-block px-2.5 py-0.5 bg-purple-50 text-purple-700 rounded-md text-xs font-medium border border-purple-100">
+            {{ lang.strip() }}
+          </span>
+              {%- endfor -%}
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+        {%- endif -%}
+      </div>
+      {%- endif -%}
+
       <!-- Reference Profile / LinkedIn Link (if specified) -->
       {% if req.linkedin_profile %}
       <div class="mb-3 flex items-center gap-2">
@@ -243,10 +339,49 @@
       {% endif %}
 
       <!-- Message / Details -->
-      <div class="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+      <div class="bg-white border border-gray-100 rounded-xl p-4 shadow-sm mb-3">
         <span class="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Details & Specifics</span>
-        <p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed search-message">{{ req.message }}</p>
+        <p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed search-message">
+          {%- for line in req.message.split('\n') -%}
+            {%- if not line.startswith('[Preferred Countries]:') and not line.startswith('[Preferred Languages]:') and not line.startswith('[Resolved Mentors]:') and not line.startswith('[Resolution Date]:') -%}
+              {{ line }}{{ '\n' if not loop.last else '' }}
+            {%- endif -%}
+          {%- endfor -%}
+        </p>
       </div>
+
+      <!-- Resolved Mentors (if resolved) -->
+      {% if req.status == 'resolved' %}
+      <div id="resolved-mentors-{{ req.id }}" class="mb-3">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-bold text-emerald-700 uppercase tracking-wider">Sourced Mentors</span>
+          <button onclick="openAddMentorsModal({{ req.id }}, '{{ req.target_role|e }}')"
+            class="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+            Add More
+          </button>
+        </div>
+        <div id="resolved-mentors-list-{{ req.id }}" class="flex flex-wrap gap-2">
+          <span class="text-xs text-gray-400 italic">Loading mentors...</span>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Action Buttons for Resolved -->
+      {% if req.status == 'resolved' %}
+      <div class="flex items-center gap-2 pt-2 border-t border-gray-100">
+        <button onclick="openAddMentorsModal({{ req.id }}, '{{ req.target_role|e }}')"
+          class="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
+          Attach Mentors
+        </button>
+        <button onclick="viewResolvedMentors({{ req.id }})"
+          class="px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          View All
+        </button>
+      </div>
+      {% endif %}
     </div>
     {% endfor %}
     {% else %}
@@ -264,6 +399,88 @@
     {% endif %}
   </div>
 
+</div>
+
+<!-- Add Mentors Modal -->
+<div id="addMentorsModal" class="fixed inset-0 hidden bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-auto overflow-hidden border border-slate-100 max-h-[90vh] flex flex-col">
+    <!-- Header -->
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-600 to-teal-600 text-white shrink-0">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold">Attach Mentors to Request</h3>
+          <p class="text-xs text-emerald-100">Search and select mentors to attach to this sourcing request</p>
+        </div>
+      </div>
+      <button type="button" onclick="closeAddMentorsModal()" class="p-1.5 rounded-lg hover:bg-white/20 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="p-6 overflow-y-auto flex-1">
+      <!-- Search -->
+      <div class="relative mb-4">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+        </div>
+        <input type="text" id="mentorSearchInput" placeholder="Search mentors by name, profession, or skills..."
+          oninput="searchMentors()"
+          class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
+      </div>
+
+      <!-- Selected Mentors -->
+      <div id="selectedMentorsSection" class="hidden mb-4">
+        <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Selected Mentors</h4>
+        <div id="selectedMentorsList" class="flex flex-wrap gap-2"></div>
+      </div>
+
+      <!-- Search Results -->
+      <div id="mentorSearchResults" class="space-y-1 max-h-64 overflow-y-auto">
+        <p class="text-sm text-gray-400 text-center py-6">Type to search for mentors...</p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50 shrink-0">
+      <p id="selectedCount" class="text-xs text-gray-500">0 mentor(s) selected</p>
+      <div class="flex gap-2">
+        <button type="button" onclick="closeAddMentorsModal()"
+          class="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-200 rounded-xl transition">Cancel</button>
+        <button type="button" id="confirmResolveBtn" onclick="confirmResolve()"
+          class="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          <span>Confirm & Resolve</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- View Resolved Mentors Modal -->
+<div id="viewResolvedModal" class="fixed inset-0 hidden bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-auto overflow-hidden border border-slate-100 max-h-[80vh] flex flex-col">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+      <h3 class="text-lg font-bold text-gray-900">Sourced Mentors</h3>
+      <button type="button" onclick="closeViewResolvedModal()" class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+        <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <div id="viewResolvedList" class="p-6 overflow-y-auto flex-1 space-y-3">
+      <p class="text-sm text-gray-400 text-center py-4">Loading...</p>
+    </div>
+  </div>
 </div>
 
 <!-- Toast notification -->
@@ -284,6 +501,20 @@
     toastTimer = setTimeout(() => toast.classList.add('hidden'), 3500);
   }
 
+  // ---- Status Lifecycle ----
+  let currentResolveReqId = null;
+  let selectedMentors = [];
+
+  function handleStatusChange(reqId, newStatus) {
+    if (newStatus === 'resolved') {
+      currentResolveReqId = reqId;
+      selectedMentors = [];
+      openAddMentorsModal(reqId);
+    } else {
+      updateRequestStatus(reqId, newStatus);
+    }
+  }
+
   async function updateRequestStatus(reqId, newStatus) {
     try {
       const formData = new FormData();
@@ -297,21 +528,251 @@
 
       if (data.success) {
         showToast(data.message || 'Status updated');
-        const pill = document.getElementById('status-pill-' + reqId);
-        const text = document.getElementById('status-text-' + reqId);
-        if (pill && text) {
-          pill.className = 'status-pill status-pill-' + newStatus;
-          const dotColor = newStatus === 'resolved' ? 'bg-emerald-500' : (newStatus === 'sourcing' ? 'bg-indigo-500' : 'bg-amber-500');
-          pill.innerHTML = '<span class="w-1.5 h-1.5 rounded-full ' + dotColor + '"></span><span id="status-text-' + reqId + '">' + (newStatus.charAt(0).toUpperCase() + newStatus.slice(1)) + '</span>';
-        }
+        updateStatusPill(reqId, newStatus);
       } else {
         showToast(data.error || 'Failed to update status', true);
+        // Revert select
+        const card = document.querySelector('[data-request-id="' + reqId + '"]');
+        if (card) {
+          const sel = card.querySelector('select');
+          if (sel) {
+            const currentPill = document.getElementById('status-text-' + reqId);
+            if (currentPill) sel.value = currentPill.textContent.toLowerCase();
+          }
+        }
       }
     } catch (e) {
       showToast('An error occurred. Please try again.', true);
     }
   }
 
+  function updateStatusPill(reqId, newStatus) {
+    const pill = document.getElementById('status-pill-' + reqId);
+    const text = document.getElementById('status-text-' + reqId);
+    if (pill && text) {
+      pill.className = 'status-pill status-pill-' + newStatus;
+      const dotColor = newStatus === 'resolved' ? 'bg-emerald-500' : (newStatus === 'sourcing' ? 'bg-indigo-500' : 'bg-amber-500');
+      pill.innerHTML = '<span class="w-1.5 h-1.5 rounded-full ' + dotColor + '"></span><span id="status-text-' + reqId + '">' + (newStatus.charAt(0).toUpperCase() + newStatus.slice(1)) + '</span>';
+    }
+  }
+
+  // ---- Mentor Search & Selection ----
+  let allMentorsCache = [];
+
+  function openAddMentorsModal(reqId, targetRole) {
+    currentResolveReqId = reqId;
+    selectedMentors = [];
+    document.getElementById('selectedMentorsSection').classList.add('hidden');
+    document.getElementById('selectedMentorsList').innerHTML = '';
+    document.getElementById('selectedCount').textContent = '0 mentor(s) selected';
+    document.getElementById('confirmResolveBtn').disabled = true;
+    document.getElementById('mentorSearchInput').value = '';
+    document.getElementById('mentorSearchResults').innerHTML = '<p class="text-sm text-gray-400 text-center py-6">Type to search for mentors...</p>';
+    document.getElementById('addMentorsModal').classList.remove('hidden');
+    document.getElementById('mentorSearchInput').focus();
+  }
+
+  function closeAddMentorsModal() {
+    document.getElementById('addMentorsModal').classList.add('hidden');
+    currentResolveReqId = null;
+    selectedMentors = [];
+  }
+
+  async function searchMentors() {
+    const query = document.getElementById('mentorSearchInput').value.trim().toLowerCase();
+    const resultsDiv = document.getElementById('mentorSearchResults');
+
+    if (query.length < 2) {
+      resultsDiv.innerHTML = '<p class="text-sm text-gray-400 text-center py-6">Type at least 2 characters to search...</p>';
+      return;
+    }
+
+    resultsDiv.innerHTML = '<p class="text-sm text-gray-400 text-center py-6">Searching...</p>';
+
+    try {
+      const res = await fetch('/api/search_mentors?q=' + encodeURIComponent(query));
+      if (!res.ok) {
+        // Fallback: try the find_mentor page and parse
+        resultsDiv.innerHTML = '<p class="text-sm text-red-400 text-center py-6">Search unavailable. Try a different query.</p>';
+        return;
+      }
+      const data = await res.json();
+      if (data.success && data.mentors && data.mentors.length > 0) {
+        renderMentorResults(data.mentors);
+      } else {
+        resultsDiv.innerHTML = '<p class="text-sm text-gray-400 text-center py-6">No mentors found matching your search.</p>';
+      }
+    } catch (e) {
+      resultsDiv.innerHTML = '<p class="text-sm text-red-400 text-center py-6">Error searching mentors.</p>';
+    }
+  }
+
+  function renderMentorResults(mentors) {
+    const resultsDiv = document.getElementById('mentorSearchResults');
+    const selectedIds = new Set(selectedMentors.map(m => m.id));
+
+    resultsDiv.innerHTML = mentors.map(m => {
+      const isSelected = selectedIds.has(m.id);
+      const profession = m.profession || 'Mentor';
+      const org = m.organisation || '';
+      const initials = (m.name || '?')[0].toUpperCase();
+      return `
+        <div class="mentor-search-result ${isSelected ? 'selected' : ''} border border-gray-100 rounded-lg" onclick="toggleMentorSelection(${m.id}, '${(m.name||'').replace(/'/g, "\\'")}', '${profession.replace(/'/g, "\\'")}', '${org.replace(/'/g, "\\'")}')">
+          <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center text-xs font-bold shrink-0">${initials}</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-gray-900 truncate">${m.name || 'Unknown'}</p>
+            <p class="text-xs text-gray-500 truncate">${profession}${org ? ' at ' + org : ''}</p>
+          </div>
+          <div class="shrink-0">
+            ${isSelected
+              ? '<span class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span>'
+              : '<span class="w-6 h-6 rounded-full border-2 border-gray-300"></span>'
+            }
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function toggleMentorSelection(id, name, profession, org) {
+    const idx = selectedMentors.findIndex(m => m.id === id);
+    if (idx >= 0) {
+      selectedMentors.splice(idx, 1);
+    } else {
+      selectedMentors.push({ id, name, profession, org });
+    }
+    updateSelectedUI();
+    // Re-render results to update checkmarks
+    searchMentors();
+  }
+
+  function updateSelectedUI() {
+    const section = document.getElementById('selectedMentorsSection');
+    const list = document.getElementById('selectedMentorsList');
+    const count = document.getElementById('selectedCount');
+    const btn = document.getElementById('confirmResolveBtn');
+
+    if (selectedMentors.length === 0) {
+      section.classList.add('hidden');
+      count.textContent = '0 mentor(s) selected';
+      btn.disabled = true;
+    } else {
+      section.classList.remove('hidden');
+      list.innerHTML = selectedMentors.map(m => `
+        <span class="mentor-tag">
+          <span class="w-5 h-5 rounded bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold">${(m.name||'?')[0]}</span>
+          ${m.name}
+          <button onclick="toggleMentorSelection(${m.id}, '${(m.name||'').replace(/'/g, "\\'")}', '${(m.profession||'').replace(/'/g, "\\'")}', '${(m.org||'').replace(/'/g, "\\'")}')" class="ml-1 text-emerald-600 hover:text-emerald-800">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </span>
+      `).join('');
+      count.textContent = selectedMentors.length + ' mentor(s) selected';
+      btn.disabled = false;
+    }
+  }
+
+  async function confirmResolve() {
+    if (!currentResolveReqId || selectedMentors.length === 0) return;
+
+    const btn = document.getElementById('confirmResolveBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Resolving...';
+
+    try {
+      const formData = new FormData();
+      formData.append('mentor_ids', selectedMentors.map(m => m.id).join(','));
+      formData.append('mentor_names', selectedMentors.map(m => m.name).join(','));
+
+      const res = await fetch('/api/mentor_sourcing_request/' + currentResolveReqId + '/resolve', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        showToast(data.message || 'Request resolved successfully!');
+        closeAddMentorsModal();
+        updateStatusPill(currentResolveReqId, 'resolved');
+        // Reload to show resolved mentors section
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        showToast(data.error || 'Failed to resolve request', true);
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Confirm & Resolve';
+      }
+    } catch (e) {
+      showToast('An error occurred. Please try again.', true);
+      btn.disabled = false;
+      btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Confirm & Resolve';
+    }
+  }
+
+  // ---- View Resolved Mentors ----
+  async function viewResolvedMentors(reqId) {
+    const modal = document.getElementById('viewResolvedModal');
+    const list = document.getElementById('viewResolvedList');
+    modal.classList.remove('hidden');
+    list.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">Loading...</p>';
+
+    try {
+      const res = await fetch('/api/mentor_sourcing_request/' + reqId + '/resolved_mentors');
+      const data = await res.json();
+      if (data.success && data.mentors.length > 0) {
+        list.innerHTML = data.mentors.map(m => `
+          <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center text-sm font-bold shrink-0">
+              ${(m.name||'?')[0]}
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-gray-900">${m.name || 'Unknown'}</p>
+              <p class="text-xs text-gray-500">${m.profession || 'Mentor'}${m.organisation ? ' at ' + m.organisation : ''}</p>
+              ${m.location ? '<p class="text-xs text-gray-400">' + m.location + '</p>' : ''}
+            </div>
+            ${m.id ? '<a href="/find_mentor" class="text-xs font-semibold text-blue-600 hover:text-blue-800 shrink-0">View Profile</a>' : ''}
+          </div>
+        `).join('');
+      } else {
+        list.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">No mentors attached yet.</p>';
+      }
+    } catch (e) {
+      list.innerHTML = '<p class="text-sm text-red-400 text-center py-4">Error loading mentors.</p>';
+    }
+  }
+
+  function closeViewResolvedModal() {
+    document.getElementById('viewResolvedModal').classList.add('hidden');
+  }
+
+  // ---- Load Resolved Mentors for Each Card ----
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('[id^="resolved-mentors-list-"]').forEach(container => {
+      const reqId = container.id.replace('resolved-mentors-list-', '');
+      loadResolvedMentors(reqId, container);
+    });
+  });
+
+  async function loadResolvedMentors(reqId, container) {
+    try {
+      const res = await fetch('/api/mentor_sourcing_request/' + reqId + '/resolved_mentors');
+      const data = await res.json();
+      if (data.success && data.mentors.length > 0) {
+        container.innerHTML = data.mentors.map(m => `
+          <span class="mentor-tag">
+            <span class="w-5 h-5 rounded bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold">${(m.name||'?')[0]}</span>
+            <span>${m.name}</span>
+            ${m.profession ? '<span class="text-emerald-600/60">· ' + m.profession + '</span>' : ''}
+          </span>
+        `).join('');
+      } else {
+        container.innerHTML = '<span class="text-xs text-gray-400 italic">No mentors attached yet.</span>';
+      }
+    } catch (e) {
+      container.innerHTML = '<span class="text-xs text-red-400">Error loading mentors.</span>';
+    }
+  }
+
+  // ---- Search Filter ----
   function filterSourcingList() {
     const q = (document.getElementById('sourcingSearch').value || '').toLowerCase();
     const cards = document.querySelectorAll('.sourcing-card');
@@ -320,6 +781,14 @@
       card.style.display = text.includes(q) ? '' : 'none';
     });
   }
+
+  // Close modals on Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeAddMentorsModal();
+      closeViewResolvedModal();
+    }
+  });
 </script>
 
 {% endblock %}

@@ -532,21 +532,21 @@
 
     <!-- Filters and Search -->
     <section class="mb-6">
-        <div class="flex flex-wrap gap-4 items-center justify-between">
-            <div class="flex flex-wrap gap-2">
-                <button class="filter-btn active" data-filter="all">All Tasks</button>
-                <button class="filter-btn" data-filter="not-started">Not Started</button>
-                <button class="filter-btn" data-filter="committed">Committed</button>
-                <button class="filter-btn" data-filter="in-progress">In Progress</button>
-                <button class="filter-btn" data-filter="done">Done</button>
-                <button class="filter-btn" data-filter="overdue">Overdue</button>
-                <button class="filter-btn" data-filter="critical">Critical</button>
-            </div>
-
-            <div class="flex gap-3 items-center">
-                <div class="relative">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <div class="flex flex-wrap gap-3 items-center">
+                <select id="status-filter"
+                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+                    <option value="all">All Status</option>
+                    <option value="not-started">Not Started</option>
+                    <option value="committed">Committed</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="done">Done</option>
+                    <option value="overdue">Overdue</option>
+                    <option value="critical">Critical</option>
+                </select>
+                <div class="relative flex-1 min-w-[200px]">
                     <input type="text" id="task-search" placeholder="Search tasks, mentors, mentees..."
-                        class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                     <svg class="w-4 h-4 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor"
                         viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -1156,9 +1156,6 @@
     // Filter functions
     function filterTasks(filter) {
         currentFilter = filter;
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.filter === filter);
-        });
         renderTasks();
     }
 
@@ -1313,9 +1310,9 @@
 
     // Setup event listeners
     function setupEventListeners() {
-        // Filter buttons
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => filterTasks(btn.dataset.filter));
+        // Status filter dropdown
+        document.getElementById('status-filter').addEventListener('change', (e) => {
+            filterTasks(e.target.value);
         });
 
         // Search input
