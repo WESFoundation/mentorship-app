@@ -120,21 +120,11 @@
         border-color: #3b82f6;
     }
 
-    .filter-bar-single-row {
+    .filter-bar-stacked {
         display: flex;
-        flex-wrap: nowrap !important;
+        flex-wrap: wrap;
         align-items: center;
         gap: 8px;
-        overflow-x: auto;
-        padding-bottom: 2px;
-        -webkit-overflow-scrolling: touch;
-    }
-    .filter-bar-single-row::-webkit-scrollbar {
-        height: 4px;
-    }
-    .filter-bar-single-row::-webkit-scrollbar-thumb {
-        background: #e2e8f0;
-        border-radius: 4px;
     }
 
     .advanced-filters {
@@ -549,11 +539,23 @@
 
     <!-- Filters and Search -->
     <section class="mb-6">
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-3">
-            <div class="filter-bar-single-row flex flex-nowrap items-center gap-2 overflow-x-auto">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-3.5">
+            <!-- Search Bar (Above Filters) -->
+            <div class="relative mb-3">
+                <input type="text" id="task-search" placeholder="Search tasks, mentors, mentees..."
+                    class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white transition">
+                <svg class="w-4 h-4 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+            </div>
+
+            <!-- Filters (Compact and Stacking on wrap) -->
+            <div class="filter-bar-stacked flex flex-wrap items-center gap-2">
                 <!-- Status Filter -->
                 <select id="status-filter"
-                    class="shrink-0 w-32 md:w-36 px-2.5 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white font-medium text-gray-700 transition">
+                    class="px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white font-medium text-gray-700 transition">
                     <option value="all">All Status</option>
                     <option value="not-started">Not Started</option>
                     <option value="committed">Committed</option>
@@ -563,20 +565,9 @@
                     <option value="critical">Critical</option>
                 </select>
 
-                <!-- Search Filter -->
-                <div class="relative flex-1 min-w-[140px] max-w-xs shrink">
-                    <input type="text" id="task-search" placeholder="Search tasks, mentors..."
-                        class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white transition">
-                    <svg class="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-gray-400" fill="none" stroke="currentColor"
-                        viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                    </svg>
-                </div>
-
                 <!-- Priority Filter -->
                 <select id="priority-filter"
-                    class="shrink-0 w-28 md:w-32 px-2.5 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
+                    class="px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
                     <option value="all">All Priorities</option>
                     <option value="high">High</option>
                     <option value="medium">Medium</option>
@@ -585,24 +576,24 @@
 
                 <!-- Category Filter -->
                 <select id="category-filter"
-                    class="shrink-0 w-32 md:w-36 px-2.5 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
+                    class="px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
                     <option value="all">All Categories</option>
                 </select>
 
                 <!-- Mentor Filter -->
                 <select id="mentor-filter"
-                    class="shrink-0 w-32 md:w-36 px-2.5 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
+                    class="px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
                     <option value="all">All Mentors</option>
                 </select>
 
                 <!-- Mentee Filter -->
                 <select id="mentee-filter"
-                    class="shrink-0 w-32 md:w-36 px-2.5 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
+                    class="px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
                     <option value="all">All Mentees</option>
                 </select>
 
                 <!-- Due Date Range Inline -->
-                <div class="flex items-center gap-1.5 shrink-0 bg-gray-50 border border-gray-300 rounded-lg px-2.5 py-1.5">
+                <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-300 rounded-lg px-2.5 py-1">
                     <span class="text-xs text-gray-500 font-medium whitespace-nowrap">Due:</span>
                     <input type="date" id="due-from" title="Due From" onchange="currentDueFrom = this.value; renderTasks();"
                         class="text-xs bg-transparent border-0 p-0 text-gray-700 focus:outline-none w-24 sm:w-28 cursor-pointer">
@@ -612,7 +603,7 @@
                 </div>
 
                 <!-- Clear Button -->
-                <button onclick="clearAllFilters()" class="shrink-0 px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-xs sm:text-sm font-medium text-red-600 transition whitespace-nowrap">
+                <button onclick="clearAllFilters()" class="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-xs sm:text-sm font-medium text-red-600 transition whitespace-nowrap">
                     Clear
                 </button>
             </div>
