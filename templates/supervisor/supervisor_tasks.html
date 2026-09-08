@@ -120,6 +120,23 @@
         border-color: #3b82f6;
     }
 
+    .filter-bar-single-row {
+        display: flex;
+        flex-wrap: nowrap !important;
+        align-items: center;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+        -webkit-overflow-scrolling: touch;
+    }
+    .filter-bar-single-row::-webkit-scrollbar {
+        height: 4px;
+    }
+    .filter-bar-single-row::-webkit-scrollbar-thumb {
+        background: #e2e8f0;
+        border-radius: 4px;
+    }
+
     .advanced-filters {
         background: white;
         border: 1px solid #e5e7eb;
@@ -532,10 +549,11 @@
 
     <!-- Filters and Search -->
     <section class="mb-6">
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <div class="flex flex-wrap gap-3 items-center">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-3">
+            <div class="filter-bar-single-row flex flex-nowrap items-center gap-2 overflow-x-auto">
+                <!-- Status Filter -->
                 <select id="status-filter"
-                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white font-medium">
+                    class="shrink-0 w-32 md:w-36 px-2.5 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white font-medium text-gray-700 transition">
                     <option value="all">All Status</option>
                     <option value="not-started">Not Started</option>
                     <option value="committed">Committed</option>
@@ -544,59 +562,64 @@
                     <option value="overdue">Overdue</option>
                     <option value="critical">Critical</option>
                 </select>
-                <div class="relative flex-1 min-w-[200px]">
-                    <input type="text" id="task-search" placeholder="Search tasks, mentors, mentees..."
-                        class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white transition">
-                    <svg class="w-4 h-4 absolute left-3 top-3 text-gray-400" fill="none" stroke="currentColor"
+
+                <!-- Search Filter -->
+                <div class="relative flex-1 min-w-[140px] max-w-xs shrink">
+                    <input type="text" id="task-search" placeholder="Search tasks, mentors..."
+                        class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white transition">
+                    <svg class="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-gray-400" fill="none" stroke="currentColor"
                         viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
                 </div>
+
+                <!-- Priority Filter -->
                 <select id="priority-filter"
-                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+                    class="shrink-0 w-28 md:w-32 px-2.5 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
                     <option value="all">All Priorities</option>
                     <option value="high">High</option>
                     <option value="medium">Medium</option>
                     <option value="low">Low</option>
                 </select>
+
+                <!-- Category Filter -->
                 <select id="category-filter"
-                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+                    class="shrink-0 w-32 md:w-36 px-2.5 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
                     <option value="all">All Categories</option>
                 </select>
+
+                <!-- Mentor Filter -->
                 <select id="mentor-filter"
-                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+                    class="shrink-0 w-32 md:w-36 px-2.5 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
                     <option value="all">All Mentors</option>
                 </select>
+
+                <!-- Mentee Filter -->
                 <select id="mentee-filter"
-                    class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+                    class="shrink-0 w-32 md:w-36 px-2.5 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 transition">
                     <option value="all">All Mentees</option>
                 </select>
-                <button id="toggle-advanced" onclick="toggleAdvancedFilters()" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 transition flex items-center gap-1.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                    Dates
-                </button>
-                <button onclick="clearAllFilters()" class="px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-sm font-medium text-red-600 transition">
+
+                <!-- Due Date Range Inline -->
+                <div class="flex items-center gap-1.5 shrink-0 bg-gray-50 border border-gray-300 rounded-lg px-2.5 py-1.5">
+                    <span class="text-xs text-gray-500 font-medium whitespace-nowrap">Due:</span>
+                    <input type="date" id="due-from" title="Due From" onchange="currentDueFrom = this.value; renderTasks();"
+                        class="text-xs bg-transparent border-0 p-0 text-gray-700 focus:outline-none w-24 sm:w-28 cursor-pointer">
+                    <span class="text-xs text-gray-400">-</span>
+                    <input type="date" id="due-to" title="Due To" onchange="currentDueTo = this.value; renderTasks();"
+                        class="text-xs bg-transparent border-0 p-0 text-gray-700 focus:outline-none w-24 sm:w-28 cursor-pointer">
+                </div>
+
+                <!-- Clear Button -->
+                <button onclick="clearAllFilters()" class="shrink-0 px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-xs sm:text-sm font-medium text-red-600 transition whitespace-nowrap">
                     Clear
                 </button>
             </div>
         </div>
 
-        <!-- Advanced Filters Panel (Date Range) -->
-        <div id="advanced-filters" class="advanced-filters">
-            <div class="filter-row">
-                <div class="filter-group">
-                    <label>Due From</label>
-                    <input type="date" id="due-from" onchange="currentDueFrom = this.value; renderTasks();">
-                </div>
-                <div class="filter-group">
-                    <label>Due To</label>
-                    <input type="date" id="due-to" onchange="currentDueTo = this.value; renderTasks();">
-                </div>
-            </div>
-            <div id="active-filters-display" class="active-filters"></div>
-        </div>
-
+        <div id="advanced-filters" class="hidden"></div>
+        <div id="active-filters-display" class="active-filters mt-2"></div>
         <div id="results-count" class="results-count mt-2"></div>
     </section>
 
