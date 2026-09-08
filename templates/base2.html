@@ -934,6 +934,7 @@
         var SS_MIN_OPTIONS = 5;
 
         function upgradeSelect(sel) {
+            if (!sel || !sel.options) return;
             if (sel.classList.contains('ss-done') || sel.closest('.ss-wrapper')) return;
             if (sel.options.length < SS_MIN_OPTIONS) return;
             if (sel.style.display === 'none' || sel.classList.contains('hidden')) return;

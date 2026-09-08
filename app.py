@@ -8514,6 +8514,50 @@ def institution_calendar():
     dropdown_mentees = list(existing_mentees_dict.values())
     dropdown_mentees.sort(key=lambda u: (u.name or "").lower())
 
+    valid_mentor_id_strs = {str(mid) for mid in existing_mentors_dict.keys()}
+    valid_mentee_id_strs = {str(mid) for mid in existing_mentees_dict.keys()}
+
+    def _resolve_user_inst(u):
+        if not u:
+            return "Not specified", ""
+        inst_id = str(u.institution_id or (u.institution_ref.id if getattr(u, 'institution_ref', None) else "") or "")
+        if u.institution and u.institution.strip():
+            return u.institution.strip(), inst_id
+        if getattr(u, 'institution_ref', None) and u.institution_ref.name and u.institution_ref.name.strip():
+            return u.institution_ref.name.strip(), inst_id
+        if u.user_type == "1" and getattr(u, 'mentor_profile', None):
+            org = getattr(u.mentor_profile, "organisation", "") or ""
+            if org.strip():
+                return org.strip(), inst_id
+        elif u.user_type == "2" and getattr(u, 'mentee_profile', None):
+            mp = u.mentee_profile
+            for attr in ["institution_name", "current_organization", "school_name"]:
+                val = getattr(mp, attr, "") or ""
+                if val and val.strip():
+                    return val.strip(), inst_id
+        return "Not specified", inst_id
+
+    for m in dropdown_mentors:
+        m_inst_name, m_inst_id = _resolve_user_inst(m)
+        m.display_institution = m_inst_name
+        m.display_institution_id = m_inst_id
+
+    for m in dropdown_mentees:
+        m_inst_name, m_inst_id = _resolve_user_inst(m)
+        m.display_institution = m_inst_name
+        m.display_institution_id = m_inst_id
+
+    cleaned_mentee_to_mentors = {
+        m_id: [mid for mid in mids if mid in valid_mentor_id_strs]
+        for m_id, mids in mentee_to_mentors.items()
+        if m_id in valid_mentee_id_strs
+    }
+    cleaned_mentor_to_mentees = {
+        m_id: [mid for mid in mids if mid in valid_mentee_id_strs]
+        for m_id, mids in mentor_to_mentees.items()
+        if m_id in valid_mentor_id_strs
+    }
+
     return render_template(
         "institution/institution_calendar.html",
         show_sidebar=True,
@@ -8524,8 +8568,8 @@ def institution_calendar():
         direct_mentee_ids=[str(mid) for mid in direct_mentee_ids],
         institution_id=institution_id,
         institution_name=institution_name,
-        mentee_to_mentors=mentee_to_mentors,
-        mentor_to_mentees=mentor_to_mentees
+        mentee_to_mentors=cleaned_mentee_to_mentors,
+        mentor_to_mentees=cleaned_mentor_to_mentees
     )
 
 
