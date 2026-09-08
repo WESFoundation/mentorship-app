@@ -3569,7 +3569,8 @@ def _get_institution_details(user):
     inst_name = (institution.name if institution else user.name) or user.institution or ""
 
     clean_name = inst_name.strip()
-    aliases = {clean_name.lower()}
+    clean_lower = clean_name.lower()
+    aliases = {clean_lower}
     if "(" in clean_name and ")" in clean_name:
         p1 = clean_name.split("(")[0].strip().lower()
         p2 = clean_name.split("(")[1].split(")")[0].strip().lower()
@@ -3579,6 +3580,20 @@ def _get_institution_details(user):
             aliases.add(p2)
     if user.institution and user.institution.strip():
         aliases.add(user.institution.strip().lower())
+
+    for sfx in [
+        " india", " luxembourg", " foundation", " society", " education",
+        " pvt ltd", " pvt", " ltd", " private limited", " limited", " llc", " inc",
+        " global", " uk", " us"
+    ]:
+        if clean_lower.endswith(sfx):
+            base = clean_lower[:-len(sfx)].strip()
+            if len(base) >= 2:
+                aliases.add(base)
+    if "wes" in clean_lower:
+        aliases.add("wes")
+        aliases.add("wes foundation")
+        aliases.add("wazir education society")
 
     return institution, inst_id, inst_name, aliases
 
@@ -3596,21 +3611,26 @@ def _get_institution_members(user, include_paired=False):
     direct_mentees = []
     for m in all_mentees:
         matched = False
-        if inst_id and m.institution_id == inst_id:
+        if inst_id and (m.institution_id == inst_id or m.institution_id == user.id):
             matched = True
         u_inst = (m.institution or "").strip().lower()
         if u_inst and any(a == u_inst or a in u_inst for a in aliases):
             matched = True
         mp = m.mentee_profile
         if mp:
-            mp_inst = (mp.institution or "").strip().lower()
-            mp_inst_name = (mp.institution_name or "").strip().lower()
-            mp_school = (mp.school_college_name or "").strip().lower()
-            if mp_inst and any(a == mp_inst or a in mp_inst for a in aliases):
-                matched = True
-            if mp_inst_name and any(a == mp_inst_name or a in mp_inst_name for a in aliases):
-                matched = True
-            if mp_school and any(a in mp_school for a in aliases):
+            for attr in ["institution", "institution_name", "current_organization"]:
+                val = (getattr(mp, attr, "") or "").strip().lower()
+                if val and any(a == val or a in val for a in aliases):
+                    matched = True
+            for attr in ["school_name", "school_college_name", "board_university"]:
+                val = (getattr(mp, attr, "") or "").strip().lower()
+                if val and any(a in val for a in aliases):
+                    matched = True
+        # For WES Foundation: also match cohort students created under WES
+        if not matched and any("wes" in a for a in aliases):
+            m_email = (m.email or "").lower()
+            m_coll = ((getattr(mp, "school_college_name", "") or "") if mp else "").lower()
+            if "ccc2526" in m_email or "wes" in m_email or any(k in m_coll for k in ["nehru digree", "nehru degree", "burhar", "shahdol", "dhanpuri"]):
                 matched = True
         if matched:
             direct_mentees.append(m)
@@ -3620,14 +3640,17 @@ def _get_institution_members(user, include_paired=False):
     direct_mentors = []
     for m in all_mentors:
         matched = False
-        if inst_id and m.institution_id == inst_id:
+        if inst_id and (m.institution_id == inst_id or m.institution_id == user.id):
             matched = True
         u_inst = (m.institution or "").strip().lower()
         if u_inst and any(a == u_inst or a in u_inst for a in aliases):
             matched = True
         mp = m.mentor_profile
         if mp:
-            mp_uni = (mp.university_name or "").strip().lower()
+            mp_org = (getattr(mp, "organisation", "") or "").strip().lower()
+            mp_uni = (getattr(mp, "university_name", "") or "").strip().lower()
+            if mp_org and any(a == mp_org or a in mp_org for a in aliases):
+                matched = True
             if mp_uni and any(a in mp_uni for a in aliases):
                 matched = True
         if matched:
@@ -8396,6 +8419,13 @@ def institution_calendar():
                 mentee = requested_to
             elif requested_to.user_type == "1":
                 mentor = requested_to
+        # Fallback: check meeting participants data (for admin/institution scheduled meetings)
+        participants_info = _get_meeting_participants(meeting.id)
+        if participants_info:
+            if not mentee and participants_info.get("mentee_id"):
+                mentee = db.session.get(User, participants_info["mentee_id"])
+            if not mentor and participants_info.get("mentor_id"):
+                mentor = db.session.get(User, participants_info["mentor_id"])
         # Fallback: if types didn't resolve, use position-based default
         if not mentee and not mentor:
             mentee = requester
@@ -8413,7 +8443,8 @@ def institution_calendar():
         calendar_meetings.append({
             "id": meeting.id,
             "title": meeting.meeting_title,
-            "date": meeting_datetime,
+            "date": meeting_datetime.strftime("%Y-%m-%dT%H:%M:%S") if meeting_datetime else "",
+            "time": meeting.meeting_time.strftime("%I:%M %p") if meeting.meeting_time else "",
             "duration": meeting.meeting_duration,
             "mentee": mentee.name if mentee else "Unknown Mentee",
             "mentee_email": mentee.email if mentee else "",
@@ -8423,26 +8454,65 @@ def institution_calendar():
             "status": status,
             "description": meeting.meeting_description or "No description provided",
             "meet_link": meeting.meet_link,
-            "created_at": meeting.created_at
+            "created_at": meeting.created_at.strftime("%Y-%m-%d %H:%M:%S") if meeting.created_at else ""
         })
     
-    # Filter mentors and mentees who can be selected for scheduling
-    # Only internal institution members (no paired/external)
-    dropdown_mentors, dropdown_mentees = _get_institution_members(user, include_paired=False)
+    # Direct members of the institution
+    direct_mentors, direct_mentees = _get_institution_members(user, include_paired=False)
+    direct_mentor_ids = set(m.id for m in direct_mentors)
+    direct_mentee_ids = set(m.id for m in direct_mentees)
 
     # Build active mentorship pairs for this institution (for dual-view filtering)
-    mentor_ids = set(m.id for m in dropdown_mentors)
-    mentee_ids = set(m.id for m in dropdown_mentees)
-    active_mentorships = MentorshipRequest.query.filter(
-        MentorshipRequest.mentor_id.in_(mentor_ids) if mentor_ids else MentorshipRequest.id == -1,
-        MentorshipRequest.mentee_id.in_(mentee_ids) if mentee_ids else MentorshipRequest.id == -1,
-        MentorshipRequest.final_status == "approved"
-    ).all()
+    # Include mentorships where mentee is from this institution (mentor may be external)
+    # OR mentor is from this institution (mentee may be external)
+    mentorship_conditions = []
+    if direct_mentee_ids:
+        mentorship_conditions.append(MentorshipRequest.mentee_id.in_(direct_mentee_ids))
+    if direct_mentor_ids:
+        mentorship_conditions.append(MentorshipRequest.mentor_id.in_(direct_mentor_ids))
+
+    if mentorship_conditions:
+        active_mentorships = MentorshipRequest.query.filter(
+            or_(*mentorship_conditions),
+            MentorshipRequest.final_status == "approved"
+        ).all()
+    else:
+        active_mentorships = []
+
     mentee_to_mentors = {}
     mentor_to_mentees = {}
+    all_connected_mentor_ids = set()
+    all_connected_mentee_ids = set()
+
     for mr in active_mentorships:
-        mentee_to_mentors.setdefault(str(mr.mentee_id), []).append(str(mr.mentor_id))
-        mentor_to_mentees.setdefault(str(mr.mentor_id), []).append(str(mr.mentee_id))
+        mentee_id_str = str(mr.mentee_id)
+        mentor_id_str = str(mr.mentor_id)
+        mentee_to_mentors.setdefault(mentee_id_str, []).append(mentor_id_str)
+        mentor_to_mentees.setdefault(mentor_id_str, []).append(mentee_id_str)
+        all_connected_mentor_ids.add(mr.mentor_id)
+        all_connected_mentee_ids.add(mr.mentee_id)
+
+    # All mentors for dropdown: direct mentors + external mentors paired with this institution's mentees
+    all_mentor_ids = direct_mentor_ids | all_connected_mentor_ids
+    existing_mentors_dict = {m.id: m for m in direct_mentors}
+    missing_mentor_ids = [mid for mid in all_mentor_ids if mid not in existing_mentors_dict]
+    if missing_mentor_ids:
+        external_mentors = User.query.filter(User.id.in_(missing_mentor_ids)).all()
+        for m in external_mentors:
+            existing_mentors_dict[m.id] = m
+    dropdown_mentors = list(existing_mentors_dict.values())
+    dropdown_mentors.sort(key=lambda u: (u.name or "").lower())
+
+    # All mentees for dropdown: direct mentees + external mentees paired with this institution's mentors
+    all_mentee_ids = direct_mentee_ids | all_connected_mentee_ids
+    existing_mentees_dict = {m.id: m for m in direct_mentees}
+    missing_mentee_ids = [mid for mid in all_mentee_ids if mid not in existing_mentees_dict]
+    if missing_mentee_ids:
+        external_mentees = User.query.filter(User.id.in_(missing_mentee_ids)).all()
+        for m in external_mentees:
+            existing_mentees_dict[m.id] = m
+    dropdown_mentees = list(existing_mentees_dict.values())
+    dropdown_mentees.sort(key=lambda u: (u.name or "").lower())
 
     return render_template(
         "institution/institution_calendar.html",
@@ -8450,6 +8520,8 @@ def institution_calendar():
         meetings=calendar_meetings,
         mentors=dropdown_mentors,
         mentees=dropdown_mentees,
+        direct_mentor_ids=[str(mid) for mid in direct_mentor_ids],
+        direct_mentee_ids=[str(mid) for mid in direct_mentee_ids],
         institution_id=institution_id,
         institution_name=institution_name,
         mentee_to_mentors=mentee_to_mentors,
@@ -10698,10 +10770,16 @@ def create_meeting_ajax():
     task_id = data.get("task_id")
     mentorship_id = data.get("mentorship_id")
 
+    def _safe_int(v):
+        try:
+            return int(v) if v is not None and str(v).strip() != "" else None
+        except (ValueError, TypeError):
+            return None
+
     # Determine the requested_to participant (mentor, mentee, or institution)
-    mentor_user = User.query.get(int(mentor_id)) if mentor_id else None
-    mentee_user = User.query.get(int(mentee_id)) if mentee_id else None
-    institution_user = User.query.get(int(institution_id)) if institution_id else None
+    mentor_user = User.query.get(_safe_int(mentor_id)) if _safe_int(mentor_id) else None
+    mentee_user = User.query.get(_safe_int(mentee_id)) if _safe_int(mentee_id) else None
+    institution_user = User.query.get(_safe_int(institution_id)) if _safe_int(institution_id) else None
 
     requested_to = mentor_user or mentee_user or institution_user
     requested_to_type = "mentor" if mentor_user else ("mentee" if mentee_user else ("institution" if institution_user else None))
@@ -10739,10 +10817,10 @@ def create_meeting_ajax():
         else:
             return jsonify({"error": f"Please fill in the required fields: {', '.join(missing_fields)}."}), 400
 
-    if mentor_id and mentee_id:
+    if _safe_int(mentor_id) and _safe_int(mentee_id):
         active_connection = MentorshipRequest.query.filter(
-            MentorshipRequest.mentor_id == int(mentor_id),
-            MentorshipRequest.mentee_id == int(mentee_id),
+            MentorshipRequest.mentor_id == _safe_int(mentor_id),
+            MentorshipRequest.mentee_id == _safe_int(mentee_id),
             MentorshipRequest.final_status == "approved"
         ).first()
         if not active_connection:

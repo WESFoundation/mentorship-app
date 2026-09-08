@@ -17,6 +17,9 @@
     min-height: 120px;
     background: white;
     transition: all 0.2s;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin: 2px;
 }
 
 .calendar-day:hover {
@@ -28,13 +31,9 @@
     color: #9ca3af;
 }
 
-.calendar-day {
-    min-height: 120px;
-    background: white;
-    transition: all 0.2s;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    margin: 2px;
+.calendar-day.today {
+    border: 2px solid #3b82f6;
+    background: #eff6ff;
 }
 
 .calendar-event {
@@ -71,7 +70,7 @@
             <!-- View Toggle -->
             <div class="flex bg-white rounded-lg border border-gray-300 p-1">
                 <button id="monthView" class="px-3 py-2 rounded-md text-sm font-medium bg-blue-600 text-white">Month</button>
-                <button id="weekView" class=""></button>
+                <button id="weekView" class="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100">Week</button>
                 <button id="dayView" class="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100">Day</button>
                 <button id="listView" class="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100">List</button>
             </div>
@@ -125,13 +124,13 @@
 
         <!-- Week View -->
         <div id="weekCalendar" class="calendar-view hidden">
-            <div class="grid grid-cols-8 bg-gray-50 border-b border-gray-200">
-                <div class="p-4 font-semibold text-gray-700">Time</div>
-                <div id="weekDays" class="grid grid-cols-7">
+            <div class="grid grid-cols-8 bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
+                <div class="p-4 font-semibold text-gray-700 text-center">Time</div>
+                <div id="weekDays" class="col-span-7 grid grid-cols-7">
                     <!-- Week days will be populated by JavaScript -->
                 </div>
             </div>
-            <div id="weekGrid" class="grid grid-cols-8">
+            <div id="weekGrid" class="divide-y divide-gray-200 max-h-[650px] overflow-y-auto">
                 <!-- Time slots and events will be populated by JavaScript -->
             </div>
         </div>
@@ -275,31 +274,33 @@
                 <p id="sched-view-hint" class="text-xs text-gray-500 mt-1">Select a mentee to see their connected mentors</p>
             </div>
 
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentor-label">Select Mentor</span> <span class="text-red-500">*</span></label>
-                <select id="sched-mentor" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
-                    <option value="">Choose a mentor...</option>
-                    {% for mentor in mentors %}
-                    <option value="{{ mentor.id }}" data-name="{{ mentor.name }}" data-institution="{{ (mentor.institution or (mentor.mentor_profile.university_name if mentor.mentor_profile else '') or (mentor.institution_ref.name if mentor.institution_ref else '')) | trim }}" data-institution-id="{{ mentor.institution_id or (mentor.institution_ref.id if mentor.institution_ref else '') }}">{{ mentor.name }} ({{ mentor.email }})</option>
-                    {% endfor %}
-                </select>
-                <p id="sched-mentor-error" class="hidden text-xs text-red-600 mt-1 font-medium flex items-center gap-1">
-                    <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-                    Mentor is required. Please select a mentor.
-                </p>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentee-label">Select Mentee</span> <span class="text-red-500">*</span></label>
-                <select id="sched-mentee" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
-                    <option value="">Choose a mentee...</option>
-                    {% for mentee in mentees %}
-                    <option value="{{ mentee.id }}" data-name="{{ mentee.name }}" data-institution="{{ (mentee.institution or (mentee.mentee_profile.institution if mentee.mentee_profile else '') or (mentee.mentee_profile.institution_name if mentee.mentee_profile else '') or (mentee.institution_ref.name if mentee.institution_ref else '')) | trim }}" data-institution-id="{{ mentee.institution_id or (mentee.institution_ref.id if mentee.institution_ref else '') }}">{{ mentee.name }} ({{ mentee.email }})</option>
-                    {% endfor %}
-                </select>
-                <p id="sched-mentee-error" class="hidden text-xs text-red-600 mt-1 font-medium flex items-center gap-1">
-                    <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-                    Mentee is required. Please select a mentee.
-                </p>
+            <div id="sched-participants-container" class="space-y-4">
+                <div id="sched-mentee-block">
+                    <label class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentee-label">Select Mentee</span> <span class="text-red-500">*</span></label>
+                    <select id="sched-mentee" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        <option value="">Choose a mentee...</option>
+                        {% for mentee in mentees %}
+                        <option value="{{ mentee.id }}" data-name="{{ mentee.name }}" data-institution="{{ (mentee.institution or (mentee.mentee_profile.institution if mentee.mentee_profile and mentee.mentee_profile.institution else '') or (mentee.mentee_profile.institution_name if mentee.mentee_profile and mentee.mentee_profile.institution_name else '') or (mentee.mentee_profile.current_organization if mentee.mentee_profile and mentee.mentee_profile.current_organization else '') or (mentee.mentee_profile.school_name if mentee.mentee_profile and mentee.mentee_profile.school_name else '') or (mentee.institution_ref.name if mentee.institution_ref else '')) | trim }}" data-institution-id="{{ mentee.institution_id or (mentee.institution_ref.id if mentee.institution_ref else '') }}">{{ mentee.name }} ({{ mentee.email }})</option>
+                        {% endfor %}
+                    </select>
+                    <p id="sched-mentee-error" class="hidden text-xs text-red-600 mt-1 font-medium flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                        Mentee is required. Please select a mentee.
+                    </p>
+                </div>
+                <div id="sched-mentor-block">
+                    <label class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentor-label">Select Mentor</span> <span class="text-red-500">*</span></label>
+                    <select id="sched-mentor" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        <option value="">Choose a mentor...</option>
+                        {% for mentor in mentors %}
+                        <option value="{{ mentor.id }}" data-name="{{ mentor.name }}" data-institution="{{ (mentor.institution or (mentor.mentor_profile.organisation if mentor.mentor_profile and mentor.mentor_profile.organisation else '') or (mentor.mentor_profile.university_name if mentor.mentor_profile else '') or (mentor.institution_ref.name if mentor.institution_ref else '')) | trim }}" data-institution-id="{{ mentor.institution_id or (mentor.institution_ref.id if mentor.institution_ref else '') }}">{{ mentor.name }} ({{ mentor.email }})</option>
+                        {% endfor %}
+                    </select>
+                    <p id="sched-mentor-error" class="hidden text-xs text-red-600 mt-1 font-medium flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                        Mentor is required. Please select a mentor.
+                    </p>
+                </div>
             </div>
             <!-- Institute Fields -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -442,11 +443,14 @@ let scheduleViewMode = 'mentee';
 let menteeToMentors = {{ mentee_to_mentors|tojson|safe }};
 let mentorToMentees = {{ mentor_to_mentees|tojson|safe }};
 let mentor_to_mentees_js = mentorToMentees;
+let directMentorIds = {{ direct_mentor_ids|default([])|tojson|safe }};
+let directMenteeIds = {{ direct_mentee_ids|default([])|tojson|safe }};
 var savedMentorOptions = [];
 var savedMenteeOptions = [];
 
 // Initialize calendar
 document.addEventListener('DOMContentLoaded', function() {
+    initSavedOptions();
     initializeCalendar();
     updateStats();
     setupEventListeners();
@@ -572,7 +576,7 @@ function updateCurrentDateDisplay() {
             weekStart.setDate(currentDate.getDate() - currentDate.getDay());
             const weekEnd = new Date(weekStart);
             weekEnd.setDate(weekStart.getDate() + 6);
-            dateElement.textContent = `${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`;
+            dateElement.textContent = `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
             break;
         case 'day':
             dateElement.textContent = currentDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -581,6 +585,37 @@ function updateCurrentDateDisplay() {
             dateElement.textContent = 'All Meetings';
             break;
     }
+}
+
+function parseMeetingDate(dateVal) {
+    if (!dateVal) return new Date();
+    if (dateVal instanceof Date) return dateVal;
+    if (typeof dateVal === 'string') {
+        if (dateVal.includes(' ') && !dateVal.includes('GMT') && !dateVal.includes(',')) {
+            return new Date(dateVal.replace(' ', 'T'));
+        }
+    }
+    return new Date(dateVal);
+}
+
+function formatMeetingTime(meeting) {
+    if (!meeting) return 'Time TBD';
+    if (meeting.time) return meeting.time;
+    if (meeting.date) {
+        const d = parseMeetingDate(meeting.date);
+        if (!isNaN(d.getTime())) {
+            return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        }
+    }
+    return 'Time TBD';
+}
+
+function formatMeetingDateTime(dateVal) {
+    if (!dateVal) return '';
+    const d = parseMeetingDate(dateVal);
+    if (isNaN(d.getTime())) return dateVal;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + 
+           d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
 function renderMonthView() {
@@ -635,7 +670,7 @@ function renderMonthView() {
         
         // Add day number
         const dayHeader = document.createElement('div');
-        dayHeader.className = 'text-sm font-semibold mb-1';
+        dayHeader.className = 'text-sm font-semibold mb-1' + (isCurrentMonth ? ' text-gray-800' : ' text-gray-400');
         dayHeader.textContent = dayNumber;
         dayElement.appendChild(dayHeader);
         
@@ -646,23 +681,9 @@ function renderMonthView() {
             
             dayEvents.forEach(event => {
                 const eventElement = document.createElement('div');
-                eventElement.className = `calendar-event bg-${getStatusColor(event.status)}-100 text-${getStatusColor(event.status)}-800 border-l-2 border-${getStatusColor(event.status)}-500`;
-                
-                // FIX: Check if time exists, otherwise use a default or extract from date
-                let displayTime = 'Time TBD';
-                if (event.time) {
-                    displayTime = event.time;
-                } else if (event.date) {
-                    // Extract time from date string
-                    const meetingDate = new Date(event.date);
-                    displayTime = meetingDate.toLocaleTimeString('en-US', { 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        hour12: true 
-                    });
-                }
-                
-                eventElement.textContent = `${displayTime} - ${event.title}`;
+                const statusColor = getStatusColor(event.status);
+                eventElement.className = `calendar-event bg-${statusColor}-100 text-${statusColor}-800 border-l-2 border-${statusColor}-500`;
+                eventElement.textContent = `${formatMeetingTime(event)} - ${event.title}`;
                 eventElement.addEventListener('click', () => openMeetingModal(event));
                 dayElement.appendChild(eventElement);
             });
@@ -691,7 +712,7 @@ function renderWeekView() {
         dayElement.className = 'p-4 text-center font-semibold text-gray-700 border-l border-gray-200';
         dayElement.innerHTML = `
             <div>${day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-            <div class="text-lg ${isToday(day) ? 'bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center mx-auto' : ''}">${day.getDate()}</div>
+            <div class="text-lg ${isToday(day) ? 'bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center mx-auto mt-1' : 'mt-1'}">${day.getDate()}</div>
         `;
         weekDaysElement.appendChild(dayElement);
     }
@@ -703,7 +724,7 @@ function renderWeekView() {
         
         // Time label
         const timeLabel = document.createElement('div');
-        timeLabel.className = 'time-slot-hour p-2 text-sm text-gray-500 text-center';
+        timeLabel.className = 'time-slot-hour p-2 text-sm text-gray-500 text-center flex items-center justify-center';
         timeLabel.textContent = `${hour.toString().padStart(2, '0')}:00`;
         timeSlot.appendChild(timeLabel);
         
@@ -714,19 +735,18 @@ function renderWeekView() {
             day.setHours(hour, 0, 0, 0);
             
             const daySlot = document.createElement('div');
-            daySlot.className = 'time-slot border-l border-gray-200 relative';
+            daySlot.className = 'time-slot border-l border-gray-200 p-1 overflow-y-auto space-y-1 relative';
             daySlot.dataset.date = day.toISOString();
             
             // Add events for this time slot
             const hourEvents = getMeetingsForDateAndHour(day, hour);
             hourEvents.forEach(event => {
                 const eventElement = document.createElement('div');
-                eventElement.className = `calendar-event absolute left-1 right-1 ${getStatusColor(event.status)}-100 border-l-2 border-${getStatusColor(event.status)}-500 z-10`;
-                eventElement.style.top = '2px';
-                eventElement.style.bottom = '2px';
+                const statusColor = getStatusColor(event.status);
+                eventElement.className = `calendar-event bg-${statusColor}-100 text-${statusColor}-800 border-l-2 border-${statusColor}-500 shadow-sm`;
                 eventElement.innerHTML = `
                     <div class="text-xs font-medium truncate">${event.title}</div>
-                    <div class="text-xs truncate">${event.time}</div>
+                    <div class="text-xs truncate opacity-75">${formatMeetingTime(event)}</div>
                 `;
                 eventElement.addEventListener('click', () => openMeetingModal(event));
                 daySlot.appendChild(eventElement);
@@ -760,7 +780,7 @@ function renderDayView() {
         return;
     }
     
-    dayEvents.sort((a, b) => new Date(a.date) - new Date(b.date));
+    dayEvents.sort((a, b) => parseMeetingDate(a.date) - parseMeetingDate(b.date));
     
     dayEvents.forEach(event => {
         const eventElement = document.createElement('div');
@@ -770,8 +790,8 @@ function renderDayView() {
             <div class="flex items-start justify-between">
                 <div class="flex-1">
                     <h4 class="font-semibold text-gray-800">${event.title}</h4>
-                    <p class="text-sm text-gray-600 mt-1">${event.time} • ${event.duration} minutes</p>
-                    <p class="text-sm text-gray-700 mt-2">${event.description}</p>
+                    <p class="text-sm text-gray-600 mt-1">${formatMeetingTime(event)} • ${event.duration} minutes</p>
+                    <p class="text-sm text-gray-700 mt-2">${event.description || 'No description provided'}</p>
                     <div class="flex items-center mt-2 space-x-4 text-sm text-gray-600">
                         <span>👨‍🏫 ${event.mentor}</span>
                         <span>👨‍🎓 ${event.mentee}</span>
@@ -805,7 +825,7 @@ function renderListView() {
         return;
     }
     
-    meetings.sort((a, b) => new Date(b.date) - new Date(a.date));
+    meetings.sort((a, b) => parseMeetingDate(b.date) - parseMeetingDate(a.date));
     
     meetings.forEach(meeting => {
         const meetingElement = document.createElement('div');
@@ -823,10 +843,10 @@ function renderListView() {
                             ${meeting.status}
                         </span>
                     </div>
-                    <p class="text-gray-600 mb-3">${meeting.description}</p>
+                    <p class="text-gray-600 mb-3">${meeting.description || 'No description provided'}</p>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-700">
                         <div>
-                            <p><span class="font-semibold">Date & Time:</span> ${meeting.date}</p>
+                            <p><span class="font-semibold">Date & Time:</span> ${formatMeetingDateTime(meeting.date)}</p>
                             <p><span class="font-semibold">Duration:</span> ${meeting.duration} minutes</p>
                         </div>
                         <div>
@@ -835,7 +855,7 @@ function renderListView() {
                         </div>
                         <div>
                             ${meeting.meet_link ? `<p><span class="font-semibold">Meeting Link:</span> <a href="${meeting.meet_link}" target="_blank" class="text-blue-500 hover:underline">Join</a></p>` : ''}
-                            <p><span class="font-semibold">Created:</span> ${meeting.created_at}</p>
+                            <p><span class="font-semibold">Created:</span> ${formatMeetingDateTime(meeting.created_at)}</p>
                         </div>
                     </div>
                 </div>
@@ -847,7 +867,7 @@ function renderListView() {
 
 function getMeetingsForDate(date) {
     return meetings.filter(meeting => {
-        const meetingDate = new Date(meeting.date);
+        const meetingDate = parseMeetingDate(meeting.date);
         return meetingDate.getDate() === date.getDate() &&
                meetingDate.getMonth() === date.getMonth() &&
                meetingDate.getFullYear() === date.getFullYear();
@@ -856,7 +876,7 @@ function getMeetingsForDate(date) {
 
 function getMeetingsForDateAndHour(date, hour) {
     return meetings.filter(meeting => {
-        const meetingDate = new Date(meeting.date);
+        const meetingDate = parseMeetingDate(meeting.date);
         return meetingDate.getDate() === date.getDate() &&
                meetingDate.getMonth() === date.getMonth() &&
                meetingDate.getFullYear() === date.getFullYear() &&
@@ -887,19 +907,19 @@ function openMeetingModal(meeting) {
             <div class="flex items-start justify-between">
                 <div>
                     <h4 class="text-xl font-bold text-gray-800">${meeting.title}</h4>
-                    <p class="text-gray-600 mt-1">${meeting.date} • ${meeting.duration} minutes</p>
+                    <p class="text-gray-600 mt-1">${formatMeetingDateTime(meeting.date)} • ${meeting.duration} minutes</p>
                 </div>
                 <span class="px-3 py-1 rounded-full text-sm font-medium
                     ${meeting.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
                       meeting.status === 'completed' ? 'bg-green-100 text-green-800' :
                       'bg-red-100 text-red-800'}">
-                    ${meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1)}
+                    ${meeting.status ? meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1) : ''}
                 </span>
             </div>
             
             <div>
                 <h5 class="font-semibold text-gray-700 mb-2">Description</h5>
-                <p class="text-gray-600 bg-gray-50 p-4 rounded-lg">${meeting.description}</p>
+                <p class="text-gray-600 bg-gray-50 p-4 rounded-lg">${meeting.description || 'No description provided'}</p>
             </div>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -912,7 +932,7 @@ function openMeetingModal(meeting) {
                             </div>
                             <div>
                                 <p class="font-medium text-gray-800">${meeting.mentor}</p>
-                                <p class="text-sm text-gray-600">${meeting.mentor_email}</p>
+                                <p class="text-sm text-gray-600">${meeting.mentor_email || ''}</p>
                             </div>
                         </div>
                         <div class="flex items-center space-x-3">
@@ -921,7 +941,7 @@ function openMeetingModal(meeting) {
                             </div>
                             <div>
                                 <p class="font-medium text-gray-800">${meeting.mentee}</p>
-                                <p class="text-sm text-gray-600">${meeting.mentee_email}</p>
+                                <p class="text-sm text-gray-600">${meeting.mentee_email || ''}</p>
                             </div>
                         </div>
                     </div>
@@ -931,7 +951,7 @@ function openMeetingModal(meeting) {
                     <h5 class="font-semibold text-gray-700 mb-3">Meeting Details</h5>
                     <div class="space-y-2 text-sm text-gray-600">
                         <p><span class="font-medium">Duration:</span> ${meeting.duration} minutes</p>
-                        <p><span class="font-medium">Created:</span> ${meeting.created_at}</p>
+                        <p><span class="font-medium">Created:</span> ${formatMeetingDateTime(meeting.created_at)}</p>
                         ${meeting.meet_link ? `
                             <p><span class="font-medium">Meeting Link:</span> 
                                 <a href="${meeting.meet_link}" target="_blank" class="text-blue-500 hover:underline ml-1">
@@ -945,11 +965,15 @@ function openMeetingModal(meeting) {
         </div>
     `;
     
-    document.getElementById('meetingModal').classList.remove('hidden');
+    const m = document.getElementById('meetingModal');
+    m.classList.remove('hidden');
+    m.classList.add('flex');
 }
 
 function closeMeetingModal() {
-    document.getElementById('meetingModal').classList.add('hidden');
+    const m = document.getElementById('meetingModal');
+    m.classList.add('hidden');
+    m.classList.remove('flex');
 }
 
 function updateStats() {
@@ -968,7 +992,11 @@ function updateStats() {
 function openAdminScheduleModal() {
     document.getElementById('scheduleMeetingModal').classList.remove('hidden');
     document.getElementById('scheduleMeetingModal').classList.add('flex');
-    var today = new Date().toISOString().split('T')[0];
+    var now = new Date();
+    var yyyy = now.getFullYear();
+    var mm = String(now.getMonth() + 1).padStart(2, '0');
+    var dd = String(now.getDate()).padStart(2, '0');
+    var today = yyyy + '-' + mm + '-' + dd;
     document.getElementById('sched-date').setAttribute('min', today);
     document.getElementById('sched-date').value = '';
     document.getElementById('sched-hour').value = '';
@@ -998,18 +1026,9 @@ function openAdminScheduleModal() {
     } catch(e) {}
     document.getElementById('sched-participant-banner').classList.add('hidden');
     var s = document.getElementById('sched-status'); s.classList.add('hidden'); s.textContent = '';
-    savedMentorOptions = [];
-    savedMenteeOptions = [];
-    var mentorSelOrig = document.getElementById('sched-mentor');
-    var menteeSelOrig = document.getElementById('sched-mentee');
-    for (var i = 0; i < mentorSelOrig.options.length; i++) {
-        if (mentorSelOrig.options[i].dataset.name) savedMentorOptions.push(mentorSelOrig.options[i].cloneNode(true));
-    }
-    for (var j = 0; j < menteeSelOrig.options.length; j++) {
-        if (menteeSelOrig.options[j].dataset.name) savedMenteeOptions.push(menteeSelOrig.options[j].cloneNode(true));
-    }
     switchScheduleView('mentee');
 }
+
 function closeScheduleMeetingModal() {
     document.getElementById('scheduleMeetingModal').classList.add('hidden');
     document.getElementById('scheduleMeetingModal').classList.remove('flex');
@@ -1059,36 +1078,71 @@ function clearAllSchedErrors() {
     }
 }
 
+function initSavedOptions() {
+    if (savedMentorOptions.length === 0) {
+        var mentorSelOrig = document.getElementById('sched-mentor');
+        if (mentorSelOrig) {
+            for (var i = 0; i < mentorSelOrig.options.length; i++) {
+                if (mentorSelOrig.options[i].value) {
+                    savedMentorOptions.push(mentorSelOrig.options[i].cloneNode(true));
+                }
+            }
+        }
+    }
+    if (savedMenteeOptions.length === 0) {
+        var menteeSelOrig = document.getElementById('sched-mentee');
+        if (menteeSelOrig) {
+            for (var j = 0; j < menteeSelOrig.options.length; j++) {
+                if (menteeSelOrig.options[j].value) {
+                    savedMenteeOptions.push(menteeSelOrig.options[j].cloneNode(true));
+                }
+            }
+        }
+    }
+}
+
 function updateSchedMentorInstitution() {
     var mSel = document.getElementById('sched-mentor');
-    var opt = mSel.options[mSel.selectedIndex];
-    var instName = (opt && opt.dataset && opt.dataset.institution) ? opt.dataset.institution : '';
-    var instId = (opt && opt.dataset && opt.dataset.institutionId) ? opt.dataset.institutionId : '';
-    document.getElementById('sched-mentor-institution').value = instName || '{{ institution_name or "" }}' || 'Not specified';
-    document.getElementById('sched-mentor-institute-id').value = instId || '{{ institution_id or "" }}';
+    var opt = (mSel && mSel.selectedIndex >= 0) ? mSel.options[mSel.selectedIndex] : null;
+    var instName = (opt && opt.dataset && opt.dataset.institution) ? opt.dataset.institution.trim() : '';
+    var instId = (opt && opt.dataset && opt.dataset.institutionId) ? opt.dataset.institutionId.trim() : '';
+    document.getElementById('sched-mentor-institution').value = (mSel && mSel.value && instName) ? instName : (mSel && mSel.value ? 'Not specified' : 'Not specified');
+    document.getElementById('sched-mentor-institute-id').value = (mSel && mSel.value && instId) ? instId : '';
 }
 
 function updateSchedMenteeInstitution() {
     var eSel = document.getElementById('sched-mentee');
-    var opt = eSel.options[eSel.selectedIndex];
-    var instName = (opt && opt.dataset.institution) ? opt.dataset.institution : '';
-    var instId = (opt && opt.dataset.institutionId) ? opt.dataset.institutionId : '';
-    document.getElementById('sched-mentee-institution').value = instName || '{{ institution_name or "" }}' || 'Not specified';
-    document.getElementById('sched-mentee-institute-id').value = instId || '{{ institution_id or "" }}';
+    var opt = (eSel && eSel.selectedIndex >= 0) ? eSel.options[eSel.selectedIndex] : null;
+    var instName = (opt && opt.dataset && opt.dataset.institution) ? opt.dataset.institution.trim() : '';
+    var instId = (opt && opt.dataset && opt.dataset.institutionId) ? opt.dataset.institutionId.trim() : '';
+    document.getElementById('sched-mentee-institution').value = (eSel && eSel.value && instName) ? instName : (eSel && eSel.value ? 'Not specified' : 'Not specified');
+    document.getElementById('sched-mentee-institute-id').value = (eSel && eSel.value && instId) ? instId : '';
 }
 
-document.getElementById('sched-mentor').addEventListener('change', function() {
-    updateSchedBanner();
-    updateSchedMentorInstitution();
-    onPrimarySelectionChange();
-});
-document.getElementById('sched-mentee').addEventListener('change', function() {
-    updateSchedBanner();
-    updateSchedMenteeInstitution();
-    onPrimarySelectionChange();
-});
+function updateSchedBanner() {
+    var mSel = document.getElementById('sched-mentor');
+    var eSel = document.getElementById('sched-mentee');
+    var banner = document.getElementById('sched-participant-banner');
+    var namesEl = document.getElementById('sched-participant-names');
+    var mOpt = (mSel && mSel.selectedIndex >= 0) ? mSel.options[mSel.selectedIndex] : null;
+    var eOpt = (eSel && eSel.selectedIndex >= 0) ? eSel.options[eSel.selectedIndex] : null;
+    var parts = [];
+    if (mSel && mSel.value && mOpt && mOpt.dataset && mOpt.dataset.name) {
+        parts.push(mOpt.dataset.name + ' (Mentor)');
+    }
+    if (eSel && eSel.value && eOpt && eOpt.dataset && eOpt.dataset.name) {
+        parts.push(eOpt.dataset.name + ' (Mentee)');
+    }
+    if (parts.length > 0) {
+        namesEl.textContent = parts.join(' & ');
+        banner.classList.remove('hidden');
+    } else {
+        banner.classList.add('hidden');
+    }
+}
 
 function switchScheduleView(mode) {
+    initSavedOptions();
     scheduleViewMode = mode;
     var btnMentee = document.getElementById('toggleMenteeView');
     var btnMentor = document.getElementById('toggleMentorView');
@@ -1097,119 +1151,157 @@ function switchScheduleView(mode) {
     var menteeLabel = document.getElementById('sched-mentee-label');
     var mentorSel = document.getElementById('sched-mentor');
     var menteeSel = document.getElementById('sched-mentee');
+    var container = document.getElementById('sched-participants-container');
+    var menteeBlock = document.getElementById('sched-mentee-block');
+    var mentorBlock = document.getElementById('sched-mentor-block');
+
+    menteeLabel.textContent = 'Select Mentee';
+    mentorLabel.textContent = 'Select Mentor';
 
     if (mode === 'mentee') {
         btnMentee.className = 'flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors bg-indigo-600 text-white';
         btnMentor.className = 'flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors text-gray-600 hover:text-gray-800';
-        hint.textContent = 'Select a mentee to see their connected mentors';
-        mentorLabel.textContent = 'Mentor (filtered by mentee)';
-        menteeLabel.textContent = 'Select Mentee';
-        menteeSel.value = '';
-        resetMentorDropdown();
+        hint.textContent = 'Select a mentee to filter connected mentors';
+
+        if (container && menteeBlock && mentorBlock) {
+            container.appendChild(menteeBlock);
+            container.appendChild(mentorBlock);
+        }
     } else {
         btnMentor.className = 'flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors bg-indigo-600 text-white';
         btnMentee.className = 'flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors text-gray-600 hover:text-gray-800';
-        hint.textContent = 'Select a mentor to see their connected mentees';
-        menteeLabel.textContent = 'Mentee (filtered by mentor)';
-        mentorLabel.textContent = 'Select Mentor';
-        mentorSel.value = '';
-        resetMenteeDropdown();
-    }
-    updateSchedBanner();
-    updateSchedMentorInstitution();
-    updateSchedMenteeInstitution();
-}
+        hint.textContent = 'Select a mentor to filter connected mentees';
 
-function resetMentorDropdown() {
-    var mentorSel = document.getElementById('sched-mentor');
-    mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
-    for (var i = 0; i < savedMentorOptions.length; i++) {
-        mentorSel.appendChild(savedMentorOptions[i].cloneNode(true));
+        if (container && menteeBlock && mentorBlock) {
+            container.appendChild(mentorBlock);
+            container.appendChild(menteeBlock);
+        }
     }
-}
 
-function resetMenteeDropdown() {
-    var menteeSel = document.getElementById('sched-mentee');
+    // Both dropdowns are populated with all available members before selection
     menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
     for (var i = 0; i < savedMenteeOptions.length; i++) {
         menteeSel.appendChild(savedMenteeOptions[i].cloneNode(true));
     }
-}
+    menteeSel.value = '';
 
-function onPrimarySelectionChange() {
-    if (scheduleViewMode === 'mentee') {
-        var menteeSel = document.getElementById('sched-mentee');
-        var mentorSel = document.getElementById('sched-mentor');
-        var selectedMenteeId = menteeSel.value;
-        var connectedMentorIds = (selectedMenteeId && menteeToMentors[selectedMenteeId]) ? menteeToMentors[selectedMenteeId] : [];
-        var currentVal = mentorSel.value;
-        mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
-        var restored = false;
-        for (var i = 0; i < savedMentorOptions.length; i++) {
-            var opt = savedMentorOptions[i].cloneNode(true);
-            if (selectedMenteeId) {
-                if (connectedMentorIds.indexOf(opt.value) !== -1) {
-                    mentorSel.appendChild(opt);
-                    if (opt.value === currentVal) restored = true;
-                }
-            } else {
-                mentorSel.appendChild(opt);
-                if (opt.value === currentVal) restored = true;
-            }
-        }
-        if (restored && currentVal) {
-            mentorSel.value = currentVal;
-        } else {
-            mentorSel.value = '';
-        }
-    } else {
-        var mentorSel2 = document.getElementById('sched-mentor');
-        var menteeSel2 = document.getElementById('sched-mentee');
-        var selectedMentorId = mentorSel2.value;
-        var connectedMenteeIds = (selectedMentorId && mentor_to_mentees_js[selectedMentorId]) ? mentor_to_mentees_js[selectedMentorId] : [];
-        var currentVal2 = menteeSel2.value;
-        menteeSel2.innerHTML = '<option value="">Choose a mentee...</option>';
-        var restored2 = false;
-        for (var j = 0; j < savedMenteeOptions.length; j++) {
-            var opt2 = savedMenteeOptions[j].cloneNode(true);
-            if (selectedMentorId) {
-                if (connectedMenteeIds.indexOf(opt2.value) !== -1) {
-                    menteeSel2.appendChild(opt2);
-                    if (opt2.value === currentVal2) restored2 = true;
-                }
-            } else {
-                menteeSel2.appendChild(opt2);
-                if (opt2.value === currentVal2) restored2 = true;
-            }
-        }
-        if (restored2 && currentVal2) {
-            menteeSel2.value = currentVal2;
-        } else {
-            menteeSel2.value = '';
-        }
+    mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+    for (var j = 0; j < savedMentorOptions.length; j++) {
+        mentorSel.appendChild(savedMentorOptions[j].cloneNode(true));
     }
+    mentorSel.value = '';
+
     updateSchedBanner();
     updateSchedMentorInstitution();
     updateSchedMenteeInstitution();
 }
 
-function updateSchedBanner() {
-    var mSel = document.getElementById('sched-mentor');
-    var eSel = document.getElementById('sched-mentee');
-    var banner = document.getElementById('sched-participant-banner');
-    var namesEl = document.getElementById('sched-participant-names');
-    var mOpt = mSel.options[mSel.selectedIndex];
-    var eOpt = eSel.options[eSel.selectedIndex];
-    var parts = [];
-    if (mSel.value && mOpt && mOpt.dataset && mOpt.dataset.name) {
-        parts.push(mOpt.dataset.name + ' (Mentor)');
+function onMenteeSelectionChange() {
+    updateSchedMenteeInstitution();
+    if (scheduleViewMode === 'mentee') {
+        var menteeSel = document.getElementById('sched-mentee');
+        var mentorSel = document.getElementById('sched-mentor');
+        var mentorLabel = document.getElementById('sched-mentor-label');
+        var selectedMenteeId = menteeSel.value;
+
+        if (!selectedMenteeId) {
+            // Restore all mentors
+            mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+            for (var i = 0; i < savedMentorOptions.length; i++) {
+                mentorSel.appendChild(savedMentorOptions[i].cloneNode(true));
+            }
+            mentorSel.value = '';
+            if (mentorLabel) mentorLabel.textContent = 'Select Mentor';
+        } else {
+            var rawConnected = menteeToMentors[selectedMenteeId] || [];
+            var connectedMentorIds = rawConnected.map(String);
+            mentorSel.innerHTML = '';
+            var matchingOptions = [];
+            for (var k = 0; k < savedMentorOptions.length; k++) {
+                var opt = savedMentorOptions[k];
+                if (connectedMentorIds.indexOf(String(opt.value)) !== -1) {
+                    matchingOptions.push(opt.cloneNode(true));
+                }
+            }
+
+            if (matchingOptions.length === 0) {
+                mentorSel.innerHTML = '<option value="">No connected mentors found</option>';
+                mentorSel.value = '';
+                if (mentorLabel) mentorLabel.textContent = 'Mentor (none connected)';
+            } else {
+                mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+                for (var m = 0; m < matchingOptions.length; m++) {
+                    mentorSel.appendChild(matchingOptions[m]);
+                }
+                if (matchingOptions.length === 1) {
+                    mentorSel.value = matchingOptions[0].value;
+                } else {
+                    mentorSel.value = '';
+                }
+                if (mentorLabel) mentorLabel.textContent = 'Mentor (paired with selected mentee)';
+            }
+        }
+        updateSchedMentorInstitution();
     }
-    if (eSel.value && eOpt && eOpt.dataset && eOpt.dataset.name) {
-        parts.push(eOpt.dataset.name + ' (Mentee)');
-    }
-    if (parts.length > 0) { namesEl.textContent = parts.join(' & '); banner.classList.remove('hidden'); }
-    else { banner.classList.add('hidden'); }
+    updateSchedBanner();
 }
+
+function onMentorSelectionChange() {
+    updateSchedMentorInstitution();
+    if (scheduleViewMode === 'mentor') {
+        var mentorSel = document.getElementById('sched-mentor');
+        var menteeSel = document.getElementById('sched-mentee');
+        var menteeLabel = document.getElementById('sched-mentee-label');
+        var selectedMentorId = mentorSel.value;
+
+        if (!selectedMentorId) {
+            // Restore all mentees
+            menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
+            for (var j = 0; j < savedMenteeOptions.length; j++) {
+                menteeSel.appendChild(savedMenteeOptions[j].cloneNode(true));
+            }
+            menteeSel.value = '';
+            if (menteeLabel) menteeLabel.textContent = 'Select Mentee';
+        } else {
+            var rawConnected = mentorToMentees[selectedMentorId] || [];
+            var connectedMenteeIds = rawConnected.map(String);
+            menteeSel.innerHTML = '';
+            var matchingOptions = [];
+            for (var n = 0; n < savedMenteeOptions.length; n++) {
+                var opt = savedMenteeOptions[n];
+                if (connectedMenteeIds.indexOf(String(opt.value)) !== -1) {
+                    matchingOptions.push(opt.cloneNode(true));
+                }
+            }
+
+            if (matchingOptions.length === 0) {
+                menteeSel.innerHTML = '<option value="">No connected mentees found</option>';
+                menteeSel.value = '';
+                if (menteeLabel) menteeLabel.textContent = 'Mentee (none connected)';
+            } else {
+                menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
+                for (var p = 0; p < matchingOptions.length; p++) {
+                    menteeSel.appendChild(matchingOptions[p]);
+                }
+                if (matchingOptions.length === 1) {
+                    menteeSel.value = matchingOptions[0].value;
+                } else {
+                    menteeSel.value = '';
+                }
+                if (menteeLabel) menteeLabel.textContent = 'Mentee (paired with selected mentor)';
+            }
+        }
+        updateSchedMenteeInstitution();
+    }
+    updateSchedBanner();
+}
+
+document.getElementById('sched-mentor').addEventListener('change', function() {
+    onMentorSelectionChange();
+});
+document.getElementById('sched-mentee').addEventListener('change', function() {
+    onMenteeSelectionChange();
+});
 
 document.getElementById('scheduleMeetingForm').addEventListener('submit', async function(e) {
     e.preventDefault();
@@ -1327,7 +1419,14 @@ document.getElementById('scheduleMeetingForm').addEventListener('submit', async 
 
     var selectedDT = new Date(date + 'T' + startTime);
     if (selectedDT <= new Date()) {
-        statusEl.textContent = 'Invalid Time: The selected meeting date and time (' + date + ' ' + startTime + ') must be in the future.';
+        var pastError = 'Invalid Time: The selected meeting date and time (' + date + ' ' + startTime + ') must be in the future.';
+        var statusTopEl = document.getElementById('sched-status-top');
+        if (statusTopEl) {
+            statusTopEl.textContent = pastError;
+            statusTopEl.className = 'text-sm mb-4 text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
+            statusTopEl.classList.remove('hidden');
+        }
+        statusEl.textContent = pastError;
         statusEl.className = 'text-sm text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
         statusEl.classList.remove('hidden');
         dateEl.classList.add('border-red-500', 'ring-1', 'ring-red-500');
@@ -1356,17 +1455,38 @@ document.getElementById('scheduleMeetingForm').addEventListener('submit', async 
         });
         var result = await res.json();
         if (res.ok && result.message) {
-            statusEl.textContent = 'Meeting scheduled successfully!';
+            var successMsg = 'Meeting scheduled successfully!';
+            var statusTopEl = document.getElementById('sched-status-top');
+            if (statusTopEl) {
+                statusTopEl.textContent = successMsg;
+                statusTopEl.className = 'text-sm mb-4 text-green-700 bg-green-50 p-3 rounded-lg border border-green-200';
+                statusTopEl.classList.remove('hidden');
+            }
+            statusEl.textContent = successMsg;
             statusEl.className = 'text-sm text-green-700 bg-green-50 p-3 rounded-lg border border-green-200';
             statusEl.classList.remove('hidden');
             setTimeout(function() { closeScheduleMeetingModal(); window.location.reload(); }, 1200);
         } else {
-            statusEl.textContent = result.error || 'Failed to schedule meeting. Please try again.';
+            var errMsg = result.error || 'Failed to schedule meeting. Please try again.';
+            var statusTopEl = document.getElementById('sched-status-top');
+            if (statusTopEl) {
+                statusTopEl.textContent = errMsg;
+                statusTopEl.className = 'text-sm mb-4 text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
+                statusTopEl.classList.remove('hidden');
+            }
+            statusEl.textContent = errMsg;
             statusEl.className = 'text-sm text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
             statusEl.classList.remove('hidden');
         }
     } catch(err) {
-        statusEl.textContent = 'Network error. Please check your connection and try again.';
+        var netErr = 'Network error. Please check your connection and try again.';
+        var statusTopEl = document.getElementById('sched-status-top');
+        if (statusTopEl) {
+            statusTopEl.textContent = netErr;
+            statusTopEl.className = 'text-sm mb-4 text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
+            statusTopEl.classList.remove('hidden');
+        }
+        statusEl.textContent = netErr;
         statusEl.className = 'text-sm text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
         statusEl.classList.remove('hidden');
     }
@@ -1413,6 +1533,14 @@ document.getElementById('scheduleMeetingModal').addEventListener('click', functi
 // Close modal when clicking outside
 document.getElementById('meetingModal').addEventListener('click', function(e) {
     if (e.target === this) {
+        closeMeetingModal();
+    }
+});
+
+// Close modal on Escape key press
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeScheduleMeetingModal();
         closeMeetingModal();
     }
 });
