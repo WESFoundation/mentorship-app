@@ -2740,7 +2740,8 @@ def mentordashboard():
         mentee=example_mentee,
         profile_complete=profile_complete,
         profile_stats=profile_stats,
-        my_mentees=my_mentees
+        my_mentees=my_mentees,
+        current_user=user
     )
 
 @app.route("/mentor_mentorship_request", methods=["GET", "POST"])
@@ -7399,9 +7400,11 @@ def get_task_progress_css(status):
 
 def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calendar_link,
                               platform, title, start_datetime, timezone,
-                              mentor_id, mentee_id, supervisor, requested_to):
+                              mentor_id, mentee_id, supervisor, requested_to,
+                              extra_recipients=None):
     """Send meeting link details to all participants via email + in-app notification.
     Never raises; logs errors instead.
+    extra_recipients: list of additional User objects to include (e.g. institution users).
     """
     try:
         # Determine all recipient emails
@@ -7422,6 +7425,11 @@ def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calend
             mentee_user = User.query.get(int(mentee_id))
             if mentee_user:
                 recipients[mentee_user.id] = mentee_user
+        # Add extra recipients (e.g. institution users flagged for notification)
+        if extra_recipients:
+            for extra_user in extra_recipients:
+                if extra_user and extra_user.id not in recipients:
+                    recipients[extra_user.id] = extra_user
 
         start_str = start_datetime.strftime("%B %d, %Y at %I:%M %p")
 
@@ -8155,6 +8163,103 @@ def api_get_mentor_rating_breakdown(mentor_id):
             "star_rating": min(5, max(0, round(final_score / 20, 1)))
         }
     })
+
+
+@app.route("/api/mentor_rating_simple/<int:mentor_id>")
+def api_mentor_rating_simple(mentor_id):
+    """Simple 4-criteria star rating for a mentor. Returns breakdown with 0-5 stars each.
+    Criteria: Profile Complete, Useful Skills, Mentorship Experience, Mentorship Task Experience.
+    Final rating = average of the4 criteria."""
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"})
+    mentor = db.session.get(User, mentor_id)
+    if not mentor:
+        return jsonify({"success": False, "message": "Mentor not found"})
+
+    # 1. Profile Complete (0-5 stars) - based on profile completion percentage
+    profile_comp = _compute_profile_completeness_score(mentor_id, "1")
+    profile_stars = round(profile_comp / 20, 1)  # 100 -> 5.0
+
+    # 2. Useful Skills (0-5 stars) - based on skill count, max 10 skills = 5 stars
+    profile_att = _compute_profile_attractiveness_score(mentor_id, "1")
+    skills_stars = round(profile_att / 20, 1)  # 100 -> 5.0
+
+    # 3. Mentorship Experience (0-5 stars) - based on number of completed mentorships
+    mentorships = MentorshipRequest.query.filter_by(
+        mentor_id=mentor_id, final_status="approved"
+    ).all()
+    completed_count = 0
+    mentorship_rating_sum = 0
+    mentorship_rating_count = 0
+    for mr in mentorships:
+        done, _ = _check_mentorship_completed(mr.mentee_id, mr.mentor_id)
+        if done:
+            completed_count += 1
+        mr_score = _compute_mentorship_rating_score(mr.mentee_id, mr.mentor_id)
+        if mr_score > 0:
+            mentorship_rating_sum += mr_score
+            mentorship_rating_count += 1
+    # Score: completed mentorships (each adds ~1 star, max 5) + avg mentee rating
+    exp_from_count = min(completed_count, 5)  # 5+ mentorships = full stars from count
+    if mentorship_rating_count > 0:
+        avg_mr = mentorship_rating_sum / mentorship_rating_count / 20  # convert 0-100 to 0-5
+    else:
+        avg_mr = 0
+    mentorship_stars = round((exp_from_count * 0.5 + avg_mr * 0.5), 1)
+    mentorship_stars = min(5, max(0, mentorship_stars))
+
+    # 4. Mentorship Task Experience (0-5 stars) - based on task ratings
+    total_tasks = 0
+    completed_tasks = 0
+    task_rating_sum = 0
+    task_rating_count = 0
+    for mr in mentorships:
+        pair_tasks = MenteeTask.query.filter_by(mentee_id=mr.mentee_id, mentor_id=mr.mentor_id).all()
+        total_tasks += len(pair_tasks)
+        completed_tasks += sum(1 for t in pair_tasks if t.status == "completed")
+        for t in pair_tasks:
+            tr = TaskRating.query.filter_by(task_type="master", task_id=t.id, mentor_id=mentor_id).first()
+            if tr:
+                task_rating_count += 1
+                task_rating_sum += tr.rating
+    # Score: task completion rate + avg task rating
+    task_completion_pct = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+    completion_stars = round(task_completion_pct / 20, 1)  # 100 -> 5.0
+    if task_rating_count > 0:
+        avg_task_rating = task_rating_sum / task_rating_count  # already 1-5
+    else:
+        avg_task_rating = 0
+    task_stars = round((completion_stars * 0.4 + avg_task_rating * 0.6), 1)
+    task_stars = min(5, max(0, task_stars))
+
+    # Final rating = simple average of4 criteria
+    final_rating = round((profile_stars + skills_stars + mentorship_stars + task_stars) / 4, 1)
+    final_rating = min(5, max(0, final_rating))
+
+    return jsonify({
+        "success": True,
+        "mentor_id": mentor_id,
+        "rating": {
+            "profile_complete": profile_stars,
+            "useful_skills": skills_stars,
+            "mentorship_experience": mentorship_stars,
+            "mentorship_task_experience": task_stars,
+            "final_rating": final_rating,
+            "completed_mentorships": completed_count,
+            "total_tasks": total_tasks,
+            "completed_tasks": completed_tasks,
+            "task_ratings_count": task_rating_count
+        }
+    })
+
+
+@app.route("/rating_calculation")
+def rating_calculation_page():
+    """Page explaining how mentor ratings are calculated. Supervisor only."""
+    if "email" not in session or session.get("user_type") != "0":
+        flash("Access denied.", "danger")
+        return redirect(url_for("login"))
+    return render_template("supervisor/rating_calculation.html")
 
 
 @app.route("/get_supervisor_tasks_data")
@@ -10907,6 +11012,7 @@ def create_meeting_ajax():
     mentor_id = data.get("mentor_id")
     mentee_id = data.get("mentee_id")
     institution_id = data.get("institution_id")
+    include_institutions = data.get("include_institutions", False)
     task_id = data.get("task_id")
     mentorship_id = data.get("mentorship_id")
 
@@ -11143,6 +11249,21 @@ def create_meeting_ajax():
         db.session.add(meeting)
         db.session.commit()
 
+        # Resolve institution users for mentor and mentee if flag is set
+        included_institution_users = []
+        if include_institutions and (mentee_id or mentor_id):
+            try:
+                if mentee_id and mentee_user and mentee_user.institution_id:
+                    inst = Institution.query.get(mentee_user.institution_id)
+                    if inst and inst.user:
+                        included_institution_users.append(inst.user)
+                if mentor_id and mentor_user and mentor_user.institution_id:
+                    inst = Institution.query.get(mentor_user.institution_id)
+                    if inst and inst.user and inst.user.id not in [u.id for u in included_institution_users]:
+                        included_institution_users.append(inst.user)
+            except Exception as e:
+                app.logger.error(f"Failed to resolve institution users: {e}")
+
         if mentee_id and mentor_id:
             try:
                 participants_data = {
@@ -11151,6 +11272,10 @@ def create_meeting_ajax():
                     "created_by": supervisor.id,
                     "created_by_name": supervisor.name
                 }
+                if include_institutions and included_institution_users:
+                    participants_data["include_institutions"] = True
+                    participants_data["institution_user_ids"] = [u.id for u in included_institution_users]
+                    participants_data["institution_user_names"] = [u.name for u in included_institution_users]
                 if task_id:
                     participants_data["task_id"] = task_id
                     participants_data["task_type"] = "master"
@@ -11171,7 +11296,8 @@ def create_meeting_ajax():
             mentor_id=mentor_id,
             mentee_id=mentee_id,
             supervisor=supervisor,
-            requested_to=requested_to
+            requested_to=requested_to,
+            extra_recipients=included_institution_users
         )
     except Exception as e:
         db.session.rollback()

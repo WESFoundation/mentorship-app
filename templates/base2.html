@@ -130,6 +130,16 @@
         {% endif %}
 
         <div class="flex items-center gap-3">
+            <!-- Premium Mentor Button (Mentors only) -->
+            {% if session.get('user_type') == '1' %}
+            <button onclick="openPremiumModal()" class="group flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-300 hover:from-amber-100 hover:to-yellow-100 hover:border-amber-400 transition-all duration-200 shadow-sm hover:shadow" title="Premium Mentor">
+                <svg class="w-4 h-4 text-amber-500 group-hover:text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                </svg>
+                <span class="text-xs font-bold text-amber-700 group-hover:text-amber-800 hidden sm:block">Premium</span>
+            </button>
+            {% endif %}
+
             <!-- Notifications Bell -->
             <div class="relative">
                 <button id="notification-bell-btn"
@@ -1210,7 +1220,158 @@
         });
         _ssObserver.observe(document.body, { childList: true, subtree: true });
     })();
+
+    // ---------- Premium Mentor Modal ----------
+    function openPremiumModal() {
+        document.getElementById('premiumModal').classList.remove('hidden');
+    }
+    function closePremiumModal() {
+        document.getElementById('premiumModal').classList.add('hidden');
+    }
     </script>
+
+<!-- Premium Mentor Modal -->
+<div id="premiumModal" class="fixed inset-0 hidden bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" onclick="if(event.target===this)closePremiumModal()">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-auto overflow-hidden max-h-[90vh] flex flex-col">
+
+    <!-- Header -->
+    <div class="relative bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 px-8 py-6 text-white shrink-0 overflow-hidden">
+      <div class="absolute inset-0 opacity-10">
+        <svg class="w-full h-full" viewBox="0 0 400 200"><circle cx="350" cy="30" r="80" fill="white"/><circle cx="50" cy="170" r="60" fill="white"/></svg>
+      </div>
+      <div class="relative flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/30">
+            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-2xl font-bold">Premium Mentor Program</h2>
+            <p class="text-amber-100 text-sm mt-0.5">Earn while you mentor</p>
+          </div>
+        </div>
+        <button onclick="closePremiumModal()" class="p-2 rounded-lg hover:bg-white/20 transition-colors">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="p-8 overflow-y-auto">
+
+      <!-- What is Premium Mentor -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+          What is a Premium Mentor?
+        </h3>
+        <p class="text-gray-600 leading-relaxed">Premium Mentors are elite, verified mentors on Mentor Connect who are matched with <strong>sponsored mentees</strong> &mdash; individuals whose mentorship is funded by corporations, government programs, and institutional partnerships.</p>
+      </div>
+
+      <!-- How it Works -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          How Does It Work?
+        </h3>
+        <div class="space-y-3">
+          <div class="flex items-start gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+            <div class="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center shrink-0 font-bold text-sm">1</div>
+            <div>
+              <p class="font-semibold text-green-900">Corporations & Governments Fund Mentees</p>
+              <p class="text-sm text-green-700">Select companies and government initiatives sponsor mentorship programs for deserving students and professionals.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div class="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center shrink-0 font-bold text-sm">2</div>
+            <div>
+              <p class="font-semibold text-blue-900">You Get Matched with Sponsored Mentees</p>
+              <p class="text-sm text-blue-700">As a Premium Mentor, you'll be paired with these mentees for dedicated mentorship sessions.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+            <div class="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center shrink-0 font-bold text-sm">3</div>
+            <div>
+              <p class="font-semibold text-purple-900">Earn for Your Time &amp; Expertise</p>
+              <p class="text-sm text-purple-700">Receive compensation for each mentorship session conducted. Your time and knowledge have real value.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Benefits -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"/></svg>
+          Benefits of Being a Premium Mentor
+        </h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="p-3 bg-amber-50 rounded-lg border border-amber-200 text-center">
+            <div class="text-2xl mb-1">&#128176;</div>
+            <p class="font-semibold text-amber-900 text-sm">Earn Money</p>
+            <p class="text-xs text-amber-700">Get paid per session</p>
+          </div>
+          <div class="p-3 bg-blue-50 rounded-lg border border-blue-200 text-center">
+            <div class="text-2xl mb-1">&#127942;</div>
+            <p class="font-semibold text-blue-900 text-sm">Premium Badge</p>
+            <p class="text-xs text-blue-700">Stand out on the platform</p>
+          </div>
+          <div class="p-3 bg-green-50 rounded-lg border border-green-200 text-center">
+            <div class="text-2xl mb-1">&#128101;</div>
+            <p class="font-semibold text-green-900 text-sm">Priority Matching</p>
+            <p class="text-xs text-green-700">Get matched first</p>
+          </div>
+          <div class="p-3 bg-purple-50 rounded-lg border border-purple-200 text-center">
+            <div class="text-2xl mb-1">&#128200;</div>
+            <p class="font-semibold text-purple-900 text-sm">Impact Reports</p>
+            <p class="text-xs text-purple-700">Track your mentee's growth</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Eligibility Criteria -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Eligibility Criteria
+        </h3>
+        <div class="bg-indigo-50 rounded-lg border border-indigo-200 p-4">
+          <ul class="space-y-2">
+            <li class="flex items-center gap-2 text-sm text-indigo-800">
+              <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+              Complete your mentor profile (100%)
+            </li>
+            <li class="flex items-center gap-2 text-sm text-indigo-800">
+              <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+              Maintain a rating of 3.5 stars or above
+            </li>
+            <li class="flex items-center gap-2 text-sm text-indigo-800">
+              <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+              Complete at least 1 mentorship successfully
+            </li>
+            <li class="flex items-center gap-2 text-sm text-indigo-800">
+              <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+              Active and responsive on the platform
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-300 rounded-xl p-6 text-center">
+        <p class="text-gray-700 mb-4">Ready to turn your mentoring expertise into income?</p>
+        <button onclick="closePremiumModal()" class="px-8 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-white font-bold rounded-xl shadow-lg shadow-amber-500/30 hover:from-amber-600 hover:to-yellow-600 hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+          Get Started &rarr;
+        </button>
+        <p class="text-xs text-gray-500 mt-3">Contact your supervisor to learn more about the Premium Mentor program.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 
 </html>
