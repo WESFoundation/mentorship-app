@@ -7362,6 +7362,7 @@ def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calend
             link_section = f'<p><a href="{meet_link}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Join Meeting</a></p>'
         elif platform == "teams" and teams_calendar_link:
             link_section = f'<p><a href="{teams_calendar_link}" style="display:inline-block;padding:12px 24px;background:#6264a7;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Create Meeting in Microsoft Teams</a></p>'
+            link_section += '<p style="color:#64748b;font-size:12px;margin-top:8px;">Click above to open Teams and create your meeting. You can invite participants once created.</p>'
         elif calendar_add_link:
             link_section = f'<p><a href="{calendar_add_link}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Add to Google Calendar</a></p>'
 
@@ -7370,7 +7371,7 @@ def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calend
         if not meet_link and platform == "google":
             fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No automatic meeting link was generated. Please open the Google Calendar event and click "Join with Google Meet" to get the link, then share it with participants.</p>'
         elif not meet_link and platform == "teams":
-            fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No automatic Teams meeting link was generated. Please set up Microsoft Graph API credentials (MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_USER_EMAIL) to enable automatic Teams meeting link generation, or use a custom link instead.</p>'
+            fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">Click the Teams link above to create your meeting. You can invite participants once the meeting is created.</p>'
         elif not meet_link and platform == "custom":
             fallback_msg = '<p style="color:#b45309;background:#fffbeb;padding:12px;border-radius:6px;font-size:13px;">No meeting link was provided for this custom meeting.</p>'
 
@@ -11024,10 +11025,10 @@ def create_meeting_ajax():
         if teams_meet_link:
             meet_link = teams_meet_link
         else:
+            teams_calendar_link = "https://teams.live.com/meet/create"
             calendar_warning = (
-                "Meeting saved without a Teams join link. Microsoft Graph API is not configured. "
-                "Set MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, and MS_USER_EMAIL environment "
-                "variables to enable automatic Teams meeting link generation."
+                "A Microsoft Teams meeting link could not be auto-generated. "
+                "Click the Teams link provided to create your meeting manually."
             )
 
     try:

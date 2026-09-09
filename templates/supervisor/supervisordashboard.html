@@ -19,6 +19,27 @@
     color: #1e3a8a;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
+
+  .filter-bar-stacked {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .filter-bar-stacked select {
+    width: auto !important;
+    max-width: max-content !important;
+    flex: 0 0 auto !important;
+    cursor: pointer;
+  }
+  .filter-bar-stacked .ss-wrapper {
+    width: auto !important;
+    flex: 0 0 auto !important;
+    display: inline-block;
+  }
+  .filter-bar-stacked .ss-display {
+    width: auto !important;
+  }
 </style>
 
 <main class="max-w-7xl mx-auto px-2 sm:px-3 lg:px-3 py-2">
@@ -625,31 +646,39 @@
 
       {% if all_requests and all_requests|length > 0 %}
       <!-- Filtering Controls -->
-      <div class="mb-6 flex flex-wrap gap-3 items-center">
-        <div class="relative flex-1 min-w-[200px]">
+      <div class="mb-4">
+        <!-- Search Bar (Above Filters) -->
+        <div class="relative mb-3">
           <input type="text" id="requestSearch" placeholder="Search by mentee or mentor name..."
-            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" onkeyup="filterRequests()">
-          <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white transition" onkeyup="filterRequests()">
+          <svg class="w-4 h-4 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
           </svg>
         </div>
-        <select id="requestSupervisorStatusFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterRequests()">
-          <option value="">All Supervisor Status</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </select>
-        <select id="requestMentorStatusFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterRequests()">
-          <option value="">All Mentor Status</option>
-          <option value="accepted">Accepted</option>
-          <option value="rejected">Rejected</option>
-          <option value="pending">Pending</option>
-        </select>
-        <select id="requestTypeFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterRequests()">
-          <option value="">All Types</option>
-          <option value="anchor">Anchor</option>
-          <option value="special">Special</option>
-        </select>
+
+        <!-- Filters (Compact and Stacking on wrap) -->
+        <div class="filter-bar-stacked flex flex-wrap items-center gap-2">
+          <select id="requestSupervisorStatusFilter" data-no-search
+            class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white font-medium text-gray-700 cursor-pointer transition" onchange="filterRequests()">
+            <option value="">All Supervisor Status</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <select id="requestMentorStatusFilter" data-no-search
+            class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 cursor-pointer transition" onchange="filterRequests()">
+            <option value="">All Mentor Status</option>
+            <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
+            <option value="pending">Pending</option>
+          </select>
+          <select id="requestTypeFilter" data-no-search
+            class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 cursor-pointer transition" onchange="filterRequests()">
+            <option value="">All Types</option>
+            <option value="anchor">Anchor</option>
+            <option value="special">Special</option>
+          </select>
+        </div>
       </div>
       <div id="requestResultsCount" class="text-xs text-gray-500 mb-3"></div>
 
@@ -797,19 +826,25 @@
       </div>
 
       <!-- Filtering Controls -->
-      <div class="mb-6 flex flex-wrap gap-3 items-center">
-        <div class="relative flex-1 min-w-[200px]">
+      <div class="mb-4">
+        <!-- Search Bar (Above Filters) -->
+        <div class="relative mb-3">
           <input type="text" id="profileRequestSearch" placeholder="Search by name, profession, school..."
-            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" onkeyup="filterProfileRequests()">
-          <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white transition" onkeyup="filterProfileRequests()">
+          <svg class="w-4 h-4 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
           </svg>
         </div>
-        <select id="profileRequestTypeFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterProfileRequests()">
-          <option value="">All Types</option>
-          <option value="mentor">Mentors</option>
-          <option value="mentee">Mentees</option>
-        </select>
+
+        <!-- Filters (Compact and Stacking on wrap) -->
+        <div class="filter-bar-stacked flex flex-wrap items-center gap-2">
+          <select id="profileRequestTypeFilter" data-no-search
+            class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white font-medium text-gray-700 cursor-pointer transition" onchange="filterProfileRequests()">
+            <option value="">All Types</option>
+            <option value="mentor">Mentors</option>
+            <option value="mentee">Mentees</option>
+          </select>
+        </div>
       </div>
       <div id="profileRequestResultsCount" class="text-xs text-gray-500 mb-3"></div>
 

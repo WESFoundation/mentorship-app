@@ -15,6 +15,19 @@
     transform: translateY(-2px);
   }
 
+  .filter-bar-stacked {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .filter-bar-stacked select {
+    width: auto !important;
+    max-width: max-content !important;
+    flex: 0 0 auto !important;
+    cursor: pointer;
+  }
+
   .status-pill {
     display: inline-flex;
     align-items: center;
@@ -180,10 +193,21 @@
   </div>
 
   <!-- Filter & Search Toolbar -->
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
-    <div class="flex flex-wrap gap-3 items-center">
-      <select id="sourcingStatusFilter"
-        class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-3.5 mb-6">
+    <!-- Search Bar (Above Filters) -->
+    <div class="relative mb-3">
+      <input type="text" id="sourcingSearch" placeholder="Search requests by mentee, role, skills, industry..." onkeyup="filterSourcingList()"
+        class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white transition">
+      <svg class="w-4 h-4 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+    </div>
+
+    <!-- Filters (Compact and Stacking on wrap) -->
+    <div class="filter-bar-stacked flex flex-wrap items-center gap-2">
+      <select id="sourcingStatusFilter" data-no-search
+        class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg bg-white font-medium text-xs sm:text-sm text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
         onchange="window.location.href = this.value;">
         <option value="{{ url_for('supervisor_sourcing_requests', status='all') }}" {% if status_filter == 'all' %}selected{% endif %}>
           All Status ({{ total_count }})
@@ -198,15 +222,6 @@
           Resolved ({{ resolved_count }})
         </option>
       </select>
-
-      <div class="relative flex-1 min-w-[200px]">
-        <input type="text" id="sourcingSearch" placeholder="Search requests by mentee, role, skills, industry..." onkeyup="filterSourcingList()"
-          class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white transition">
-        <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-      </div>
     </div>
   </div>
 

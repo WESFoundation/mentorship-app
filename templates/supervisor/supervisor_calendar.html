@@ -17,6 +17,19 @@
     color: #111827;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
+
+  .filter-bar-stacked {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .filter-bar-stacked select {
+    width: auto !important;
+    max-width: max-content !important;
+    flex: 0 0 auto !important;
+    cursor: pointer;
+  }
   
   .calendar-container {
     background: white;
@@ -241,8 +254,8 @@
     <!-- Controls Row: Filters + Calendar Navigation -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div class="flex items-center gap-3">
-        <select id="calendarFilter"
-          class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        <select id="calendarFilter" data-no-search
+          class="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs sm:text-sm bg-white font-medium text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
           <option value="all">All Sessions</option>
           <option value="upcoming">Upcoming</option>
           <option value="completed">Completed</option>
@@ -805,8 +818,16 @@ function showEventDetails(event) {
   
   if (event.status === 'upcoming' && event.meet_link) {
     joinBtn.style.display = 'inline-block';
+    joinBtn.textContent = 'Join Meeting';
     joinBtn.onclick = function() {
       window.open(event.meet_link, '_blank');
+    };
+  } else if (event.status === 'upcoming') {
+    joinBtn.style.display = 'inline-block';
+    joinBtn.textContent = 'Create in Teams';
+    joinBtn.style.backgroundColor = '#6264a7';
+    joinBtn.onclick = function() {
+      window.open('https://teams.live.com/meet/create', '_blank');
     };
   } else {
     joinBtn.style.display = 'none';

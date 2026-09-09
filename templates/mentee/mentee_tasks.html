@@ -10,6 +10,19 @@
         text-decoration: line-through;
         color: #9ca3af;
     }
+
+    .filter-bar-stacked {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+    }
+    .filter-bar-stacked select {
+        width: auto !important;
+        max-width: max-content !important;
+        flex: 0 0 auto !important;
+        cursor: pointer;
+    }
     
     .task-serial {
         display: inline-flex;
@@ -139,10 +152,20 @@
 
     <!-- Filters and Search -->
     <section class="mb-8">
-        <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-            <div class="flex flex-wrap gap-3 items-center">
-                <select id="status-filter"
-                    class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+        <div class="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm">
+            <!-- Search Bar (Above Filters) -->
+            <div class="relative mb-3">
+                <input type="text" id="task-search" placeholder="Search tasks..."
+                    class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-xs sm:text-sm">
+                <svg class="w-4 h-4 absolute left-3 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+            </div>
+
+            <!-- Filters (Compact and Stacking on wrap) -->
+            <div class="filter-bar-stacked flex flex-wrap items-center gap-2">
+                <select id="status-filter" data-no-search
+                    class="w-auto shrink-0 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs sm:text-sm bg-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer transition"
                     onchange="filterTasks(this.value)">
                     <option value="all">All Status</option>
                     <option value="not-started">Not Started</option>
@@ -152,13 +175,6 @@
                     <option value="overdue">Overdue</option>
                     <option value="critical">Critical</option>
                 </select>
-                <div class="relative flex-1 min-w-[200px]">
-                    <input type="text" id="task-search" placeholder="Search tasks..."
-                        class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm">
-                    <svg class="w-5 h-5 absolute left-3 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                    </svg>
-                </div>
             </div>
         </div>
     </section>

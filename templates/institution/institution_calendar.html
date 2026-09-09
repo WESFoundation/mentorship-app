@@ -854,7 +854,7 @@ function renderListView() {
                             <p><span class="font-semibold">Mentee:</span> ${meeting.mentee}</p>
                         </div>
                         <div>
-                            ${meeting.meet_link ? `<p><span class="font-semibold">Meeting Link:</span> <a href="${meeting.meet_link}" target="_blank" class="text-blue-500 hover:underline">Join</a></p>` : ''}
+                            ${meeting.meet_link ? `<p><span class="font-semibold">Meeting Link:</span> <a href="${meeting.meet_link}" target="_blank" class="text-blue-500 hover:underline">Join</a></p>` : (meeting.status === 'upcoming' ? `<p><span class="font-semibold">Meeting Link:</span> <a href="https://teams.live.com/meet/create" target="_blank" class="text-purple-600 hover:underline">Create in Teams</a></p>` : '')}
                             <p><span class="font-semibold">Created:</span> ${formatMeetingDateTime(meeting.created_at)}</p>
                         </div>
                     </div>
