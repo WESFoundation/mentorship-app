@@ -40,14 +40,51 @@
   .filter-bar-stacked .ss-display {
     width: auto !important;
   }
+
+  /* Rating styles */
+  .sup-rating-container { position: relative; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .sup-rating-stars { display: inline-flex; align-items: center; gap: 1px; }
+  .sup-rating-stars .star { color: #d1d5db; font-size: 14px; }
+  .sup-rating-stars .star.filled { color: #f59e0b; }
+  .sup-rating-stars .star.half { position: relative; color: #d1d5db; }
+  .sup-rating-stars .star.half::before { content: '\2605'; position: absolute; left: 0; width: 50%; overflow: hidden; color: #f59e0b; }
+  .sup-rating-num { font-size: 13px; font-weight: 700; color: #374151; }
+
+  /* Rating Breakdown Popup */
+  .rating-popup-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999;
+    align-items: center; justify-content: center; padding: 16px;
+  }
+  .rating-popup-overlay.active { display: flex; }
+  .rating-popup {
+    background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    max-width: 440px; width: 100%; overflow: hidden;
+  }
+  .rating-popup-header {
+    background: linear-gradient(135deg, #f59e0b, #d97706); padding: 20px 24px; color: white;
+  }
+  .rating-popup-body { padding: 24px; }
+  .rating-popup .rb-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
+  .rating-popup .rb-row:last-child { border-bottom: none; }
+  .rating-popup .rb-label { color: #6b7280; font-size: 14px; }
+  .rating-popup .rb-value { font-weight: 700; font-size: 16px; color: #111827; }
+  .rating-popup .rb-final { background: #fef3c7; margin: -24px; margin-top: 0; padding: 16px 24px; border-top: 2px solid #fbbf24; }
 </style>
 
 <main class="max-w-7xl mx-auto px-2 sm:px-3 lg:px-3 py-2">
 
   <section id="mentors" class="p-6 bg-white rounded-xl shadow-sm">
-    <div class="mb-6">
-      <h2 class="text-xl font-semibold text-gray-800 mb-2">All Mentors</h2>
-      <p class="text-gray-600">View and manage all registered mentors.</p>
+    <div class="mb-6 flex items-center justify-between">
+      <div>
+        <h2 class="text-xl font-semibold text-gray-800 mb-2">All Mentors</h2>
+        <p class="text-gray-600">View and manage all registered mentors.</p>
+      </div>
+      <a href="{{ url_for('rating_calculation_page') }}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 border border-amber-300 rounded-lg text-sm font-semibold hover:bg-amber-100 transition">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+        </svg>
+        How Ratings Work
+      </a>
     </div>
 
     <!-- Search and Filters -->
@@ -132,6 +169,7 @@
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
           </tr>
@@ -161,6 +199,14 @@
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentor-location max-w-[160px] truncate">{{ mentor.location or 'Not specified' }}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentor-email max-w-[200px] truncate">{{ mentor.user.email }}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ mentor.user.created_at.strftime('%d %b %Y, %I:%M %p') if mentor.user.created_at else 'N/A' }}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="sup-rating-container" onclick="openRatingPopup({{ mentor.user_id }}, '{{ mentor.user.name|e }}')" data-mentor-uid="{{ mentor.user_id }}">
+                <div class="sup-rating-stars" id="sup-stars-{{ mentor.user_id }}">
+                  <span class="star">&#9734;</span><span class="star">&#9734;</span><span class="star">&#9734;</span><span class="star">&#9734;</span><span class="star">&#9734;</span>
+                </div>
+                <span class="sup-rating-num" id="sup-num-{{ mentor.user_id }}">--</span>
+              </div>
+            </td>
             <td class="px-6 py-4 whitespace-nowrap">
               {% if not mentor.is_profile_complete %}
               <span class="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded-md">Profile Incomplete</span>
@@ -454,7 +500,42 @@
               </div>
             </div>
 
-            <!-- Section 7: Social Links -->
+            <!-- Section 7: Rating Breakdown -->
+            <div class="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-lg border border-amber-200">
+              <h4 class="font-semibold text-gray-800 mb-4 flex items-center">
+                <svg class="w-5 h-5 text-amber-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                </svg>
+                Mentor Rating
+              </h4>
+              <div class="flex items-center gap-6">
+                <div class="text-center">
+                  <div class="text-3xl font-bold text-amber-600" id="modalFinalRating">--</div>
+                  <div class="flex items-center gap-0.5 mt-1" id="modalRatingStars"></div>
+                  <p class="text-xs text-gray-500 mt-1">out of 5.0</p>
+                </div>
+                <div class="flex-1 grid grid-cols-2 gap-3">
+                  <div class="bg-white rounded-lg p-3 border border-amber-200">
+                    <p class="text-xs text-gray-500 mb-1">Profile Complete</p>
+                    <p class="font-bold text-blue-600" id="modalProfileStars">--</p>
+                  </div>
+                  <div class="bg-white rounded-lg p-3 border border-amber-200">
+                    <p class="text-xs text-gray-500 mb-1">Useful Skills</p>
+                    <p class="font-bold text-green-600" id="modalSkillsStars">--</p>
+                  </div>
+                  <div class="bg-white rounded-lg p-3 border border-amber-200">
+                    <p class="text-xs text-gray-500 mb-1">Mentorship Experience</p>
+                    <p class="font-bold text-purple-600" id="modalExpStars">--</p>
+                  </div>
+                  <div class="bg-white rounded-lg p-3 border border-amber-200">
+                    <p class="text-xs text-gray-500 mb-1">Task Experience</p>
+                    <p class="font-bold text-amber-600" id="modalTaskStars">--</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section 8: Social Links -->
             <div class="bg-gray-50 p-4 rounded-lg">
               <h4 class="font-semibold text-gray-800 mb-4 flex items-center">
                 <svg class="w-5 h-5 text-teal-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -737,11 +818,143 @@
 
     // Show the modal
     document.getElementById('profileModal').classList.remove('hidden');
+
+    // Fetch and display rating
+    const uid = mentor.id || mentor.user_id;
+    if (uid) {
+      fetchSupRating(uid).then(rating => {
+        if (!rating) return;
+        document.getElementById('modalFinalRating').textContent = rating.final_rating.toFixed(1);
+        supRenderPopupStars('modalRatingStars', rating.final_rating);
+        document.getElementById('modalProfileStars').textContent = rating.profile_complete.toFixed(1) + ' / 5.0';
+        document.getElementById('modalSkillsStars').textContent = rating.useful_skills.toFixed(1) + ' / 5.0';
+        document.getElementById('modalExpStars').textContent = rating.mentorship_experience.toFixed(1) + ' / 5.0';
+        document.getElementById('modalTaskStars').textContent = rating.mentorship_task_experience.toFixed(1) + ' / 5.0';
+      });
+    }
   }
 
   function closeProfileModal() {
     document.getElementById('profileModal').classList.add('hidden');
   }
+</script>
+
+<!-- Rating Breakdown Popup -->
+<div id="ratingPopup" class="rating-popup-overlay" onclick="if(event.target===this)closeRatingPopup()">
+  <div class="rating-popup">
+    <div class="rating-popup-header">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-bold">Mentor Rating</h3>
+          <p class="text-amber-100 text-sm" id="popupMentorName">--</p>
+        </div>
+        <button onclick="closeRatingPopup()" class="text-white/80 hover:text-white">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="rating-popup-body">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="text-center">
+          <div class="text-5xl font-bold text-amber-600" id="popupFinalRating">--</div>
+          <div class="flex items-center gap-0.5 mt-1" id="popupStars"></div>
+          <p class="text-xs text-gray-500 mt-1">out of 5.0</p>
+        </div>
+        <div class="flex-1">
+          <div class="rb-row"><span class="rb-label">Profile Complete</span><span class="rb-value" id="popupPc">--</span></div>
+          <div class="rb-row"><span class="rb-label">Useful Skills</span><span class="rb-value" id="popupSk">--</span></div>
+          <div class="rb-row"><span class="rb-label">Mentorship Experience</span><span class="rb-value" id="popupMe">--</span></div>
+          <div class="rb-row"><span class="rb-label">Task Experience</span><span class="rb-value" id="popupTe">--</span></div>
+        </div>
+      </div>
+      <div class="rb-final text-center">
+        <span class="text-sm text-gray-600">Final Rating = average of all4 criteria</span>
+      </div>
+      <div class="mt-4 text-center">
+        <a href="{{ url_for('rating_calculation_page') }}" target="_blank" class="text-sm text-amber-600 hover:text-amber-700 font-semibold underline">
+          How is this calculated? &rarr;
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ---------- Supervisor Rating System ----------
+  function supRenderStars(containerId, rating) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const full = Math.floor(rating);
+    const half = rating - full >= 0.3 && rating - full < 0.8;
+    const empty = 5 - full - (half ? 1 : 0);
+    let html = '';
+    for (let i = 0; i < full; i++) html += '<span class="star filled">&#9733;</span>';
+    if (half) html += '<span class="star half">&#9733;</span>';
+    for (let i = 0; i < empty; i++) html += '<span class="star">&#9734;</span>';
+    container.innerHTML = html;
+  }
+
+  function supRenderPopupStars(containerId, rating) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const full = Math.floor(rating);
+    const half = rating - full >= 0.3 && rating - full < 0.8;
+    const empty = 5 - full - (half ? 1 : 0);
+    let html = '';
+    for (let i = 0; i < full; i++) html += '<span class="text-2xl text-yellow-400">&#9733;</span>';
+    if (half) html += '<span class="text-2xl" style="color:#f59e0b">&#9733;</span>';
+    for (let i = 0; i < empty; i++) html += '<span class="text-2xl text-gray-300">&#9734;</span>';
+    container.innerHTML = html;
+  }
+
+  const supRatingCache = {};
+  async function fetchSupRating(uid) {
+    if (supRatingCache[uid]) return supRatingCache[uid];
+    try {
+      const res = await fetch('/api/mentor_rating_simple/' + uid);
+      const data = await res.json();
+      if (data.success) { supRatingCache[uid] = data.rating; return data.rating; }
+    } catch(e) {}
+    return null;
+  }
+
+  async function loadSupRatings() {
+    const containers = document.querySelectorAll('.sup-rating-container[data-mentor-uid]');
+    for (const c of containers) {
+      const uid = c.getAttribute('data-mentor-uid');
+      const rating = await fetchSupRating(uid);
+      if (!rating) continue;
+      supRenderStars('sup-stars-' + uid, rating.final_rating);
+      const numEl = document.getElementById('sup-num-' + uid);
+      if (numEl) numEl.textContent = rating.final_rating.toFixed(1);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', loadSupRatings);
+
+  function openRatingPopup(uid, name) {
+    document.getElementById('popupMentorName').textContent = name;
+    document.getElementById('ratingPopup').classList.add('active');
+    fetchSupRating(uid).then(rating => {
+      if (!rating) return;
+      document.getElementById('popupFinalRating').textContent = rating.final_rating.toFixed(1);
+      supRenderPopupStars('popupStars', rating.final_rating);
+      document.getElementById('popupPc').textContent = rating.profile_complete.toFixed(1) + ' / 5.0';
+      document.getElementById('popupSk').textContent = rating.useful_skills.toFixed(1) + ' / 5.0';
+      document.getElementById('popupMe').textContent = rating.mentorship_experience.toFixed(1) + ' / 5.0';
+      document.getElementById('popupTe').textContent = rating.mentorship_task_experience.toFixed(1) + ' / 5.0';
+    });
+  }
+
+  function closeRatingPopup() {
+    document.getElementById('ratingPopup').classList.remove('active');
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeRatingPopup();
+  });
 </script>
 
 {% endblock %}
