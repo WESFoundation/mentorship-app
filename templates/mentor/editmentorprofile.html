@@ -326,90 +326,35 @@
                         </div>
                     </div>
 
-                    {% set country_options = ['India', 'Pakistan', 'Bangladesh', 'Nepal', 'Sri Lanka', 'China', 'Japan', 'South Korea', 'Singapore', 'Malaysia', 'Indonesia', 'Philippines', 'Thailand', 'Vietnam', 'UAE', 'Saudi Arabia', 'Qatar', 'Kuwait', 'Oman', 'Bahrain', 'Israel', 'Turkey', 'UK', 'Germany', 'France', 'Italy', 'Spain', 'Netherlands', 'Belgium', 'Luxembourg', 'Switzerland', 'Austria', 'Sweden', 'Norway', 'Denmark', 'Finland', 'Poland', 'Portugal', 'Greece', 'Czech Republic', 'Hungary', 'Russia', 'Ukraine', 'Ireland', 'USA', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'Chile', 'Colombia', 'Australia', 'New Zealand', 'South Africa', 'Nigeria', 'Kenya', 'Egypt', 'Morocco'] %}
-                    {% set is_other_country = country and country not in country_options %}
                     <div>
                         <label class="block text-gray-700 font-semibold mb-2">Country </label>
                         <select name="country" id="country_select" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300">
                             <option value="">Select Country</option>
-                            <optgroup label="Asia">
-                                <option value="India" {% if country == 'India' %}selected{% endif %}>🇮🇳 India</option>
-                                <option value="Pakistan" {% if country == 'Pakistan' %}selected{% endif %}>🇵🇰 Pakistan</option>
-                                <option value="Bangladesh" {% if country == 'Bangladesh' %}selected{% endif %}>🇧🇩 Bangladesh</option>
-                                <option value="Nepal" {% if country == 'Nepal' %}selected{% endif %}>🇳🇵 Nepal</option>
-                                <option value="Sri Lanka" {% if country == 'Sri Lanka' %}selected{% endif %}>🇱🇰 Sri Lanka</option>
-                                <option value="China" {% if country == 'China' %}selected{% endif %}>🇨🇳 China</option>
-                                <option value="Japan" {% if country == 'Japan' %}selected{% endif %}>🇯🇵 Japan</option>
-                                <option value="South Korea" {% if country == 'South Korea' %}selected{% endif %}>🇰🇷 South Korea</option>
-                                <option value="Singapore" {% if country == 'Singapore' %}selected{% endif %}>🇸🇬 Singapore</option>
-                                <option value="Malaysia" {% if country == 'Malaysia' %}selected{% endif %}>🇲🇾 Malaysia</option>
-                                <option value="Indonesia" {% if country == 'Indonesia' %}selected{% endif %}>🇮🇩 Indonesia</option>
-                                <option value="Philippines" {% if country == 'Philippines' %}selected{% endif %}>🇵🇭 Philippines</option>
-                                <option value="Thailand" {% if country == 'Thailand' %}selected{% endif %}>🇹🇭 Thailand</option>
-                                <option value="Vietnam" {% if country == 'Vietnam' %}selected{% endif %}>🇻🇳 Vietnam</option>
-                            </optgroup>
-                            <optgroup label="Middle East">
-                                <option value="UAE" {% if country == 'UAE' %}selected{% endif %}>🇦🇪 UAE</option>
-                                <option value="Saudi Arabia" {% if country == 'Saudi Arabia' %}selected{% endif %}>🇸🇦 Saudi Arabia</option>
-                                <option value="Qatar" {% if country == 'Qatar' %}selected{% endif %}>🇶🇦 Qatar</option>
-                                <option value="Kuwait" {% if country == 'Kuwait' %}selected{% endif %}>🇰🇼 Kuwait</option>
-                                <option value="Oman" {% if country == 'Oman' %}selected{% endif %}>🇴🇲 Oman</option>
-                                <option value="Bahrain" {% if country == 'Bahrain' %}selected{% endif %}>🇧🇭 Bahrain</option>
-                                <option value="Israel" {% if country == 'Israel' %}selected{% endif %}>🇮🇱 Israel</option>
-                                <option value="Turkey" {% if country == 'Turkey' %}selected{% endif %}>🇹🇷 Turkey</option>
-                            </optgroup>
-                            <optgroup label="Europe">
-                                <option value="UK" {% if country == 'UK' %}selected{% endif %}>🇬🇧 United Kingdom</option>
-                                <option value="Germany" {% if country == 'Germany' %}selected{% endif %}>🇩🇪 Germany</option>
-                                <option value="France" {% if country == 'France' %}selected{% endif %}>🇫🇷 France</option>
-                                <option value="Italy" {% if country == 'Italy' %}selected{% endif %}>🇮🇹 Italy</option>
-                                <option value="Spain" {% if country == 'Spain' %}selected{% endif %}>🇪🇸 Spain</option>
-                                <option value="Netherlands" {% if country == 'Netherlands' %}selected{% endif %}>🇳🇱 Netherlands</option>
-                                <option value="Belgium" {% if country == 'Belgium' %}selected{% endif %}>🇧🇪 Belgium</option>
-                                <option value="Luxembourg" {% if country == 'Luxembourg' %}selected{% endif %}>🇱🇺 Luxembourg</option>
-                                <option value="Switzerland" {% if country == 'Switzerland' %}selected{% endif %}>🇨🇭 Switzerland</option>
-                                <option value="Austria" {% if country == 'Austria' %}selected{% endif %}>🇦🇹 Austria</option>
-                                <option value="Sweden" {% if country == 'Sweden' %}selected{% endif %}>🇸🇪 Sweden</option>
-                                <option value="Norway" {% if country == 'Norway' %}selected{% endif %}>🇳🇴 Norway</option>
-                                <option value="Denmark" {% if country == 'Denmark' %}selected{% endif %}>🇩🇰 Denmark</option>
-                                <option value="Finland" {% if country == 'Finland' %}selected{% endif %}>🇫🇮 Finland</option>
-                                <option value="Poland" {% if country == 'Poland' %}selected{% endif %}>🇵🇱 Poland</option>
-                                <option value="Portugal" {% if country == 'Portugal' %}selected{% endif %}>🇵🇹 Portugal</option>
-                                <option value="Greece" {% if country == 'Greece' %}selected{% endif %}>🇬🇷 Greece</option>
-                                <option value="Czech Republic" {% if country == 'Czech Republic' %}selected{% endif %}>🇨🇿 Czech Republic</option>
-                                <option value="Hungary" {% if country == 'Hungary' %}selected{% endif %}>🇭🇺 Hungary</option>
-                                <option value="Russia" {% if country == 'Russia' %}selected{% endif %}>🇷🇺 Russia</option>
-                                <option value="Ukraine" {% if country == 'Ukraine' %}selected{% endif %}>🇺🇦 Ukraine</option>
-                                <option value="Ireland" {% if country == 'Ireland' %}selected{% endif %}>🇮🇪 Ireland</option>
-                            </optgroup>
-                            <optgroup label="Americas">
-                                <option value="USA" {% if country == 'USA' %}selected{% endif %}>🇺🇸 United States</option>
-                                <option value="Canada" {% if country == 'Canada' %}selected{% endif %}>🇨🇦 Canada</option>
-                                <option value="Mexico" {% if country == 'Mexico' %}selected{% endif %}>🇲🇽 Mexico</option>
-                                <option value="Brazil" {% if country == 'Brazil' %}selected{% endif %}>🇧🇷 Brazil</option>
-                                <option value="Argentina" {% if country == 'Argentina' %}selected{% endif %}>🇦🇷 Argentina</option>
-                                <option value="Chile" {% if country == 'Chile' %}selected{% endif %}>🇨🇱 Chile</option>
-                                <option value="Colombia" {% if country == 'Colombia' %}selected{% endif %}>🇨🇴 Colombia</option>
-                            </optgroup>
-                            <optgroup label="Oceania">
-                                <option value="Australia" {% if country == 'Australia' %}selected{% endif %}>🇦🇺 Australia</option>
-                                <option value="New Zealand" {% if country == 'New Zealand' %}selected{% endif %}>🇳🇿 New Zealand</option>
-                            </optgroup>
-                            <optgroup label="Africa">
-                                <option value="South Africa" {% if country == 'South Africa' %}selected{% endif %}>🇿🇦 South Africa</option>
-                                <option value="Nigeria" {% if country == 'Nigeria' %}selected{% endif %}>🇳🇬 Nigeria</option>
-                                <option value="Kenya" {% if country == 'Kenya' %}selected{% endif %}>🇰🇪 Kenya</option>
-                                <option value="Egypt" {% if country == 'Egypt' %}selected{% endif %}>🇪🇬 Egypt</option>
-                                <option value="Morocco" {% if country == 'Morocco' %}selected{% endif %}>🇲🇦 Morocco</option>
-                            </optgroup>
-                            <option value="Other" {% if is_other_country %}selected{% endif %}>🌍 Other (Please specify)</option>
                         </select>
                     </div>
 
+                    <!-- State / Province / Region -->
+                    <div id="state_field_container" style="display: none;">
+                        <label class="block text-gray-700 font-semibold mb-2" id="state_label">State / Province</label>
+                        <select name="state" id="state_select" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300">
+                            <option value="">Select State</option>
+                        </select>
+                    </div>
+
+                    <!-- City / District -->
+                    <div id="city_field_container" style="display: none;">
+                        <label class="block text-gray-700 font-semibold mb-2" id="city_label">City</label>
+                        <select name="city" id="city_select" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300">
+                            <option value="">Select City</option>
+                        </select>
+                        <!-- Fallback text input for unknown cities -->
+                        <input type="text" name="city" id="city_text_input" style="display: none;" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300" placeholder="Enter your city">
+                    </div>
+
                     <!-- Other Country Field -->
-                    <div id="other_country_field" style="display: {% if is_other_country %}block{% else %}none{% endif %};">
+                    <div id="other_country_field" style="display: none;">
                         <label class="block text-gray-700 font-semibold mb-2">Specify Your Country</label>
-                        <input type="text" name="other_country" id="other_country" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300" placeholder="Enter your country name" value="{% if is_other_country %}{{ country }}{% endif %}">
+                        <input type="text" name="other_country" id="other_country" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300" placeholder="Enter your country name">
                     </div>
 
 <div>
@@ -691,10 +636,7 @@
 </div>
                 </div>
                 <div class="space-y-4">
-                    <div>
-                        <label class="block text-gray-700 font-semibold mb-2">City </label>
-                        <input type="text" name="city" value="{{ city }}" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300">
-                    </div>
+                    <!-- City field is now dynamically generated above in the left column -->
 
                     <!-- Criminal Certificate Upload (Mandatory for Luxembourg) -->
                     <div id="criminal_certificate_field" style="display: none;">
@@ -1372,6 +1314,250 @@
     </form>
 </div>
 
+<script>
+// ========== Cascading Country > State > City/District Dropdowns ==========
+(function() {
+    const countrySelect = document.getElementById('country_select');
+    const stateSelect = document.getElementById('state_select');
+    const citySelect = document.getElementById('city_select');
+    const cityTextInput = document.getElementById('city_text_input');
+    const stateFieldContainer = document.getElementById('state_field_container');
+    const cityFieldContainer = document.getElementById('city_field_container');
+    const stateLabel = document.getElementById('state_label');
+    const cityLabel = document.getElementById('city_label');
+    const otherCountryField = document.getElementById('other_country_field');
+
+    // Current values from server
+    const currentCountry = {{ country|tojson }};
+    const currentState = {{ state|tojson }};
+    const currentCity = {{ city|tojson }};
+
+    let locationData = {};
+
+    // Fetch location data from API
+    fetch('/api/location_data')
+        .then(r => r.json())
+        .then(data => {
+            locationData = data;
+            populateCountries();
+            // If we have a saved country, select it and trigger state/city load
+            if (currentCountry) {
+                countrySelect.value = currentCountry;
+                onCountryChange();
+            }
+        })
+        .catch(err => {
+            console.error('Failed to load location data:', err);
+            // Fallback: add Other option
+            const opt = document.createElement('option');
+            opt.value = 'Other';
+            opt.textContent = '🌍 Other (Please specify)';
+            countrySelect.appendChild(opt);
+        });
+
+    function populateCountries() {
+        // Clear existing options
+        countrySelect.innerHTML = '<option value="">Select Country</option>';
+
+        // Group countries by region
+        const regions = {
+            'Asia': ['India', 'Pakistan', 'Bangladesh', 'Nepal', 'Sri Lanka', 'China', 'Japan', 'South Korea', 'Singapore', 'Malaysia', 'Indonesia', 'Philippines', 'Thailand', 'Vietnam'],
+            'Middle East': ['UAE', 'Saudi Arabia', 'Qatar', 'Kuwait', 'Oman', 'Bahrain', 'Israel', 'Turkey'],
+            'Europe': ['UK', 'Germany', 'France', 'Italy', 'Spain', 'Netherlands', 'Belgium', 'Luxembourg', 'Switzerland', 'Austria', 'Sweden', 'Norway', 'Denmark', 'Finland', 'Poland', 'Portugal', 'Greece', 'Czech Republic', 'Hungary', 'Russia', 'Ukraine', 'Ireland'],
+            'Americas': ['USA', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'Chile', 'Colombia'],
+            'Oceania': ['Australia', 'New Zealand'],
+            'Africa': ['South Africa', 'Nigeria', 'Kenya', 'Egypt', 'Morocco']
+        };
+
+        // Build a set of all countries in our data
+        const allCountries = Object.keys(locationData);
+
+        // Add countries by region (only those in locationData)
+        for (const [region, countries] of Object.entries(regions)) {
+            const availableCountries = countries.filter(c => allCountries.includes(c) || c === currentCountry);
+            if (availableCountries.length > 0) {
+                const group = document.createElement('optgroup');
+                group.label = region;
+                for (const c of availableCountries) {
+                    const opt = document.createElement('option');
+                    opt.value = c;
+                    opt.textContent = c;
+                    group.appendChild(opt);
+                }
+                countrySelect.appendChild(group);
+            }
+        }
+
+        // Add any countries in locationData not in our predefined regions
+        const allRegionCountries = Object.values(regions).flat();
+        const extraCountries = allCountries.filter(c => !allRegionCountries.includes(c));
+        if (extraCountries.length > 0) {
+            const group = document.createElement('optgroup');
+            group.label = 'Other Countries';
+            for (const c of extraCountries) {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = c;
+                group.appendChild(opt);
+            }
+            countrySelect.appendChild(group);
+        }
+
+        // Always add "Other" option
+        const otherOpt = document.createElement('option');
+        otherOpt.value = 'Other';
+        otherOpt.textContent = '🌍 Other (Please specify)';
+        countrySelect.appendChild(otherOpt);
+    }
+
+    function onCountryChange() {
+        const country = countrySelect.value;
+
+        // Reset state and city
+        stateSelect.innerHTML = '<option value="">Select State</option>';
+        citySelect.innerHTML = '<option value="">Select City</option>';
+        cityTextInput.style.display = 'none';
+        citySelect.style.display = '';
+
+        if (!country || country === 'Other') {
+            stateFieldContainer.style.display = 'none';
+            cityFieldContainer.style.display = 'none';
+            otherCountryField.style.display = country === 'Other' ? 'block' : 'none';
+            return;
+        }
+
+        otherCountryField.style.display = 'none';
+
+        const countryData = locationData[country];
+        if (!countryData) {
+            // Country not in our data - show state as free text
+            stateFieldContainer.style.display = 'none';
+            cityFieldContainer.style.display = 'block';
+            citySelect.style.display = 'none';
+            cityTextInput.style.display = '';
+            cityTextInput.value = currentCity || '';
+            cityLabel.textContent = 'City';
+            return;
+        }
+
+        const states = Object.keys(countryData.states);
+        stateFieldContainer.style.display = 'block';
+
+        // Set label based on country type
+        if (country === 'India') {
+            stateLabel.textContent = 'State';
+            cityLabel.textContent = 'District';
+        } else {
+            stateLabel.textContent = 'State / Province';
+            cityLabel.textContent = 'City';
+        }
+
+        // Populate states
+        for (const s of states) {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            stateSelect.appendChild(opt);
+        }
+
+        // If we have a saved state, select it
+        if (currentState && states.includes(currentState)) {
+            stateSelect.value = currentState;
+            onStateChange();
+        } else {
+            // Show city field for text input if no matching state
+            cityFieldContainer.style.display = 'block';
+            citySelect.style.display = 'none';
+            cityTextInput.style.display = '';
+            cityTextInput.value = currentCity || '';
+        }
+    }
+
+    function onStateChange() {
+        const country = countrySelect.value;
+        const state = stateSelect.value;
+        const countryData = locationData[country];
+
+        citySelect.innerHTML = '<option value="">Select City</option>';
+        cityTextInput.style.display = 'none';
+        citySelect.style.display = '';
+
+        if (!state || !countryData) {
+            cityFieldContainer.style.display = 'none';
+            return;
+        }
+
+        const cities = countryData.states[state] || [];
+        cityFieldContainer.style.display = 'block';
+
+        if (cities.length === 0) {
+            // No cities listed - show text input
+            citySelect.style.display = 'none';
+            cityTextInput.style.display = '';
+            cityTextInput.value = currentCity || '';
+        } else {
+            for (const c of cities) {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = c;
+                citySelect.appendChild(opt);
+            }
+
+            // Add "Other" option
+            const otherOpt = document.createElement('option');
+            otherOpt.value = 'Other';
+            otherOpt.textContent = 'Other (type below)';
+            citySelect.appendChild(otherOpt);
+
+            // If we have a saved city, select it
+            if (currentCity) {
+                const cityMatch = cities.find(c => c.toLowerCase() === currentCity.toLowerCase());
+                if (cityMatch) {
+                    citySelect.value = cityMatch;
+                } else if (currentCity) {
+                    // City not in list - set to Other and show text input
+                    citySelect.value = 'Other';
+                    showCityTextInput();
+                    cityTextInput.value = currentCity;
+                }
+            }
+        }
+    }
+
+    function showCityTextInput() {
+        citySelect.style.display = 'none';
+        cityTextInput.style.display = '';
+        cityTextInput.value = '';
+        cityTextInput.focus();
+    }
+
+    // Event listeners
+    countrySelect.addEventListener('change', onCountryChange);
+    stateSelect.addEventListener('change', onStateChange);
+    citySelect.addEventListener('change', function() {
+        if (this.value === 'Other') {
+            showCityTextInput();
+        } else {
+            cityTextInput.style.display = 'none';
+            cityTextInput.value = '';
+        }
+    });
+
+    // Handle form submission: ensure only one city value is sent
+    document.getElementById('mentorProfileForm').addEventListener('submit', function(e) {
+        if (citySelect.value === 'Other' && cityTextInput.value.trim()) {
+            // User selected "Other" and typed a city - send text input value only
+            citySelect.removeAttribute('name');
+        } else if (citySelect.value && citySelect.value !== 'Other') {
+            // Normal dropdown selection - remove text input from form
+            cityTextInput.removeAttribute('name');
+        } else if (cityTextInput.style.display !== 'none' && cityTextInput.value.trim()) {
+            // Text input is visible and has value (no dropdown option)
+            citySelect.removeAttribute('name');
+        }
+    });
+})();
+</script>
 
 <script>
 // Datalist for country codes
@@ -1497,41 +1683,37 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Country dropdown handler with criminal certificate logic
-    const countrySelect = document.getElementById('country_select');
-    const otherCountryField = document.getElementById('other_country_field');
+    // (Other country field and cascading state/city handled by separate script above)
+    const countrySelectLux = document.getElementById('country_select');
     const criminalCertificateField = document.getElementById('criminal_certificate_field');
     const luxembourgBadge = document.getElementById('luxembourg_required_badge');
     const luxembourgMessage = document.getElementById('luxembourg_message');
     const optionalMessage = document.getElementById('optional_message');
     
-    if (countrySelect) {
-        countrySelect.addEventListener('change', function() {
+    if (countrySelectLux) {
+        countrySelectLux.addEventListener('change', function() {
             const selectedCountry = this.value;
-            
-            // Show/hide other country field
-            if (selectedCountry === 'Other') {
-                if (otherCountryField) otherCountryField.style.display = 'block';
-            } else {
-                if (otherCountryField) otherCountryField.style.display = 'none';
-            }
             
             // Show/hide criminal certificate based on country
             if (selectedCountry === 'Luxembourg') {
-                // Show criminal certificate field
                 if (criminalCertificateField) criminalCertificateField.style.display = 'block';
                 if (luxembourgBadge) luxembourgBadge.style.display = 'inline';
                 if (luxembourgMessage) luxembourgMessage.style.display = 'inline';
                 if (optionalMessage) optionalMessage.style.display = 'none';
-                console.log('Luxembourg selected - Criminal certificate MANDATORY');
             } else {
-                // Hide criminal certificate field
                 if (criminalCertificateField) criminalCertificateField.style.display = 'none';
                 if (luxembourgBadge) luxembourgBadge.style.display = 'none';
                 if (luxembourgMessage) luxembourgMessage.style.display = 'none';
                 if (optionalMessage) optionalMessage.style.display = 'inline';
-                console.log('Non-Luxembourg country - Criminal certificate HIDDEN');
             }
         });
+        // Trigger on page load for existing Luxembourg profiles
+        if (countrySelectLux.value === 'Luxembourg' && criminalCertificateField) {
+            criminalCertificateField.style.display = 'block';
+            if (luxembourgBadge) luxembourgBadge.style.display = 'inline';
+            if (luxembourgMessage) luxembourgMessage.style.display = 'inline';
+            if (optionalMessage) optionalMessage.style.display = 'none';
+        }
     }
 
     // Education dropdown handler
