@@ -8370,7 +8370,7 @@ def rating_calculation_page():
     """Page explaining how mentor ratings are calculated. Supervisor only."""
     if "email" not in session or session.get("user_type") != "0":
         flash("Access denied.", "danger")
-        return redirect(url_for("login"))
+        return redirect(url_for("signin"))
     return render_template("supervisor/rating_calculation.html")
 
 
