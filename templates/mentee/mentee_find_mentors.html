@@ -453,6 +453,7 @@
             </button>
             <button class="view-profile-btn w-full py-2 px-3 bg-white border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 hover:border-gray-400 hover:text-gray-900"
               data-mentor-id="{{ mentor.id }}"
+              data-user-id="{{ mentor.user_id }}"
               data-name="{{ mentor.user.name }}"
               data-email="{{ mentor.user.email }}"
               data-profession="{{ mentor.profession }}"
@@ -468,7 +469,24 @@
               data-industry="{{ mentor.industry_sector }}"
               data-skills="{{ mentor.skills }}"
               data-availability="{{ mentor.availability }}"
-              data-mentorship-topics="{{ mentor.mentorship_topics }}">
+              data-mentorship-topics="{{ mentor.mentorship_topics }}"
+              data-linkedin="{{ mentor.linkedin_link }}"
+              data-github="{{ mentor.github_link }}"
+              data-portfolio="{{ mentor.portfolio_link }}"
+              data-preferred-duration="{{ mentor.preferred_duration }}"
+              data-mentorship-type="{{ mentor.mentorship_type_preference }}"
+              data-connect-frequency="{{ mentor.connect_frequency }}"
+              data-highest-qualification="{{ mentor.highest_qualification }}"
+              data-degree-name="{{ mentor.degree_name }}"
+              data-field-of-study="{{ mentor.field_of_study }}"
+              data-university-name="{{ mentor.university_name }}"
+              data-graduation-year="{{ mentor.graduation_year }}"
+              data-academic-status="{{ mentor.academic_status }}"
+              data-certifications="{{ mentor.certifications }}"
+              data-research-work="{{ mentor.research_work }}"
+              data-mentorship-philosophy="{{ mentor.mentorship_philosophy }}"
+              data-mentorship-motto="{{ mentor.mentorship_motto }}"
+              data-other-social="{{ mentor.other_social_link }}">
               View Profile
             </button>
           </div>
@@ -1141,6 +1159,8 @@
     viewProfileButtons.forEach(button => {
       button.addEventListener('click', function() {
         const mentor = {
+          id: this.getAttribute('data-mentor-id'),
+          user_id: this.getAttribute('data-user-id') || this.getAttribute('data-mentor-id'),
           user: {
             name: this.getAttribute('data-name'),
             email: this.getAttribute('data-email')
@@ -1740,34 +1760,41 @@
 
   const ratingCache = {};
   async function fetchMentorRating(mentorUserId) {
+    if (!mentorUserId) return null;
     if (ratingCache[mentorUserId]) return ratingCache[mentorUserId];
     try {
       const res = await fetch('/api/mentor_rating_simple/' + mentorUserId);
+      if (!res.ok) return null;
       const data = await res.json();
-      if (data.success) { ratingCache[mentorUserId] = data.rating; return data.rating; }
-    } catch(e) {}
+      if (data && data.success && data.rating) {
+        ratingCache[mentorUserId] = data.rating;
+        return data.rating;
+      }
+    } catch(e) {
+      console.error('Error fetching mentor rating:', e);
+    }
     return null;
   }
 
   async function loadAllRatings() {
     const containers = document.querySelectorAll('.rating-container[data-mentor-id]');
-    const ids = [...new Set([...containers].map(c => c.getAttribute('data-mentor-id')))];
+    const ids = [...new Set([...containers].map(c => c.getAttribute('data-mentor-id')))].filter(Boolean);
     for (const uid of ids) {
       const rating = await fetchMentorRating(uid);
       if (!rating) continue;
-      renderStars('rating-stars-' + uid, rating.final_rating);
+      renderStars('rating-stars-' + uid, rating.final_rating != null ? rating.final_rating : 0);
       const numEl = document.getElementById('rating-num-' + uid);
-      if (numEl) numEl.textContent = rating.final_rating.toFixed(1);
+      if (numEl) numEl.textContent = rating.final_rating != null ? rating.final_rating.toFixed(1) : '--';
       const tipPc = document.getElementById('tip-pc-' + uid);
-      if (tipPc) tipPc.textContent = rating.profile_complete.toFixed(1);
+      if (tipPc) tipPc.textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) : '--';
       const tipSk = document.getElementById('tip-sk-' + uid);
-      if (tipSk) tipSk.textContent = rating.useful_skills.toFixed(1);
+      if (tipSk) tipSk.textContent = rating.useful_skills != null ? rating.useful_skills.toFixed(1) : '--';
       const tipMe = document.getElementById('tip-me-' + uid);
-      if (tipMe) tipMe.textContent = rating.mentorship_experience.toFixed(1);
+      if (tipMe) tipMe.textContent = rating.mentorship_experience != null ? rating.mentorship_experience.toFixed(1) : '--';
       const tipTe = document.getElementById('tip-te-' + uid);
-      if (tipTe) tipTe.textContent = rating.mentorship_task_experience.toFixed(1);
+      if (tipTe) tipTe.textContent = rating.mentorship_task_experience != null ? rating.mentorship_task_experience.toFixed(1) : '--';
       const tipFr = document.getElementById('tip-fr-' + uid);
-      if (tipFr) tipFr.textContent = rating.final_rating.toFixed(1) + ' / 5.0';
+      if (tipFr) tipFr.textContent = (rating.final_rating != null ? rating.final_rating.toFixed(1) : '--') + ' / 5.0';
     }
   }
 
@@ -1778,14 +1805,45 @@
   openProfileModal = function(mentor) {
     origOpenProfileModal(mentor);
     const uid = mentor.user_id || mentor.id;
+
+    const finalRatingEl = document.getElementById('modalFinalRating');
+    const profileStarsEl = document.getElementById('modalProfileStars');
+    const skillsStarsEl = document.getElementById('modalSkillsStars');
+    const expStarsEl = document.getElementById('modalExpStars');
+    const taskStarsEl = document.getElementById('modalTaskStars');
+
+    if (finalRatingEl) finalRatingEl.textContent = '--';
+    renderModalStars('modalStars', 0);
+    if (profileStarsEl) profileStarsEl.textContent = 'Loading...';
+    if (skillsStarsEl) skillsStarsEl.textContent = 'Loading...';
+    if (expStarsEl) expStarsEl.textContent = 'Loading...';
+    if (taskStarsEl) taskStarsEl.textContent = 'Loading...';
+
+    if (!uid) {
+      if (finalRatingEl) finalRatingEl.textContent = '0.0';
+      if (profileStarsEl) profileStarsEl.textContent = '0.0 / 5.0';
+      if (skillsStarsEl) skillsStarsEl.textContent = '0.0 / 5.0';
+      if (expStarsEl) expStarsEl.textContent = '0.0 / 5.0';
+      if (taskStarsEl) taskStarsEl.textContent = '0.0 / 5.0';
+      return;
+    }
+
     fetchMentorRating(uid).then(rating => {
-      if (!rating) return;
-      document.getElementById('modalFinalRating').textContent = rating.final_rating.toFixed(1);
-      renderModalStars('modalStars', rating.final_rating);
-      document.getElementById('modalProfileStars').textContent = rating.profile_complete.toFixed(1) + ' / 5.0';
-      document.getElementById('modalSkillsStars').textContent = rating.useful_skills.toFixed(1) + ' / 5.0';
-      document.getElementById('modalExpStars').textContent = rating.mentorship_experience.toFixed(1) + ' / 5.0';
-      document.getElementById('modalTaskStars').textContent = rating.mentorship_task_experience.toFixed(1) + ' / 5.0';
+      if (!rating) {
+        if (finalRatingEl) finalRatingEl.textContent = '0.0';
+        renderModalStars('modalStars', 0);
+        if (profileStarsEl) profileStarsEl.textContent = '0.0 / 5.0';
+        if (skillsStarsEl) skillsStarsEl.textContent = '0.0 / 5.0';
+        if (expStarsEl) expStarsEl.textContent = '0.0 / 5.0';
+        if (taskStarsEl) taskStarsEl.textContent = '0.0 / 5.0';
+        return;
+      }
+      if (finalRatingEl) finalRatingEl.textContent = rating.final_rating != null ? rating.final_rating.toFixed(1) : '0.0';
+      renderModalStars('modalStars', rating.final_rating || 0);
+      if (profileStarsEl) profileStarsEl.textContent = (rating.profile_complete != null ? rating.profile_complete.toFixed(1) : '0.0') + ' / 5.0';
+      if (skillsStarsEl) skillsStarsEl.textContent = (rating.useful_skills != null ? rating.useful_skills.toFixed(1) : '0.0') + ' / 5.0';
+      if (expStarsEl) expStarsEl.textContent = (rating.mentorship_experience != null ? rating.mentorship_experience.toFixed(1) : '0.0') + ' / 5.0';
+      if (taskStarsEl) taskStarsEl.textContent = (rating.mentorship_task_experience != null ? rating.mentorship_task_experience.toFixed(1) : '0.0') + ' / 5.0';
     });
   };
 </script>
