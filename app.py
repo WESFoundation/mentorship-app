@@ -1460,7 +1460,7 @@ def sync_postgres_sequences(target_table=None):
                                     SELECT setval(
                                         :seq,
                                         COALESCE((SELECT MAX({col_name}) FROM {t_name}), 1),
-                                        COALESCE((SELECT MAX({col_name}) IS NOT NULL FROM {t_name}), false)
+                                        true
                                     )
                                 """),
                                 {"seq": seq_res}
@@ -2720,11 +2720,74 @@ def mentordashboard():
     # Connected mentees (fully approved requests)
     connected_reqs = MentorshipRequest.query.filter_by(
         mentor_id=mentor.id,
-        
         supervisor_status="approved",
         final_status="approved"
     ).all()
     my_mentees = [req.mentee for req in connected_reqs if req.mentee]
+    my_mentee_ids = [m.id for m in my_mentees if m]
+
+    # ------------------- Analytics Data -------------------
+    # Tasks assigned to this mentor's mentees
+    all_my_tasks = MenteeTask.query.filter(
+        MenteeTask.mentor_id == mentor.id
+    ).all() if my_mentee_ids else []
+
+    total_tasks = len(all_my_tasks)
+    tasks_completed = len([t for t in all_my_tasks if t.status == 'completed'])
+    tasks_in_progress = len([t for t in all_my_tasks if t.status == 'in-progress'])
+    tasks_pending = total_tasks - tasks_completed - tasks_in_progress
+
+    # Average task progress across all mentees
+    avg_mentee_progress = 0
+    if total_tasks > 0:
+        avg_mentee_progress = round(sum(t.progress or 0 for t in all_my_tasks) / total_tasks)
+
+    # Response rate (accepted vs total requests)
+    total_requests = len(incoming_requests)
+    accepted_requests = len([r for r in incoming_requests if r.mentor_status == 'accepted'])
+    response_rate = round((accepted_requests / total_requests * 100)) if total_requests > 0 else 0
+
+    # Mentorship sessions (meetings)
+    my_mentee_ids_for_meetings = [m.id for m in my_mentees if m]
+    now_dt = datetime.utcnow()
+    upcoming_meetings = MeetingRequest.query.filter(
+        MeetingRequest.requester_id.in_([mentor.id] + my_mentee_ids_for_meetings),
+        MeetingRequest.requested_to_id.in_([mentor.id] + my_mentee_ids_for_meetings),
+        MeetingRequest.meeting_date >= now_dt.date()
+    ).count() if my_mentee_ids_for_meetings else 0
+
+    completed_meetings = MeetingRequest.query.filter(
+        MeetingRequest.requester_id.in_([mentor.id] + my_mentee_ids_for_meetings),
+        MeetingRequest.requested_to_id.in_([mentor.id] + my_mentee_ids_for_meetings),
+        MeetingRequest.meeting_date < now_dt.date()
+    ).count() if my_mentee_ids_for_meetings else 0
+
+    # Top mentees leaderboard (by tasks completed, then by progress)
+    mentee_leaderboard = []
+    if my_mentee_ids:
+        mentee_task_map = {}
+        for t in all_my_tasks:
+            mid = t.mentee_id
+            if mid not in mentee_task_map:
+                mentee_task_map[mid] = {'completed': 0, 'total': 0, 'progress_sum': 0, 'count': 0}
+            mentee_task_map[mid]['total'] += 1
+            mentee_task_map[mid]['progress_sum'] += (t.progress or 0)
+            mentee_task_map[mid]['count'] += 1
+            if t.status == 'completed':
+                mentee_task_map[mid]['completed'] += 1
+
+        for m in my_mentees:
+            if m and m.id in mentee_task_map:
+                d = mentee_task_map[m.id]
+                avg_p = round(d['progress_sum'] / d['count']) if d['count'] > 0 else 0
+                mentee_leaderboard.append({
+                    'name': m.name,
+                    'id': m.id,
+                    'tasks_completed': d['completed'],
+                    'tasks_total': d['total'],
+                    'avg_progress': avg_p
+                })
+        mentee_leaderboard.sort(key=lambda x: (-x['tasks_completed'], -x['avg_progress']))
 
     return render_template(
         "mentor/mentordashboard.html",
@@ -2741,7 +2804,18 @@ def mentordashboard():
         profile_complete=profile_complete,
         profile_stats=profile_stats,
         my_mentees=my_mentees,
-        current_user=user
+        current_user=user,
+        total_tasks=total_tasks,
+        tasks_completed=tasks_completed,
+        tasks_in_progress=tasks_in_progress,
+        tasks_pending=tasks_pending,
+        avg_mentee_progress=avg_mentee_progress,
+        response_rate=response_rate,
+        total_requests=total_requests,
+        accepted_requests=accepted_requests,
+        upcoming_meetings=upcoming_meetings,
+        completed_meetings=completed_meetings,
+        mentee_leaderboard=mentee_leaderboard
     )
 
 @app.route("/mentor_mentorship_request", methods=["GET", "POST"])
@@ -4796,6 +4870,7 @@ def submit_mentor_sourcing_request():
     message = (request.form.get("message") or "").strip()
     countries = (request.form.get("countries") or "").strip()
     languages = (request.form.get("languages") or "").strip()
+    preferred_institution = (request.form.get("preferred_institution") or "").strip()
 
     if not target_role:
         return jsonify({"success": False, "error": "Please enter the target role or title."}), 400
@@ -4804,8 +4879,10 @@ def submit_mentor_sourcing_request():
     if not message:
         return jsonify({"success": False, "error": "Please provide details on what you are looking for."}), 400
 
-    # Prepend country and language metadata to message if provided
+    # Prepend country, language, and institution metadata to message if provided
     meta_parts = []
+    if preferred_institution:
+        meta_parts.append("[Preferred Institution]: " + preferred_institution)
     if countries:
         meta_parts.append("[Preferred Countries]: " + countries)
     if languages:
@@ -4832,6 +4909,7 @@ def submit_mentor_sourcing_request():
             db.session.commit()
         except Exception as insert_err:
             db.session.rollback()
+            db.session.expunge_all()
             err_msg = str(insert_err).lower()
             if "uniqueviolation" in err_msg or "duplicate key" in err_msg or "mentor_sourcing_requests_pkey" in err_msg:
                 sync_postgres_sequences("mentor_sourcing_requests")
@@ -9177,6 +9255,7 @@ def request_mentorship():
             db.session.commit()
         except Exception as commit_err:
             db.session.rollback()
+            db.session.expunge_all()
             err_msg = str(commit_err).lower()
             if "uniqueviolation" in err_msg or "duplicate key" in err_msg or "mentorship_requests_pkey" in err_msg:
                 app.logger.warning(f"Sequence desync on mentorship_requests: {commit_err}. Auto-resyncing sequence...")

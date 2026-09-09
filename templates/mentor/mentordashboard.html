@@ -118,38 +118,36 @@
     </div>
     {% endif %}
 
-    <!-- Stats Overview -->
+    <!-- Analytics Overview -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-      <div
-        class="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 hover:shadow-lg transition-all duration-300 group">
+      <div class="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 hover:shadow-lg transition-all duration-300 group">
         <div class="flex items-center">
           <div class="rounded-xl bg-blue-100 p-3 mr-4 text-blue-600 group-hover:scale-110 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
-              stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
           </div>
           <div>
-            <p class="text-sm font-semibold text-slate-500">Active Mentees</p>
-            <p class="text-3xl font-bold text-slate-800">{{ my_mentees|length if my_mentees else 0 }}</p>
+            <p class="text-sm font-semibold text-slate-500">Tasks Completed</p>
+            <p class="text-3xl font-bold text-slate-800">{{ tasks_completed }}</p>
+            <p class="text-xs text-slate-400 mt-0.5">of {{ total_tasks }} total</p>
           </div>
         </div>
       </div>
 
-      <div
-        class="bg-emerald-50/50 p-6 rounded-2xl border border-emerald-100 hover:shadow-lg transition-all duration-300 group">
+      <div class="bg-emerald-50/50 p-6 rounded-2xl border border-emerald-100 hover:shadow-lg transition-all duration-300 group">
         <div class="flex items-center">
           <div class="rounded-xl bg-emerald-100 p-3 mr-4 text-emerald-600 group-hover:scale-110 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
-              stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
             </svg>
           </div>
           <div>
-            <p class="text-sm font-semibold text-slate-500">Sessions Done</p>
-            <p class="text-3xl font-bold text-slate-800">{{ completed_sessions if completed_sessions else 0 }}</p>
+            <p class="text-sm font-semibold text-slate-500">Avg. Mentee Progress</p>
+            <p class="text-3xl font-bold text-slate-800">{{ avg_mentee_progress }}%</p>
+            <div class="w-full bg-emerald-100 rounded-full h-1.5 mt-2 overflow-hidden">
+              <div class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: {{ avg_mentee_progress }}%"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -157,37 +155,125 @@
       <div class="bg-sky-50/50 p-6 rounded-2xl border border-sky-100 hover:shadow-lg transition-all duration-300 group">
         <div class="flex items-center">
           <div class="rounded-xl bg-sky-100 p-3 mr-4 text-sky-600 group-hover:scale-110 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
-              stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
           <div>
-            <p class="text-sm font-semibold text-slate-500">Upcoming</p>
-            <p class="text-3xl font-bold text-slate-800">{{ upcoming_sessions if upcoming_sessions else 0 }}</p>
+            <p class="text-sm font-semibold text-slate-500">Sessions</p>
+            <p class="text-3xl font-bold text-slate-800">{{ completed_meetings }}</p>
+            <p class="text-xs text-slate-400 mt-0.5">{{ upcoming_meetings }} upcoming</p>
           </div>
         </div>
       </div>
 
-      <div
-        class="bg-amber-50/50 p-6 rounded-2xl border border-amber-100 hover:shadow-lg transition-all duration-300 group">
+      <div class="bg-amber-50/50 p-6 rounded-2xl border border-amber-100 hover:shadow-lg transition-all duration-300 group">
         <div class="flex items-center">
           <div class="rounded-xl bg-amber-100 p-3 mr-4 text-amber-600 group-hover:scale-110 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
-              stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
           <div>
-            <p class="text-sm font-semibold text-slate-500">Requests</p>
-            <p class="text-3xl font-bold text-slate-800">{{ incoming_requests|selectattr('mentor_status', 'equalto',
-              'pending')|list|length if incoming_requests else 0 }}</p>
+            <p class="text-sm font-semibold text-slate-500">Acceptance Rate</p>
+            <p class="text-3xl font-bold text-slate-800">{{ response_rate }}%</p>
+            <p class="text-xs text-slate-400 mt-0.5">{{ accepted_requests }} of {{ total_requests }} requests</p>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Mentee Progress Leaderboard -->
+    {% if mentee_leaderboard and mentee_leaderboard|length > 0 %}
+    <div class="mb-8 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-slate-800">Mentee Progress Leaderboard</h3>
+            <p class="text-xs text-slate-400">Tasks completed by each mentee</p>
+          </div>
+        </div>
+      </div>
+      <div class="divide-y divide-slate-50">
+        {% for m in mentee_leaderboard[:5] %}
+        <div class="px-6 py-3.5 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+          <div class="flex items-center gap-4">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold
+              {% if loop.index == 1 %}bg-amber-100 text-amber-700
+              {% elif loop.index == 2 %}bg-slate-200 text-slate-600
+              {% elif loop.index == 3 %}bg-orange-100 text-orange-700
+              {% else %}bg-slate-100 text-slate-500{% endif %}">
+              {{ loop.index }}
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center text-primary font-bold text-sm">
+                {{ m.name[0] if m.name else '?' }}
+              </div>
+              <div>
+                <p class="font-semibold text-slate-800 text-sm">{{ m.name }}</p>
+                <p class="text-xs text-slate-400">{{ m.tasks_completed }}/{{ m.tasks_total }} tasks done</p>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="text-right">
+              <p class="text-sm font-bold text-slate-800">{{ m.avg_progress }}%</p>
+              <p class="text-[10px] text-slate-400">avg progress</p>
+            </div>
+            <div class="w-20 bg-slate-100 rounded-full h-2 overflow-hidden">
+              <div class="h-full rounded-full transition-all duration-500
+                {% if m.avg_progress >= 75 %}bg-emerald-500
+                {% elif m.avg_progress >= 50 %}bg-blue-500
+                {% elif m.avg_progress >= 25 %}bg-amber-500
+                {% else %}bg-slate-300{% endif %}"
+                style="width: {{ m.avg_progress }}%"></div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Tasks Breakdown Bar -->
+    {% if total_tasks > 0 %}
+    <div class="mb-8 p-5 bg-white rounded-2xl border border-slate-100 shadow-sm">
+      <div class="flex items-center justify-between mb-3">
+        <h4 class="font-bold text-slate-800 text-sm">Task Status Breakdown</h4>
+        <span class="text-xs text-slate-400">{{ total_tasks }} total tasks</span>
+      </div>
+      <div class="flex rounded-full overflow-hidden h-3 bg-slate-100">
+        {% if tasks_completed > 0 %}
+        <div class="bg-emerald-500 transition-all duration-500" style="width: {{ (tasks_completed / total_tasks * 100)|round }}%"></div>
+        {% endif %}
+        {% if tasks_in_progress > 0 %}
+        <div class="bg-blue-500 transition-all duration-500" style="width: {{ (tasks_in_progress / total_tasks * 100)|round }}%"></div>
+        {% endif %}
+        {% if tasks_pending > 0 %}
+        <div class="bg-slate-300 transition-all duration-500" style="width: {{ (tasks_pending / total_tasks * 100)|round }}%"></div>
+        {% endif %}
+      </div>
+      <div class="flex items-center gap-6 mt-3">
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+          <span class="text-xs text-slate-500">Completed ({{ tasks_completed }})</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+          <span class="text-xs text-slate-500">In Progress ({{ tasks_in_progress }})</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded-full bg-slate-300"></div>
+          <span class="text-xs text-slate-500">Pending ({{ tasks_pending }})</span>
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     <!-- My Rating Card -->
     <div class="mb-8 mentor-rating-card bg-gradient-to-r from-amber-50 to-yellow-50 rounded-2xl border border-amber-200 p-6 shadow-sm">
