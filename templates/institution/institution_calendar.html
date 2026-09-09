@@ -276,27 +276,27 @@
 
             <div id="sched-participants-container" class="space-y-4">
                 <div id="sched-mentee-block">
-                    <label class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentee-label">Select Mentee</span> <span class="text-red-500">*</span></label>
-                    <select id="sched-mentee" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <label for="sched-mentee" class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentee-label">Select Mentee</span> <span class="text-red-500">*</span></label>
+                    <select id="sched-mentee" name="mentee_id" data-no-search class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                         <option value="">Choose a mentee...</option>
                         {% for mentee in mentees %}
-                        <option value="{{ mentee.id }}" data-name="{{ mentee.name }}" data-institution="{{ (mentee.institution or (mentee.mentee_profile.institution if mentee.mentee_profile and mentee.mentee_profile.institution else '') or (mentee.mentee_profile.institution_name if mentee.mentee_profile and mentee.mentee_profile.institution_name else '') or (mentee.mentee_profile.current_organization if mentee.mentee_profile and mentee.mentee_profile.current_organization else '') or (mentee.mentee_profile.school_name if mentee.mentee_profile and mentee.mentee_profile.school_name else '') or (mentee.institution_ref.name if mentee.institution_ref else '')) | trim }}" data-institution-id="{{ mentee.institution_id or (mentee.institution_ref.id if mentee.institution_ref else '') }}">{{ mentee.name }} ({{ mentee.email }})</option>
+                        <option value="{{ mentee.id }}" data-name="{{ mentee.name | e }}" data-institution="{{ (mentee.display_institution or mentee.institution or '') | e }}" data-institution-id="{{ mentee.display_institution_id or (mentee.institution_id or '') }}">{{ mentee.name }} ({{ mentee.email }})</option>
                         {% endfor %}
                     </select>
-                    <p id="sched-mentee-error" class="hidden text-xs text-red-600 mt-1 font-medium flex items-center gap-1">
+                    <p id="sched-mentee-error" class="hidden text-xs text-red-600 mt-1 font-medium items-center gap-1">
                         <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
                         Mentee is required. Please select a mentee.
                     </p>
                 </div>
                 <div id="sched-mentor-block">
-                    <label class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentor-label">Select Mentor</span> <span class="text-red-500">*</span></label>
-                    <select id="sched-mentor" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <label for="sched-mentor" class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentor-label">Select Mentor</span> <span class="text-red-500">*</span></label>
+                    <select id="sched-mentor" name="mentor_id" data-no-search class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                         <option value="">Choose a mentor...</option>
                         {% for mentor in mentors %}
-                        <option value="{{ mentor.id }}" data-name="{{ mentor.name }}" data-institution="{{ (mentor.institution or (mentor.mentor_profile.organisation if mentor.mentor_profile and mentor.mentor_profile.organisation else '') or (mentor.mentor_profile.university_name if mentor.mentor_profile else '') or (mentor.institution_ref.name if mentor.institution_ref else '')) | trim }}" data-institution-id="{{ mentor.institution_id or (mentor.institution_ref.id if mentor.institution_ref else '') }}">{{ mentor.name }} ({{ mentor.email }})</option>
+                        <option value="{{ mentor.id }}" data-name="{{ mentor.name | e }}" data-institution="{{ (mentor.display_institution or mentor.institution or '') | e }}" data-institution-id="{{ mentor.display_institution_id or (mentor.institution_id or '') }}">{{ mentor.name }} ({{ mentor.email }})</option>
                         {% endfor %}
                     </select>
-                    <p id="sched-mentor-error" class="hidden text-xs text-red-600 mt-1 font-medium flex items-center gap-1">
+                    <p id="sched-mentor-error" class="hidden text-xs text-red-600 mt-1 font-medium items-center gap-1">
                         <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
                         Mentor is required. Please select a mentor.
                     </p>
@@ -305,18 +305,18 @@
             <!-- Institute Fields -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Mentee's Institute</label>
-                    <input type="text" id="sched-mentee-institution" readonly
+                    <label for="sched-mentee-institution" class="block text-sm font-medium text-gray-700 mb-1">Mentee's Institute</label>
+                    <input type="text" id="sched-mentee-institution" name="mentee_institution" readonly
                         value="Not specified"
                         class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm cursor-not-allowed">
-                    <input type="hidden" id="sched-mentee-institute-id" value="">
+                    <input type="hidden" id="sched-mentee-institute-id" name="mentee_institution_id" value="">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Mentor's Institute</label>
-                    <input type="text" id="sched-mentor-institution" readonly
+                    <label for="sched-mentor-institution" class="block text-sm font-medium text-gray-700 mb-1">Mentor's Institute</label>
+                    <input type="text" id="sched-mentor-institution" name="mentor_institution" readonly
                         value="Not specified"
                         class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm cursor-not-allowed">
-                    <input type="hidden" id="sched-mentor-institute-id" value="">
+                    <input type="hidden" id="sched-mentor-institute-id" name="mentor_institution_id" value="">
                 </div>
             </div>
             <div id="sched-participant-banner" class="hidden p-3 bg-blue-50 rounded-lg border border-blue-200">
@@ -324,32 +324,32 @@
                 <p id="sched-participant-names" class="font-semibold text-gray-900"></p>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Meeting Title *</label>
-                <input type="text" id="sched-title" required maxlength="200" placeholder="e.g. Career Guidance Session" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <label for="sched-title" class="block text-sm font-medium text-gray-700 mb-1">Meeting Title *</label>
+                <input type="text" id="sched-title" name="title" required maxlength="200" placeholder="e.g. Career Guidance Session" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
-                    <input type="date" id="sched-date" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <label for="sched-date" class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                    <input type="date" id="sched-date" name="date" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+                    <label for="sched-hour" class="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
                     <div class="flex gap-2">
-                        <select id="sched-hour" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        <select id="sched-hour" name="hour" data-no-search class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                             <option value="">Hr</option>
                             <option value="01">01</option><option value="02">02</option><option value="03">03</option>
                             <option value="04">04</option><option value="05">05</option><option value="06">06</option>
                             <option value="07">07</option><option value="08">08</option><option value="09">09</option>
                             <option value="10">10</option><option value="11">11</option><option value="12">12</option>
                         </select>
-                        <select id="sched-minute" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        <select id="sched-minute" name="minute" data-no-search class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                             <option value="">Min</option>
                             <option value="00">00</option><option value="05">05</option><option value="10">10</option>
                             <option value="15">15</option><option value="20">20</option><option value="25">25</option>
                             <option value="30">30</option><option value="35">35</option><option value="40">40</option>
                             <option value="45">45</option><option value="50">50</option><option value="55">55</option>
                         </select>
-                        <select id="sched-ampm" class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        <select id="sched-ampm" name="ampm" data-no-search class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                             <option value="">AM/PM</option>
                             <option value="AM">AM</option>
                             <option value="PM">PM</option>
@@ -360,8 +360,8 @@
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Duration *</label>
-                    <select id="sched-duration" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <label for="sched-duration" class="block text-sm font-medium text-gray-700 mb-1">Duration *</label>
+                    <select id="sched-duration" name="duration" data-no-search required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                         <option value="15">15 minutes</option>
                         <option value="30">30 minutes</option>
                         <option value="45">45 minutes</option>
@@ -371,8 +371,8 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Platform</label>
-                    <select id="sched-platform" onchange="toggleSchedCustomLink()" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <label for="sched-platform" class="block text-sm font-medium text-gray-700 mb-1">Platform</label>
+                    <select id="sched-platform" name="platform" data-no-search onchange="toggleSchedCustomLink()" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                         <option value="google">Google Meet</option>
                         <option value="teams">Microsoft Teams</option>
                         <option value="custom">Other (Custom Link)</option>
@@ -382,13 +382,13 @@
             <!-- Custom Meeting Link (for Other platform) -->
             <div id="sched-custom-link-wrap" class="hidden">
                 <label for="sched-custom-link" class="block text-sm font-medium text-gray-700 mb-1">Meeting Link *</label>
-                <input type="url" id="sched-custom-link" placeholder="https://zoom.us/j/... or other meeting link"
+                <input type="url" id="sched-custom-link" name="custom_link" placeholder="https://zoom.us/j/... or other meeting link"
                     class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                 <p class="text-xs text-gray-400 mt-1">Paste your external meeting link (Zoom, Webex, Google Meet, etc.)</p>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Time Zone *</label>
-                <select id="sched-timezone" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <label for="sched-timezone" class="block text-sm font-medium text-gray-700 mb-1">Time Zone *</label>
+                <select id="sched-timezone" name="timezone" data-no-search required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
                     <option value="">Select Time Zone</option>
                     <optgroup label="Asia">
                         <option value="Asia/Kolkata" selected>India (IST, UTC+5:30)</option>
@@ -1064,7 +1064,10 @@ function clearAllSchedErrors() {
     });
     ['sched-mentor-error', 'sched-mentee-error'].forEach(function(id) {
         var el = document.getElementById(id);
-        if (el) el.classList.add('hidden');
+        if (el) {
+            el.classList.add('hidden');
+            el.classList.remove('flex');
+        }
     });
     var statusTop = document.getElementById('sched-status-top');
     if (statusTop) {
@@ -1347,17 +1350,32 @@ document.getElementById('scheduleMeetingForm').addEventListener('submit', async 
     var mentorErrEl = document.getElementById('sched-mentor-error');
     var menteeErrEl = document.getElementById('sched-mentee-error');
 
-    if (!mentorId && !menteeId) {
-        markMissing(mentorEl, 'Mentor');
-        markMissing(menteeEl, 'Mentee');
-        if (mentorErrEl) mentorErrEl.classList.remove('hidden');
-        if (menteeErrEl) menteeErrEl.classList.remove('hidden');
-    } else if (!mentorId) {
-        markMissing(mentorEl, 'Mentor');
-        if (mentorErrEl) mentorErrEl.classList.remove('hidden');
-    } else if (!menteeId) {
-        markMissing(menteeEl, 'Mentee');
-        if (menteeErrEl) menteeErrEl.classList.remove('hidden');
+    if (scheduleViewMode === 'mentor') {
+        if (!mentorId && !menteeId) {
+            markMissing(mentorEl, 'Mentor');
+            markMissing(menteeEl, 'Mentee');
+            if (mentorErrEl) { mentorErrEl.classList.remove('hidden'); mentorErrEl.classList.add('flex'); }
+            if (menteeErrEl) { menteeErrEl.classList.remove('hidden'); menteeErrEl.classList.add('flex'); }
+        } else if (!mentorId) {
+            markMissing(mentorEl, 'Mentor');
+            if (mentorErrEl) { mentorErrEl.classList.remove('hidden'); mentorErrEl.classList.add('flex'); }
+        } else if (!menteeId) {
+            markMissing(menteeEl, 'Mentee');
+            if (menteeErrEl) { menteeErrEl.classList.remove('hidden'); menteeErrEl.classList.add('flex'); }
+        }
+    } else {
+        if (!mentorId && !menteeId) {
+            markMissing(menteeEl, 'Mentee');
+            markMissing(mentorEl, 'Mentor');
+            if (menteeErrEl) { menteeErrEl.classList.remove('hidden'); menteeErrEl.classList.add('flex'); }
+            if (mentorErrEl) { mentorErrEl.classList.remove('hidden'); mentorErrEl.classList.add('flex'); }
+        } else if (!menteeId) {
+            markMissing(menteeEl, 'Mentee');
+            if (menteeErrEl) { menteeErrEl.classList.remove('hidden'); menteeErrEl.classList.add('flex'); }
+        } else if (!mentorId) {
+            markMissing(mentorEl, 'Mentor');
+            if (mentorErrEl) { mentorErrEl.classList.remove('hidden'); mentorErrEl.classList.add('flex'); }
+        }
     }
 
     if (!title) {
@@ -1506,22 +1524,22 @@ document.getElementById('scheduleMeetingForm').addEventListener('submit', async 
             this.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
             if (id === 'sched-mentor') {
                 var err = document.getElementById('sched-mentor-error');
-                if (err) err.classList.add('hidden');
+                if (err) { err.classList.add('hidden'); err.classList.remove('flex'); }
             }
             if (id === 'sched-mentee') {
                 var err = document.getElementById('sched-mentee-error');
-                if (err) err.classList.add('hidden');
+                if (err) { err.classList.add('hidden'); err.classList.remove('flex'); }
             }
         });
         el.addEventListener('change', function() {
             this.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
             if (id === 'sched-mentor') {
                 var err = document.getElementById('sched-mentor-error');
-                if (err) err.classList.add('hidden');
+                if (err) { err.classList.add('hidden'); err.classList.remove('flex'); }
             }
             if (id === 'sched-mentee') {
                 var err = document.getElementById('sched-mentee-error');
-                if (err) err.classList.add('hidden');
+                if (err) { err.classList.add('hidden'); err.classList.remove('flex'); }
             }
         });
     }
