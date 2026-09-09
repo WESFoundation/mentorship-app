@@ -1433,6 +1433,45 @@ class MentorSourcingRequest(db.Model):
 # ============================================================
 _schema_migrated = False
 
+def sync_postgres_sequences(target_table=None):
+    """Synchronize PostgreSQL serial/identity sequences to MAX(id) to avoid UniqueViolation errors."""
+    try:
+        if db.engine.dialect.name != "postgresql":
+            return
+        from sqlalchemy import text, inspect
+        with db.engine.connect() as conn:
+            inspector = inspect(db.engine)
+            existing_tables = set(inspector.get_table_names())
+            tables_to_sync = [target_table] if target_table else list(db.metadata.tables.keys())
+            for t_name in tables_to_sync:
+                if t_name not in existing_tables:
+                    continue
+                t_obj = db.metadata.tables.get(t_name)
+                cols_to_check = [col.name for col in t_obj.primary_key.columns] if t_obj is not None else ["id"]
+                for col_name in cols_to_check:
+                    try:
+                        seq_res = conn.execute(
+                            text("SELECT pg_get_serial_sequence(:t, :c)"),
+                            {"t": t_name, "c": col_name}
+                        ).scalar()
+                        if seq_res:
+                            conn.execute(
+                                text(f"""
+                                    SELECT setval(
+                                        :seq,
+                                        COALESCE((SELECT MAX({col_name}) FROM {t_name}), 1),
+                                        COALESCE((SELECT MAX({col_name}) IS NOT NULL FROM {t_name}), false)
+                                    )
+                                """),
+                                {"seq": seq_res}
+                            )
+                            conn.commit()
+                            print(f"✅ Synced Postgres sequence for {t_name}.{col_name} ({seq_res})")
+                    except Exception as col_err:
+                        print(f"⚠️ Sequence sync notice for {t_name}.{col_name}: {col_err}")
+    except Exception as e:
+        print(f"⚠️ sync_postgres_sequences notice: {e}")
+
 def auto_migrate_schema():
     """Safely ensure newly added columns and tables exist in the database upon startup."""
     global _schema_migrated
@@ -1461,6 +1500,11 @@ def auto_migrate_schema():
                                 print(f"✅ Auto-migrated column: {table_name}.{col.name} ({col_type})")
                             except Exception as col_err:
                                 print(f"⚠️ Notice adding column {table_name}.{col.name}: {col_err}")
+
+            # 3. Synchronize PostgreSQL sequences to prevent duplicate key UniqueViolation
+            if db.engine.dialect.name == "postgresql":
+                sync_postgres_sequences()
+
             _schema_migrated = True
     except Exception as e:
         print(f"⚠️ Auto-migrate schema notice: {e}")
@@ -4746,6 +4790,8 @@ def submit_mentor_sourcing_request():
     skills_needed = (request.form.get("skills_needed") or "").strip()
     preferred_experience = (request.form.get("preferred_experience") or "").strip()
     linkedin_profile = (request.form.get("linkedin_profile") or "").strip()
+    if linkedin_profile and not linkedin_profile.startswith(("http://", "https://")):
+        linkedin_profile = f"https://{linkedin_profile}"
     message = (request.form.get("message") or "").strip()
     countries = (request.form.get("countries") or "").strip()
     languages = (request.form.get("languages") or "").strip()
@@ -4775,13 +4821,36 @@ def submit_mentor_sourcing_request():
             target_industry=target_industry,
             skills_needed=skills_needed,
             preferred_experience=preferred_experience,
-            linkedin_profile=linkedin_profile,
+            linkedin_profile=linkedin_profile if linkedin_profile else None,
             message=message,
             status="pending",
             created_at=datetime.utcnow()
         )
-        db.session.add(req)
-        db.session.commit()
+        try:
+            db.session.add(req)
+            db.session.commit()
+        except Exception as insert_err:
+            db.session.rollback()
+            err_msg = str(insert_err).lower()
+            if "uniqueviolation" in err_msg or "duplicate key" in err_msg or "mentor_sourcing_requests_pkey" in err_msg:
+                sync_postgres_sequences("mentor_sourcing_requests")
+                req = MentorSourcingRequest(
+                    mentee_id=user.id,
+                    name=user.name,
+                    email=user.email,
+                    target_role=target_role,
+                    target_industry=target_industry,
+                    skills_needed=skills_needed,
+                    preferred_experience=preferred_experience,
+                    linkedin_profile=linkedin_profile if linkedin_profile else None,
+                    message=message,
+                    status="pending",
+                    created_at=datetime.utcnow()
+                )
+                db.session.add(req)
+                db.session.commit()
+            else:
+                raise insert_err
 
         return jsonify({
             "success": True,
@@ -8894,6 +8963,8 @@ def request_mentorship():
         duration_months = data.get("duration_months")
         why_need_mentor = data.get("why_need_mentor")
         linkedin_profile = (data.get("linkedin_profile") or "").strip()
+        if linkedin_profile and not linkedin_profile.startswith(("http://", "https://")):
+            linkedin_profile = f"https://{linkedin_profile}"
 
         # Validate required fields
         if not all([mentor_id, purpose, mentor_type, term, duration_months, why_need_mentor]):
@@ -8962,8 +9033,32 @@ def request_mentorship():
             final_status="pending"
         )
         
-        db.session.add(new_request)
-        db.session.commit()
+        try:
+            db.session.add(new_request)
+            db.session.commit()
+        except Exception as commit_err:
+            db.session.rollback()
+            err_msg = str(commit_err).lower()
+            if "uniqueviolation" in err_msg or "duplicate key" in err_msg or "mentorship_requests_pkey" in err_msg:
+                app.logger.warning(f"Sequence desync on mentorship_requests: {commit_err}. Auto-resyncing sequence...")
+                sync_postgres_sequences("mentorship_requests")
+                new_request = MentorshipRequest(
+                    mentee_id=mentee.id,
+                    mentor_id=mentor_id,
+                    purpose=str(purpose).strip()[:1000] if purpose else "",
+                    mentor_type=str(mentor_type).strip()[:20] if mentor_type else "",
+                    term=str(term).strip()[:20] if term else "",
+                    duration_months=duration_months,
+                    why_need_mentor=str(why_need_mentor).strip() if why_need_mentor else "",
+                    linkedin_profile=str(linkedin_profile).strip()[:500] if linkedin_profile else None,
+                    mentor_status="pending",
+                    supervisor_status="pending",
+                    final_status="pending"
+                )
+                db.session.add(new_request)
+                db.session.commit()
+            else:
+                raise commit_err
 
         # Send in-app notification to mentor
         try:
