@@ -3524,6 +3524,281 @@ def menteedashboard():
 
     return redirect(url_for("signin"))
 
+def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
+    """Compute comparative analytics and leaderboards for the supervisor dashboard."""
+    try:
+        users_by_id = {u.id: u for u in User.query.all()}
+        master_tasks_by_id = {mt.id: mt for mt in MasterTask.query.all()}
+
+        # 1. Active Mentorships mapping
+        active_reqs = [r for r in all_requests if r.final_status == "approved"]
+        mentor_mentees_map = {}
+        mentee_mentors_map = {}
+        for r in active_reqs:
+            if r.mentor_id and r.mentee_id:
+                mentor_mentees_map.setdefault(r.mentor_id, []).append(r.mentee_id)
+                mentee_mentors_map.setdefault(r.mentee_id, []).append(r.mentor_id)
+
+        # 2. MenteeTask stats
+        all_tasks = MenteeTask.query.all()
+        mentee_tasks_by_id = {t.id: t for t in all_tasks}
+        mentee_task_map = {}
+        mentor_task_map = {}
+        total_tasks_count = len(all_tasks)
+        completed_tasks_count = 0
+
+        for t in all_tasks:
+            is_done = (t.status == "completed")
+            if is_done:
+                completed_tasks_count += 1
+            if t.mentee_id:
+                m = mentee_task_map.setdefault(t.mentee_id, {"total": 0, "completed": 0, "prog_sum": 0})
+                m["total"] += 1
+                if is_done:
+                    m["completed"] += 1
+                m["prog_sum"] += (t.progress or 0)
+            if t.mentor_id:
+                m = mentor_task_map.setdefault(t.mentor_id, {"total": 0, "completed": 0})
+                m["total"] += 1
+                if is_done:
+                    m["completed"] += 1
+
+        overall_task_completion_pct = round((completed_tasks_count / total_tasks_count * 100)) if total_tasks_count > 0 else 0
+
+        # 3. TaskRating stats
+        all_ratings = TaskRating.query.all()
+        mentor_ratings_map = {}
+        task_ratings_map = {}
+        total_rating_sum = 0
+        total_rating_count = 0
+
+        for tr in all_ratings:
+            if tr.rating:
+                total_rating_sum += tr.rating
+                total_rating_count += 1
+                if tr.mentor_id:
+                    mr = mentor_ratings_map.setdefault(tr.mentor_id, {"sum": 0, "count": 0, "feedbacks": []})
+                    mr["sum"] += tr.rating
+                    mr["count"] += 1
+                    if tr.feedback and tr.feedback.strip():
+                        mr["feedbacks"].append(tr.feedback.strip())
+                if tr.task_id:
+                    mt = mentee_tasks_by_id.get(tr.task_id)
+                    master = master_tasks_by_id.get(mt.task_id) if mt and mt.task_id else None
+                    title = f"Meeting {master.meeting_number}: {master.purpose_of_call}" if master and getattr(master, 'meeting_number', None) and getattr(master, 'purpose_of_call', None) else (getattr(mt, 'title', None) or f"Task #{tr.task_id}")
+                    task_key = master.id if master else (mt.id if mt else tr.task_id)
+                    task_r = task_ratings_map.setdefault(task_key, {"title": title, "sum": 0, "count": 0})
+                    task_r["sum"] += tr.rating
+                    task_r["count"] += 1
+
+        overall_task_avg_rating = round(total_rating_sum / total_rating_count, 1) if total_rating_count > 0 else 0.0
+
+        # 4. Comparative Metrics
+        total_mentors = len(mentors)
+        total_mentees = len(all_mentees)
+        active_mentors_count = len([mid for mid in mentor_mentees_map if mentor_mentees_map[mid]])
+        active_mentors_pct = round(active_mentors_count / total_mentors * 100) if total_mentors > 0 else 0
+
+        paired_mentees_count = len([mid for mid in mentee_mentors_map if mentee_mentors_map[mid]])
+        paired_mentees_pct = round(paired_mentees_count / total_mentees * 100) if total_mentees > 0 else 0
+
+        mentor_complete_count = sum(1 for m in mentors if check_profile_complete(m.user_id, "1"))
+        mentor_complete_pct = round(mentor_complete_count / total_mentors * 100) if total_mentors > 0 else 0
+
+        mentee_complete_count = sum(1 for m in all_mentees if check_profile_complete(m.user_id, "2"))
+        mentee_complete_pct = round(mentee_complete_count / total_mentees * 100) if total_mentees > 0 else 0
+
+        approval_rate = round(len(active_reqs) / len(all_requests) * 100) if all_requests else 0
+        anchor_count = sum(1 for r in active_reqs if getattr(r, "mentor_type", "") == "anchor")
+        special_count = len(active_reqs) - anchor_count
+
+        metrics = {
+            "active_mentors_count": active_mentors_count,
+            "active_mentors_pct": active_mentors_pct,
+            "paired_mentees_count": paired_mentees_count,
+            "paired_mentees_pct": paired_mentees_pct,
+            "mentor_complete_count": mentor_complete_count,
+            "mentor_complete_pct": mentor_complete_pct,
+            "mentee_complete_count": mentee_complete_count,
+            "mentee_complete_pct": mentee_complete_pct,
+            "total_tasks_count": total_tasks_count,
+            "completed_tasks_count": completed_tasks_count,
+            "overall_task_completion_pct": overall_task_completion_pct,
+            "overall_task_avg_rating": overall_task_avg_rating,
+            "total_rating_count": total_rating_count,
+            "approval_rate": approval_rate,
+            "anchor_count": anchor_count,
+            "special_count": special_count
+        }
+
+        # 5. Leaderboard: Task Completion - Top Mentees
+        lb_task_mentees = []
+        for mid, stats in mentee_task_map.items():
+            u = users_by_id.get(mid)
+            if not u:
+                continue
+            comp = stats["completed"]
+            tot = stats["total"]
+            pct = round((comp / tot * 100)) if tot > 0 else 0
+            avg_p = round(stats["prog_sum"] / tot) if tot > 0 else 0
+            inst = u.institution or (u.mentee_profile.school_college_name if hasattr(u, "mentee_profile") and u.mentee_profile and u.mentee_profile.school_college_name else "WES Scholar")
+            lb_task_mentees.append({
+                "user_id": mid,
+                "name": u.name or "Mentee",
+                "email": u.email or "",
+                "institution": inst,
+                "completed": comp,
+                "total": tot,
+                "completion_pct": pct,
+                "avg_progress": avg_p
+            })
+        lb_task_mentees.sort(key=lambda x: (-x["completed"], -x["avg_progress"]))
+        lb_task_mentees = lb_task_mentees[:10]
+
+        # 6. Leaderboard: Task Completion - Top Mentors
+        lb_task_mentors = []
+        for mid, stats in mentor_task_map.items():
+            u = users_by_id.get(mid)
+            if not u:
+                continue
+            comp = stats["completed"]
+            tot = stats["total"]
+            pct = round((comp / tot * 100)) if tot > 0 else 0
+            prof = u.mentor_profile.profession if hasattr(u, "mentor_profile") and u.mentor_profile and u.mentor_profile.profession else "Mentor"
+            lb_task_mentors.append({
+                "user_id": mid,
+                "name": u.name or "Mentor",
+                "email": u.email or "",
+                "profession": prof,
+                "completed": comp,
+                "total": tot,
+                "completion_pct": pct
+            })
+        lb_task_mentors.sort(key=lambda x: (-x["completed"], -x["completion_pct"]))
+        lb_task_mentors = lb_task_mentors[:10]
+
+        # 7. Leaderboard: Profile Completeness (Mentors & Mentees)
+        lb_profile_mentors = []
+        for mp in MentorProfile.query.all():
+            u = users_by_id.get(mp.user_id)
+            if not u:
+                continue
+            score = _compute_profile_completeness_score(mp.user_id, "1")
+            lb_profile_mentors.append({
+                "user_id": mp.user_id,
+                "name": u.name or "Mentor",
+                "profession": mp.profession or "Mentor",
+                "institution": u.institution or getattr(mp, "institution_name", None) or "WES Partner",
+                "score": score,
+                "is_complete": score >= 80
+            })
+        lb_profile_mentors.sort(key=lambda x: -x["score"])
+        lb_profile_mentors = lb_profile_mentors[:10]
+
+        lb_profile_mentees = []
+        for mp in MenteeProfile.query.all():
+            u = users_by_id.get(mp.user_id)
+            if not u:
+                continue
+            score = _compute_profile_completeness_score(mp.user_id, "2")
+            lb_profile_mentees.append({
+                "user_id": mp.user_id,
+                "name": u.name or "Mentee",
+                "stream": mp.stream or "Student",
+                "school": mp.school_college_name or u.institution or "Academic Institution",
+                "score": score,
+                "is_complete": score >= 80
+            })
+        lb_profile_mentees.sort(key=lambda x: -x["score"])
+        lb_profile_mentees = lb_profile_mentees[:10]
+
+        # 8. Leaderboard: Most Connected Mentors ("Who has more mentees")
+        lb_connected_mentors = []
+        for mid, mentee_ids in mentor_mentees_map.items():
+            u = users_by_id.get(mid)
+            if not u:
+                continue
+            prof = u.mentor_profile.profession if hasattr(u, "mentor_profile") and u.mentor_profile and u.mentor_profile.profession else "Mentor"
+            mentee_names = [users_by_id[m_id].name for m_id in mentee_ids if m_id in users_by_id]
+            count = len(mentee_ids)
+            if count >= 3:
+                capacity_badge = "High Impact"
+                badge_class = "bg-emerald-100 text-emerald-800 border-emerald-200"
+            elif count == 2:
+                capacity_badge = "Active Pair"
+                badge_class = "bg-blue-100 text-blue-800 border-blue-200"
+            else:
+                capacity_badge = "Engaged"
+                badge_class = "bg-indigo-100 text-indigo-800 border-indigo-200"
+            lb_connected_mentors.append({
+                "user_id": mid,
+                "name": u.name or "Mentor",
+                "profession": prof,
+                "institution": u.institution or "WES Foundation",
+                "mentee_count": count,
+                "mentee_names": mentee_names,
+                "capacity_badge": capacity_badge,
+                "badge_class": badge_class
+            })
+        lb_connected_mentors.sort(key=lambda x: -x["mentee_count"])
+        lb_connected_mentors = lb_connected_mentors[:10]
+
+        # 9. Leaderboard: Task Ratings ("Who has better rating in each task (average)")
+        lb_mentor_ratings = []
+        for mid, rstats in mentor_ratings_map.items():
+            u = users_by_id.get(mid)
+            if not u:
+                continue
+            avg_r = round(rstats["sum"] / rstats["count"], 1) if rstats["count"] > 0 else 0
+            prof = u.mentor_profile.profession if hasattr(u, "mentor_profile") and u.mentor_profile and u.mentor_profile.profession else "Mentor"
+            sample_fb = rstats["feedbacks"][0] if rstats["feedbacks"] else ""
+            lb_mentor_ratings.append({
+                "user_id": mid,
+                "name": u.name or "Mentor",
+                "profession": prof,
+                "avg_rating": avg_r,
+                "rating_count": rstats["count"],
+                "feedback": sample_fb
+            })
+        lb_mentor_ratings.sort(key=lambda x: (-x["avg_rating"], -x["rating_count"]))
+        lb_mentor_ratings = lb_mentor_ratings[:10]
+
+        # Top tasks by average rating
+        lb_task_ratings = []
+        for tid, rstats in task_ratings_map.items():
+            avg_r = round(rstats["sum"] / rstats["count"], 1) if rstats["count"] > 0 else 0
+            lb_task_ratings.append({
+                "task_id": tid,
+                "title": rstats.get("title", f"Task #{tid}"),
+                "avg_rating": avg_r,
+                "rating_count": rstats["count"]
+            })
+        lb_task_ratings.sort(key=lambda x: (-x["avg_rating"], -x["rating_count"]))
+        lb_task_ratings = lb_task_ratings[:10]
+
+        return {
+            "metrics": metrics,
+            "lb_task_mentees": lb_task_mentees,
+            "lb_task_mentors": lb_task_mentors,
+            "lb_profile_mentors": lb_profile_mentors,
+            "lb_profile_mentees": lb_profile_mentees,
+            "lb_connected_mentors": lb_connected_mentors,
+            "lb_mentor_ratings": lb_mentor_ratings,
+            "lb_task_ratings": lb_task_ratings
+        }
+    except Exception as e:
+        app.logger.error(f"Error computing supervisor comparative analytics: {e}")
+        return {
+            "metrics": {},
+            "lb_task_mentees": [],
+            "lb_task_mentors": [],
+            "lb_profile_mentors": [],
+            "lb_profile_mentees": [],
+            "lb_connected_mentors": [],
+            "lb_mentor_ratings": [],
+            "lb_task_ratings": []
+        }
+
 @app.route("/supervisordashboard")
 @profile_required
 def supervisordashboard():
@@ -3611,83 +3886,7 @@ def supervisordashboard():
     mentor_requests = MentorProfile.query.filter_by(status="pending").all()
     mentee_requests = MenteeProfile.query.filter_by(status="pending").all()
 
-    # ----------------- Dashboard Breakdown Data -----------------
-    mentor_by_location = {}
-    mentor_by_institution = {}
-    mentor_by_profession = {}
-    for m in mentors:
-        loc = getattr(m, "location", "") or "Unknown"
-        inst = getattr(m, "institution_name", "") or (m.user.institution if m.user and hasattr(m.user, 'institution') else "") or "Unknown"
-        prof = getattr(m, "profession", "") or "Unknown"
-        mentor_by_location.setdefault(loc, []).append(m)
-        mentor_by_institution.setdefault(inst, []).append(m)
-        mentor_by_profession.setdefault(prof, []).append(m)
-
-    mentor_scores = {}
-    for mr in all_requests:
-        if mr.final_status == "approved":
-            mid = mr.mentor_id
-            if mid not in mentor_scores:
-                mentor_scores[mid] = {"completed": 0, "total": 0}
-            mentor_scores[mid]["completed"] += 1
-            mentor_scores[mid]["total"] += 1
-        elif mr.mentor_id:
-            mid = mr.mentor_id
-            if mid not in mentor_scores:
-                mentor_scores[mid] = {"completed": 0, "total": 0}
-            mentor_scores[mid]["total"] += 1
-
-    def get_mentor_score(mentor_user_id):
-        s = mentor_scores.get(mentor_user_id, {"completed": 0, "total": 0})
-        if s["total"] == 0:
-            return 0
-        return round((s["completed"] / s["total"]) * 100)
-
-    for group in [mentor_by_location, mentor_by_institution, mentor_by_profession]:
-        for key in group:
-            group[key].sort(key=lambda m: get_mentor_score(m.user_id) if m.user else 0, reverse=True)
-
-    mentee_by_location = {}
-    mentee_by_institution = {}
-    mentee_by_stream = {}
-    for m in all_mentees:
-        loc = "Unknown"
-        inst = "Unknown"
-        stream = getattr(m, "stream", "") or "Unknown"
-        if m.user:
-            loc = getattr(m.user, "institution", "") or "Unknown"
-        if hasattr(m, "institution"):
-            inst = m.institution or "Unknown"
-        elif hasattr(m, "institution_name"):
-            inst = m.institution_name or "Unknown"
-        mentee_by_location.setdefault(loc, []).append(m)
-        mentee_by_institution.setdefault(inst, []).append(m)
-        mentee_by_stream.setdefault(stream, []).append(m)
-
-    active_requests = [r for r in all_requests if r.final_status == "approved"]
-    active_by_type = {"anchor": [], "special": []}
-    for r in active_requests:
-        t = getattr(r, "mentor_type", "") or "special"
-        active_by_type.setdefault(t, []).append(r)
-
-    pending_requests = [r for r in all_requests if r.supervisor_status == "pending"]
-    pending_by_type = {"mentor": [], "mentee": []}
-    for r in pending_requests:
-        if r.mentor_status == "pending":
-            pending_by_type["mentor"].append(r)
-        else:
-            pending_by_type["mentee"].append(r)
-
-    today = dt.date.today()
-    pending_by_age = {"Today": [], "This Week": [], "Older": []}
-    for r in pending_requests:
-        created = r.created_at.date() if r.created_at else today
-        if created == today:
-            pending_by_age["Today"].append(r)
-        elif (today - created).days <= 7:
-            pending_by_age["This Week"].append(r)
-        else:
-            pending_by_age["Older"].append(r)
+    comparative_analytics = _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests)
 
     return render_template(
         "supervisor/supervisordashboard.html",
@@ -3708,16 +3907,7 @@ def supervisordashboard():
         active_section="dashboard",
         source_page=source_page,
         profile_complete=profile_complete,
-        mentor_by_location=mentor_by_location,
-        mentor_by_institution=mentor_by_institution,
-        mentor_by_profession=mentor_by_profession,
-        mentee_by_location=mentee_by_location,
-        mentee_by_institution=mentee_by_institution,
-        mentee_by_stream=mentee_by_stream,
-        active_by_type=active_by_type,
-        pending_by_type=pending_by_type,
-        pending_by_age=pending_by_age,
-        get_mentor_score=get_mentor_score
+        comparative_analytics=comparative_analytics
     )
     
 @app.route("/institution")

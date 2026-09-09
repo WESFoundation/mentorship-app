@@ -45,324 +45,544 @@
 <main class="max-w-7xl mx-auto px-2 sm:px-3 lg:px-3 py-2">
 
   <section id="dashboard" class="p-6 bg-white rounded-xl shadow-sm">
-    <div class="mb-8">
-      <h2 class="text-xl font-semibold text-gray-800 mb-2">Welcome, Supervisor!</h2>
-      <p class="text-gray-600">Monitor and manage all mentors and mentees from here.</p>
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div>
+        <h2 class="text-xl font-bold text-gray-800 mb-1">Welcome, Supervisor!</h2>
+        <p class="text-gray-600 text-sm">Monitor cohort engagement, comparative analytics, and real-time performance leaderboards.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          Live Cohort Analytics
+        </span>
+      </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-      <div class="bg-blue-50 p-5 rounded-xl border border-blue-100 cursor-pointer hover:shadow-md transition" onclick="toggleCard('mentors')">
-        <div class="flex items-center">
-          <div class="rounded-full bg-blue-100 p-3 mr-4">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24"
-              stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+    <!-- Enhanced Metrics Cards Row -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+      <!-- 1. Mentors Metric Card -->
+      <div class="bg-gradient-to-br from-blue-50 to-indigo-50/40 p-5 rounded-xl border border-blue-100 hover:border-blue-300 hover:shadow-md transition group cursor-pointer" onclick="showSection('mentors')">
+        <div class="flex items-center justify-between mb-3">
+          <div class="rounded-xl bg-blue-100/80 p-3 text-blue-600 group-hover:scale-105 transition-transform">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
           </div>
-          <div>
-            <p class="text-sm font-medium text-gray-500">Total Mentors</p>
-            <p class="text-2xl font-bold text-gray-800">{{ mentors|length if mentors else 0 }}</p>
-          </div>
+          <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100/80 text-blue-700">
+            {{ comparative_analytics.metrics.active_mentors_pct|default(0) }}% Active
+          </span>
+        </div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Total Mentors</p>
+        <div class="flex items-baseline justify-between mt-1">
+          <p class="text-2xl font-bold text-gray-800">{{ mentors|length if mentors else 0 }}</p>
+          <p class="text-xs font-medium text-gray-500">{{ comparative_analytics.metrics.active_mentors_count|default(0) }} with mentees</p>
+        </div>
+        <div class="w-full bg-blue-200/50 rounded-full h-1.5 mt-3 overflow-hidden">
+          <div class="bg-blue-600 h-1.5 rounded-full transition-all duration-500" style="width: {{ comparative_analytics.metrics.active_mentors_pct|default(0) }}%"></div>
+        </div>
+        <div class="flex items-center justify-between text-[11px] text-gray-500 mt-2">
+          <span>Profiles Complete: <strong class="text-blue-700 font-semibold">{{ comparative_analytics.metrics.mentor_complete_pct|default(0) }}%</strong></span>
+          <span class="text-blue-600 font-medium group-hover:underline flex items-center gap-0.5">View Mentors &rarr;</span>
         </div>
       </div>
 
-      <div class="bg-teal-50 p-5 rounded-xl border border-teal-100 cursor-pointer hover:shadow-md transition" onclick="toggleCard('mentees')">
-        <div class="flex items-center">
-          <div class="rounded-full bg-teal-100 p-3 mr-4">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-teal-600" fill="none" viewBox="0 0 24 24"
-              stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+      <!-- 2. Mentees Metric Card -->
+      <div class="bg-gradient-to-br from-teal-50 to-emerald-50/40 p-5 rounded-xl border border-teal-100 hover:border-teal-300 hover:shadow-md transition group cursor-pointer" onclick="showSection('mentees')">
+        <div class="flex items-center justify-between mb-3">
+          <div class="rounded-xl bg-teal-100/80 p-3 text-teal-600 group-hover:scale-105 transition-transform">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
           </div>
-          <div>
-            <p class="text-sm font-medium text-gray-500">Total Mentees</p>
-            <p class="text-2xl font-bold text-gray-800">{{ mentees|length if mentees else 0 }}</p>
-          </div>
+          <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-100/80 text-teal-700">
+            {{ comparative_analytics.metrics.paired_mentees_pct|default(0) }}% Paired
+          </span>
+        </div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Total Mentees</p>
+        <div class="flex items-baseline justify-between mt-1">
+          <p class="text-2xl font-bold text-gray-800">{{ mentees|length if mentees else 0 }}</p>
+          <p class="text-xs font-medium text-gray-500">{{ comparative_analytics.metrics.paired_mentees_count|default(0) }} matched</p>
+        </div>
+        <div class="w-full bg-teal-200/50 rounded-full h-1.5 mt-3 overflow-hidden">
+          <div class="bg-teal-600 h-1.5 rounded-full transition-all duration-500" style="width: {{ comparative_analytics.metrics.paired_mentees_pct|default(0) }}%"></div>
+        </div>
+        <div class="flex items-center justify-between text-[11px] text-gray-500 mt-2">
+          <span>Profiles Complete: <strong class="text-teal-700 font-semibold">{{ comparative_analytics.metrics.mentee_complete_pct|default(0) }}%</strong></span>
+          <span class="text-teal-600 font-medium group-hover:underline flex items-center gap-0.5">View Mentees &rarr;</span>
         </div>
       </div>
 
-      <div class="bg-indigo-50 p-5 rounded-xl border border-indigo-100 cursor-pointer hover:shadow-md transition" onclick="toggleCard('active')">
-        <div class="flex items-center">
-          <div class="rounded-full bg-indigo-100 p-3 mr-4">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24"
-              stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      <!-- 3. Active Mentorships Metric Card -->
+      <div class="bg-gradient-to-br from-indigo-50 to-violet-50/40 p-5 rounded-xl border border-indigo-100 hover:border-indigo-300 hover:shadow-md transition group cursor-pointer" onclick="showSection('requests')">
+        <div class="flex items-center justify-between mb-3">
+          <div class="rounded-xl bg-indigo-100/80 p-3 text-indigo-600 group-hover:scale-105 transition-transform">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
-          <div>
-            <p class="text-sm font-medium text-gray-500">Active Mentorships</p>
-            <p class="text-2xl font-bold text-gray-800">{{ all_requests|selectattr('final_status', 'equalto',
-              'approved')|list|length if all_requests else 0 }}</p>
-          </div>
+          <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100/80 text-indigo-700">
+            {{ comparative_analytics.metrics.approval_rate|default(0) }}% Approved
+          </span>
+        </div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Active Mentorships</p>
+        <div class="flex items-baseline justify-between mt-1">
+          <p class="text-2xl font-bold text-gray-800">{{ all_requests|selectattr('final_status', 'equalto', 'approved')|list|length if all_requests else 0 }}</p>
+          <p class="text-xs font-medium text-gray-500">Pairs Active</p>
+        </div>
+        <div class="w-full bg-indigo-200/50 rounded-full h-1.5 mt-3 overflow-hidden">
+          <div class="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" style="width: {{ comparative_analytics.metrics.approval_rate|default(0) }}%"></div>
+        </div>
+        <div class="flex items-center justify-between text-[11px] text-gray-500 mt-2">
+          <span>{{ comparative_analytics.metrics.anchor_count|default(0) }} Anchor • {{ comparative_analytics.metrics.special_count|default(0) }} Special</span>
+          <span class="text-indigo-600 font-medium group-hover:underline flex items-center gap-0.5">View Pairs &rarr;</span>
         </div>
       </div>
 
-      <div class="bg-sky-50 p-5 rounded-xl border border-sky-100 cursor-pointer hover:shadow-md transition" onclick="toggleCard('pending')">
-        <div class="flex items-center">
-          <div class="rounded-full bg-sky-100 p-3 mr-4">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-sky-600" fill="none" viewBox="0 0 24 24"
-              stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+      <!-- 4. Tasks & Satisfaction Card -->
+      <div class="bg-gradient-to-br from-sky-50 to-amber-50/40 p-5 rounded-xl border border-sky-100 hover:border-sky-300 hover:shadow-md transition group cursor-pointer" onclick="showSection('requests')">
+        <div class="flex items-center justify-between mb-3">
+          <div class="rounded-xl bg-sky-100/80 p-3 text-sky-600 group-hover:scale-105 transition-transform">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
           </div>
-          <div>
-            <p class="text-sm font-medium text-gray-500">Pending Requests</p>
-            <p class="text-2xl font-bold text-gray-800">{{ all_requests|selectattr('supervisor_status', 'equalto',
-              'pending')|list|length if all_requests else 0 }}</p>
-          </div>
+          <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+            ★ {{ comparative_analytics.metrics.overall_task_avg_rating|default(0) }} / 5.0
+          </span>
         </div>
-      </div>
-
-    </div>
-
-    <!-- Mentor Breakdown Panel -->
-    <div id="panel-mentors" class="hidden mb-8 bg-white rounded-xl shadow-sm border border-gray-100">
-      <div class="p-4 border-b border-gray-100 flex items-center justify-between">
-        <h3 class="font-semibold text-gray-800">Mentor Breakdown</h3>
-        <div class="flex gap-1 bg-gray-100 rounded-lg p-1">
-          <button onclick="switchMentorView('location')" id="btn-mentor-location" class="px-3 py-1 text-xs font-medium rounded-md bg-blue-600 text-white transition">By City</button>
-          <button onclick="switchMentorView('institution')" id="btn-mentor-institution" class="px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition">By Institution</button>
-          <button onclick="switchMentorView('profession')" id="btn-mentor-profession" class="px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition">By Profession</button>
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Pending Requests</p>
+        <div class="flex items-baseline justify-between mt-1">
+          <p class="text-2xl font-bold text-gray-800">{{ all_requests|selectattr('supervisor_status', 'equalto', 'pending')|list|length if all_requests else 0 }}</p>
+          <p class="text-xs font-medium text-gray-500">{{ comparative_analytics.metrics.completed_tasks_count|default(0) }} Tasks Done</p>
         </div>
-      </div>
-      <div class="p-4">
-        <div id="mentor-view-location" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {% for location, items in mentor_by_location.items()|sort(attribute='1|length', reverse=true) %}
-          <div class="bg-blue-50 rounded-lg p-3 border border-blue-100">
-            <div class="flex items-center justify-between mb-2">
-              <span class="font-medium text-gray-800 text-sm">{{ location }}</span>
-              <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
-            </div>
-            <div class="space-y-1 max-h-40 overflow-y-auto">
-              {% for m in items[:10] %}
-              <div class="flex items-center justify-between text-xs">
-                <span class="text-gray-600 truncate">{{ m.user.name if m.user else 'Unknown' }}</span>
-                <span class="font-bold text-blue-600">{{ get_mentor_score(m.user_id) }}%</span>
-              </div>
-              {% endfor %}
-              {% if items|length > 10 %}
-              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
-              {% endif %}
-            </div>
-          </div>
-          {% endfor %}
+        <div class="w-full bg-sky-200/50 rounded-full h-1.5 mt-3 overflow-hidden">
+          <div class="bg-sky-600 h-1.5 rounded-full transition-all duration-500" style="width: {{ comparative_analytics.metrics.overall_task_completion_pct|default(0) }}%"></div>
         </div>
-        <div id="mentor-view-institution" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {% for inst, items in mentor_by_institution.items()|sort(attribute='1|length', reverse=true) %}
-          <div class="bg-blue-50 rounded-lg p-3 border border-blue-100">
-            <div class="flex items-center justify-between mb-2">
-              <span class="font-medium text-gray-800 text-sm">{{ inst }}</span>
-              <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
-            </div>
-            <div class="space-y-1 max-h-40 overflow-y-auto">
-              {% for m in items[:10] %}
-              <div class="flex items-center justify-between text-xs">
-                <span class="text-gray-600 truncate">{{ m.user.name if m.user else 'Unknown' }}</span>
-                <span class="font-bold text-blue-600">{{ get_mentor_score(m.user_id) }}%</span>
-              </div>
-              {% endfor %}
-              {% if items|length > 10 %}
-              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
-              {% endif %}
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-        <div id="mentor-view-profession" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {% for prof, items in mentor_by_profession.items()|sort(attribute='1|length', reverse=true) %}
-          <div class="bg-blue-50 rounded-lg p-3 border border-blue-100">
-            <div class="flex items-center justify-between mb-2">
-              <span class="font-medium text-gray-800 text-sm">{{ prof }}</span>
-              <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
-            </div>
-            <div class="space-y-1 max-h-40 overflow-y-auto">
-              {% for m in items[:10] %}
-              <div class="flex items-center justify-between text-xs">
-                <span class="text-gray-600 truncate">{{ m.user.name if m.user else 'Unknown' }}</span>
-                <span class="font-bold text-blue-600">{{ get_mentor_score(m.user_id) }}%</span>
-              </div>
-              {% endfor %}
-              {% if items|length > 10 %}
-              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
-              {% endif %}
-            </div>
-          </div>
-          {% endfor %}
+        <div class="flex items-center justify-between text-[11px] text-gray-500 mt-2">
+          <span>{{ comparative_analytics.metrics.overall_task_completion_pct|default(0) }}% Done ({{ comparative_analytics.metrics.total_rating_count|default(0) }} reviews)</span>
+          <span class="text-sky-600 font-medium group-hover:underline flex items-center gap-0.5">View Requests &rarr;</span>
         </div>
       </div>
     </div>
 
-    <!-- Mentee Breakdown Panel -->
-    <div id="panel-mentees" class="hidden mb-8 bg-white rounded-xl shadow-sm border border-gray-100">
-      <div class="p-4 border-b border-gray-100 flex items-center justify-between">
-        <h3 class="font-semibold text-gray-800">Mentee Breakdown</h3>
-        <div class="flex gap-1 bg-gray-100 rounded-lg p-1">
-          <button onclick="switchMenteeView('location')" id="btn-mentee-location" class="px-3 py-1 text-xs font-medium rounded-md bg-teal-600 text-white transition">By City</button>
-          <button onclick="switchMenteeView('institution')" id="btn-mentee-institution" class="px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition">By Institution</button>
-          <button onclick="switchMenteeView('stream')" id="btn-mentee-stream" class="px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition">By Stream</button>
-        </div>
-      </div>
-      <div class="p-4">
-        <div id="mentee-view-location" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {% for location, items in mentee_by_location.items()|sort(attribute='1|length', reverse=true) %}
-          <div class="bg-teal-50 rounded-lg p-3 border border-teal-100">
-            <div class="flex items-center justify-between mb-2">
-              <span class="font-medium text-gray-800 text-sm">{{ location }}</span>
-              <span class="bg-teal-100 text-teal-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
-            </div>
-            <div class="space-y-1 max-h-40 overflow-y-auto">
-              {% for m in items[:10] %}
-              <div class="text-xs text-gray-600 truncate">{{ m.user.name if m.user else 'Unknown' }}</div>
-              {% endfor %}
-              {% if items|length > 10 %}
-              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
-              {% endif %}
-            </div>
+    <!-- DIRECTLY ATTACHED LEADERBOARDS & COMPARATIVE ANALYTICS CONTAINER -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-8">
+      <!-- Header bar with Title and Tabs -->
+      <div class="p-5 bg-gradient-to-r from-slate-50 via-gray-50 to-indigo-50/30 border-b border-gray-200 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-white flex items-center justify-center font-bold text-xl shadow-xs">
+            🏆
           </div>
-          {% endfor %}
-        </div>
-        <div id="mentee-view-institution" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {% for inst, items in mentee_by_institution.items()|sort(attribute='1|length', reverse=true) %}
-          <div class="bg-teal-50 rounded-lg p-3 border border-teal-100">
-            <div class="flex items-center justify-between mb-2">
-              <span class="font-medium text-gray-800 text-sm">{{ inst }}</span>
-              <span class="bg-teal-100 text-teal-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
-            </div>
-            <div class="space-y-1 max-h-40 overflow-y-auto">
-              {% for m in items[:10] %}
-              <div class="text-xs text-gray-600 truncate">{{ m.user.name if m.user else 'Unknown' }}</div>
-              {% endfor %}
-              {% if items|length > 10 %}
-              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
-              {% endif %}
-            </div>
+          <div>
+            <h3 class="text-base font-bold text-gray-800 flex items-center gap-2">
+              Performance Leaderboards & Comparative Analytics
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700 border border-blue-200">Cohort Intelligence</span>
+            </h3>
+            <p class="text-xs text-gray-500">Comparative benchmarks across task completion rankings, profile completeness, mentor capacity, and task feedback.</p>
           </div>
-          {% endfor %}
         </div>
-        <div id="mentee-view-stream" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {% for stream, items in mentee_by_stream.items()|sort(attribute='1|length', reverse=true) %}
-          <div class="bg-teal-50 rounded-lg p-3 border border-teal-100">
-            <div class="flex items-center justify-between mb-2">
-              <span class="font-medium text-gray-800 text-sm">{{ stream }}</span>
-              <span class="bg-teal-100 text-teal-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
-            </div>
-            <div class="space-y-1 max-h-40 overflow-y-auto">
-              {% for m in items[:10] %}
-              <div class="text-xs text-gray-600 truncate">{{ m.user.name if m.user else 'Unknown' }}</div>
-              {% endfor %}
-              {% if items|length > 10 %}
-              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
-              {% endif %}
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
 
-    <!-- Active Mentorships Breakdown Panel -->
-    <div id="panel-active" class="hidden mb-8 bg-white rounded-xl shadow-sm border border-gray-100">
-      <div class="p-4 border-b border-gray-100 flex items-center justify-between">
-        <h3 class="font-semibold text-gray-800">Active Mentorships Breakdown</h3>
-        <div class="flex gap-1 bg-gray-100 rounded-lg p-1">
-          <button onclick="switchActiveView('type')" id="btn-active-type" class="px-3 py-1 text-xs font-medium rounded-md bg-indigo-600 text-white transition">By Type</button>
-          <button onclick="switchActiveView('mentor')" id="btn-active-mentor" class="px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition">By Mentor</button>
+        <!-- Leaderboard Tab Switcher -->
+        <div class="flex flex-wrap items-center gap-1 bg-gray-200/80 p-1 rounded-xl border border-gray-200">
+          <button type="button" onclick="switchLeaderboardTab('task')" id="lb-tab-btn-task" class="lb-tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-white text-blue-700 shadow-xs">
+            📋 Task Rankings
+          </button>
+          <button type="button" onclick="switchLeaderboardTab('profile')" id="lb-tab-btn-profile" class="lb-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:text-gray-900 transition-all">
+            👤 Profile Completeness
+          </button>
+          <button type="button" onclick="switchLeaderboardTab('connected')" id="lb-tab-btn-connected" class="lb-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:text-gray-900 transition-all">
+            👥 Most Connected Mentors
+          </button>
+          <button type="button" onclick="switchLeaderboardTab('ratings')" id="lb-tab-btn-ratings" class="lb-tab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:text-gray-900 transition-all">
+            ⭐ Task Ratings
+          </button>
         </div>
       </div>
-      <div class="p-4">
-        <div id="active-view-type" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {% for type_name, items in active_by_type.items() %}
-          {% if items %}
-          <div class="bg-indigo-50 rounded-lg p-3 border border-indigo-100">
-            <div class="flex items-center justify-between mb-2">
-              <span class="font-medium text-gray-800 text-sm capitalize">{{ type_name }} Mentorship</span>
-              <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
+
+      <div class="p-5">
+        <!-- Tab 1: Task Rankings -->
+        <div id="lb-tab-content-task">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 mb-4 border-b border-gray-100 gap-3">
+            <div>
+              <h4 class="text-sm font-bold text-gray-800">Task Completion Rankings</h4>
+              <p class="text-xs text-gray-500">Top performers ranked by completed mentorship tasks and journey progress.</p>
             </div>
-            <div class="space-y-1 max-h-40 overflow-y-auto">
-              {% for r in items[:10] %}
-              <div class="text-xs text-gray-600">
-                {{ r.mentor.name if r.mentor else 'Mentor' }} &rarr; {{ r.mentee.name if r.mentee else 'Mentee' }}
+            <div class="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+              <button type="button" onclick="toggleTaskSub('mentees')" id="btn-task-mentees" class="px-3 py-1 text-xs font-semibold rounded-md bg-blue-600 text-white transition shadow-2xs">
+                Top Mentees ({{ comparative_analytics.lb_task_mentees|length }})
+              </button>
+              <button type="button" onclick="toggleTaskSub('mentors')" id="btn-task-mentors" class="px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition">
+                Top Mentors ({{ comparative_analytics.lb_task_mentors|length }})
+              </button>
+            </div>
+          </div>
+
+          <!-- Sub-Tab: Mentees -->
+          <div id="task-sub-mentees">
+            {% if comparative_analytics.lb_task_mentees %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {% for mentee in comparative_analytics.lb_task_mentees %}
+              <div class="p-3.5 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/20 transition flex items-center justify-between gap-3 bg-white">
+                <div class="flex items-center gap-3 min-w-0">
+                  {% if loop.index == 1 %}
+                  <span class="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-400 to-yellow-500 text-white font-black text-xs flex items-center justify-center shadow-xs ring-2 ring-amber-200 flex-shrink-0">#1</span>
+                  {% elif loop.index == 2 %}
+                  <span class="w-7 h-7 rounded-full bg-gradient-to-tr from-slate-300 to-gray-400 text-white font-black text-xs flex items-center justify-center shadow-xs ring-2 ring-gray-200 flex-shrink-0">#2</span>
+                  {% elif loop.index == 3 %}
+                  <span class="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-600 to-amber-700 text-white font-black text-xs flex items-center justify-center shadow-xs ring-2 ring-amber-300 flex-shrink-0">#3</span>
+                  {% else %}
+                  <span class="w-7 h-7 rounded-full bg-slate-100 text-slate-600 font-bold text-xs flex items-center justify-center flex-shrink-0">#{{ loop.index }}</span>
+                  {% endif %}
+
+                  <div class="w-9 h-9 rounded-full bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center uppercase flex-shrink-0">
+                    {{ mentee.name[:2] }}
+                  </div>
+
+                  <div class="truncate">
+                    <p class="text-xs font-bold text-gray-800 truncate">{{ mentee.name }}</p>
+                    <p class="text-[11px] text-gray-500 truncate">{{ mentee.institution }}</p>
+                  </div>
+                </div>
+
+                <div class="text-right flex-shrink-0">
+                  <div class="flex items-center justify-end gap-1.5">
+                    <span class="text-xs font-bold text-blue-700">{{ mentee.completed }} / {{ mentee.total }}</span>
+                    <span class="text-[11px] text-gray-500">done</span>
+                  </div>
+                  <div class="w-24 bg-gray-100 rounded-full h-1.5 mt-1 overflow-hidden ml-auto">
+                    <div class="bg-blue-600 h-1.5 rounded-full" style="width: {{ mentee.completion_pct }}%"></div>
+                  </div>
+                  <span class="text-[10px] text-gray-500 font-medium">Avg Progress: {{ mentee.avg_progress }}%</span>
+                </div>
               </div>
               {% endfor %}
-              {% if items|length > 10 %}
-              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
-              {% endif %}
             </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-400 text-xs">
+              No mentee task activity recorded yet.
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- Sub-Tab: Mentors -->
+          <div id="task-sub-mentors" class="hidden">
+            {% if comparative_analytics.lb_task_mentors %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {% for mentor in comparative_analytics.lb_task_mentors %}
+              <div class="p-3.5 rounded-xl border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/20 transition flex items-center justify-between gap-3 bg-white">
+                <div class="flex items-center gap-3 min-w-0">
+                  {% if loop.index == 1 %}
+                  <span class="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-400 to-yellow-500 text-white font-black text-xs flex items-center justify-center shadow-xs ring-2 ring-amber-200 flex-shrink-0">#1</span>
+                  {% elif loop.index == 2 %}
+                  <span class="w-7 h-7 rounded-full bg-gradient-to-tr from-slate-300 to-gray-400 text-white font-black text-xs flex items-center justify-center shadow-xs ring-2 ring-gray-200 flex-shrink-0">#2</span>
+                  {% elif loop.index == 3 %}
+                  <span class="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-600 to-amber-700 text-white font-black text-xs flex items-center justify-center shadow-xs ring-2 ring-amber-300 flex-shrink-0">#3</span>
+                  {% else %}
+                  <span class="w-7 h-7 rounded-full bg-slate-100 text-slate-600 font-bold text-xs flex items-center justify-center flex-shrink-0">#{{ loop.index }}</span>
+                  {% endif %}
+
+                  <div class="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center uppercase flex-shrink-0">
+                    {{ mentor.name[:2] }}
+                  </div>
+
+                  <div class="truncate">
+                    <p class="text-xs font-bold text-gray-800 truncate">{{ mentor.name }}</p>
+                    <p class="text-[11px] text-gray-500 truncate">{{ mentor.profession }}</p>
+                  </div>
+                </div>
+
+                <div class="text-right flex-shrink-0">
+                  <div class="flex items-center justify-end gap-1.5">
+                    <span class="text-xs font-bold text-indigo-700">{{ mentor.completed }}</span>
+                    <span class="text-[11px] text-gray-500">mentee tasks done</span>
+                  </div>
+                  <div class="w-24 bg-gray-100 rounded-full h-1.5 mt-1 overflow-hidden ml-auto">
+                    <div class="bg-indigo-600 h-1.5 rounded-full" style="width: {{ mentor.completion_pct }}%"></div>
+                  </div>
+                  <span class="text-[10px] text-gray-500 font-medium">{{ mentor.completion_pct }}% Completion Rate</span>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-400 text-xs">
+              No mentor task completion data recorded yet.
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Tab 2: Profile Completeness -->
+        <div id="lb-tab-content-profile" class="hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 mb-4 border-b border-gray-100 gap-3">
+            <div>
+              <h4 class="text-sm font-bold text-gray-800">Profile Completeness Leaderboard</h4>
+              <p class="text-xs text-gray-500">Users ranked by profile depth, biographical details, and onboarding readiness.</p>
+            </div>
+            <div class="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+              <button type="button" onclick="toggleProfileSub('mentors')" id="btn-profile-mentors" class="px-3 py-1 text-xs font-semibold rounded-md bg-teal-600 text-white transition shadow-2xs">
+                Top Mentors ({{ comparative_analytics.lb_profile_mentors|length }})
+              </button>
+              <button type="button" onclick="toggleProfileSub('mentees')" id="btn-profile-mentees" class="px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition">
+                Top Mentees ({{ comparative_analytics.lb_profile_mentees|length }})
+              </button>
+            </div>
+          </div>
+
+          <!-- Mentors Profile Completeness -->
+          <div id="profile-sub-mentors">
+            {% if comparative_analytics.lb_profile_mentors %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {% for mentor in comparative_analytics.lb_profile_mentors %}
+              <div class="p-3.5 rounded-xl border border-gray-100 hover:border-teal-200 hover:bg-teal-50/20 transition flex items-center justify-between gap-3 bg-white">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="w-7 h-7 rounded-full {% if loop.index == 1 %}bg-gradient-to-tr from-amber-400 to-yellow-500 text-white ring-2 ring-amber-200{% elif loop.index == 2 %}bg-gradient-to-tr from-slate-300 to-gray-400 text-white ring-2 ring-gray-200{% elif loop.index == 3 %}bg-gradient-to-tr from-amber-600 to-amber-700 text-white ring-2 ring-amber-300{% else %}bg-slate-100 text-slate-600{% endif %} font-bold text-xs flex items-center justify-center flex-shrink-0">
+                    #{{ loop.index }}
+                  </span>
+
+                  <div class="w-9 h-9 rounded-full bg-teal-100 text-teal-700 font-bold text-xs flex items-center justify-center uppercase flex-shrink-0">
+                    {{ mentor.name[:2] }}
+                  </div>
+
+                  <div class="truncate">
+                    <p class="text-xs font-bold text-gray-800 truncate">{{ mentor.name }}</p>
+                    <p class="text-[11px] text-gray-500 truncate">{{ mentor.profession }} • {{ mentor.institution }}</p>
+                  </div>
+                </div>
+
+                <div class="text-right flex-shrink-0">
+                  <div class="flex items-center justify-end gap-1.5">
+                    <span class="text-xs font-bold text-teal-700">{{ mentor.score }}%</span>
+                    {% if mentor.is_complete %}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Ready</span>
+                    {% else %}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">Pending</span>
+                    {% endif %}
+                  </div>
+                  <div class="w-24 bg-gray-100 rounded-full h-1.5 mt-1 overflow-hidden ml-auto">
+                    <div class="bg-teal-600 h-1.5 rounded-full" style="width: {{ mentor.score }}%"></div>
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-400 text-xs">
+              No mentor profile completeness data found.
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- Mentees Profile Completeness -->
+          <div id="profile-sub-mentees" class="hidden">
+            {% if comparative_analytics.lb_profile_mentees %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {% for mentee in comparative_analytics.lb_profile_mentees %}
+              <div class="p-3.5 rounded-xl border border-gray-100 hover:border-teal-200 hover:bg-teal-50/20 transition flex items-center justify-between gap-3 bg-white">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="w-7 h-7 rounded-full {% if loop.index == 1 %}bg-gradient-to-tr from-amber-400 to-yellow-500 text-white ring-2 ring-amber-200{% elif loop.index == 2 %}bg-gradient-to-tr from-slate-300 to-gray-400 text-white ring-2 ring-gray-200{% elif loop.index == 3 %}bg-gradient-to-tr from-amber-600 to-amber-700 text-white ring-2 ring-amber-300{% else %}bg-slate-100 text-slate-600{% endif %} font-bold text-xs flex items-center justify-center flex-shrink-0">
+                    #{{ loop.index }}
+                  </span>
+
+                  <div class="w-9 h-9 rounded-full bg-teal-100 text-teal-700 font-bold text-xs flex items-center justify-center uppercase flex-shrink-0">
+                    {{ mentee.name[:2] }}
+                  </div>
+
+                  <div class="truncate">
+                    <p class="text-xs font-bold text-gray-800 truncate">{{ mentee.name }}</p>
+                    <p class="text-[11px] text-gray-500 truncate">{{ mentee.stream }} • {{ mentee.school }}</p>
+                  </div>
+                </div>
+
+                <div class="text-right flex-shrink-0">
+                  <div class="flex items-center justify-end gap-1.5">
+                    <span class="text-xs font-bold text-teal-700">{{ mentee.score }}%</span>
+                    {% if mentee.is_complete %}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">Ready</span>
+                    {% else %}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">Pending</span>
+                    {% endif %}
+                  </div>
+                  <div class="w-24 bg-gray-100 rounded-full h-1.5 mt-1 overflow-hidden ml-auto">
+                    <div class="bg-teal-600 h-1.5 rounded-full" style="width: {{ mentee.score }}%"></div>
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-400 text-xs">
+              No mentee profile completeness data found.
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Tab 3: Most Connected Mentors ("Who has more mentees") -->
+        <div id="lb-tab-content-connected" class="hidden">
+          <div class="pb-4 mb-4 border-b border-gray-100">
+            <h4 class="text-sm font-bold text-gray-800">Most Connected Mentors ("Who has more mentees")</h4>
+            <p class="text-xs text-gray-500">Mentors ranked by active mentee pairings and capacity engagement.</p>
+          </div>
+
+          {% if comparative_analytics.lb_connected_mentors %}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {% for mentor in comparative_analytics.lb_connected_mentors %}
+            <div class="p-4 rounded-xl border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/20 transition bg-white flex flex-col justify-between">
+              <div class="flex items-center justify-between gap-3 mb-2.5">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="w-7 h-7 rounded-full {% if loop.index == 1 %}bg-gradient-to-tr from-amber-400 to-yellow-500 text-white ring-2 ring-amber-200{% elif loop.index == 2 %}bg-gradient-to-tr from-slate-300 to-gray-400 text-white ring-2 ring-gray-200{% elif loop.index == 3 %}bg-gradient-to-tr from-amber-600 to-amber-700 text-white ring-2 ring-amber-300{% else %}bg-slate-100 text-slate-600{% endif %} font-bold text-xs flex items-center justify-center flex-shrink-0">
+                    #{{ loop.index }}
+                  </span>
+
+                  <div class="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center uppercase flex-shrink-0">
+                    {{ mentor.name[:2] }}
+                  </div>
+
+                  <div class="truncate">
+                    <p class="text-xs font-bold text-gray-800 truncate">{{ mentor.name }}</p>
+                    <p class="text-[11px] text-gray-500 truncate">{{ mentor.profession }} • {{ mentor.institution }}</p>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-1.5 flex-shrink-0">
+                  <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 border border-indigo-200">
+                    {{ mentor.mentee_count }} {% if mentor.mentee_count == 1 %}Mentee{% else %}Mentees{% endif %}
+                  </span>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold border {{ mentor.badge_class }}">
+                    {{ mentor.capacity_badge }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Mentee Name Chips -->
+              <div class="pt-2 border-t border-gray-100 flex flex-wrap items-center gap-1.5">
+                <span class="text-[11px] font-medium text-gray-400">Assigned:</span>
+                {% for mname in mentor.mentee_names %}
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-50 text-slate-700 border border-slate-200">
+                  👤 {{ mname }}
+                </span>
+                {% endfor %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="text-center py-8 text-gray-400 text-xs">
+            No active mentor-mentee connections established yet.
           </div>
           {% endif %}
-          {% endfor %}
         </div>
-        <div id="active-view-mentor" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {% for type_name, items in active_by_type.items() %}
-          {% for r in items %}
-          <div class="bg-indigo-50 rounded-lg p-3 border border-indigo-100">
-            <div class="text-sm font-medium text-gray-800 mb-1">{{ r.mentor.name if r.mentor else 'Mentor' }}</div>
-            <div class="text-xs text-gray-600">Mentee: {{ r.mentee.name if r.mentee else 'Unknown' }}</div>
-          </div>
-          {% endfor %}
-          {% endfor %}
-        </div>
-      </div>
-    </div>
 
-    <!-- Pending Requests Breakdown Panel -->
-    <div id="panel-pending" class="hidden mb-8 bg-white rounded-xl shadow-sm border border-gray-100">
-      <div class="p-4 border-b border-gray-100 flex items-center justify-between">
-        <h3 class="font-semibold text-gray-800">Pending Requests Breakdown</h3>
-        <div class="flex gap-1 bg-gray-100 rounded-lg p-1">
-          <button onclick="switchPendingView('type')" id="btn-pending-type" class="px-3 py-1 text-xs font-medium rounded-md bg-sky-600 text-white transition">By Type</button>
-          <button onclick="switchPendingView('age')" id="btn-pending-age" class="px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition">By Age</button>
-        </div>
-      </div>
-      <div class="p-4">
-        <div id="pending-view-type" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {% for type_name, items in pending_by_type.items() %}
-          {% if items %}
-          <div class="bg-sky-50 rounded-lg p-3 border border-sky-100">
-            <div class="flex items-center justify-between mb-2">
-              <span class="font-medium text-gray-800 text-sm capitalize">{{ type_name }} Requests</span>
-              <span class="bg-sky-100 text-sky-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
+        <!-- Tab 4: Task Ratings ("Who has better rating in each task") -->
+        <div id="lb-tab-content-ratings" class="hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 mb-4 border-b border-gray-100 gap-3">
+            <div>
+              <h4 class="text-sm font-bold text-gray-800">Task Ratings & Satisfaction Leaderboard</h4>
+              <p class="text-xs text-gray-500">Comparative average ratings across top rated mentors and journey meeting tasks.</p>
             </div>
-            <div class="space-y-1 max-h-40 overflow-y-auto">
-              {% for r in items[:10] %}
-              <div class="text-xs text-gray-600">
-                {{ r.mentor.name if r.mentor else 'Mentor' }} &rarr; {{ r.mentee.name if r.mentee else 'Mentee' }}
-              </div>
-              {% endfor %}
-              {% if items|length > 10 %}
-              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
-              {% endif %}
+            <div class="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+              <button type="button" onclick="toggleRatingsSub('mentors')" id="btn-ratings-mentors" class="px-3 py-1 text-xs font-semibold rounded-md bg-amber-600 text-white transition shadow-2xs">
+                Highest Rated Mentors ({{ comparative_analytics.lb_mentor_ratings|length }})
+              </button>
+              <button type="button" onclick="toggleRatingsSub('tasks')" id="btn-ratings-tasks" class="px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition">
+                Task Curriculum Ratings ({{ comparative_analytics.lb_task_ratings|length }})
+              </button>
             </div>
           </div>
-          {% endif %}
-          {% endfor %}
-        </div>
-        <div id="pending-view-age" class="hidden grid grid-cols-1 md:grid-cols-3 gap-3">
-          {% for bucket_name, items in pending_by_age.items() %}
-          <div class="bg-sky-50 rounded-lg p-3 border border-sky-100">
-            <div class="flex items-center justify-between mb-2">
-              <span class="font-medium text-gray-800 text-sm">{{ bucket_name }}</span>
-              <span class="bg-sky-100 text-sky-700 text-xs font-bold px-2 py-0.5 rounded-full">{{ items|length }}</span>
-            </div>
-            <div class="space-y-1 max-h-40 overflow-y-auto">
-              {% for r in items[:10] %}
-              <div class="text-xs text-gray-600">
-                {{ r.mentor.name if r.mentor else 'Mentor' }} &rarr; {{ r.mentee.name if r.mentee else 'Mentee' }}
+
+          <!-- Mentors by rating -->
+          <div id="ratings-sub-mentors">
+            {% if comparative_analytics.lb_mentor_ratings %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {% for mentor in comparative_analytics.lb_mentor_ratings %}
+              <div class="p-3.5 rounded-xl border border-gray-100 hover:border-amber-200 hover:bg-amber-50/20 transition bg-white flex flex-col justify-between">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <span class="w-7 h-7 rounded-full {% if loop.index == 1 %}bg-gradient-to-tr from-amber-400 to-yellow-500 text-white ring-2 ring-amber-200{% elif loop.index == 2 %}bg-gradient-to-tr from-slate-300 to-gray-400 text-white ring-2 ring-gray-200{% elif loop.index == 3 %}bg-gradient-to-tr from-amber-600 to-amber-700 text-white ring-2 ring-amber-300{% else %}bg-slate-100 text-slate-600{% endif %} font-bold text-xs flex items-center justify-center flex-shrink-0">
+                      #{{ loop.index }}
+                    </span>
+
+                    <div class="w-9 h-9 rounded-full bg-amber-100 text-amber-700 font-bold text-xs flex items-center justify-center uppercase flex-shrink-0">
+                      {{ mentor.name[:2] }}
+                    </div>
+
+                    <div class="truncate">
+                      <p class="text-xs font-bold text-gray-800 truncate">{{ mentor.name }}</p>
+                      <p class="text-[11px] text-gray-500 truncate">{{ mentor.profession }}</p>
+                    </div>
+                  </div>
+
+                  <div class="text-right flex-shrink-0">
+                    <div class="flex items-center justify-end gap-1">
+                      <span class="text-amber-500 font-bold text-xs">★</span>
+                      <span class="text-sm font-black text-gray-800">{{ mentor.avg_rating }}</span>
+                      <span class="text-[11px] text-gray-400">/ 5.0</span>
+                    </div>
+                    <span class="text-[10px] text-gray-400 font-medium">({{ mentor.rating_count }} {% if mentor.rating_count == 1 %}rating{% else %}ratings{% endif %})</span>
+                  </div>
+                </div>
+
+                {% if mentor.feedback %}
+                <div class="mt-2.5 pt-2 border-t border-gray-100 flex items-start gap-1.5 text-xs text-gray-600 italic bg-amber-50/50 p-2 rounded-lg">
+                  <span class="text-amber-500 font-bold text-xs">“</span>
+                  <span class="truncate">{{ mentor.feedback }}</span>
+                  <span class="text-amber-500 font-bold text-xs">”</span>
+                </div>
+                {% endif %}
               </div>
               {% endfor %}
-              {% if items|length > 10 %}
-              <div class="text-xs text-gray-400 text-center">+{{ items|length - 10 }} more</div>
-              {% endif %}
             </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-400 text-xs">
+              No mentor task ratings submitted yet.
+            </div>
+            {% endif %}
           </div>
-          {% endfor %}
+
+          <!-- Tasks by rating -->
+          <div id="ratings-sub-tasks" class="hidden">
+            {% if comparative_analytics.lb_task_ratings %}
+            <div class="space-y-2.5">
+              {% for task in comparative_analytics.lb_task_ratings %}
+              <div class="p-3.5 rounded-xl border border-gray-100 hover:border-amber-200 hover:bg-amber-50/20 transition bg-white flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="w-7 h-7 rounded-full {% if loop.index == 1 %}bg-gradient-to-tr from-amber-400 to-yellow-500 text-white ring-2 ring-amber-200{% elif loop.index == 2 %}bg-gradient-to-tr from-slate-300 to-gray-400 text-white ring-2 ring-gray-200{% elif loop.index == 3 %}bg-gradient-to-tr from-amber-600 to-amber-700 text-white ring-2 ring-amber-300{% else %}bg-slate-100 text-slate-600{% endif %} font-bold text-xs flex items-center justify-center flex-shrink-0">
+                    #{{ loop.index }}
+                  </span>
+
+                  <div class="truncate">
+                    <p class="text-xs font-bold text-gray-800 truncate">{{ task.title }}</p>
+                    <p class="text-[11px] text-gray-500">{{ task.rating_count }} mentee feedback submissions</p>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-4 flex-shrink-0">
+                  <div class="w-28 hidden sm:block bg-gray-100 rounded-full h-2 overflow-hidden">
+                    <div class="bg-amber-500 h-2 rounded-full" style="width: {{ (task.avg_rating / 5.0 * 100)|round }}%"></div>
+                  </div>
+                  <div class="text-right">
+                    <div class="flex items-center justify-end gap-1">
+                      <span class="text-amber-500 font-bold text-xs">★</span>
+                      <span class="text-sm font-black text-gray-800">{{ task.avg_rating }}</span>
+                      <span class="text-[11px] text-gray-400">/ 5.0</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-400 text-xs">
+              No task ratings recorded yet.
+            </div>
+            {% endif %}
+          </div>
         </div>
+
       </div>
     </div>
+  </section>
 
 
 
@@ -985,68 +1205,70 @@
     showSection(activeSection);
   });
 
-  // Dashboard card toggle
-  var openPanel = null;
-  function toggleCard(type) {
-    var panel = document.getElementById('panel-' + type);
-    if (!panel) return;
-    if (openPanel && openPanel !== panel) {
-      openPanel.classList.add('hidden');
+
+  // Leaderboard tab switcher
+  function switchLeaderboardTab(tabName) {
+    var tabs = ['task', 'profile', 'connected', 'ratings'];
+    tabs.forEach(function(t) {
+      var content = document.getElementById('lb-tab-content-' + t);
+      var btn = document.getElementById('lb-tab-btn-' + t);
+      if (content) content.classList.toggle('hidden', t !== tabName);
+      if (btn) {
+        if (t === tabName) {
+          btn.className = 'lb-tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all bg-white text-blue-700 shadow-xs';
+        } else {
+          btn.className = 'lb-tab-btn px-3.5 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:text-gray-900 transition-all';
+        }
+      }
+    });
+  }
+
+  function toggleTaskSub(sub) {
+    var isMentees = (sub === 'mentees');
+    var elMentees = document.getElementById('task-sub-mentees');
+    var elMentors = document.getElementById('task-sub-mentors');
+    var btnMentees = document.getElementById('btn-task-mentees');
+    var btnMentors = document.getElementById('btn-task-mentors');
+    if (elMentees) elMentees.classList.toggle('hidden', !isMentees);
+    if (elMentors) elMentors.classList.toggle('hidden', isMentees);
+    if (btnMentees) {
+      btnMentees.className = isMentees ? 'px-3 py-1 text-xs font-semibold rounded-md bg-blue-600 text-white transition shadow-2xs' : 'px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition';
     }
-    panel.classList.toggle('hidden');
-    openPanel = panel.classList.contains('hidden') ? null : panel;
+    if (btnMentors) {
+      btnMentors.className = !isMentees ? 'px-3 py-1 text-xs font-semibold rounded-md bg-blue-600 text-white transition shadow-2xs' : 'px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition';
+    }
   }
 
-  function switchMentorView(view) {
-    ['location', 'institution', 'profession'].forEach(function(v) {
-      var el = document.getElementById('mentor-view-' + v);
-      var btn = document.getElementById('btn-mentor-' + v);
-      if (el) el.classList.toggle('hidden', v !== view);
-      if (btn) {
-        btn.className = v === view
-          ? 'px-3 py-1 text-xs font-medium rounded-md bg-blue-600 text-white transition'
-          : 'px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition';
-      }
-    });
+  function toggleProfileSub(sub) {
+    var isMentors = (sub === 'mentors');
+    var elMentors = document.getElementById('profile-sub-mentors');
+    var elMentees = document.getElementById('profile-sub-mentees');
+    var btnMentors = document.getElementById('btn-profile-mentors');
+    var btnMentees = document.getElementById('btn-profile-mentees');
+    if (elMentors) elMentors.classList.toggle('hidden', !isMentors);
+    if (elMentees) elMentees.classList.toggle('hidden', isMentors);
+    if (btnMentors) {
+      btnMentors.className = isMentors ? 'px-3 py-1 text-xs font-semibold rounded-md bg-teal-600 text-white transition shadow-2xs' : 'px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition';
+    }
+    if (btnMentees) {
+      btnMentees.className = !isMentors ? 'px-3 py-1 text-xs font-semibold rounded-md bg-teal-600 text-white transition shadow-2xs' : 'px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition';
+    }
   }
 
-  function switchMenteeView(view) {
-    ['location', 'institution', 'stream'].forEach(function(v) {
-      var el = document.getElementById('mentee-view-' + v);
-      var btn = document.getElementById('btn-mentee-' + v);
-      if (el) el.classList.toggle('hidden', v !== view);
-      if (btn) {
-        btn.className = v === view
-          ? 'px-3 py-1 text-xs font-medium rounded-md bg-teal-600 text-white transition'
-          : 'px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition';
-      }
-    });
-  }
-
-  function switchActiveView(view) {
-    ['type', 'mentor'].forEach(function(v) {
-      var el = document.getElementById('active-view-' + v);
-      var btn = document.getElementById('btn-active-' + v);
-      if (el) el.classList.toggle('hidden', v !== view);
-      if (btn) {
-        btn.className = v === view
-          ? 'px-3 py-1 text-xs font-medium rounded-md bg-indigo-600 text-white transition'
-          : 'px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition';
-      }
-    });
-  }
-
-  function switchPendingView(view) {
-    ['type', 'age'].forEach(function(v) {
-      var el = document.getElementById('pending-view-' + v);
-      var btn = document.getElementById('btn-pending-' + v);
-      if (el) el.classList.toggle('hidden', v !== view);
-      if (btn) {
-        btn.className = v === view
-          ? 'px-3 py-1 text-xs font-medium rounded-md bg-sky-600 text-white transition'
-          : 'px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition';
-      }
-    });
+  function toggleRatingsSub(sub) {
+    var isMentors = (sub === 'mentors');
+    var elMentors = document.getElementById('ratings-sub-mentors');
+    var elTasks = document.getElementById('ratings-sub-tasks');
+    var btnMentors = document.getElementById('btn-ratings-mentors');
+    var btnTasks = document.getElementById('btn-ratings-tasks');
+    if (elMentors) elMentors.classList.toggle('hidden', !isMentors);
+    if (elTasks) elTasks.classList.toggle('hidden', isMentors);
+    if (btnMentors) {
+      btnMentors.className = isMentors ? 'px-3 py-1 text-xs font-semibold rounded-md bg-amber-600 text-white transition shadow-2xs' : 'px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition';
+    }
+    if (btnTasks) {
+      btnTasks.className = !isMentors ? 'px-3 py-1 text-xs font-semibold rounded-md bg-amber-600 text-white transition shadow-2xs' : 'px-3 py-1 text-xs font-medium rounded-md text-gray-600 hover:text-gray-800 transition';
+    }
   }
 
   // Client-side filtering for Mentors
