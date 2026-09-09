@@ -1460,7 +1460,7 @@ def sync_postgres_sequences(target_table=None):
                                     SELECT setval(
                                         :seq,
                                         COALESCE((SELECT MAX({col_name}) FROM {t_name}), 1),
-                                        COALESCE((SELECT MAX({col_name}) IS NOT NULL FROM {t_name}), false)
+                                        true
                                     )
                                 """),
                                 {"seq": seq_res}
@@ -4796,6 +4796,7 @@ def submit_mentor_sourcing_request():
     message = (request.form.get("message") or "").strip()
     countries = (request.form.get("countries") or "").strip()
     languages = (request.form.get("languages") or "").strip()
+    preferred_institution = (request.form.get("preferred_institution") or "").strip()
 
     if not target_role:
         return jsonify({"success": False, "error": "Please enter the target role or title."}), 400
@@ -4804,8 +4805,10 @@ def submit_mentor_sourcing_request():
     if not message:
         return jsonify({"success": False, "error": "Please provide details on what you are looking for."}), 400
 
-    # Prepend country and language metadata to message if provided
+    # Prepend country, language, and institution metadata to message if provided
     meta_parts = []
+    if preferred_institution:
+        meta_parts.append("[Preferred Institution]: " + preferred_institution)
     if countries:
         meta_parts.append("[Preferred Countries]: " + countries)
     if languages:
@@ -4832,6 +4835,7 @@ def submit_mentor_sourcing_request():
             db.session.commit()
         except Exception as insert_err:
             db.session.rollback()
+            db.session.expunge_all()
             err_msg = str(insert_err).lower()
             if "uniqueviolation" in err_msg or "duplicate key" in err_msg or "mentor_sourcing_requests_pkey" in err_msg:
                 sync_postgres_sequences("mentor_sourcing_requests")
@@ -9143,6 +9147,7 @@ def request_mentorship():
             db.session.commit()
         except Exception as commit_err:
             db.session.rollback()
+            db.session.expunge_all()
             err_msg = str(commit_err).lower()
             if "uniqueviolation" in err_msg or "duplicate key" in err_msg or "mentorship_requests_pkey" in err_msg:
                 app.logger.warning(f"Sequence desync on mentorship_requests: {commit_err}. Auto-resyncing sequence...")
