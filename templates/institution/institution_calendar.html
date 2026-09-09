@@ -420,6 +420,17 @@
                     </optgroup>
                 </select>
             </div>
+            <!-- Include Institutions Flag -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <label class="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" id="sched-include-institutions" name="include_institutions"
+                        class="mt-0.5 h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                    <div>
+                        <span class="text-sm font-medium text-gray-700">Notify Participant Institutions</span>
+                        <p class="text-xs text-gray-500 mt-0.5">Flag this meeting to also send notifications and calendar updates to the institutions that the mentor and mentee belong to.</p>
+                    </div>
+                </label>
+            </div>
             <div id="sched-status" class="text-sm hidden"></div>
             <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
                 <button type="button" onclick="closeScheduleMeetingModal()" class="px-5 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors">Cancel</button>
@@ -1468,7 +1479,8 @@ document.getElementById('scheduleMeetingForm').addEventListener('submit', async 
                 institution_id: document.getElementById('sched-mentor-institute-id').value || document.getElementById('sched-mentee-institute-id').value || '{{ institution_id or "" }}',
                 platform: platform,
                 custom_link: customLink,
-                timezone: timezone
+                timezone: timezone,
+                include_institutions: document.getElementById('sched-include-institutions').checked
             })
         });
         var result = await res.json();

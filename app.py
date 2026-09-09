@@ -7330,9 +7330,11 @@ def get_task_progress_css(status):
 
 def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calendar_link,
                               platform, title, start_datetime, timezone,
-                              mentor_id, mentee_id, supervisor, requested_to):
+                              mentor_id, mentee_id, supervisor, requested_to,
+                              extra_recipients=None):
     """Send meeting link details to all participants via email + in-app notification.
     Never raises; logs errors instead.
+    extra_recipients: list of additional User objects to include (e.g. institution users).
     """
     try:
         # Determine all recipient emails
@@ -7353,6 +7355,11 @@ def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calend
             mentee_user = User.query.get(int(mentee_id))
             if mentee_user:
                 recipients[mentee_user.id] = mentee_user
+        # Add extra recipients (e.g. institution users flagged for notification)
+        if extra_recipients:
+            for extra_user in extra_recipients:
+                if extra_user and extra_user.id not in recipients:
+                    recipients[extra_user.id] = extra_user
 
         start_str = start_datetime.strftime("%B %d, %Y at %I:%M %p")
 
@@ -10812,6 +10819,7 @@ def create_meeting_ajax():
     mentor_id = data.get("mentor_id")
     mentee_id = data.get("mentee_id")
     institution_id = data.get("institution_id")
+    include_institutions = data.get("include_institutions", False)
     task_id = data.get("task_id")
     mentorship_id = data.get("mentorship_id")
 
@@ -11048,6 +11056,21 @@ def create_meeting_ajax():
         db.session.add(meeting)
         db.session.commit()
 
+        # Resolve institution users for mentor and mentee if flag is set
+        included_institution_users = []
+        if include_institutions and (mentee_id or mentor_id):
+            try:
+                if mentee_id and mentee_user and mentee_user.institution_id:
+                    inst = Institution.query.get(mentee_user.institution_id)
+                    if inst and inst.user:
+                        included_institution_users.append(inst.user)
+                if mentor_id and mentor_user and mentor_user.institution_id:
+                    inst = Institution.query.get(mentor_user.institution_id)
+                    if inst and inst.user and inst.user.id not in [u.id for u in included_institution_users]:
+                        included_institution_users.append(inst.user)
+            except Exception as e:
+                app.logger.error(f"Failed to resolve institution users: {e}")
+
         if mentee_id and mentor_id:
             try:
                 participants_data = {
@@ -11056,6 +11079,10 @@ def create_meeting_ajax():
                     "created_by": supervisor.id,
                     "created_by_name": supervisor.name
                 }
+                if include_institutions and included_institution_users:
+                    participants_data["include_institutions"] = True
+                    participants_data["institution_user_ids"] = [u.id for u in included_institution_users]
+                    participants_data["institution_user_names"] = [u.name for u in included_institution_users]
                 if task_id:
                     participants_data["task_id"] = task_id
                     participants_data["task_type"] = "master"
@@ -11076,7 +11103,8 @@ def create_meeting_ajax():
             mentor_id=mentor_id,
             mentee_id=mentee_id,
             supervisor=supervisor,
-            requested_to=requested_to
+            requested_to=requested_to,
+            extra_recipients=included_institution_users
         )
     except Exception as e:
         db.session.rollback()
