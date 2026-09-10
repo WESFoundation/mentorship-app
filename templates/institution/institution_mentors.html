@@ -86,10 +86,10 @@
                    onclick="openRatingPopup({{ mentor.id }}, '{{ mentor.name|e }}')"
                    data-mentor-uid="{{ mentor.id }}"
                    title="Click to view rating details for {{ mentor.name|e }}">
-                <div class="flex items-center gap-0.5 text-sm" id="inst-stars-{{ mentor.id }}">
+                <div class="flex items-center gap-0.5 text-sm inst-stars-{{ mentor.id }}" id="inst-stars-{{ mentor.id }}">
                   <span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span>
                 </div>
-                <span class="text-sm font-bold text-gray-700" id="inst-num-{{ mentor.id }}">--</span>
+                <span class="text-sm font-bold text-gray-700 inst-num-{{ mentor.id }}" id="inst-num-{{ mentor.id }}">--</span>
                 <span class="text-xs px-2 py-0.5 bg-amber-50 group-hover:bg-amber-100 text-amber-700 border border-amber-200 rounded font-medium transition">Details</span>
               </div>
             </td>
@@ -668,10 +668,12 @@
     for (const uid of ids) {
       const rating = await fetchMentorRating(uid);
       if (!rating) continue;
-      const starsEl = document.getElementById('inst-stars-' + uid);
-      if (starsEl) starsEl.innerHTML = renderStarsHtml(rating.final_rating);
-      const numEl = document.getElementById('inst-num-' + uid);
-      if (numEl) numEl.textContent = rating.final_rating.toFixed(1) + ' / 5.0';
+      document.querySelectorAll('.inst-stars-' + uid).forEach(el => {
+        el.innerHTML = renderStarsHtml(rating.final_rating);
+      });
+      document.querySelectorAll('.inst-num-' + uid).forEach(el => {
+        el.textContent = rating.final_rating.toFixed(1) + ' / 5.0';
+      });
     }
   }
 

@@ -2030,27 +2030,70 @@ def auto_migrate_schema():
         from sqlalchemy import inspect, text
         with app.app_context():
             inspector = inspect(db.engine)
-            existing_tables = set(inspector.get_table_names())
+            existing_tables = set()
+            try:
+                existing_tables = set(inspector.get_table_names())
+            except Exception as e:
+                print(f"⚠️ inspector.get_table_names notice: {e}")
 
             # 1. Ensure any missing tables in metadata are created
-            db.create_all()
+            try:
+                db.create_all()
+            except Exception as create_err:
+                print(f"⚠️ db.create_all notice in auto_migrate_schema: {create_err}")
+
+            try:
+                inspector = inspect(db.engine)
+                existing_tables = set(inspector.get_table_names())
+            except Exception:
+                pass
 
             # 2. Add missing columns for any declared models
             for table_name, table in db.metadata.tables.items():
                 if table_name in existing_tables:
-                    existing_cols = {c["name"] for c in inspector.get_columns(table_name)}
+                    try:
+                        existing_cols = {c["name"] for c in inspector.get_columns(table_name)}
+                    except Exception as inspect_err:
+                        print(f"⚠️ inspector.get_columns notice for {table_name}: {inspect_err}")
+                        continue
                     for col in table.columns:
                         if col.name not in existing_cols:
                             try:
                                 col_type = col.type.compile(db.engine.dialect)
                                 with db.engine.connect() as conn:
-                                    conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type}"))
+                                    if db.engine.dialect.name == "postgresql":
+                                        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {col.name} {col_type}"))
+                                    else:
+                                        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type}"))
                                     conn.commit()
                                 print(f"✅ Auto-migrated column: {table_name}.{col.name} ({col_type})")
                             except Exception as col_err:
                                 print(f"⚠️ Notice adding column {table_name}.{col.name}: {col_err}")
 
-            # 3. Synchronize PostgreSQL sequences to prevent duplicate key UniqueViolation
+            # 3. Direct targeted fallback for critical rating columns
+            target_migrations = [
+                ("mentorship_requests", "rating", "FLOAT"),
+                ("mentorship_requests", "rating_review", "TEXT"),
+                ("mentorship_requests", "rated_at", "TIMESTAMP WITHOUT TIME ZONE" if db.engine.dialect.name == "postgresql" else "DATETIME"),
+                ("mentorship_requests", "rated_by", "INTEGER"),
+                ("mentor_profile", "supervisor_rating", "FLOAT"),
+            ]
+            for t_name, c_name, c_type in target_migrations:
+                try:
+                    with db.engine.connect() as conn:
+                        if db.engine.dialect.name == "postgresql":
+                            conn.execute(text(f"ALTER TABLE {t_name} ADD COLUMN IF NOT EXISTS {c_name} {c_type}"))
+                            conn.commit()
+                        elif db.engine.dialect.name == "sqlite":
+                            res = conn.execute(text(f"PRAGMA table_info({t_name})")).fetchall()
+                            col_names = [r[1] for r in res]
+                            if c_name not in col_names:
+                                conn.execute(text(f"ALTER TABLE {t_name} ADD COLUMN {c_name} {c_type}"))
+                                conn.commit()
+                except Exception as direct_err:
+                    print(f"⚠️ Direct migration notice for {t_name}.{c_name}: {direct_err}")
+
+            # 4. Synchronize PostgreSQL sequences to prevent duplicate key UniqueViolation
             if db.engine.dialect.name == "postgresql":
                 sync_postgres_sequences()
 
@@ -8631,9 +8674,15 @@ def _compute_mentorship_rating_score(mentee_id, mentor_id):
     Uses supervisor mentorship rating if available, else detailed criteria from MenteeFeedback,
     else falls back to simple 1-5 rating, else averages task-level mentor_ratings."""
     # 1. Check for supervisor rating on this specific mentorship connection
-    mr = MentorshipRequest.query.filter_by(mentee_id=mentee_id, mentor_id=mentor_id).first()
-    if mr and mr.rating is not None and mr.rating > 0:
-        return min(100, max(0, round(float(mr.rating) * 20)))  # 1-5 -> 0-100
+    try:
+        mr = MentorshipRequest.query.filter_by(mentee_id=mentee_id, mentor_id=mentor_id).first()
+        if mr and getattr(mr, "rating", None) is not None and mr.rating > 0:
+            return min(100, max(0, round(float(mr.rating) * 20)))  # 1-5 -> 0-100
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
 
     import json as _json
     explicit = MenteeFeedback.query.filter_by(
@@ -9046,7 +9095,13 @@ def api_submit_supervisor_mentor_review():
         )
         db.session.add(refl)
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as commit_err:
+        db.session.rollback()
+        app.logger.error(f"Error submitting supervisor review: {commit_err}")
+        return jsonify({"success": False, "message": f"Database error saving rating: {str(commit_err)}"}), 500
+
     return jsonify({
         "success": True,
         "message": "Mentorship rating submitted successfully",
@@ -9201,13 +9256,14 @@ def api_mentor_rating_simple(mentor_id):
 
     try:
         mentor = db.session.get(User, mentor_id)
-        # If mentor_id was actually a MentorProfile id or user is not a mentor (user_type "1")
-        if not mentor or getattr(mentor, "user_type", None) != "1":
+        is_mentor_type = str(getattr(mentor, "user_type", "")) in ("1", "mentor")
+        # If mentor_id was actually a MentorProfile id or user is not marked as mentor
+        if not mentor or not is_mentor_type:
             mp = db.session.get(MentorProfile, mentor_id)
             if mp:
                 mentor = db.session.get(User, mp.user_id)
                 mentor_id = mp.user_id
-            elif mentor and getattr(mentor, "user_type", None) != "1":
+            elif mentor and not is_mentor_type:
                 mp_alt = MentorProfile.query.filter_by(id=mentor_id).first()
                 if mp_alt:
                     mentor = db.session.get(User, mp_alt.user_id)
@@ -9221,6 +9277,10 @@ def api_mentor_rating_simple(mentor_id):
             profile_comp = _compute_profile_completeness_score(mentor_id, "1")
             profile_stars = round(profile_comp / 20, 1)  # 100 -> 5.0
         except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
             profile_stars = 0.0
 
         # 2. Useful Skills (0-5 stars) - based on skill count, max 10 skills = 5 stars
@@ -9228,15 +9288,21 @@ def api_mentor_rating_simple(mentor_id):
             profile_att = _compute_profile_attractiveness_score(mentor_id, "1")
             skills_stars = round(profile_att / 20, 1)  # 100 -> 5.0
         except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
             skills_stars = 0.0
 
         # 3. Mentorship Experience (0-5 stars) - based on number of completed mentorships
         has_mentorship_data = False
+        mentorships = []
+        completed_count = 0
+        mentorship_stars = 0.0
         try:
             mentorships = MentorshipRequest.query.filter_by(
                 mentor_id=mentor_id, final_status="approved"
             ).all()
-            completed_count = 0
             mentorship_rating_sum = 0
             mentorship_rating_count = 0
             for mr in mentorships:
@@ -9257,17 +9323,22 @@ def api_mentor_rating_simple(mentor_id):
             mentorship_stars = round((exp_from_count * 0.5 + avg_mr * 0.5), 1)
             mentorship_stars = min(5, max(0, mentorship_stars))
         except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
             mentorships = []
             completed_count = 0
             mentorship_stars = 0.0
 
         # 4. Mentorship Task Experience (0-5 stars) - based on task ratings
         has_task_data = False
+        total_tasks = 0
+        completed_tasks = 0
+        task_rating_count = 0
+        task_stars = 0.0
         try:
-            total_tasks = 0
-            completed_tasks = 0
             task_rating_sum = 0
-            task_rating_count = 0
             for mr in mentorships:
                 pair_tasks = MenteeTask.query.filter_by(mentee_id=mr.mentee_id, mentor_id=mr.mentor_id).all()
                 total_tasks += len(pair_tasks)
@@ -9288,6 +9359,10 @@ def api_mentor_rating_simple(mentor_id):
             task_stars = round((completion_stars * 0.4 + avg_task_rating * 0.6), 1)
             task_stars = min(5, max(0, task_stars))
         except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
             total_tasks = 0
             completed_tasks = 0
             task_rating_count = 0
@@ -9298,10 +9373,14 @@ def api_mentor_rating_simple(mentor_id):
         supervisor_rating_stars = 0.0
         try:
             sup_profile = MentorProfile.query.filter_by(user_id=mentor_id).first()
-            if sup_profile and sup_profile.supervisor_rating is not None:
+            if sup_profile and getattr(sup_profile, "supervisor_rating", None) is not None:
                 supervisor_rating_stars = float(sup_profile.supervisor_rating)
                 has_supervisor_rating = True
         except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
             supervisor_rating_stars = 0.0
 
         # Final rating = average of only criteria that have data
