@@ -1443,6 +1443,13 @@ class MentorshipRequest(db.Model):
     supervisor_status = db.Column(db.String(20), default="pending") # 'pending', 'approved', 'rejected'
     final_status = db.Column(db.String(20), default="pending") # 'pending', 'approved', 'rejected'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Rating of this mentorship connection (by supervisor)
+    rating = db.Column(db.Float, nullable=True)  # 1.0 - 5.0
+    rating_review = db.Column(db.Text, nullable=True)
+    rated_at = db.Column(db.DateTime, nullable=True)
+    rated_by = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=True)
+
     # Relationships for easy access
     mentee = db.relationship("User", foreign_keys=[mentee_id], backref="sent_requests")
     mentor = db.relationship("User", foreign_keys=[mentor_id], backref="received_requests")
@@ -3654,7 +3661,6 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
                 "avg_progress": avg_p
             })
         lb_task_mentees.sort(key=lambda x: (-x["completed"], -x["avg_progress"]))
-        lb_task_mentees = lb_task_mentees[:10]
 
         # 6. Leaderboard: Task Completion - Top Mentors
         lb_task_mentors = []
@@ -3676,7 +3682,6 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
                 "completion_pct": pct
             })
         lb_task_mentors.sort(key=lambda x: (-x["completed"], -x["completion_pct"]))
-        lb_task_mentors = lb_task_mentors[:10]
 
         # 7. Leaderboard: Profile Completeness (Mentors & Mentees)
         lb_profile_mentors = []
@@ -3694,7 +3699,6 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
                 "is_complete": score >= 80
             })
         lb_profile_mentors.sort(key=lambda x: -x["score"])
-        lb_profile_mentors = lb_profile_mentors[:10]
 
         lb_profile_mentees = []
         for mp in MenteeProfile.query.all():
@@ -3711,7 +3715,6 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
                 "is_complete": score >= 80
             })
         lb_profile_mentees.sort(key=lambda x: -x["score"])
-        lb_profile_mentees = lb_profile_mentees[:10]
 
         # 8. Leaderboard: Most Connected Mentors ("Who has more mentees")
         lb_connected_mentors = []
@@ -3742,7 +3745,6 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
                 "badge_class": badge_class
             })
         lb_connected_mentors.sort(key=lambda x: -x["mentee_count"])
-        lb_connected_mentors = lb_connected_mentors[:10]
 
         # 9. Leaderboard: Task Ratings ("Who has better rating in each task (average)")
         lb_mentor_ratings = []
@@ -3762,7 +3764,6 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
                 "feedback": sample_fb
             })
         lb_mentor_ratings.sort(key=lambda x: (-x["avg_rating"], -x["rating_count"]))
-        lb_mentor_ratings = lb_mentor_ratings[:10]
 
         # Top tasks by average rating
         lb_task_ratings = []
@@ -3775,7 +3776,6 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
                 "rating_count": rstats["count"]
             })
         lb_task_ratings.sort(key=lambda x: (-x["avg_rating"], -x["rating_count"]))
-        lb_task_ratings = lb_task_ratings[:10]
 
         return {
             "metrics": metrics,
@@ -8628,8 +8628,13 @@ def _compute_supervisor_review_score(mentor_id):
 
 def _compute_mentorship_rating_score(mentee_id, mentor_id):
     """Compute mentee's overall mentorship rating (0-100 scale).
-    Uses detailed criteria (communication, knowledge, availability, overall) if available,
+    Uses supervisor mentorship rating if available, else detailed criteria from MenteeFeedback,
     else falls back to simple 1-5 rating, else averages task-level mentor_ratings."""
+    # 1. Check for supervisor rating on this specific mentorship connection
+    mr = MentorshipRequest.query.filter_by(mentee_id=mentee_id, mentor_id=mentor_id).first()
+    if mr and mr.rating is not None and mr.rating > 0:
+        return min(100, max(0, round(float(mr.rating) * 20)))  # 1-5 -> 0-100
+
     import json as _json
     explicit = MenteeFeedback.query.filter_by(
         mentee_id=mentee_id, task_type="mentorship"
@@ -8954,57 +8959,123 @@ def api_get_mentorship_rating_data(mentorship_id):
 
 
 @app.route("/api/submit_supervisor_mentor_review", methods=["POST"])
+@app.route("/api/rate_mentorship", methods=["POST"])
 def api_submit_supervisor_mentor_review():
-    """Supervisor reviews and rates a mentor. Stores in InstitutionReflection with task_type='mentor_review'."""
+    """Supervisor reviews and rates a mentor or a specific mentorship connection."""
     if "email" not in session or session.get("user_type") != "0":
         return jsonify({"success": False, "message": "Unauthorized"})
     data = request.get_json(force=True)
     mentor_id = data.get("mentor_id")
-    rating = data.get("rating")
+    mentorship_id = data.get("mentorship_id")
+    rating = data.get("rating") if data.get("rating") is not None else data.get("star_rating")
     review = data.get("review", "")
-    if not mentor_id or not rating:
-        return jsonify({"success": False, "message": "mentor_id and rating required"})
+    if rating is None:
+        return jsonify({"success": False, "message": "Rating is required"})
     try:
-        rating = int(rating)
+        rating = float(rating)
         if rating < 1 or rating > 5:
             return jsonify({"success": False, "message": "Rating must be 1-5"})
     except (ValueError, TypeError):
         return jsonify({"success": False, "message": "Invalid rating"})
-    mentor = db.session.get(User, int(mentor_id))
+
+    supervisor = User.query.filter_by(email=session["email"]).first()
+    if not supervisor:
+        return jsonify({"success": False, "message": "Supervisor not found"})
+
+    # If mentorship_id is provided, find and update the mentorship connection
+    mr = None
+    if mentorship_id:
+        mr = db.session.get(MentorshipRequest, int(mentorship_id))
+    elif mentor_id:
+        mr = MentorshipRequest.query.filter_by(mentor_id=int(mentor_id)).first()
+
+    if mr:
+        mr.rating = rating
+        mr.rating_review = review
+        mr.rated_at = datetime.utcnow()
+        mr.rated_by = supervisor.id
+        if not mentor_id:
+            mentor_id = mr.mentor_id
+
+    mentor = db.session.get(User, int(mentor_id)) if mentor_id else None
+    if not mentor and mr:
+        mentor = db.session.get(User, mr.mentor_id)
+        mentor_id = mr.mentor_id
+
     if not mentor:
         return jsonify({"success": False, "message": "Mentor not found"})
-    supervisor = User.query.filter_by(email=session["email"]).first()
+
+    # Update MentorProfile.supervisor_rating: calculate average of rated mentorships for this mentor
+    rated_mrs = MentorshipRequest.query.filter(
+        MentorshipRequest.mentor_id == mentor.id,
+        MentorshipRequest.rating.isnot(None),
+        MentorshipRequest.rating > 0
+    ).all()
+    if rated_mrs:
+        avg_sup_rating = round(sum(m.rating for m in rated_mrs) / len(rated_mrs), 1)
+    else:
+        avg_sup_rating = rating
+
+    mp = MentorProfile.query.filter_by(user_id=mentor.id).first()
+    if mp:
+        mp.supervisor_rating = avg_sup_rating
+
     import json as _json
     review_data = _json.dumps({
-        "rating": rating, "review": review,
-        "supervisor_id": supervisor.id, "supervisor_name": supervisor.name
+        "rating": rating,
+        "review": review,
+        "mentorship_id": mr.id if mr else None,
+        "supervisor_id": supervisor.id,
+        "supervisor_name": supervisor.name
     })
-    existing = InstitutionReflection.query.filter_by(
-        institution_id=supervisor.id, task_type="mentor_review", task_id=mentor_id
+    refl = InstitutionReflection.query.filter_by(
+        institution_id=supervisor.id, task_type="mentor_review", task_id=mentor.id
     ).first()
-    if existing:
-        existing.text = review
-        existing.notes = review_data
-        existing.created_at = datetime.utcnow()
+    if refl:
+        refl.text = review
+        refl.notes = review_data
+        refl.created_at = datetime.utcnow()
     else:
         refl = InstitutionReflection(
             institution_id=supervisor.id,
-            task_id=mentor_id,
+            task_id=mentor.id,
             task_type="mentor_review",
             text=review,
             notes=review_data,
             created_at=datetime.utcnow()
         )
         db.session.add(refl)
+
     db.session.commit()
-    return jsonify({"success": True, "message": "Supervisor review submitted"})
+    return jsonify({
+        "success": True,
+        "message": "Mentorship rating submitted successfully",
+        "rating": rating,
+        "mentor_supervisor_rating": avg_sup_rating,
+        "mentorship_id": mr.id if mr else None
+    })
 
 
 @app.route("/api/get_supervisor_mentor_review/<int:mentor_id>")
 def api_get_supervisor_mentor_review(mentor_id):
-    """Get supervisor review for a mentor."""
+    """Get supervisor review for a mentor or specific mentorship."""
     if "email" not in session:
         return jsonify({"success": False, "message": "Unauthorized"})
+    
+    mentorship_id = request.args.get("mentorship_id", type=int)
+    if mentorship_id:
+        mr = db.session.get(MentorshipRequest, mentorship_id)
+        if mr and mr.rating is not None:
+            return jsonify({
+                "success": True,
+                "review": {
+                    "rating": mr.rating,
+                    "review": mr.rating_review or "",
+                    "date": mr.rated_at.isoformat() if mr.rated_at else "",
+                    "mentorship_id": mr.id
+                }
+            })
+
     user = User.query.filter_by(email=session["email"]).first()
     import json as _json
     refl = InstitutionReflection.query.filter_by(
@@ -9314,8 +9385,8 @@ def api_set_supervisor_rating():
 
 @app.route("/rating_calculation")
 def rating_calculation_page():
-    """Page explaining how mentor ratings are calculated. Supervisor only."""
-    if "email" not in session or session.get("user_type") != "0":
+    """Page explaining how mentor ratings are calculated. Accessible to supervisors and institutions."""
+    if "email" not in session or session.get("user_type") not in ("0", "3"):
         flash("Access denied.", "danger")
         return redirect(url_for("signin"))
     return render_template("supervisor/rating_calculation.html")
@@ -12077,8 +12148,8 @@ def mentee_create_meeting_request(mentor_id):
 
 @app.route("/get_tasks_for_mentorship")
 def get_tasks_for_mentorship():
-    """Return tasks for a given (mentee_id, mentor_id) pair as JSON."""
-    if "email" not in session or session.get("user_type") != "0":
+    """Return tasks for a given (mentee_id, mentor_id) pair as JSON. Allowed for Supervisor and Institution."""
+    if "email" not in session or session.get("user_type") not in ("0", "3"):
         return jsonify({"error": "Unauthorized"}), 401
 
     mentee_id = request.args.get("mentee_id", type=int)
@@ -12490,17 +12561,22 @@ def update_meeting_ajax():
     if not meeting:
         return jsonify({"error": "Meeting not found"}), 404
 
-    # Only allow editing upcoming meetings
-    if meeting.status not in ("pending", "upcoming"):
-        return jsonify({"error": "Only upcoming meetings can be edited"}), 400
+    # Only allow editing meetings that are not cancelled or rejected, and are not in the past
+    if meeting.status in ("cancelled", "rejected"):
+        return jsonify({"error": "Cancelled or rejected meetings cannot be edited"}), 400
 
-    # Verify the user has permission (is the requester or an institution user)
+    from datetime import datetime as dt, date as date_type, time as time_type
+    meeting_dt = dt.combine(meeting.meeting_date, meeting.meeting_time)
+    if meeting_dt < dt.now():
+        return jsonify({"error": "Past meetings cannot be edited"}), 400
+
+    # Verify the user has permission (is the requester or an institution/supervisor user)
     user = User.query.filter_by(email=session["email"]).first()
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    # Allow if user is the requester, or is an institution/supervisor
-    if meeting.requester_id != user.id and user.user_type not in ("0", "3"):
+    user_type = str(user.user_type or session.get("user_type", ""))
+    if meeting.requester_id != user.id and user_type not in ("0", "3"):
         return jsonify({"error": "You don't have permission to edit this meeting"}), 403
 
     title = data.get("title", "").strip()
@@ -12519,11 +12595,16 @@ def update_meeting_ajax():
         return jsonify({"error": "Start time is required"}), 400
 
     try:
-        from datetime import datetime as dt, date as date_type, time as time_type
         meeting_date = date_type.fromisoformat(date_str)
         time_parts = start_time.split(":")
         meeting_time = time_type(int(time_parts[0]), int(time_parts[1]), int(time_parts[2]) if len(time_parts) > 2 else 0)
-        meeting_duration = int(duration) if duration else meeting.meeting_duration
+        
+        # Check that the new date and time are not in the past
+        new_dt = dt.combine(meeting_date, meeting_time)
+        if new_dt < dt.now():
+            return jsonify({"error": "Meeting date and time cannot be set to the past"}), 400
+
+        meeting_duration = int(str(duration).strip()) if duration else meeting.meeting_duration
 
         meeting.meeting_title = title
         meeting.meeting_description = description if description else meeting.meeting_description
@@ -12540,7 +12621,7 @@ def update_meeting_ajax():
     except Exception as e:
         db.session.rollback()
         app.logger.error(f"Error updating meeting: {e}")
-        return jsonify({"error": "Failed to update meeting. Please try again."}), 500
+        return jsonify({"error": f"Failed to update meeting: {str(e)}"}), 500
 
 
 @app.route("/debug_oauth")

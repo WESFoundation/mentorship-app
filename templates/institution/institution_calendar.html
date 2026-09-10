@@ -331,6 +331,15 @@
                 <label for="sched-title" class="block text-sm font-medium text-gray-700 mb-1">Meeting Title *</label>
                 <input type="text" id="sched-title" name="title" required maxlength="200" placeholder="e.g. Career Guidance Session" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
             </div>
+            <!-- Task Selection (optional) -->
+            <div id="sched-task-section">
+                <label for="sched-task" class="block text-sm font-medium text-gray-700 mb-1">Task to Discuss <span class="text-gray-400 font-normal">(optional)</span></label>
+                <select id="sched-task" name="task_id" data-no-search
+                    class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+                    <option value="">No task selected (general meeting)</option>
+                </select>
+                <p id="sched-task-hint" class="mt-1 text-xs text-gray-400">Select a mentor &amp; mentee above to load available tasks.</p>
+            </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label for="sched-date" class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
@@ -669,6 +678,26 @@ function switchView(view) {
             break;
         case 'list':
             renderListView();
+            break;
+    }
+}
+
+function renderCalendar() {
+    switch(currentView) {
+        case 'month':
+            renderMonthView();
+            break;
+        case 'week':
+            renderWeekView();
+            break;
+        case 'day':
+            renderDayView();
+            break;
+        case 'list':
+            renderListView();
+            break;
+        default:
+            renderMonthView();
             break;
     }
 }
@@ -1312,29 +1341,44 @@ document.getElementById('editMeetingForm').addEventListener('submit', function(e
             meet_link: meetLink,
             timezone: timezone
         })
-    }).then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.success) {
-            showEditStatus('Meeting updated successfully!', 'success');
-            // Update local meetings array
-            var idx = meetings.findIndex(function(m) { return m.id == meetingId; });
-            if (idx !== -1) {
-                meetings[idx].title = title;
-                meetings[idx].description = description;
-                meetings[idx].date = date;
-                meetings[idx].time = startTime;
-                meetings[idx].duration = parseInt(duration);
-                meetings[idx].meet_link = meetLink;
-            }
-            renderCalendar();
-            updateStats();
-            setTimeout(function() { closeEditMeetingModal(); }, 1200);
-        } else {
-            showEditStatus(data.error || 'Failed to update meeting.', 'error');
+    })
+    .then(async function(r) {
+        var data;
+        try {
+            data = await r.json();
+        } catch (err) {
+            throw new Error('Server returned an invalid response (status ' + r.status + ')');
         }
-    }).catch(function() {
-        showEditStatus('Network error. Please try again.', 'error');
-    }).finally(function() {
+        if (!r.ok || !data.success) {
+            throw new Error(data.error || 'Failed to update meeting.');
+        }
+        return data;
+    })
+    .then(function(data) {
+        showEditStatus('Meeting updated successfully!', 'success');
+        // Update local meetings array
+        var idx = meetings.findIndex(function(m) { return String(m.id) === String(meetingId); });
+        if (idx !== -1) {
+            meetings[idx].title = title;
+            meetings[idx].description = description;
+            meetings[idx].date = date + 'T' + startTime;
+            var h12 = (h % 12 || 12);
+            meetings[idx].time = String(h12).padStart(2, '0') + ':' + minute + ' ' + ampm;
+            meetings[idx].duration = parseInt(duration, 10);
+            meetings[idx].meet_link = meetLink;
+        }
+        renderCalendar();
+        updateStats();
+        setTimeout(function() {
+            closeEditMeetingModal();
+            window.location.reload();
+        }, 1000);
+    })
+    .catch(function(err) {
+        console.error('Error updating meeting:', err);
+        showEditStatus(err.message || 'Network error. Please try again.', 'error');
+    })
+    .finally(function() {
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg> Save Changes';
     });
@@ -1386,6 +1430,10 @@ function openAdminScheduleModal() {
     if (wrap) wrap.classList.add('hidden');
     var customLinkInput = document.getElementById('sched-custom-link');
     if (customLinkInput) customLinkInput.value = '';
+    var taskSel = document.getElementById('sched-task');
+    if (taskSel) taskSel.innerHTML = '<option value="">No task selected (general meeting)</option>';
+    var taskHint = document.getElementById('sched-task-hint');
+    if (taskHint) taskHint.textContent = 'Select a mentor & mentee above to load available tasks.';
     clearAllSchedErrors();
     try {
         var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -1568,6 +1616,56 @@ function switchScheduleView(mode) {
     updateSchedBanner();
     updateSchedMentorInstitution();
     updateSchedMenteeInstitution();
+    updateSchedTasks();
+}
+
+async function loadTasksForInstitutionMeeting(menteeId, mentorId) {
+    var taskSel = document.getElementById('sched-task');
+    var hint = document.getElementById('sched-task-hint');
+    if (!taskSel) return;
+    if (!menteeId || !mentorId) {
+        taskSel.innerHTML = '<option value="">No task selected (general meeting)</option>';
+        if (hint) hint.textContent = 'Select a mentor & mentee above to load available tasks.';
+        return;
+    }
+
+    try {
+        var resp = await fetch('/get_tasks_for_mentorship?mentee_id=' + menteeId + '&mentor_id=' + mentorId);
+        var data = await resp.json();
+        taskSel.innerHTML = '<option value="">No task selected (general meeting)</option>';
+        if (data.tasks && data.tasks.length > 0) {
+            data.tasks.forEach(function(t) {
+                var label = 'Meeting #' + t.meeting_number + ' — ' + t.month;
+                if (t.purpose) label += ' (' + t.purpose.substring(0, 60) + ')';
+                label += ' [' + t.status + ']';
+                var opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = label;
+                taskSel.appendChild(opt);
+            });
+            if (hint) hint.textContent = data.tasks.length + ' tasks available for this pair.';
+        } else {
+            if (hint) hint.textContent = 'No tasks found for this pair. Proceeding with general meeting.';
+        }
+    } catch(e) {
+        console.error('Failed to load tasks:', e);
+        if (hint) hint.textContent = 'Could not load tasks for this pair.';
+    }
+}
+
+function updateSchedTasks() {
+    var mSel = document.getElementById('sched-mentor');
+    var eSel = document.getElementById('sched-mentee');
+    var mVal = mSel ? mSel.value : '';
+    var eVal = eSel ? eSel.value : '';
+    if (mVal && eVal) {
+        loadTasksForInstitutionMeeting(eVal, mVal);
+    } else {
+        var taskSel = document.getElementById('sched-task');
+        if (taskSel) taskSel.innerHTML = '<option value="">No task selected (general meeting)</option>';
+        var hint = document.getElementById('sched-task-hint');
+        if (hint) hint.textContent = 'Select a mentor & mentee above to load available tasks.';
+    }
 }
 
 function onMenteeSelectionChange() {
@@ -1618,6 +1716,7 @@ function onMenteeSelectionChange() {
         updateSchedMentorInstitution();
     }
     updateSchedBanner();
+    updateSchedTasks();
 }
 
 function onMentorSelectionChange() {
@@ -1668,6 +1767,7 @@ function onMentorSelectionChange() {
         updateSchedMenteeInstitution();
     }
     updateSchedBanner();
+    updateSchedTasks();
 }
 
 document.getElementById('sched-mentor').addEventListener('change', function() {
@@ -1840,6 +1940,7 @@ document.getElementById('scheduleMeetingForm').addEventListener('submit', async 
                 platform: platform,
                 custom_link: customLink,
                 timezone: timezone,
+                task_id: (document.getElementById('sched-task') ? document.getElementById('sched-task').value : '') || '',
                 include_institutions: document.getElementById('sched-include-institutions').checked
             })
         });

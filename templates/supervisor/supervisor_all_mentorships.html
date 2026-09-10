@@ -123,7 +123,7 @@
           <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tasks</th>
           <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meetings</th>
           <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor Rating</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentorship Rating</th>
           <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
         </tr>
       </thead>
@@ -195,22 +195,37 @@
             {% endif %}
           </td>
           <td class="px-6 py-4">
-            {% if mentorship.rating and mentorship.rating.final_score > 0 %}
-            <div class="flex items-center gap-2">
-              <div class="flex text-yellow-400">
-                {% for i in range(5) %}
-                  {% if i < mentorship.rating.star_rating|int %}
-                    <span>&#9733;</span>
-                  {% else %}
-                    <span class="text-gray-300">&#9733;</span>
-                  {% endif %}
-                {% endfor %}
+            <div id="rating-cell-{{ mentorship.request.id }}">
+              {% if mentorship.request.rating and mentorship.request.rating > 0 %}
+              <div class="flex items-center gap-2">
+                <div class="flex text-yellow-400 text-sm">
+                  {% for i in range(5) %}
+                    {% if i < mentorship.request.rating|int %}
+                      <span>&#9733;</span>
+                    {% else %}
+                      <span class="text-gray-300">&#9733;</span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+                <span class="text-sm font-semibold text-gray-800">{{ "%.1f"|format(mentorship.request.rating) }} / 5.0</span>
               </div>
-              <span class="text-sm font-medium text-gray-700">{{ mentorship.rating.final_score }}/100</span>
+              {% elif mentorship.rating and mentorship.rating.star_rating > 0 %}
+              <div class="flex items-center gap-2">
+                <div class="flex text-yellow-400 text-sm">
+                  {% for i in range(5) %}
+                    {% if i < mentorship.rating.star_rating|int %}
+                      <span>&#9733;</span>
+                    {% else %}
+                      <span class="text-gray-300">&#9733;</span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+                <span class="text-sm font-semibold text-gray-700">{{ "%.1f"|format(mentorship.rating.star_rating) }} / 5.0</span>
+              </div>
+              {% else %}
+              <span class="text-sm text-gray-400">Not rated yet</span>
+              {% endif %}
             </div>
-            {% else %}
-            <span class="text-sm text-gray-400">No ratings yet</span>
-            {% endif %}
           </td>
           <td class="px-6 py-4 text-right">
             <div class="flex flex-wrap justify-end gap-2">
@@ -222,9 +237,9 @@
                  class="px-4 py-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-sm font-medium transition-colors">
                 View Tasks
               </a>
-              <button onclick="openSupervisorReviewModal({{ mentorship.mentor.id if mentorship.mentor else 0 }}, '{{ mentorship.mentor.name if mentorship.mentor else ''|replace("'", "\\'") }}')"
+              <button onclick="openSupervisorReviewModal({{ mentorship.mentor.id if mentorship.mentor else 0 }}, '{{ mentorship.mentor.name if mentorship.mentor else ''|replace("'", "\\'") }}', {{ mentorship.request.id }}, '{{ mentorship.mentee.name if mentorship.mentee else ''|replace("'", "\\'") }}')"
                       class="px-4 py-2 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg text-sm font-medium transition-colors">
-                Rate Mentor
+                Rate Mentorship
               </button>
               <button onclick="showMentorshipDetails({{ loop.index0 }})"
                       class="px-4 py-2 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors">
@@ -562,35 +577,49 @@
   <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
     <div class="p-6 border-b border-gray-200">
       <div class="flex justify-between items-center">
-        <h3 class="text-xl font-bold text-gray-800">Review Mentor</h3>
+        <div>
+          <h3 class="text-xl font-bold text-gray-800">Rate Mentorship Connection</h3>
+          <p class="text-xs text-gray-500 mt-0.5">Supervisor Evaluation</p>
+        </div>
         <button onclick="closeSupervisorReviewModal()" class="text-gray-400 hover:text-gray-600">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
     </div>
     <div class="p-6 space-y-5">
-      <p class="text-gray-600">Rate the overall performance of <strong id="sup-review-mentor-name"></strong> as a mentor.</p>
+      <div class="p-3.5 bg-blue-50/60 rounded-xl border border-blue-100">
+        <p class="text-sm text-gray-700 font-medium">
+          Mentorship: <strong id="sup-review-mentor-name" class="text-blue-900"></strong> (Mentor) &harr; <strong id="sup-review-mentee-name" class="text-blue-900"></strong> (Mentee)
+        </p>
+        <p class="text-xs text-blue-600 mt-1">
+          This rating directly updates the mentor's Mentorship Experience score and overall platform rating.
+        </p>
+      </div>
 
-      <!-- Star Rating -->
-      <div class="flex justify-center gap-2">
-        <button onclick="setSupReviewRating(1)" class="sup-review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
-        <button onclick="setSupReviewRating(2)" class="sup-review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
-        <button onclick="setSupReviewRating(3)" class="sup-review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
-        <button onclick="setSupReviewRating(4)" class="sup-review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
-        <button onclick="setSupReviewRating(5)" class="sup-review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+      <!-- Star Rating (1-5) -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2 text-center">Select Mentorship Rating (1–5 Stars)</label>
+        <div class="flex justify-center gap-2">
+          <button type="button" onclick="setSupReviewRating(1)" class="sup-review-star text-4xl text-gray-300 hover:text-yellow-400 transition transform hover:scale-110 focus:outline-none">&#9733;</button>
+          <button type="button" onclick="setSupReviewRating(2)" class="sup-review-star text-4xl text-gray-300 hover:text-yellow-400 transition transform hover:scale-110 focus:outline-none">&#9733;</button>
+          <button type="button" onclick="setSupReviewRating(3)" class="sup-review-star text-4xl text-gray-300 hover:text-yellow-400 transition transform hover:scale-110 focus:outline-none">&#9733;</button>
+          <button type="button" onclick="setSupReviewRating(4)" class="sup-review-star text-4xl text-gray-300 hover:text-yellow-400 transition transform hover:scale-110 focus:outline-none">&#9733;</button>
+          <button type="button" onclick="setSupReviewRating(5)" class="sup-review-star text-4xl text-gray-300 hover:text-yellow-400 transition transform hover:scale-110 focus:outline-none">&#9733;</button>
+        </div>
+        <p id="sup-rating-label" class="text-xs text-center text-gray-500 mt-1.5">Click stars to rate</p>
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Review</label>
-        <textarea id="sup-review-text" rows="4" placeholder="Share your review of this mentor's performance..." class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"></textarea>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Supervisor Review & Observations</label>
+        <textarea id="sup-review-text" rows="3" placeholder="Share your review or observations about this mentorship..." class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"></textarea>
       </div>
 
       <div id="sup-review-error" class="hidden text-sm text-red-700 bg-red-50 p-3 rounded-lg border border-red-200"></div>
       <div id="sup-review-success" class="hidden text-sm text-green-700 bg-green-50 p-3 rounded-lg border border-green-200"></div>
 
       <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
-        <button onclick="closeSupervisorReviewModal()" class="px-5 py-2.5 text-gray-600 hover:text-gray-800 font-medium">Cancel</button>
-        <button onclick="submitSupervisorReview()" class="px-6 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium transition">Submit Review</button>
+        <button type="button" onclick="closeSupervisorReviewModal()" class="px-5 py-2.5 text-gray-600 hover:text-gray-800 font-medium">Cancel</button>
+        <button type="button" onclick="submitSupervisorReview()" class="px-6 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium transition shadow-md">Submit Rating</button>
       </div>
     </div>
   </div>
@@ -598,23 +627,43 @@
 
 <script>
 let currentSupReviewMentorId = null;
+let currentSupReviewMentorshipId = null;
 let selectedSupReviewRating = 0;
 
-function openSupervisorReviewModal(mentorId, mentorName) {
+const ratingLabels = {
+  1: '1 Star - Needs Improvement',
+  2: '2 Stars - Fair',
+  3: '3 Stars - Good',
+  4: '4 Stars - Very Good',
+  5: '5 Stars - Outstanding'
+};
+
+function openSupervisorReviewModal(mentorId, mentorName, mentorshipId, menteeName) {
   currentSupReviewMentorId = mentorId;
+  currentSupReviewMentorshipId = mentorshipId || null;
   selectedSupReviewRating = 0;
-  document.getElementById('sup-review-mentor-name').textContent = mentorName;
+  document.getElementById('sup-review-mentor-name').textContent = mentorName || 'Mentor';
+  document.getElementById('sup-review-mentee-name').textContent = menteeName || 'Mentee';
   document.getElementById('sup-review-text').value = '';
   document.getElementById('sup-review-error').classList.add('hidden');
   document.getElementById('sup-review-success').classList.add('hidden');
+  document.getElementById('sup-rating-label').textContent = 'Click stars to rate';
   updateSupReviewStarDisplay(0);
-  fetch('/api/get_supervisor_mentor_review/' + mentorId)
+
+  var url = '/api/get_supervisor_mentor_review/' + mentorId;
+  if (mentorshipId) {
+    url += '?mentorship_id=' + mentorshipId;
+  }
+  fetch(url)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.success && data.review) {
         selectedSupReviewRating = data.review.rating;
         updateSupReviewStarDisplay(selectedSupReviewRating);
         document.getElementById('sup-review-text').value = data.review.review || '';
+        if (ratingLabels[selectedSupReviewRating]) {
+          document.getElementById('sup-rating-label').textContent = ratingLabels[selectedSupReviewRating];
+        }
       }
     }).catch(function() {});
   document.getElementById('supervisorReviewModal').classList.remove('hidden');
@@ -623,12 +672,16 @@ function openSupervisorReviewModal(mentorId, mentorName) {
 function closeSupervisorReviewModal() {
   document.getElementById('supervisorReviewModal').classList.add('hidden');
   currentSupReviewMentorId = null;
+  currentSupReviewMentorshipId = null;
   selectedSupReviewRating = 0;
 }
 
 function setSupReviewRating(rating) {
   selectedSupReviewRating = rating;
   updateSupReviewStarDisplay(rating);
+  if (ratingLabels[rating]) {
+    document.getElementById('sup-rating-label').textContent = ratingLabels[rating];
+  }
 }
 
 function updateSupReviewStarDisplay(rating) {
@@ -650,23 +703,39 @@ function submitSupervisorReview() {
     document.getElementById('sup-review-error').classList.remove('hidden');
     return;
   }
+  var mId = currentSupReviewMentorshipId;
+  var ratingVal = selectedSupReviewRating;
+
   fetch('/api/submit_supervisor_mentor_review', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
       mentor_id: currentSupReviewMentorId,
+      mentorship_id: currentSupReviewMentorshipId,
       rating: selectedSupReviewRating,
       review: document.getElementById('sup-review-text').value
     })
   }).then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.success) {
-        document.getElementById('sup-review-success').textContent = 'Review submitted successfully!';
+        document.getElementById('sup-review-success').textContent = 'Mentorship rating submitted successfully!';
         document.getElementById('sup-review-success').classList.remove('hidden');
         document.getElementById('sup-review-error').classList.add('hidden');
-        setTimeout(function() { closeSupervisorReviewModal(); }, 1500);
+
+        // Update table cell in-place
+        if (mId) {
+          var cell = document.getElementById('rating-cell-' + mId);
+          if (cell) {
+            var starsHtml = '';
+            for (var i = 0; i < 5; i++) {
+              starsHtml += i < ratingVal ? '<span>&#9733;</span>' : '<span class="text-gray-300">&#9733;</span>';
+            }
+            cell.innerHTML = '<div class="flex items-center gap-2"><div class="flex text-yellow-400 text-sm">' + starsHtml + '</div><span class="text-sm font-semibold text-gray-800">' + ratingVal.toFixed(1) + ' / 5.0</span></div>';
+          }
+        }
+        setTimeout(function() { closeSupervisorReviewModal(); }, 1200);
       } else {
-        document.getElementById('sup-review-error').textContent = data.message || 'Failed to submit review.';
+        document.getElementById('sup-review-error').textContent = data.message || 'Failed to submit rating.';
         document.getElementById('sup-review-error').classList.remove('hidden');
       }
     }).catch(function() {

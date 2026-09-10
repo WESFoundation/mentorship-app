@@ -106,10 +106,18 @@
             data-duration="{{ mentorship.request.duration_months|default('') }}"
             data-type="{{ mentorship.request.mentor_type|default('')|lower }}">
           <td class="px-6 py-4">
-            <div class="text-sm font-semibold text-gray-900">
-              {{ mentorship.mentor.name if mentorship.mentor else 'Unknown Mentor' }}
-              <span class="text-gray-500">→</span>
-              {{ mentorship.mentee.name if mentorship.mentee else 'Unknown Mentee' }}
+            <div class="text-sm font-semibold text-gray-900 flex items-center flex-wrap gap-1.5">
+              <span>{{ mentorship.mentor.name if mentorship.mentor else 'Unknown Mentor' }}</span>
+              {% if mentorship.mentor %}
+              <button type="button" onclick="openRatingPopup({{ mentorship.mentor.id }}, '{{ mentorship.mentor.name|e }}')"
+                      class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-full text-xs font-semibold text-amber-800 transition cursor-pointer"
+                      title="View {{ mentorship.mentor.name }}'s rating breakdown">
+                <span class="text-amber-500">&#9733;</span>
+                <span id="inst-ms-num-{{ mentorship.mentor.id }}" data-mentor-uid="{{ mentorship.mentor.id }}">--</span>
+              </button>
+              {% endif %}
+              <span class="text-gray-400 font-normal">→</span>
+              <span>{{ mentorship.mentee.name if mentorship.mentee else 'Unknown Mentee' }}</span>
             </div>
             <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-600">
               <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-medium">
@@ -495,7 +503,91 @@
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
       closeMentorshipDetails();
+      closeRatingPopup();
     }
+  });
+
+  // ---------- Rating System for Institution Mentorships ----------
+  const mentorRatingCache = {};
+
+  function renderStarsHtml(rating) {
+    const full = Math.floor(rating);
+    const half = (rating - full >= 0.3 && rating - full < 0.8);
+    const empty = 5 - full - (half ? 1 : 0);
+    let html = '';
+    for (let i = 0; i < full; i++) html += '<span class="text-yellow-400">&#9733;</span>';
+    if (half) html += '<span class="text-yellow-400" style="opacity:0.8">&#9733;</span>';
+    for (let i = 0; i < empty; i++) html += '<span class="text-gray-300">&#9734;</span>';
+    return html;
+  }
+
+  async function fetchMentorRating(mentorId) {
+    if (!mentorId) return null;
+    if (mentorRatingCache[mentorId]) return mentorRatingCache[mentorId];
+    try {
+      const res = await fetch('/api/mentor_rating_simple/' + mentorId);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data && data.success && data.rating) {
+        mentorRatingCache[mentorId] = data.rating;
+        return data.rating;
+      }
+    } catch(e) {
+      console.error('Error fetching mentor rating:', e);
+    }
+    return null;
+  }
+
+  async function loadAllInstitutionMentorshipRatings() {
+    const containers = document.querySelectorAll('[data-mentor-uid]');
+    const ids = [...new Set([...containers].map(c => c.getAttribute('data-mentor-uid')))].filter(Boolean);
+    for (const uid of ids) {
+      const rating = await fetchMentorRating(uid);
+      if (!rating) continue;
+      const numEl = document.getElementById('inst-ms-num-' + uid);
+      if (numEl) numEl.textContent = rating.final_rating.toFixed(1);
+    }
+  }
+
+  async function openRatingPopup(uid, name) {
+    const popup = document.getElementById('ratingPopup');
+    if (!popup) return;
+    document.getElementById('popupMentorName').textContent = name || 'Mentor';
+    document.getElementById('popupFinalRating').textContent = '--';
+    document.getElementById('popupStars').innerHTML = '';
+    document.getElementById('popupPc').textContent = '--';
+    document.getElementById('popupSk').textContent = '--';
+    document.getElementById('popupMe').textContent = '--';
+    document.getElementById('popupTe').textContent = '--';
+    document.getElementById('popupSup').textContent = '--';
+    
+    popup.classList.remove('hidden');
+    popup.classList.add('flex');
+
+    const rating = await fetchMentorRating(uid);
+    if (!rating) {
+      document.getElementById('popupFinalRating').textContent = 'N/A';
+      return;
+    }
+
+    document.getElementById('popupFinalRating').textContent = rating.final_rating.toFixed(1);
+    document.getElementById('popupStars').innerHTML = renderStarsHtml(rating.final_rating);
+    document.getElementById('popupPc').textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupSk').textContent = rating.useful_skills != null ? rating.useful_skills.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupMe').textContent = rating.has_mentorship_data ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'No data';
+    document.getElementById('popupTe').textContent = rating.has_task_data ? rating.mentorship_task_experience.toFixed(1) + ' / 5.0' : 'No data';
+    document.getElementById('popupSup').textContent = rating.has_supervisor_rating ? rating.supervisor_rating.toFixed(1) + ' / 5.0' : 'Not rated';
+  }
+
+  function closeRatingPopup() {
+    const popup = document.getElementById('ratingPopup');
+    if (!popup) return;
+    popup.classList.add('hidden');
+    popup.classList.remove('flex');
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    loadAllInstitutionMentorshipRatings();
   });
 </script>
 
@@ -523,6 +615,65 @@
               class="px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg font-medium transition-colors">
         Close
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- Rating Breakdown Popup -->
+<div id="ratingPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4" onclick="if(event.target===this)closeRatingPopup()">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+    <div class="bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-5 text-white flex items-center justify-between">
+      <div>
+        <h3 class="text-lg font-bold">Mentor Rating Breakdown</h3>
+        <p class="text-amber-100 text-sm" id="popupMentorName">--</p>
+      </div>
+      <button onclick="closeRatingPopup()" class="text-white/80 hover:text-white transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="p-6">
+      <div class="flex items-center gap-5 mb-6 pb-6 border-b border-gray-100">
+        <div class="text-center shrink-0">
+          <div class="text-5xl font-extrabold text-amber-500" id="popupFinalRating">--</div>
+          <div class="flex items-center justify-center gap-0.5 mt-1 text-xl text-yellow-400" id="popupStars"></div>
+          <p class="text-xs text-gray-500 font-medium mt-1">out of 5.0</p>
+        </div>
+        <div class="flex-1 space-y-2.5">
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Profile Complete</span>
+            <span class="font-bold text-gray-900" id="popupPc">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Useful Skills</span>
+            <span class="font-bold text-gray-900" id="popupSk">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Mentorship Experience</span>
+            <span class="font-bold text-gray-900" id="popupMe">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Task Experience</span>
+            <span class="font-bold text-gray-900" id="popupTe">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Supervisor Rating</span>
+            <span class="font-bold text-gray-900" id="popupSup">--</span>
+          </div>
+        </div>
+      </div>
+      <div class="bg-amber-50 rounded-xl p-3.5 text-center border border-amber-200">
+        <p class="text-xs text-gray-700">
+          <strong>Final Rating</strong> is calculated as the average of all criteria with available data.
+        </p>
+      </div>
+      <div class="mt-4 text-center">
+        <a href="{{ url_for('rating_calculation_page') }}" target="_blank" class="text-sm text-amber-600 hover:text-amber-700 font-semibold underline inline-flex items-center gap-1">
+          <span>How is this calculated?</span>
+          <span>&rarr;</span>
+        </a>
+      </div>
     </div>
   </div>
 </div>

@@ -6,9 +6,17 @@
 
 <main class="max-w-7xl mx-auto px-2 sm:px-3 lg:px-3 py-2">
   <section id="mentors" class="p-6 bg-white rounded-xl shadow-sm">
-    <div class="mb-6">
-      <h2 class="text-xl font-semibold text-gray-800 mb-2">Institution Mentors</h2>
-      <p class="text-gray-600">Browse all mentors associated with your institution</p>
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h2 class="text-xl font-semibold text-gray-800 mb-2">Institution Mentors</h2>
+        <p class="text-gray-600">Browse all mentors associated with your institution</p>
+      </div>
+      <a href="{{ url_for('rating_calculation_page') }}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 border border-amber-300 rounded-lg text-sm font-semibold hover:bg-amber-100 transition self-start sm:self-auto shadow-sm">
+        <svg class="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+        </svg>
+        How Ratings Work
+      </a>
     </div>
 
     <!-- Search and Filters -->
@@ -43,6 +51,7 @@
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profession</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
           </tr>
         </thead>
@@ -72,6 +81,18 @@
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 mentor-profession max-w-[200px] truncate">{{ mentor.mentor_profile.profession if mentor.mentor_profile else 'Not specified' }}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentor-location max-w-[160px] truncate">{{ mentor.mentor_profile.location if mentor.mentor_profile else 'Not specified' }}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentor-email max-w-[200px] truncate">{{ mentor.email }}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="inline-flex items-center gap-2 cursor-pointer group"
+                   onclick="openRatingPopup({{ mentor.id }}, '{{ mentor.name|e }}')"
+                   data-mentor-uid="{{ mentor.id }}"
+                   title="Click to view rating details for {{ mentor.name|e }}">
+                <div class="flex items-center gap-0.5 text-sm" id="inst-stars-{{ mentor.id }}">
+                  <span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span>
+                </div>
+                <span class="text-sm font-bold text-gray-700" id="inst-num-{{ mentor.id }}">--</span>
+                <span class="text-xs px-2 py-0.5 bg-amber-50 group-hover:bg-amber-100 text-amber-700 border border-amber-200 rounded font-medium transition">Details</span>
+              </div>
+            </td>
             <td class="px-6 py-4 whitespace-nowrap text-right">
               <button class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition view-profile-btn"
                 data-mentor-id="{{ mentor.id }}"
@@ -165,6 +186,18 @@
           <div class="flex flex-wrap gap-2 justify-center md:justify-start">
             <span id="modalProfession" class="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full"></span>
             <span id="modalOrganisation" class="bg-gray-100 text-gray-800 text-sm px-3 py-1 rounded-full"></span>
+          </div>
+          <!-- Rating badge in Profile Modal -->
+          <div class="mt-3 flex items-center justify-center md:justify-start gap-2">
+            <div class="flex items-center gap-0.5 text-base" id="modalStarsPreview">
+              <span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span>
+            </div>
+            <span class="text-sm font-bold text-gray-800" id="modalRatingScore">--</span>
+            <button type="button" onclick="openRatingPopup(currentModalMentorId, currentModalMentorName)"
+                    class="text-xs px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg font-medium transition flex items-center gap-1">
+              <svg class="w-3.5 h-3.5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+              View Rating Breakdown
+            </button>
           </div>
         </div>
       </div>
@@ -596,8 +629,97 @@
     document.getElementById('profileModal').classList.add('hidden');
   }
 
-  // Initialize View Profile buttons
+  // ---------- Rating System for Institution ----------
+  let currentModalMentorId = null;
+  let currentModalMentorName = '';
+  const mentorRatingCache = {};
+
+  function renderStarsHtml(rating) {
+    const full = Math.floor(rating);
+    const half = (rating - full >= 0.3 && rating - full < 0.8);
+    const empty = 5 - full - (half ? 1 : 0);
+    let html = '';
+    for (let i = 0; i < full; i++) html += '<span class="text-yellow-400">&#9733;</span>';
+    if (half) html += '<span class="text-yellow-400" style="opacity:0.8">&#9733;</span>';
+    for (let i = 0; i < empty; i++) html += '<span class="text-gray-300">&#9734;</span>';
+    return html;
+  }
+
+  async function fetchMentorRating(mentorId) {
+    if (!mentorId) return null;
+    if (mentorRatingCache[mentorId]) return mentorRatingCache[mentorId];
+    try {
+      const res = await fetch('/api/mentor_rating_simple/' + mentorId);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data && data.success && data.rating) {
+        mentorRatingCache[mentorId] = data.rating;
+        return data.rating;
+      }
+    } catch(e) {
+      console.error('Error fetching mentor rating:', e);
+    }
+    return null;
+  }
+
+  async function loadAllInstitutionMentorRatings() {
+    const containers = document.querySelectorAll('[data-mentor-uid]');
+    const ids = [...new Set([...containers].map(c => c.getAttribute('data-mentor-uid')))].filter(Boolean);
+    for (const uid of ids) {
+      const rating = await fetchMentorRating(uid);
+      if (!rating) continue;
+      const starsEl = document.getElementById('inst-stars-' + uid);
+      if (starsEl) starsEl.innerHTML = renderStarsHtml(rating.final_rating);
+      const numEl = document.getElementById('inst-num-' + uid);
+      if (numEl) numEl.textContent = rating.final_rating.toFixed(1) + ' / 5.0';
+    }
+  }
+
+  async function openRatingPopup(uid, name) {
+    const popup = document.getElementById('ratingPopup');
+    if (!popup) return;
+    document.getElementById('popupMentorName').textContent = name || 'Mentor';
+    document.getElementById('popupFinalRating').textContent = '--';
+    document.getElementById('popupStars').innerHTML = '';
+    document.getElementById('popupPc').textContent = '--';
+    document.getElementById('popupSk').textContent = '--';
+    document.getElementById('popupMe').textContent = '--';
+    document.getElementById('popupTe').textContent = '--';
+    document.getElementById('popupSup').textContent = '--';
+    
+    popup.classList.remove('hidden');
+    popup.classList.add('flex');
+
+    const rating = await fetchMentorRating(uid);
+    if (!rating) {
+      document.getElementById('popupFinalRating').textContent = 'N/A';
+      return;
+    }
+
+    document.getElementById('popupFinalRating').textContent = rating.final_rating.toFixed(1);
+    document.getElementById('popupStars').innerHTML = renderStarsHtml(rating.final_rating);
+    document.getElementById('popupPc').textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupSk').textContent = rating.useful_skills != null ? rating.useful_skills.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupMe').textContent = rating.has_mentorship_data ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'No data';
+    document.getElementById('popupTe').textContent = rating.has_task_data ? rating.mentorship_task_experience.toFixed(1) + ' / 5.0' : 'No data';
+    document.getElementById('popupSup').textContent = rating.has_supervisor_rating ? rating.supervisor_rating.toFixed(1) + ' / 5.0' : 'Not rated';
+  }
+
+  function closeRatingPopup() {
+    const popup = document.getElementById('ratingPopup');
+    if (!popup) return;
+    popup.classList.add('hidden');
+    popup.classList.remove('flex');
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeRatingPopup();
+  });
+
+  // Initialize View Profile buttons and Ratings
   document.addEventListener('DOMContentLoaded', function() {
+    loadAllInstitutionMentorRatings();
+
     const viewProfileButtons = document.querySelectorAll('.view-profile-btn');
     
     viewProfileButtons.forEach(button => {
@@ -642,10 +764,86 @@
           criminal_certificate: this.getAttribute('data-criminal-certificate')
         };
         
+        currentModalMentorId = mentor.id;
+        currentModalMentorName = mentor.name;
+        const starsPreview = document.getElementById('modalStarsPreview');
+        const scoreEl = document.getElementById('modalRatingScore');
+        if (starsPreview) starsPreview.innerHTML = '<span class="text-gray-300">&#9734;&#9734;&#9734;&#9734;&#9734;</span>';
+        if (scoreEl) scoreEl.textContent = 'Loading...';
+        if (mentor.id) {
+          fetchMentorRating(mentor.id).then(rating => {
+            if (rating) {
+              if (starsPreview) starsPreview.innerHTML = renderStarsHtml(rating.final_rating);
+              if (scoreEl) scoreEl.textContent = rating.final_rating.toFixed(1) + ' / 5.0';
+            } else {
+              if (scoreEl) scoreEl.textContent = 'No rating yet';
+            }
+          });
+        }
+
         openProfileModal(mentor);
       });
     });
   });
 </script>
+
+<!-- Rating Breakdown Popup -->
+<div id="ratingPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4" onclick="if(event.target===this)closeRatingPopup()">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+    <div class="bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-5 text-white flex items-center justify-between">
+      <div>
+        <h3 class="text-lg font-bold">Mentor Rating Breakdown</h3>
+        <p class="text-amber-100 text-sm" id="popupMentorName">--</p>
+      </div>
+      <button onclick="closeRatingPopup()" class="text-white/80 hover:text-white transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="p-6">
+      <div class="flex items-center gap-5 mb-6 pb-6 border-b border-gray-100">
+        <div class="text-center shrink-0">
+          <div class="text-5xl font-extrabold text-amber-500" id="popupFinalRating">--</div>
+          <div class="flex items-center justify-center gap-0.5 mt-1 text-xl text-yellow-400" id="popupStars"></div>
+          <p class="text-xs text-gray-500 font-medium mt-1">out of 5.0</p>
+        </div>
+        <div class="flex-1 space-y-2.5">
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Profile Complete</span>
+            <span class="font-bold text-gray-900" id="popupPc">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Useful Skills</span>
+            <span class="font-bold text-gray-900" id="popupSk">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Mentorship Experience</span>
+            <span class="font-bold text-gray-900" id="popupMe">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Task Experience</span>
+            <span class="font-bold text-gray-900" id="popupTe">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Supervisor Rating</span>
+            <span class="font-bold text-gray-900" id="popupSup">--</span>
+          </div>
+        </div>
+      </div>
+      <div class="bg-amber-50 rounded-xl p-3.5 text-center border border-amber-200">
+        <p class="text-xs text-gray-700">
+          <strong>Final Rating</strong> is calculated as the average of all criteria with available data.
+        </p>
+      </div>
+      <div class="mt-4 text-center">
+        <a href="{{ url_for('rating_calculation_page') }}" target="_blank" class="text-sm text-amber-600 hover:text-amber-700 font-semibold underline inline-flex items-center gap-1">
+          <span>How is this calculated?</span>
+          <span>&rarr;</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
 
 {% endblock %}

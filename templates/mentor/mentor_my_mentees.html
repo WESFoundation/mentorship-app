@@ -119,7 +119,7 @@
                 {% endif %}
               {% endfor %}
             </div>
-            <span class="font-medium">Mentor Rating: {{ mentee_data.rating.final_score }}/100</span>
+            <span class="font-medium">Mentor Rating: {{ "%.1f"|format(mentee_data.rating.star_rating) }} / 5.0</span>
           </div>
           {% endif %}
         </div>
