@@ -1231,6 +1231,7 @@ class MentorProfile(db.Model):
     additional_info = db.Column(db.Text)
     profile_picture = db.Column(db.String(100))
     criminal_certificate = db.Column(db.String(100))  # PDF file for criminal certificate (mandatory for Luxembourg)
+    supervisor_rating = db.Column(db.Float, nullable=True)  # Supervisor's 1-5 rating of mentor
     status = db.Column(db.String(20), default="pending")
 
 #------------ table mentee details-------------------
@@ -7650,6 +7651,79 @@ COUNTRY_DIAL_CODES = {
     "WF": "+681", "YE": "+967", "ZM": "+260", "ZW": "+263"
 }
 
+# Country ISO-2 code to full name mapping
+COUNTRY_NAMES = {
+    "AF": "Afghanistan", "AL": "Albania", "DZ": "Algeria", "AS": "American Samoa",
+    "AD": "Andorra", "AO": "Angola", "AI": "Anguilla", "AG": "Antigua and Barbuda",
+    "AR": "Argentina", "AM": "Armenia", "AW": "Aruba", "AU": "Australia",
+    "AT": "Austria", "AZ": "Azerbaijan", "BS": "Bahamas", "BH": "Bahrain",
+    "BD": "Bangladesh", "BB": "Barbados", "BY": "Belarus", "BE": "Belgium",
+    "BZ": "Belize", "BJ": "Benin", "BM": "Bermuda", "BT": "Bhutan",
+    "BO": "Bolivia", "BA": "Bosnia and Herzegovina", "BW": "Botswana", "BR": "Brazil",
+    "BN": "Brunei", "BG": "Bulgaria", "BF": "Burkina Faso", "BI": "Burundi",
+    "KH": "Cambodia", "CM": "Cameroon", "CA": "Canada", "CV": "Cape Verde",
+    "KY": "Cayman Islands", "CF": "Central African Republic", "TD": "Chad", "CL": "Chile",
+    "CN": "China", "CO": "Colombia", "KM": "Comoros", "CG": "Congo",
+    "CD": "DR Congo", "CR": "Costa Rica", "CI": "Cote d'Ivoire", "HR": "Croatia",
+    "CU": "Cuba", "CW": "Curacao", "CY": "Cyprus", "CZ": "Czech Republic",
+    "DK": "Denmark", "DJ": "Djibouti", "DM": "Dominica", "DO": "Dominican Republic",
+    "EC": "Ecuador", "EG": "Egypt", "SV": "El Salvador", "GQ": "Equatorial Guinea",
+    "ER": "Eritrea", "EE": "Estonia", "ET": "Ethiopia", "FK": "Falkland Islands",
+    "FO": "Faroe Islands", "FJ": "Fiji", "FI": "Finland", "FR": "France",
+    "GF": "French Guiana", "PF": "French Polynesia", "GA": "Gabon", "GM": "Gambia",
+    "GE": "Georgia", "DE": "Germany", "GH": "Ghana", "GI": "Gibraltar",
+    "GR": "Greece", "GL": "Greenland", "GD": "Grenada", "GP": "Guadeloupe",
+    "GU": "Guam", "GT": "Guatemala", "GN": "Guinea", "GW": "Guinea-Bissau",
+    "GY": "Guyana", "HT": "Haiti", "HN": "Honduras", "HK": "Hong Kong",
+    "HU": "Hungary", "IS": "Iceland", "IN": "India", "ID": "Indonesia",
+    "IR": "Iran", "IQ": "Iraq", "IE": "Ireland", "IL": "Israel",
+    "IT": "Italy", "JM": "Jamaica", "JP": "Japan", "JO": "Jordan",
+    "KZ": "Kazakhstan", "KE": "Kenya", "KI": "Kiribati", "KW": "Kuwait",
+    "KG": "Kyrgyzstan", "LA": "Laos", "LV": "Latvia", "LB": "Lebanon",
+    "LS": "Lesotho", "LR": "Liberia", "LY": "Libya", "LI": "Liechtenstein",
+    "LT": "Lithuania", "LU": "Luxembourg", "MO": "Macau", "MK": "North Macedonia",
+    "MG": "Madagascar", "MW": "Malawi", "MY": "Malaysia", "MV": "Maldives",
+    "ML": "Mali", "MT": "Malta", "MH": "Marshall Islands", "MQ": "Martinique",
+    "MR": "Mauritania", "MU": "Mauritius", "YT": "Mayotte", "MX": "Mexico",
+    "FM": "Micronesia", "MD": "Moldova", "MC": "Monaco", "MN": "Mongolia",
+    "ME": "Montenegro", "MS": "Montserrat", "MA": "Morocco", "MZ": "Mozambique",
+    "MM": "Myanmar", "NA": "Namibia", "NR": "Nauru", "NP": "Nepal",
+    "NL": "Netherlands", "NC": "New Caledonia", "NZ": "New Zealand", "NI": "Nicaragua",
+    "NE": "Niger", "NG": "Nigeria", "NU": "Niue", "KP": "North Korea",
+    "MP": "Northern Mariana Islands", "NO": "Norway", "OM": "Oman", "PK": "Pakistan",
+    "PW": "Palau", "PS": "Palestine", "PA": "Panama", "PG": "Papua New Guinea",
+    "PY": "Paraguay", "PE": "Peru", "PH": "Philippines", "PL": "Poland",
+    "PT": "Portugal", "PR": "Puerto Rico", "QA": "Qatar", "RE": "Reunion",
+    "RO": "Romania", "RU": "Russia", "RW": "Rwanda", "BL": "Saint Barthelemy",
+    "SH": "Saint Helena", "KN": "Saint Kitts and Nevis", "LC": "Saint Lucia",
+    "MF": "Saint Martin", "PM": "Saint Pierre and Miquelon", "VC": "Saint Vincent and the Grenadines",
+    "WS": "Samoa", "SM": "San Marino", "ST": "Sao Tome and Principe", "SA": "Saudi Arabia",
+    "SN": "Senegal", "RS": "Serbia", "SC": "Seychelles", "SL": "Sierra Leone",
+    "SG": "Singapore", "SX": "Sint Maarten", "SK": "Slovakia", "SI": "Slovenia",
+    "SB": "Solomon Islands", "SO": "Somalia", "ZA": "South Africa", "KR": "South Korea",
+    "SS": "South Sudan", "ES": "Spain", "LK": "Sri Lanka", "SD": "Sudan",
+    "SR": "Suriname", "SZ": "Eswatini", "SE": "Sweden", "CH": "Switzerland",
+    "SY": "Syria", "TW": "Taiwan", "TJ": "Tajikistan", "TZ": "Tanzania",
+    "TH": "Thailand", "TL": "Timor-Leste", "TG": "Togo", "TK": "Tokelau",
+    "TO": "Tonga", "TT": "Trinidad and Tobago", "TN": "Tunisia", "TR": "Turkey",
+    "TM": "Turkmenistan", "TC": "Turks and Caicos Islands", "TV": "Tuvalu",
+    "VI": "US Virgin Islands", "UG": "Uganda", "UA": "Ukraine", "AE": "United Arab Emirates",
+    "GB": "United Kingdom", "US": "United States", "UY": "Uruguay",
+    "UZ": "Uzbekistan", "VU": "Vanuatu", "VA": "Vatican City", "VE": "Venezuela",
+    "VN": "Vietnam", "WF": "Wallis and Futuna", "YE": "Yemen", "ZM": "Zambia", "ZW": "Zimbabwe"
+}
+
+
+@app.route("/api/all_countries")
+def api_all_countries():
+    """Return all countries with their dial codes for phone inputs."""
+    countries = []
+    for code, name in sorted(COUNTRY_NAMES.items(), key=lambda x: x[1]):
+        dial = COUNTRY_DIAL_CODES.get(code, "")
+        countries.append({"code": code, "name": name, "dial_code": dial})
+    return jsonify({"success": True, "countries": countries})
+
+
 @app.route("/api/detect_country")
 def api_detect_country():
     """Detect the user's country dial code from their IP address.
@@ -8554,12 +8628,26 @@ def _compute_supervisor_review_score(mentor_id):
 
 def _compute_mentorship_rating_score(mentee_id, mentor_id):
     """Compute mentee's overall mentorship rating (0-100 scale).
-    Uses explicit mentorship-level rating if submitted, else averages task-level mentor_ratings."""
+    Uses detailed criteria (communication, knowledge, availability, overall) if available,
+    else falls back to simple 1-5 rating, else averages task-level mentor_ratings."""
+    import json as _json
     explicit = MenteeFeedback.query.filter_by(
         mentee_id=mentee_id, task_type="mentorship"
     ).first()
-    if explicit and explicit.mentor_rating:
-        return explicit.mentor_rating * 20
+    if explicit:
+        # Check for detailed criteria in extra field
+        if explicit.extra:
+            try:
+                detailed = _json.loads(explicit.extra)
+                vals = [v for v in detailed.values() if isinstance(v, (int, float)) and 1 <= v <= 5]
+                if vals:
+                    avg = sum(vals) / len(vals)
+                    return round(avg * 20)  # 1-5 avg -> 0-100
+            except Exception:
+                pass
+        # Fallback to simple rating
+        if explicit.mentor_rating:
+            return explicit.mentor_rating * 20
     feedbacks = MenteeFeedback.query.filter(
         MenteeFeedback.mentee_id == mentee_id,
         MenteeFeedback.task_type == "master",
@@ -8669,21 +8757,40 @@ def api_mentorship_rating(mentorship_id):
 
 @app.route("/api/submit_mentorship_rating", methods=["POST"])
 def api_submit_mentorship_rating():
-    """Mentee submits an overall mentorship rating. Stores in MenteeFeedback with task_type='mentorship'."""
+    """Mentee submits a detailed mentorship rating. Stores in MenteeFeedback with task_type='mentorship'.
+    Supports detailed criteria: communication, knowledge, availability, overall (each 1-5)."""
     if "email" not in session or session.get("user_type") != "2":
         return jsonify({"success": False, "message": "Unauthorized"})
     data = request.get_json(force=True)
     mentorship_id = data.get("mentorship_id")
-    rating = data.get("rating")
+    communication = data.get("communication")
+    knowledge = data.get("knowledge")
+    availability = data.get("availability")
+    overall = data.get("overall")
     feedback = data.get("feedback", "")
-    if not mentorship_id or not rating:
-        return jsonify({"success": False, "message": "mentorship_id and rating required"})
-    try:
-        rating = int(rating)
-        if rating < 1 or rating > 5:
-            return jsonify({"success": False, "message": "Rating must be 1-5"})
-    except (ValueError, TypeError):
-        return jsonify({"success": False, "message": "Invalid rating"})
+
+    if not mentorship_id:
+        return jsonify({"success": False, "message": "mentorship_id required"})
+
+    # Validate at least one category is provided
+    categories = {"communication": communication, "knowledge": knowledge, "availability": availability, "overall": overall}
+    rated_cats = {k: v for k, v in categories.items() if v is not None}
+    if not rated_cats:
+        return jsonify({"success": False, "message": "Rate at least one category"})
+
+    # Validate all provided ratings are 1-5
+    for k, v in rated_cats.items():
+        try:
+            v = int(v)
+            if v < 1 or v > 5:
+                return jsonify({"success": False, "message": f"{k} must be 1-5"})
+            rated_cats[k] = v
+        except (ValueError, TypeError):
+            return jsonify({"success": False, "message": f"Invalid {k} rating"})
+
+    # Compute overall rating from categories
+    avg_rating = round(sum(rated_cats.values()) / len(rated_cats))
+
     mr = db.session.get(MentorshipRequest, mentorship_id)
     if not mr:
         return jsonify({"success": False, "message": "Mentorship not found"})
@@ -8693,46 +8800,72 @@ def api_submit_mentorship_rating():
     done, _ = _check_mentorship_completed(mr.mentee_id, mr.mentor_id)
     if not done:
         return jsonify({"success": False, "message": "Mentorship is not yet completed"})
+
+    # Store detailed ratings as JSON in extra field
+    import json
+    detailed_ratings = json.dumps(rated_cats)
+
     existing = MenteeFeedback.query.filter_by(
         mentee_id=mentee.id, task_type="mentorship", task_id=mentorship_id
     ).first()
     if existing:
-        existing.mentor_rating = rating
+        existing.mentor_rating = avg_rating
         existing.text = feedback
+        existing.extra = detailed_ratings
         existing.created_at = datetime.utcnow()
     else:
         fb = MenteeFeedback(
             mentee_id=mentee.id,
             task_id=mentorship_id,
             task_type="mentorship",
-            mentor_rating=rating,
+            mentor_rating=avg_rating,
             text=feedback,
+            extra=detailed_ratings,
             created_at=datetime.utcnow()
         )
         db.session.add(fb)
     db.session.commit()
-    return jsonify({"success": True, "message": "Rating submitted"})
+    return jsonify({"success": True, "message": "Rating submitted successfully", "average_rating": avg_rating})
 
 
 @app.route("/api/submit_mentor_review", methods=["POST"])
 def api_submit_mentor_review():
-    """Mentor submits a review of the mentee. Stores in MentorReflection with task_type='mentorship'."""
+    """Mentor submits a detailed review of the mentee. Stores in MentorReflection with task_type='mentorship'.
+    Supports detailed criteria: engagement, punctuality, progress, communication (each 1-5)."""
     if "email" not in session or session.get("user_type") != "1":
         return jsonify({"success": False, "message": "Unauthorized"})
     data = request.get_json(force=True)
     mentorship_id = data.get("mentorship_id")
-    rating = data.get("rating")
+    engagement = data.get("engagement")
+    punctuality = data.get("punctuality")
+    progress = data.get("progress")
+    communication = data.get("communication")
     feedback = data.get("feedback", "")
     strengths = data.get("strengths", "")
     improvements = data.get("improvements", "")
-    if not mentorship_id or not rating:
-        return jsonify({"success": False, "message": "mentorship_id and rating required"})
-    try:
-        rating = int(rating)
-        if rating < 1 or rating > 5:
-            return jsonify({"success": False, "message": "Rating must be 1-5"})
-    except (ValueError, TypeError):
-        return jsonify({"success": False, "message": "Invalid rating"})
+
+    if not mentorship_id:
+        return jsonify({"success": False, "message": "mentorship_id required"})
+
+    # Validate at least one category is provided
+    categories = {"engagement": engagement, "punctuality": punctuality, "progress": progress, "communication": communication}
+    rated_cats = {k: v for k, v in categories.items() if v is not None}
+    if not rated_cats:
+        return jsonify({"success": False, "message": "Rate at least one category"})
+
+    # Validate all provided ratings are 1-5
+    for k, v in rated_cats.items():
+        try:
+            v = int(v)
+            if v < 1 or v > 5:
+                return jsonify({"success": False, "message": f"{k} must be 1-5"})
+            rated_cats[k] = v
+        except (ValueError, TypeError):
+            return jsonify({"success": False, "message": f"Invalid {k} rating"})
+
+    # Compute average rating from categories
+    avg_rating = round(sum(rated_cats.values()) / len(rated_cats))
+
     mr = db.session.get(MentorshipRequest, mentorship_id)
     if not mr:
         return jsonify({"success": False, "message": "Mentorship not found"})
@@ -8742,10 +8875,12 @@ def api_submit_mentor_review():
     done, _ = _check_mentorship_completed(mr.mentee_id, mr.mentor_id)
     if not done:
         return jsonify({"success": False, "message": "Mentorship is not yet completed"})
+
     import json as _json
     review_data = _json.dumps({
-        "rating": rating, "strengths": strengths,
-        "improvements": improvements, "feedback": feedback
+        "rating": avg_rating, "strengths": strengths,
+        "improvements": improvements, "feedback": feedback,
+        **rated_cats
     })
     existing = MentorReflection.query.filter_by(
         mentor_id=mentor.id, task_type="mentorship", task_id=mentorship_id
@@ -8786,6 +8921,13 @@ def api_get_mentorship_rating_data(mentorship_id):
     mentee_rating = None
     if mentee_fb:
         mentee_rating = {"rating": mentee_fb.mentor_rating, "feedback": mentee_fb.text or ""}
+        # Load detailed criteria ratings from extra field
+        if mentee_fb.extra:
+            try:
+                detailed = _json.loads(mentee_fb.extra)
+                mentee_rating.update(detailed)  # adds communication, knowledge, availability, overall
+            except Exception:
+                pass
     mentor_review = None
     if mentor_ref:
         try:
@@ -8796,7 +8938,11 @@ def api_get_mentorship_rating_data(mentorship_id):
             "rating": extra.get("rating", 0),
             "feedback": mentor_ref.text or "",
             "strengths": extra.get("strengths", ""),
-            "improvements": extra.get("improvements", "")
+            "improvements": extra.get("improvements", ""),
+            "engagement": extra.get("engagement"),
+            "punctuality": extra.get("punctuality"),
+            "progress": extra.get("progress"),
+            "communication": extra.get("communication")
         }
     rating_info = compute_mentorship_composite_rating(mr.mentee_id, mr.mentor_id)
     return jsonify({
@@ -8976,9 +9122,9 @@ def api_get_mentor_rating_breakdown(mentor_id):
 
 @app.route("/api/mentor_rating_simple/<int:mentor_id>")
 def api_mentor_rating_simple(mentor_id):
-    """Simple 4-criteria star rating for a mentor. Returns breakdown with 0-5 stars each.
-    Criteria: Profile Complete, Useful Skills, Mentorship Experience, Mentorship Task Experience.
-    Final rating = average of the 4 criteria."""
+    """Simple 5-criteria star rating for a mentor. Returns breakdown with 0-5 stars each.
+    Criteria: Profile Complete, Useful Skills, Mentorship Experience, Mentorship Task Experience, Supervisor Rating.
+    Final rating = average of criteria that have data."""
     if "email" not in session:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
 
@@ -9014,6 +9160,7 @@ def api_mentor_rating_simple(mentor_id):
             skills_stars = 0.0
 
         # 3. Mentorship Experience (0-5 stars) - based on number of completed mentorships
+        has_mentorship_data = False
         try:
             mentorships = MentorshipRequest.query.filter_by(
                 mentor_id=mentor_id, final_status="approved"
@@ -9029,6 +9176,7 @@ def api_mentor_rating_simple(mentor_id):
                 if mr_score > 0:
                     mentorship_rating_sum += mr_score
                     mentorship_rating_count += 1
+            has_mentorship_data = len(mentorships) > 0
             # Score: completed mentorships (each adds ~1 star, max 5) + avg mentee rating
             exp_from_count = min(completed_count, 5)  # 5+ mentorships = full stars from count
             if mentorship_rating_count > 0:
@@ -9043,6 +9191,7 @@ def api_mentor_rating_simple(mentor_id):
             mentorship_stars = 0.0
 
         # 4. Mentorship Task Experience (0-5 stars) - based on task ratings
+        has_task_data = False
         try:
             total_tasks = 0
             completed_tasks = 0
@@ -9057,6 +9206,7 @@ def api_mentor_rating_simple(mentor_id):
                     if tr:
                         task_rating_count += 1
                         task_rating_sum += tr.rating
+            has_task_data = total_tasks > 0
             # Score: task completion rate + avg task rating
             task_completion_pct = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
             completion_stars = round(task_completion_pct / 20, 1)  # 100 -> 5.0
@@ -9072,8 +9222,29 @@ def api_mentor_rating_simple(mentor_id):
             task_rating_count = 0
             task_stars = 0.0
 
-        # Final rating = simple average of 4 criteria
-        final_rating = round((profile_stars + skills_stars + mentorship_stars + task_stars) / 4, 1)
+        # 5. Supervisor Rating (0-5 stars) - set by supervisors
+        has_supervisor_rating = False
+        supervisor_rating_stars = 0.0
+        try:
+            sup_profile = MentorProfile.query.filter_by(user_id=mentor_id).first()
+            if sup_profile and sup_profile.supervisor_rating is not None:
+                supervisor_rating_stars = float(sup_profile.supervisor_rating)
+                has_supervisor_rating = True
+        except Exception:
+            supervisor_rating_stars = 0.0
+
+        # Final rating = average of only criteria that have data
+        # New mentors with no mentorships/tasks should not be dragged down by 0s
+        rated_criteria = []
+        rated_criteria.append(profile_stars)  # always included (profile always exists)
+        rated_criteria.append(skills_stars)   # always included (profile always exists)
+        if has_mentorship_data:
+            rated_criteria.append(mentorship_stars)
+        if has_task_data:
+            rated_criteria.append(task_stars)
+        if has_supervisor_rating:
+            rated_criteria.append(supervisor_rating_stars)
+        final_rating = round(sum(rated_criteria) / len(rated_criteria), 1) if rated_criteria else 0
         final_rating = min(5, max(0, final_rating))
 
         return jsonify({
@@ -9084,15 +9255,60 @@ def api_mentor_rating_simple(mentor_id):
                 "useful_skills": skills_stars,
                 "mentorship_experience": mentorship_stars,
                 "mentorship_task_experience": task_stars,
+                "supervisor_rating": supervisor_rating_stars,
                 "final_rating": final_rating,
                 "completed_mentorships": completed_count,
                 "total_tasks": total_tasks,
                 "completed_tasks": completed_tasks,
-                "task_ratings_count": task_rating_count
+                "task_ratings_count": task_rating_count,
+                "has_mentorship_data": has_mentorship_data,
+                "has_task_data": has_task_data,
+                "has_supervisor_rating": has_supervisor_rating
             }
         })
     except Exception as e:
         app.logger.error(f"Error in api_mentor_rating_simple: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/set_supervisor_rating", methods=["POST"])
+def api_set_supervisor_rating():
+    """Allow a supervisor to set a 1-5 rating for a mentor."""
+    if "email" not in session or session.get("user_type") != "0":
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    data = request.get_json()
+    mentor_user_id = data.get("mentor_user_id")
+    rating = data.get("rating")
+
+    if not mentor_user_id or rating is None:
+        return jsonify({"success": False, "message": "Missing mentor_user_id or rating"}), 400
+
+    try:
+        rating = float(rating)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "Invalid rating value"}), 400
+
+    if rating < 1 or rating > 5:
+        return jsonify({"success": False, "message": "Rating must be between 1 and 5"}), 400
+
+    try:
+        profile = MentorProfile.query.filter_by(user_id=mentor_user_id).first()
+        if not profile:
+            return jsonify({"success": False, "message": "Mentor profile not found"}), 404
+
+        profile.supervisor_rating = round(rating, 1)
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Rating saved",
+            "mentor_user_id": mentor_user_id,
+            "supervisor_rating": profile.supervisor_rating
+        })
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error setting supervisor rating: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -9314,11 +9530,24 @@ def supervisor_tasks():
             except Exception:
                 pass
 
+        # Get all mentees and mentors for task creation dropdowns
+        all_mentees = db.session.query(User, MenteeProfile).join(
+            MenteeProfile, User.id == MenteeProfile.user_id
+        ).filter(User.user_type == 2).all()
+        mentee_list = [{'id': u.id, 'name': u.name} for u, mp in all_mentees]
+
+        all_mentors = db.session.query(User, MentorProfile).join(
+            MentorProfile, User.id == MentorProfile.user_id
+        ).filter(User.user_type == 1).all()
+        mentor_list = [{'id': u.id, 'name': u.name} for u, mp in all_mentors]
+
         return render_template(
             "supervisor/supervisor_tasks.html",
             show_sidebar=True,
             profile_complete=True,
-            all_tasks=all_tasks
+            all_tasks=all_tasks,
+            mentees_for_task=mentee_list,
+            mentors_for_task=mentor_list
         )
         
     except Exception as e:
@@ -9332,6 +9561,66 @@ def supervisor_tasks():
             all_tasks=[]
         )
         
+
+# ------------------ SUPERVISOR CREATE TASK ------------------
+@app.route("/supervisor_create_task", methods=["POST"])
+def supervisor_create_task():
+    if "email" not in session or session.get("user_type") != "0":
+        return jsonify({"success": False, "message": "Unauthorized"})
+    
+    try:
+        data = request.get_json()
+        mentee_id = data.get('mentee_id')
+        mentor_id = data.get('mentor_id')
+        title = data.get('title')
+        description = data.get('description', '')
+        due_date_str = data.get('due_date')
+        priority = data.get('priority', 'medium')
+        
+        if not mentee_id or not title:
+            return jsonify({"success": False, "message": "Mentee and title are required"})
+        
+        # Verify mentee exists
+        mentee = User.query.get(mentee_id)
+        if not mentee or mentee.user_type != 2:
+            return jsonify({"success": False, "message": "Invalid mentee selected"})
+        
+        # Verify mentor if provided
+        if mentor_id:
+            mentor = User.query.get(mentor_id)
+            if not mentor or mentor.user_type != 1:
+                return jsonify({"success": False, "message": "Invalid mentor selected"})
+        
+        # Convert due date
+        due_date = None
+        if due_date_str:
+            due_date = datetime.strptime(due_date_str, '%Y-%m-%d')
+        
+        # Create personal task
+        personal_task = PersonalTask(
+            mentee_id=mentee_id,
+            mentor_id=mentor_id if mentor_id else None,
+            title=title,
+            description=description,
+            due_date=due_date,
+            priority=priority,
+            status="pending",
+            progress=0
+        )
+        
+        db.session.add(personal_task)
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Task '{title}' created successfully for {mentee.name}",
+            "task_id": personal_task.id
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)})
+
 
 # ------------------ SUPERVISOR RATING VIEW ROUTES ------------------
 @app.route('/supervisor_get_task_rating/<task_type>/<int:task_id>')
@@ -12181,6 +12470,78 @@ def create_meeting_ajax():
     if calendar_warning:
         payload["warning"] = calendar_warning
     return jsonify(payload)
+
+
+@app.route("/update_meeting_ajax", methods=["POST"])
+def update_meeting_ajax():
+    """Update an existing meeting's details (title, date, time, duration, link, etc.)."""
+    if "email" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Invalid request body"}), 400
+
+    meeting_id = data.get("meeting_id")
+    if not meeting_id:
+        return jsonify({"error": "meeting_id is required"}), 400
+
+    meeting = db.session.get(MeetingRequest, int(meeting_id))
+    if not meeting:
+        return jsonify({"error": "Meeting not found"}), 404
+
+    # Only allow editing upcoming meetings
+    if meeting.status not in ("pending", "upcoming"):
+        return jsonify({"error": "Only upcoming meetings can be edited"}), 400
+
+    # Verify the user has permission (is the requester or an institution user)
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Allow if user is the requester, or is an institution/supervisor
+    if meeting.requester_id != user.id and user.user_type not in ("0", "3"):
+        return jsonify({"error": "You don't have permission to edit this meeting"}), 403
+
+    title = data.get("title", "").strip()
+    description = data.get("description", "").strip()
+    date_str = data.get("date")
+    start_time = data.get("start_time")
+    duration = data.get("duration")
+    meet_link = data.get("meet_link", "").strip()
+    timezone_val = data.get("timezone", "Asia/Kolkata")
+
+    if not title:
+        return jsonify({"error": "Title is required"}), 400
+    if not date_str:
+        return jsonify({"error": "Date is required"}), 400
+    if not start_time:
+        return jsonify({"error": "Start time is required"}), 400
+
+    try:
+        from datetime import datetime as dt, date as date_type, time as time_type
+        meeting_date = date_type.fromisoformat(date_str)
+        time_parts = start_time.split(":")
+        meeting_time = time_type(int(time_parts[0]), int(time_parts[1]), int(time_parts[2]) if len(time_parts) > 2 else 0)
+        meeting_duration = int(duration) if duration else meeting.meeting_duration
+
+        meeting.meeting_title = title
+        meeting.meeting_description = description if description else meeting.meeting_description
+        meeting.meeting_date = meeting_date
+        meeting.meeting_time = meeting_time
+        meeting.meeting_duration = meeting_duration
+        meeting.meet_link = meet_link if meet_link else meeting.meet_link
+
+        db.session.commit()
+        return jsonify({"success": True, "message": "Meeting updated successfully"})
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({"error": f"Invalid date or time format: {e}"}), 400
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error updating meeting: {e}")
+        return jsonify({"error": "Failed to update meeting. Please try again."}), 500
+
 
 @app.route("/debug_oauth")
 def debug_oauth():

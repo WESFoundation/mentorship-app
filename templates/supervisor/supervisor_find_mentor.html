@@ -532,6 +532,10 @@
                     <p class="text-xs text-gray-500 mb-1">Task Experience</p>
                     <p class="font-bold text-amber-600" id="modalTaskStars">--</p>
                   </div>
+                  <div class="bg-white rounded-lg p-3 border border-amber-200 col-span-2">
+                    <p class="text-xs text-gray-500 mb-1">Supervisor Rating</p>
+                    <p class="font-bold text-red-600" id="modalSupStars">--</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -829,6 +833,7 @@
       const skillsStarsEl = document.getElementById('modalSkillsStars');
       const expStarsEl = document.getElementById('modalExpStars');
       const taskStarsEl = document.getElementById('modalTaskStars');
+      const supStarsEl = document.getElementById('modalSupStars');
 
       if (finalRatingEl) finalRatingEl.textContent = '--';
       supRenderPopupStars('modalRatingStars', 0);
@@ -836,6 +841,7 @@
       if (skillsStarsEl) skillsStarsEl.textContent = 'Loading...';
       if (expStarsEl) expStarsEl.textContent = 'Loading...';
       if (taskStarsEl) taskStarsEl.textContent = 'Loading...';
+      if (supStarsEl) supStarsEl.textContent = 'Loading...';
 
       fetchSupRating(uid).then(rating => {
         if (!rating) {
@@ -845,6 +851,7 @@
           if (skillsStarsEl) skillsStarsEl.textContent = '0.0 / 5.0';
           if (expStarsEl) expStarsEl.textContent = '0.0 / 5.0';
           if (taskStarsEl) taskStarsEl.textContent = '0.0 / 5.0';
+          if (supStarsEl) supStarsEl.textContent = 'Not rated';
           return;
         }
         if (finalRatingEl) finalRatingEl.textContent = rating.final_rating != null ? rating.final_rating.toFixed(1) : '0.0';
@@ -853,6 +860,13 @@
         if (skillsStarsEl) skillsStarsEl.textContent = (rating.useful_skills != null ? rating.useful_skills.toFixed(1) : '0.0') + ' / 5.0';
         if (expStarsEl) expStarsEl.textContent = (rating.mentorship_experience != null ? rating.mentorship_experience.toFixed(1) : '0.0') + ' / 5.0';
         if (taskStarsEl) taskStarsEl.textContent = (rating.mentorship_task_experience != null ? rating.mentorship_task_experience.toFixed(1) : '0.0') + ' / 5.0';
+        if (supStarsEl) {
+          if (rating.has_supervisor_rating) {
+            supStarsEl.textContent = rating.supervisor_rating.toFixed(1) + ' / 5.0';
+          } else {
+            supStarsEl.textContent = 'Not rated yet';
+          }
+        }
       });
     }
   }
@@ -890,10 +904,26 @@
           <div class="rb-row"><span class="rb-label">Useful Skills</span><span class="rb-value" id="popupSk">--</span></div>
           <div class="rb-row"><span class="rb-label">Mentorship Experience</span><span class="rb-value" id="popupMe">--</span></div>
           <div class="rb-row"><span class="rb-label">Task Experience</span><span class="rb-value" id="popupTe">--</span></div>
+          <div class="rb-row"><span class="rb-label">Supervisor Rating</span><span class="rb-value" id="popupSup">--</span></div>
         </div>
       </div>
-      <div class="rb-final text-center">
-        <span class="text-sm text-gray-600">Final Rating = average of all4 criteria</span>
+      <!-- Supervisor Rating Input -->
+      <div class="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
+        <p class="text-sm font-semibold text-gray-700 mb-2">Rate this mentor (1-5 stars):</p>
+        <div class="flex items-center gap-3">
+          <div class="flex gap-1" id="supRateStars">
+            <button type="button" class="text-2xl text-gray-300 hover:text-yellow-400 transition" data-val="1">&#9733;</button>
+            <button type="button" class="text-2xl text-gray-300 hover:text-yellow-400 transition" data-val="2">&#9733;</button>
+            <button type="button" class="text-2xl text-gray-300 hover:text-yellow-400 transition" data-val="3">&#9733;</button>
+            <button type="button" class="text-2xl text-gray-300 hover:text-yellow-400 transition" data-val="4">&#9733;</button>
+            <button type="button" class="text-2xl text-gray-300 hover:text-yellow-400 transition" data-val="5">&#9733;</button>
+          </div>
+          <span class="text-sm font-bold text-gray-600" id="supRateValue">--</span>
+          <button onclick="saveSupRating()" class="ml-auto px-3 py-1.5 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition">Save</button>
+        </div>
+      </div>
+      <div class="rb-final text-center mt-3">
+        <span class="text-sm text-gray-600">Final Rating = average of all rated criteria</span>
       </div>
       <div class="mt-4 text-center">
         <a href="{{ url_for('rating_calculation_page') }}" target="_blank" class="text-sm text-amber-600 hover:text-amber-700 font-semibold underline">
@@ -964,9 +994,16 @@
 
   document.addEventListener('DOMContentLoaded', loadSupRatings);
 
+  let currentPopupMentorUid = null;
+  let currentSupRatingSelection = 0;
+
   function openRatingPopup(uid, name) {
+    currentPopupMentorUid = uid;
+    currentSupRatingSelection = 0;
     document.getElementById('popupMentorName').textContent = name;
     document.getElementById('ratingPopup').classList.add('active');
+    // Reset star selection
+    updateSupRateStars(0);
     fetchSupRating(uid).then(rating => {
       if (!rating) return;
       document.getElementById('popupFinalRating').textContent = rating.final_rating.toFixed(1);
@@ -975,7 +1012,68 @@
       document.getElementById('popupSk').textContent = rating.useful_skills.toFixed(1) + ' / 5.0';
       document.getElementById('popupMe').textContent = rating.mentorship_experience.toFixed(1) + ' / 5.0';
       document.getElementById('popupTe').textContent = rating.mentorship_task_experience.toFixed(1) + ' / 5.0';
+      if (rating.has_supervisor_rating) {
+        document.getElementById('popupSup').textContent = rating.supervisor_rating.toFixed(1) + ' / 5.0';
+        currentSupRatingSelection = rating.supervisor_rating;
+        updateSupRateStars(rating.supervisor_rating);
+      } else {
+        document.getElementById('popupSup').textContent = 'Not rated yet';
+        currentSupRatingSelection = 0;
+        updateSupRateStars(0);
+      }
     });
+  }
+
+  function updateSupRateStars(val) {
+    currentSupRatingSelection = val;
+    document.getElementById('supRateValue').textContent = val > 0 ? val + '/5' : '--';
+    const btns = document.querySelectorAll('#supRateStars button');
+    btns.forEach(btn => {
+      const v = parseInt(btn.getAttribute('data-val'));
+      btn.classList.toggle('text-yellow-400', v <= val);
+      btn.classList.toggle('text-gray-300', v > val);
+    });
+  }
+
+  // Star rating button click handlers
+  document.querySelectorAll('#supRateStars button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      updateSupRateStars(parseInt(btn.getAttribute('data-val')));
+    });
+  });
+
+  async function saveSupRating() {
+    if (!currentPopupMentorUid || currentSupRatingSelection < 1) {
+      alert('Please select a star rating first.');
+      return;
+    }
+    try {
+      const res = await fetch('/api/set_supervisor_rating', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mentor_user_id: currentPopupMentorUid, rating: currentSupRatingSelection })
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Update popup display
+        document.getElementById('popupSup').textContent = data.supervisor_rating.toFixed(1) + ' / 5.0';
+        // Refresh the rating cache and table display
+        delete supRatingCache[currentPopupMentorUid];
+        const rating = await fetchSupRating(currentPopupMentorUid);
+        if (rating) {
+          supRenderStars('sup-stars-' + currentPopupMentorUid, rating.final_rating);
+          const numEl = document.getElementById('sup-num-' + currentPopupMentorUid);
+          if (numEl) numEl.textContent = rating.final_rating.toFixed(1);
+          document.getElementById('popupFinalRating').textContent = rating.final_rating.toFixed(1);
+          supRenderPopupStars('popupStars', rating.final_rating);
+        }
+        alert('Rating saved successfully!');
+      } else {
+        alert('Error: ' + (data.message || 'Failed to save rating'));
+      }
+    } catch(e) {
+      alert('Error saving rating. Please try again.');
+    }
   }
 
   function closeRatingPopup() {

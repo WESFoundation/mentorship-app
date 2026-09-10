@@ -29,11 +29,11 @@
       </div>
       <div>
         <h2 class="text-xl font-bold">Rating Overview</h2>
-        <p class="text-blue-100 text-sm">Each mentor is rated on a 5-star scale using4 equally-weighted criteria</p>
+        <p class="text-blue-100 text-sm">Each mentor is rated on a 5-star scale using 5 equally-weighted criteria</p>
       </div>
     </div>
     <div class="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
-      <p class="text-sm">The <strong>Final Rating</strong> is the simple average of all4 criteria scores. Each criterion is scored from 0 to5 stars. The final rating is displayed on mentor cards, profile previews, and the mentor dashboard.</p>
+      <p class="text-sm">The <strong>Final Rating</strong> is the simple average of all criteria that have data. Each criterion is scored from 0 to 5 stars. The final rating is displayed on mentor cards, profile previews, and the mentor dashboard.</p>
     </div>
   </div>
 
@@ -46,7 +46,7 @@
         <div class="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold text-lg">1</div>
         <div>
           <h3 class="font-bold text-gray-900">Profile Complete</h3>
-          <p class="text-xs text-gray-500">Weight: 25% of final rating</p>
+          <p class="text-xs text-gray-500">Included when data is available</p>
         </div>
         <div class="ml-auto">
           <span class="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">0-5 Stars</span>
@@ -90,7 +90,7 @@
         <div class="w-10 h-10 bg-green-600 text-white rounded-lg flex items-center justify-center font-bold text-lg">2</div>
         <div>
           <h3 class="font-bold text-gray-900">Useful Skills</h3>
-          <p class="text-xs text-gray-500">Weight: 25% of final rating</p>
+          <p class="text-xs text-gray-500">Included when data is available</p>
         </div>
         <div class="ml-auto">
           <span class="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">0-5 Stars</span>
@@ -134,14 +134,14 @@
         <div class="w-10 h-10 bg-purple-600 text-white rounded-lg flex items-center justify-center font-bold text-lg">3</div>
         <div>
           <h3 class="font-bold text-gray-900">Mentorship Experience</h3>
-          <p class="text-xs text-gray-500">Weight: 25% of final rating</p>
+          <p class="text-xs text-gray-500">Included when mentorships exist</p>
         </div>
         <div class="ml-auto">
           <span class="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-full">0-5 Stars</span>
         </div>
       </div>
       <div class="p-6">
-        <p class="text-gray-700 mb-4">Combines the number of completed mentorships with the average rating mentees have given the mentor.</p>
+        <p class="text-gray-700 mb-4">Combines the number of completed mentorships with detailed mentee ratings across multiple criteria.</p>
         <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
           <h4 class="font-semibold text-gray-800 mb-2">How it's calculated:</h4>
           <ul class="text-sm text-gray-600 space-y-1.5">
@@ -151,15 +151,27 @@
             </li>
             <li class="flex items-start gap-2">
               <span class="text-purple-500 mt-0.5">&#8226;</span>
-              <span><strong>Part B (50%):</strong> Average mentee rating (0-5 stars) from explicit mentorship-level feedback</span>
+              <span><strong>Part B (50%):</strong> Average mentee rating from detailed mentorship feedback</span>
             </li>
+          </ul>
+          <div class="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+            <p class="text-xs font-semibold text-purple-800 mb-2">Mentee rates on 4 criteria (each 1-5 stars):</p>
+            <ul class="text-xs text-purple-700 space-y-1">
+              <li>&#8226; <strong>Communication</strong> &mdash; Responsiveness, clarity, listening skills</li>
+              <li>&#8226; <strong>Knowledge & Expertise</strong> &mdash; Domain expertise, guidance quality, insights</li>
+              <li>&#8226; <strong>Availability & Reliability</strong> &mdash; Punctuality, meeting schedule, follow-through</li>
+              <li>&#8226; <strong>Overall Experience</strong> &mdash; Overall satisfaction, goal achievement, impact</li>
+            </ul>
+            <p class="text-xs text-purple-600 mt-2">Average of rated criteria = mentorship rating for that mentorship</p>
+          </div>
+          <ul class="text-sm text-gray-600 space-y-1.5 mt-3">
             <li class="flex items-start gap-2">
               <span class="text-purple-500 mt-0.5">&#8226;</span>
               <span><strong>Formula:</strong> (completed_count &times; 0.5) + (avg_mentee_rating &times; 0.5) = star rating</span>
             </li>
             <li class="flex items-start gap-2">
               <span class="text-purple-500 mt-0.5">&#8226;</span>
-              <span><strong>Example:</strong> 3 completed mentorships (1.5 stars) + 4.2 avg mentee rating (2.1 stars) = <strong>3.6 stars</strong></span>
+              <span><strong>Example:</strong> 3 completed mentorships (1.5 stars) + mentee rated avg 4.2 (2.1 stars) = <strong>3.6 stars</strong></span>
             </li>
           </ul>
         </div>
@@ -167,7 +179,7 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
-          <span>Experience is valued equally with feedback quality.</span>
+          <span>Detailed criteria give a more accurate picture of the mentorship quality.</span>
         </div>
       </div>
     </div>
@@ -178,7 +190,7 @@
         <div class="w-10 h-10 bg-amber-600 text-white rounded-lg flex items-center justify-center font-bold text-lg">4</div>
         <div>
           <h3 class="font-bold text-gray-900">Mentorship Task Experience</h3>
-          <p class="text-xs text-gray-500">Weight: 25% of final rating</p>
+          <p class="text-xs text-gray-500">Included when tasks exist</p>
         </div>
         <div class="ml-auto">
           <span class="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full">0-5 Stars</span>
@@ -215,6 +227,50 @@
         </div>
       </div>
     </div>
+
+    <!-- Criterion 5: Supervisor Rating -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="px-6 py-4 bg-red-50 border-b border-red-100 flex items-center gap-3">
+        <div class="w-10 h-10 bg-red-600 text-white rounded-lg flex items-center justify-center font-bold text-lg">5</div>
+        <div>
+          <h3 class="font-bold text-gray-900">Supervisor Rating</h3>
+          <p class="text-xs text-gray-500">Weight: 20% of final rating (when provided)</p>
+        </div>
+        <div class="ml-auto">
+          <span class="px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">1-5 Stars</span>
+        </div>
+      </div>
+      <div class="p-6">
+        <p class="text-gray-700 mb-4">A direct rating provided by a supervisor based on their observation of the mentor's performance, reliability, and overall quality.</p>
+        <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+          <h4 class="font-semibold text-gray-800 mb-2">How it's calculated:</h4>
+          <ul class="text-sm text-gray-600 space-y-1.5">
+            <li class="flex items-start gap-2">
+              <span class="text-red-500 mt-0.5">&#8226;</span>
+              <span>Supervisors can rate each mentor from <strong>1 to 5 stars</strong> using the star selector in the Find Mentor table</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-red-500 mt-0.5">&#8226;</span>
+              <span>Only <strong>one supervisor rating per mentor</strong> is stored (latest rating overrides previous)</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-red-500 mt-0.5">&#8226;</span>
+              <span><strong>Conditionally included:</strong> Only counted in the final average if a supervisor has rated the mentor</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-red-500 mt-0.5">&#8226;</span>
+              <span><strong>Example:</strong> Supervisor rates mentor 4 stars &mdash; the 5th criterion contributes <strong>4.0</strong> to the final average</span>
+            </li>
+          </ul>
+        </div>
+        <div class="mt-4 flex items-center gap-2 text-sm text-gray-500">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span>Supervisor ratings provide a top-down quality assessment alongside peer and mentee feedback.</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Final Rating Formula -->
@@ -227,9 +283,9 @@
     </h3>
     <div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6 border border-indigo-200">
       <div class="text-center mb-6">
-        <p class="text-sm text-gray-500 mb-2">Simple Average of All4 Criteria</p>
+        <p class="text-sm text-gray-500 mb-2">Simple Average of All Rated Criteria</p>
         <div class="text-2xl font-bold text-gray-900">
-          Final Rating = <span class="text-blue-600">Profile</span> + <span class="text-green-600">Skills</span> + <span class="text-purple-600">Experience</span> + <span class="text-amber-600">Tasks</span> <span class="text-gray-400">/ 4</span>
+          Final Rating = <span class="text-blue-600">Profile</span> + <span class="text-green-600">Skills</span> + <span class="text-purple-600">Experience</span> + <span class="text-amber-600">Tasks</span> + <span class="text-red-600">Supervisor</span> <span class="text-gray-400">/ N</span>
         </div>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -248,6 +304,10 @@
         <div class="bg-white rounded-lg p-3 text-center border border-amber-200">
           <p class="text-xs text-gray-500 mb-1">Task Experience</p>
           <p class="font-bold text-amber-600" id="demoTasks">-</p>
+        </div>
+        <div class="bg-white rounded-lg p-3 text-center border border-red-200">
+          <p class="text-xs text-gray-500 mb-1">Supervisor Rating</p>
+          <p class="font-bold text-red-600" id="demoSup">-</p>
         </div>
       </div>
       <div class="text-center mt-4">
@@ -334,12 +394,13 @@
 
 <script>
   // Demo calculator
-  const demoValues = { profile:3.2, skills:4.0, exp:2.5, tasks:3.8 };
+  const demoValues = { profile:3.2, skills:4.0, exp:2.5, tasks:3.8, sup:4.5 };
   document.getElementById('demoProfile').textContent = demoValues.profile.toFixed(1);
   document.getElementById('demoSkills').textContent = demoValues.skills.toFixed(1);
   document.getElementById('demoExp').textContent = demoValues.exp.toFixed(1);
   document.getElementById('demoTasks').textContent = demoValues.tasks.toFixed(1);
-  const final = ((demoValues.profile + demoValues.skills + demoValues.exp + demoValues.tasks) / 4).toFixed(1);
+  document.getElementById('demoSup').textContent = demoValues.sup.toFixed(1);
+  const final = ((demoValues.profile + demoValues.skills + demoValues.exp + demoValues.tasks + demoValues.sup) / 5).toFixed(1);
   document.getElementById('demoFinal').textContent = final;
   const starCount = Math.round(parseFloat(final));
   document.getElementById('demoStars').textContent = '\u2605'.repeat(starCount) + '\u2606'.repeat(5 - starCount);

@@ -17,6 +17,28 @@
     color: #111827;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
+
+  .my-mentor-rating { position: relative; display: inline-block; }
+  .my-mentor-rating .rating-stars { display: inline-flex; align-items: center; gap: 2px; }
+  .my-mentor-rating .star { color: #d1d5db; font-size: 14px; line-height: 1; }
+  .my-mentor-rating .star.filled { color: #f59e0b; }
+  .my-mentor-rating .star.half { position: relative; color: #d1d5db; }
+  .my-mentor-rating .star.half::before { content: '\2605'; position: absolute; left: 0; width: 50%; overflow: hidden; color: #f59e0b; }
+  .my-mentor-rating .rating-number { font-size: 13px; font-weight: 700; color: #374151; margin-left: 4px; }
+  .my-mentor-rating .rating-breakdown {
+    display: none; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+    background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15); z-index: 100; min-width: 240px; margin-top: 8px;
+  }
+  .my-mentor-rating:hover .rating-breakdown { display: block; }
+  .my-mentor-rating .rating-breakdown::before {
+    content: ''; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    border: 6px solid transparent; border-bottom-color: white;
+  }
+  .my-mentor-rating .rb-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 12px; }
+  .my-mentor-rating .rb-label { color: #6b7280; }
+  .my-mentor-rating .rb-value { font-weight: 700; color: #111827; }
+  .my-mentor-rating .rb-final { border-top: 1px solid #e5e7eb; margin-top: 4px; padding-top: 4px; }
 </style>
 
   <!-- My Mentors Section -->
@@ -83,20 +105,20 @@
             </svg>
             <span>{{ mentor.location if mentor.location else 'Not specified' }}</span>
           </div>
-          {% if m.rating and m.rating.final_score > 0 %}
-          <div class="flex items-center text-sm text-gray-600">
-            <div class="flex text-yellow-400 mr-2">
-              {% for i in range(5) %}
-                {% if i < m.rating.star_rating|int %}
-                  <span>&#9733;</span>
-                {% else %}
-                  <span class="text-gray-300">&#9733;</span>
-                {% endif %}
-              {% endfor %}
+          <!-- 5-Star Rating -->
+          <div class="my-mentor-rating mt-1" data-mentor-id="{{ mentor_user.id }}">
+            <div class="rating-stars" id="mm-stars-{{ mentor_user.id }}">
+              <span class="star">&#9734;</span><span class="star">&#9734;</span><span class="star">&#9734;</span><span class="star">&#9734;</span><span class="star">&#9734;</span>
             </div>
-            <span class="font-medium">{{ m.rating.final_score }}/100</span>
+            <span class="rating-number" id="mm-num-{{ mentor_user.id }}">--</span>
+            <div class="rating-breakdown" id="mm-tip-{{ mentor_user.id }}">
+              <div class="rb-row"><span class="rb-label">Profile Complete</span><span class="rb-value" id="mm-tip-pc-{{ mentor_user.id }}">--</span></div>
+              <div class="rb-row"><span class="rb-label">Useful Skills</span><span class="rb-value" id="mm-tip-sk-{{ mentor_user.id }}">--</span></div>
+              <div class="rb-row"><span class="rb-label">Mentorship Experience</span><span class="rb-value" id="mm-tip-me-{{ mentor_user.id }}">--</span></div>
+              <div class="rb-row"><span class="rb-label">Task Experience</span><span class="rb-value" id="mm-tip-te-{{ mentor_user.id }}">--</span></div>
+              <div class="rb-row rb-final"><span class="rb-label font-semibold">Final Rating</span><span class="rb-value text-blue-600" id="mm-tip-fr-{{ mentor_user.id }}">--</span></div>
+            </div>
           </div>
-          {% endif %}
         </div>
         
           <div class="flex flex-wrap gap-2">
@@ -668,35 +690,34 @@ function closeProfileModal() {
 
 // ===== MENTORSHIP RATING MODAL =====
 let currentRatingMentorshipId = null;
-let selectedMentorshipRating = 0;
+let mentorshipRatings = { communication: 0, knowledge: 0, availability: 0, overall: 0 };
 
 function openMentorshipRatingModal(mentorshipId, mentorName) {
   currentRatingMentorshipId = mentorshipId;
-  selectedMentorshipRating = 0;
+  mentorshipRatings = { communication: 0, knowledge: 0, availability: 0, overall: 0 };
   document.getElementById('rating-mentor-name').textContent = mentorName;
   document.getElementById('rating-feedback').value = '';
   document.getElementById('rating-error').classList.add('hidden');
   document.getElementById('rating-success').classList.add('hidden');
-  updateStarDisplay(0);
+  // Reset all star displays
+  ['communication', 'knowledge', 'availability', 'overall'].forEach(function(cat) {
+    updateCategoryStars(cat, 0);
+    document.getElementById('rating-val-' + cat).textContent = '--';
+  });
+  document.getElementById('rating-final-computed').textContent = '--';
+
   fetch('/api/get_mentorship_rating_data/' + mentorshipId)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.success && data.mentee_rating) {
-        selectedMentorshipRating = data.mentee_rating.rating;
-        updateStarDisplay(selectedMentorshipRating);
-        document.getElementById('rating-feedback').value = data.mentee_rating.feedback || '';
-      }
-      if (data.success && data.composite) {
-        var c = data.composite;
-        document.getElementById('rating-composite-score').textContent = c.final_score + '/100 (' + c.star_rating + ' stars)';
-        document.getElementById('rating-composite-details').innerHTML =
-          '<div class="text-xs text-gray-500 space-y-1 mt-2">' +
-          '<p>Profile Completeness: ' + c.profile_completeness + '% (weight: ' + c.profile_completeness_weight + '%)</p>' +
-          '<p>Profile Attractiveness: ' + c.profile_attractiveness + '% (weight: ' + c.profile_attractiveness_weight + '%)</p>' +
-          '<p>Supervisor Review: ' + c.supervisor_review + '% (weight: ' + c.supervisor_review_weight + '%)</p>' +
-          '<p>Mentorship Rating: ' + c.mentorship_rating + '% (weight: ' + c.mentorship_rating_weight + '%)</p>' +
-          '<p>Task Performance: ' + c.task_performance + '% (weight: ' + c.task_performance_weight + '%)</p>' +
-          '</div>';
+        var mr = data.mentee_rating;
+        // Load existing detailed ratings if available
+        if (mr.communication) { mentorshipRatings.communication = mr.communication; updateCategoryStars('communication', mr.communication); document.getElementById('rating-val-communication').textContent = mr.communication + '/5'; }
+        if (mr.knowledge) { mentorshipRatings.knowledge = mr.knowledge; updateCategoryStars('knowledge', mr.knowledge); document.getElementById('rating-val-knowledge').textContent = mr.knowledge + '/5'; }
+        if (mr.availability) { mentorshipRatings.availability = mr.availability; updateCategoryStars('availability', mr.availability); document.getElementById('rating-val-availability').textContent = mr.availability + '/5'; }
+        if (mr.overall) { mentorshipRatings.overall = mr.overall; updateCategoryStars('overall', mr.overall); document.getElementById('rating-val-overall').textContent = mr.overall + '/5'; }
+        if (mr.feedback) document.getElementById('rating-feedback').value = mr.feedback;
+        computeMentorshipRatingFinal();
       }
     }).catch(function() {});
   document.getElementById('mentorshipRatingModal').classList.remove('hidden');
@@ -705,16 +726,18 @@ function openMentorshipRatingModal(mentorshipId, mentorName) {
 function closeMentorshipRatingModal() {
   document.getElementById('mentorshipRatingModal').classList.add('hidden');
   currentRatingMentorshipId = null;
-  selectedMentorshipRating = 0;
+  mentorshipRatings = { communication: 0, knowledge: 0, availability: 0, overall: 0 };
 }
 
-function setMentorshipRating(rating) {
-  selectedMentorshipRating = rating;
-  updateStarDisplay(rating);
+function setMentorshipCategoryRating(cat, rating) {
+  mentorshipRatings[cat] = rating;
+  updateCategoryStars(cat, rating);
+  document.getElementById('rating-val-' + cat).textContent = rating + '/5';
+  computeMentorshipRatingFinal();
 }
 
-function updateStarDisplay(rating) {
-  var stars = document.querySelectorAll('.rating-star');
+function updateCategoryStars(cat, rating) {
+  var stars = document.querySelectorAll('.rating-star-' + cat);
   stars.forEach(function(star, idx) {
     if (idx < rating) {
       star.classList.add('text-yellow-400');
@@ -726,9 +749,20 @@ function updateStarDisplay(rating) {
   });
 }
 
+function computeMentorshipRatingFinal() {
+  var vals = [mentorshipRatings.communication, mentorshipRatings.knowledge, mentorshipRatings.availability, mentorshipRatings.overall].filter(function(v) { return v > 0; });
+  if (vals.length === 0) {
+    document.getElementById('rating-final-computed').textContent = '--';
+    return;
+  }
+  var avg = (vals.reduce(function(a, b) { return a + b; }, 0) / vals.length).toFixed(1);
+  document.getElementById('rating-final-computed').textContent = avg + ' / 5.0';
+}
+
 function submitMentorshipRating() {
-  if (!currentRatingMentorshipId || selectedMentorshipRating < 1) {
-    document.getElementById('rating-error').textContent = 'Please select a star rating (1-5).';
+  var vals = [mentorshipRatings.communication, mentorshipRatings.knowledge, mentorshipRatings.availability, mentorshipRatings.overall].filter(function(v) { return v > 0; });
+  if (!currentRatingMentorshipId || vals.length === 0) {
+    document.getElementById('rating-error').textContent = 'Please rate at least one category.';
     document.getElementById('rating-error').classList.remove('hidden');
     return;
   }
@@ -738,16 +772,19 @@ function submitMentorshipRating() {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
       mentorship_id: currentRatingMentorshipId,
-      rating: selectedMentorshipRating,
+      communication: mentorshipRatings.communication,
+      knowledge: mentorshipRatings.knowledge,
+      availability: mentorshipRatings.availability,
+      overall: mentorshipRatings.overall,
       feedback: feedback
     })
   }).then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.success) {
-        document.getElementById('rating-success').textContent = 'Rating submitted successfully!';
+        document.getElementById('rating-success').textContent = 'Rating submitted successfully! This contributes to the mentor\'s overall rating.';
         document.getElementById('rating-success').classList.remove('hidden');
         document.getElementById('rating-error').classList.add('hidden');
-        setTimeout(function() { closeMentorshipRatingModal(); }, 1500);
+        setTimeout(function() { closeMentorshipRatingModal(); }, 1800);
       } else {
         document.getElementById('rating-error').textContent = data.message || 'Failed to submit rating.';
         document.getElementById('rating-error').classList.remove('hidden');
@@ -757,6 +794,42 @@ function submitMentorshipRating() {
       document.getElementById('rating-error').classList.remove('hidden');
     });
 }
+
+  // ========== 5-Star Rating System for My Mentors ==========
+  function mmRenderStars(containerId, rating) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const full = Math.floor(rating);
+    const half = rating - full >= 0.3 && rating - full < 0.8;
+    const empty = 5 - full - (half ? 1 : 0);
+    let html = '';
+    for (let i = 0; i < full; i++) html += '<span class="star filled">&#9733;</span>';
+    if (half) html += '<span class="star half">&#9733;</span>';
+    for (let i = 0; i < empty; i++) html += '<span class="star">&#9734;</span>';
+    container.innerHTML = html;
+  }
+
+  async function mmFetchRating(mentorId) {
+    try {
+      const res = await fetch('/api/mentor_rating_simple/' + mentorId);
+      const data = await res.json();
+      if (!data.success) return;
+      const r = data.rating;
+      mmRenderStars('mm-stars-' + mentorId, r.final_rating);
+      document.getElementById('mm-num-' + mentorId).textContent = r.final_rating.toFixed(1);
+      document.getElementById('mm-tip-pc-' + mentorId).textContent = r.profile_complete.toFixed(1) + ' / 5.0';
+      document.getElementById('mm-tip-sk-' + mentorId).textContent = r.useful_skills.toFixed(1) + ' / 5.0';
+      document.getElementById('mm-tip-me-' + mentorId).textContent = r.mentorship_experience.toFixed(1) + ' / 5.0';
+      document.getElementById('mm-tip-te-' + mentorId).textContent = r.mentorship_task_experience.toFixed(1) + ' / 5.0';
+      document.getElementById('mm-tip-fr-' + mentorId).textContent = r.final_rating.toFixed(1) + ' / 5.0';
+    } catch(e) { console.error('Rating load error:', e); }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.my-mentor-rating[data-mentor-id]').forEach(function(el) {
+      mmFetchRating(el.dataset.mentorId);
+    });
+  });
 
   </script>
 
@@ -770,28 +843,95 @@ function submitMentorshipRating() {
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
+      <p class="text-sm text-gray-500 mt-1">Rate your experience with <strong id="rating-mentor-name"></strong></p>
     </div>
     <div class="p-6 space-y-5">
-      <p class="text-gray-600">How would you rate your mentorship experience with <strong id="rating-mentor-name"></strong>?</p>
 
-      <!-- Star Rating -->
-      <div class="flex justify-center gap-2">
-        <button onclick="setMentorshipRating(1)" class="rating-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
-        <button onclick="setMentorshipRating(2)" class="rating-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
-        <button onclick="setMentorshipRating(3)" class="rating-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
-        <button onclick="setMentorshipRating(4)" class="rating-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
-        <button onclick="setMentorshipRating(5)" class="rating-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+      <!-- Rating Categories -->
+      <div class="space-y-4">
+        <!-- Communication -->
+        <div class="bg-blue-50 rounded-lg p-4 border border-blue-100">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <p class="text-sm font-semibold text-gray-800">Communication</p>
+              <p class="text-xs text-gray-500">Responsiveness, clarity, listening skills</p>
+            </div>
+            <span class="text-sm font-bold text-blue-600" id="rating-val-communication">--</span>
+          </div>
+          <div class="flex gap-1">
+            <button onclick="setMentorshipCategoryRating('communication',1)" class="rating-star-communication text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('communication',2)" class="rating-star-communication text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('communication',3)" class="rating-star-communication text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('communication',4)" class="rating-star-communication text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('communication',5)" class="rating-star-communication text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+          </div>
+        </div>
+
+        <!-- Knowledge -->
+        <div class="bg-green-50 rounded-lg p-4 border border-green-100">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <p class="text-sm font-semibold text-gray-800">Knowledge & Expertise</p>
+              <p class="text-xs text-gray-500">Domain expertise, guidance quality, insights</p>
+            </div>
+            <span class="text-sm font-bold text-green-600" id="rating-val-knowledge">--</span>
+          </div>
+          <div class="flex gap-1">
+            <button onclick="setMentorshipCategoryRating('knowledge',1)" class="rating-star-knowledge text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('knowledge',2)" class="rating-star-knowledge text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('knowledge',3)" class="rating-star-knowledge text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('knowledge',4)" class="rating-star-knowledge text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('knowledge',5)" class="rating-star-knowledge text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+          </div>
+        </div>
+
+        <!-- Availability -->
+        <div class="bg-purple-50 rounded-lg p-4 border border-purple-100">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <p class="text-sm font-semibold text-gray-800">Availability & Reliability</p>
+              <p class="text-xs text-gray-500">Punctuality, meeting schedule, follow-through</p>
+            </div>
+            <span class="text-sm font-bold text-purple-600" id="rating-val-availability">--</span>
+          </div>
+          <div class="flex gap-1">
+            <button onclick="setMentorshipCategoryRating('availability',1)" class="rating-star-availability text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('availability',2)" class="rating-star-availability text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('availability',3)" class="rating-star-availability text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('availability',4)" class="rating-star-availability text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('availability',5)" class="rating-star-availability text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+          </div>
+        </div>
+
+        <!-- Overall -->
+        <div class="bg-amber-50 rounded-lg p-4 border border-amber-100">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <p class="text-sm font-semibold text-gray-800">Overall Mentorship Experience</p>
+              <p class="text-xs text-gray-500">Overall satisfaction, goal achievement, impact</p>
+            </div>
+            <span class="text-sm font-bold text-amber-600" id="rating-val-overall">--</span>
+          </div>
+          <div class="flex gap-1">
+            <button onclick="setMentorshipCategoryRating('overall',1)" class="rating-star-overall text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('overall',2)" class="rating-star-overall text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('overall',3)" class="rating-star-overall text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('overall',4)" class="rating-star-overall text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorshipCategoryRating('overall',5)" class="rating-star-overall text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+          </div>
+        </div>
       </div>
 
-      <!-- Composite Score Display -->
-      <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <p class="text-sm font-semibold text-gray-700">Computed Mentor Rating: <span id="rating-composite-score" class="text-indigo-600">Loading...</span></p>
-        <div id="rating-composite-details"></div>
+      <!-- Computed Average -->
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+        <p class="text-xs text-gray-500 mb-1">Your Mentorship Rating (average of rated criteria)</p>
+        <p class="text-lg font-bold text-amber-600" id="rating-final-computed">--</p>
+        <p class="text-xs text-gray-400 mt-1">This contributes to the mentor's overall platform rating</p>
       </div>
 
       <!-- Feedback -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Feedback (optional)</label>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Written Feedback (optional)</label>
         <textarea id="rating-feedback" rows="3" placeholder="Share your experience with this mentor..." class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"></textarea>
       </div>
 

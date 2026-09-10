@@ -1203,6 +1203,8 @@
                 countrySelect.addEventListener('change', function() {
                     console.log('Country changed to:', this.value);
                     updateIndiaSpecificFields();
+                    // Auto-update phone country code when country changes
+                    autoUpdatePhoneCode(this.value);
                 });
             }
 
@@ -1279,6 +1281,21 @@
                 parentEmailField.style.display = 'none';
                 document.getElementById('parent_email').required = false;
             }
+        }
+
+        // Auto-update phone country code based on selected country
+        function autoUpdatePhoneCode(countryName) {
+            if (!countryName) return;
+            fetch('/api/all_countries')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (!data.success || !data.countries) return;
+                    var match = data.countries.find(function(c) { return c.name === countryName; });
+                    if (match && match.dial_code) {
+                        var codeInputs = document.querySelectorAll('input[name="mobile_country_code"], input[name="whatsapp_country_code"], input[name="parent_mobile_country_code"]');
+                        codeInputs.forEach(function(el) { el.value = match.dial_code; });
+                    }
+                }).catch(function() {});
         }
 
         // Check age on page load if DOB is already filled

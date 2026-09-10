@@ -238,6 +238,10 @@
         
         <div class="p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
             <div class="flex justify-end space-x-3">
+                <button id="editMeetingBtn" onclick="openEditMeetingModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition hidden">
+                    <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    Edit Meeting
+                </button>
                 <button onclick="closeMeetingModal()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium">
                     Close
                 </button>
@@ -443,7 +447,155 @@
     </div>
 </div>
 
+<!-- Edit Meeting Modal -->
+<div id="editMeetingModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h3 class="text-xl font-bold text-gray-800">Edit Meeting</h3>
+                    <p class="text-sm text-gray-500 mt-1">Update meeting details</p>
+                </div>
+                <button onclick="closeEditMeetingModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+        </div>
+        <form id="editMeetingForm" novalidate class="p-6 space-y-4">
+            <input type="hidden" id="edit-meeting-id" name="meeting_id">
 
+            <div id="edit-status" class="hidden text-sm p-3 rounded-lg border"></div>
+
+            <!-- Participants (readonly) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Mentor</label>
+                    <input type="text" id="edit-mentor-name" readonly
+                        class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Mentee</label>
+                    <input type="text" id="edit-mentee-name" readonly
+                        class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm cursor-not-allowed">
+                </div>
+            </div>
+
+            <div>
+                <label for="edit-title" class="block text-sm font-medium text-gray-700 mb-1">Meeting Title *</label>
+                <input type="text" id="edit-title" name="title" required maxlength="200" placeholder="e.g. Career Guidance Session" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+            </div>
+
+            <div>
+                <label for="edit-description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea id="edit-description" name="description" rows="2" placeholder="Meeting description..." class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"></textarea>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="edit-date" class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                    <input type="date" id="edit-date" name="date" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                </div>
+                <div>
+                    <label for="edit-hour" class="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+                    <div class="flex gap-2">
+                        <select id="edit-hour" name="hour" data-no-search class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <option value="">Hr</option>
+                            <option value="01">01</option><option value="02">02</option><option value="03">03</option>
+                            <option value="04">04</option><option value="05">05</option><option value="06">06</option>
+                            <option value="07">07</option><option value="08">08</option><option value="09">09</option>
+                            <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+                        </select>
+                        <select id="edit-minute" name="minute" data-no-search class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <option value="">Min</option>
+                            <option value="00">00</option><option value="05">05</option><option value="10">10</option>
+                            <option value="15">15</option><option value="20">20</option><option value="25">25</option>
+                            <option value="30">30</option><option value="35">35</option><option value="40">40</option>
+                            <option value="45">45</option><option value="50">50</option><option value="55">55</option>
+                        </select>
+                        <select id="edit-ampm" name="ampm" data-no-search class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <option value="">AM/PM</option>
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                        </select>
+                    </div>
+                    <input type="hidden" id="edit-start-time" name="start_time">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="edit-duration" class="block text-sm font-medium text-gray-700 mb-1">Duration *</label>
+                    <select id="edit-duration" name="duration" data-no-search required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        <option value="15">15 minutes</option>
+                        <option value="30">30 minutes</option>
+                        <option value="45">45 minutes</option>
+                        <option value="60">1 hour</option>
+                        <option value="90">1.5 hours</option>
+                        <option value="120">2 hours</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="edit-platform" class="block text-sm font-medium text-gray-700 mb-1">Platform</label>
+                    <select id="edit-platform" name="platform" data-no-search onchange="toggleEditCustomLink()" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        <option value="google">Google Meet</option>
+                        <option value="teams">Microsoft Teams</option>
+                        <option value="custom">Other (Custom Link)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="edit-custom-link-wrap" class="hidden">
+                <label for="edit-custom-link" class="block text-sm font-medium text-gray-700 mb-1">Meeting Link *</label>
+                <input type="url" id="edit-custom-link" name="custom_link" placeholder="https://zoom.us/j/... or other meeting link"
+                    class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+            </div>
+
+            <div>
+                <label for="edit-timezone" class="block text-sm font-medium text-gray-700 mb-1">Time Zone *</label>
+                <select id="edit-timezone" name="timezone" data-no-search required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <option value="">Select Time Zone</option>
+                    <optgroup label="Asia">
+                        <option value="Asia/Kolkata">India (IST, UTC+5:30)</option>
+                        <option value="Asia/Dubai">Gulf (GST, UTC+4)</option>
+                        <option value="Asia/Singapore">Singapore (SGT, UTC+8)</option>
+                        <option value="Asia/Shanghai">China (CST, UTC+8)</option>
+                        <option value="Asia/Tokyo">Japan (JST, UTC+9)</option>
+                    </optgroup>
+                    <optgroup label="Europe">
+                        <option value="Europe/London">UK (GMT/BST)</option>
+                        <option value="Europe/Paris">Central Europe (CET)</option>
+                        <option value="Europe/Moscow">Russia (MSK, UTC+3)</option>
+                    </optgroup>
+                    <optgroup label="Americas">
+                        <option value="America/New_York">US Eastern (ET)</option>
+                        <option value="America/Chicago">US Central (CT)</option>
+                        <option value="America/Los_Angeles">US Pacific (PT)</option>
+                        <option value="America/Toronto">Canada Eastern (ET)</option>
+                    </optgroup>
+                    <optgroup label="Africa">
+                        <option value="Africa/Cairo">Egypt (EET, UTC+2)</option>
+                        <option value="Africa/Lagos">Nigeria (WAT, UTC+1)</option>
+                        <option value="Africa/Nairobi">East Africa (EAT, UTC+3)</option>
+                        <option value="Africa/Johannesburg">South Africa (SAST, UTC+2)</option>
+                    </optgroup>
+                    <optgroup label="Pacific">
+                        <option value="Australia/Sydney">Australia Eastern (AEST)</option>
+                        <option value="Pacific/Auckland">New Zealand (NZST)</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <div id="edit-status-msg" class="text-sm hidden"></div>
+            <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button type="button" onclick="closeEditMeetingModal()" class="px-5 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors">Cancel</button>
+                <button type="submit" id="edit-submit" class="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition shadow-lg flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <script>
 // Calendar data
@@ -911,7 +1063,11 @@ function isToday(date) {
            date.getFullYear() === today.getFullYear();
 }
 
+// Store current meeting data for edit
+let currentDetailMeeting = null;
+
 function openMeetingModal(meeting) {
+    currentDetailMeeting = meeting;
     const modalContent = document.getElementById('meetingModalContent');
     modalContent.innerHTML = `
         <div class="space-y-6">
@@ -979,12 +1135,216 @@ function openMeetingModal(meeting) {
     const m = document.getElementById('meetingModal');
     m.classList.remove('hidden');
     m.classList.add('flex');
+
+    // Show Edit button only for upcoming meetings
+    const editBtn = document.getElementById('editMeetingBtn');
+    if (editBtn) {
+        if (meeting.status === 'upcoming') {
+            editBtn.classList.remove('hidden');
+        } else {
+            editBtn.classList.add('hidden');
+        }
+    }
 }
 
 function closeMeetingModal() {
     const m = document.getElementById('meetingModal');
     m.classList.add('hidden');
     m.classList.remove('flex');
+    currentDetailMeeting = null;
+}
+
+// ========== EDIT MEETING ==========
+function openEditMeetingModal() {
+    if (!currentDetailMeeting) return;
+    const meeting = currentDetailMeeting;
+
+    // Close detail modal first
+    closeMeetingModal();
+
+    // Populate edit form
+    document.getElementById('edit-meeting-id').value = meeting.id;
+    document.getElementById('edit-mentor-name').value = meeting.mentor || '';
+    document.getElementById('edit-mentee-name').value = meeting.mentee || '';
+    document.getElementById('edit-title').value = meeting.title || '';
+    document.getElementById('edit-description').value = meeting.description || '';
+
+    // Parse date (meeting.date may be "2024-01-15T14:30:00" or "2024-01-15")
+    var dateStr = meeting.date || '';
+    if (dateStr.includes('T')) {
+        dateStr = dateStr.split('T')[0];
+    }
+    document.getElementById('edit-date').value = dateStr;
+    document.getElementById('edit-duration').value = meeting.duration || '60';
+
+    // Parse time - meeting.time may be "02:30 PM" (12h) or we can parse from meeting.date
+    var timeStr = meeting.time || '';
+    var hour = '', minute = '', ampm = '';
+    if (timeStr && timeStr.includes(':')) {
+        // Already in 12h format like "02:30 PM"
+        var parts = timeStr.replace(/\s*(AM|PM)\s*/i, '').split(':');
+        var h = parseInt(parts[0], 10);
+        minute = parts[1] || '00';
+        ampm = timeStr.toUpperCase().includes('PM') ? 'PM' : 'AM';
+        hour = String(h).padStart(2, '0');
+    } else if (meeting.date && meeting.date.includes('T')) {
+        // Parse from ISO datetime
+        var tParts = meeting.date.split('T')[1].split(':');
+        var h2 = parseInt(tParts[0], 10);
+        minute = tParts[1] || '00';
+        if (h2 >= 12) { ampm = 'PM'; if (h2 > 12) h2 -= 12; } else { ampm = 'AM'; if (h2 === 0) h2 = 12; }
+        hour = String(h2).padStart(2, '0');
+    }
+    document.getElementById('edit-hour').value = hour;
+    document.getElementById('edit-minute').value = minute;
+    document.getElementById('edit-ampm').value = ampm;
+
+    // Platform and link
+    var meetLink = meeting.meet_link || '';
+    if (meetLink) {
+        if (meetLink.includes('meet.google.com')) {
+            document.getElementById('edit-platform').value = 'google';
+        } else if (meetLink.includes('teams.microsoft.com') || meetLink.includes('teams.live.com')) {
+            document.getElementById('edit-platform').value = 'teams';
+        } else {
+            document.getElementById('edit-platform').value = 'custom';
+            document.getElementById('edit-custom-link').value = meetLink;
+        }
+    } else {
+        document.getElementById('edit-platform').value = 'google';
+        document.getElementById('edit-custom-link').value = '';
+    }
+    toggleEditCustomLink();
+
+    // Timezone
+    document.getElementById('edit-timezone').value = meeting.timezone || 'Asia/Kolkata';
+
+    // Reset status messages
+    document.getElementById('edit-status').classList.add('hidden');
+    document.getElementById('edit-status-msg').classList.add('hidden');
+
+    // Set min date
+    var now = new Date();
+    var yyyy = now.getFullYear();
+    var mm = String(now.getMonth() + 1).padStart(2, '0');
+    var dd = String(now.getDate()).padStart(2, '0');
+    document.getElementById('edit-date').setAttribute('min', yyyy + '-' + mm + '-' + dd);
+
+    // Show modal
+    var modal = document.getElementById('editMeetingModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeEditMeetingModal() {
+    var modal = document.getElementById('editMeetingModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function toggleEditCustomLink() {
+    var platform = document.getElementById('edit-platform').value;
+    var wrap = document.getElementById('edit-custom-link-wrap');
+    if (platform === 'custom') {
+        wrap.classList.remove('hidden');
+    } else {
+        wrap.classList.add('hidden');
+    }
+}
+
+// Edit form submission
+document.getElementById('editMeetingForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var statusEl = document.getElementById('edit-status');
+    var statusMsg = document.getElementById('edit-status-msg');
+    statusEl.classList.add('hidden');
+    statusMsg.classList.add('hidden');
+
+    var meetingId = document.getElementById('edit-meeting-id').value;
+    var title = document.getElementById('edit-title').value.trim();
+    var description = document.getElementById('edit-description').value.trim();
+    var date = document.getElementById('edit-date').value;
+    var hour = document.getElementById('edit-hour').value;
+    var minute = document.getElementById('edit-minute').value;
+    var ampm = document.getElementById('edit-ampm').value;
+    var duration = document.getElementById('edit-duration').value;
+    var platform = document.getElementById('edit-platform').value;
+    var customLink = document.getElementById('edit-custom-link').value.trim();
+    var timezone = document.getElementById('edit-timezone').value;
+
+    // Validate
+    if (!title) { showEditStatus('Please enter a meeting title.', 'error'); return; }
+    if (!date) { showEditStatus('Please select a date.', 'error'); return; }
+    if (!hour || !minute || !ampm) { showEditStatus('Please select a valid time.', 'error'); return; }
+    if (!timezone) { showEditStatus('Please select a time zone.', 'error'); return; }
+
+    // Build 24h time
+    var h = parseInt(hour, 10);
+    if (ampm === 'PM' && h !== 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    var startTime = String(h).padStart(2, '0') + ':' + minute + ':00';
+
+    // Build meet link
+    var meetLink = '';
+    if (platform === 'custom') {
+        meetLink = customLink;
+    } else if (platform === 'google') {
+        meetLink = 'https://meet.google.com/new';
+    } else if (platform === 'teams') {
+        meetLink = 'https://teams.live.com/meet/create';
+    }
+
+    var submitBtn = document.getElementById('edit-submit');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Saving...';
+
+    fetch('/update_meeting_ajax', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            meeting_id: meetingId,
+            title: title,
+            description: description,
+            date: date,
+            start_time: startTime,
+            duration: duration,
+            platform: platform,
+            meet_link: meetLink,
+            timezone: timezone
+        })
+    }).then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showEditStatus('Meeting updated successfully!', 'success');
+            // Update local meetings array
+            var idx = meetings.findIndex(function(m) { return m.id == meetingId; });
+            if (idx !== -1) {
+                meetings[idx].title = title;
+                meetings[idx].description = description;
+                meetings[idx].date = date;
+                meetings[idx].time = startTime;
+                meetings[idx].duration = parseInt(duration);
+                meetings[idx].meet_link = meetLink;
+            }
+            renderCalendar();
+            updateStats();
+            setTimeout(function() { closeEditMeetingModal(); }, 1200);
+        } else {
+            showEditStatus(data.error || 'Failed to update meeting.', 'error');
+        }
+    }).catch(function() {
+        showEditStatus('Network error. Please try again.', 'error');
+    }).finally(function() {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg> Save Changes';
+    });
+});
+
+function showEditStatus(msg, type) {
+    var el = document.getElementById('edit-status');
+    el.textContent = msg;
+    el.className = 'text-sm p-3 rounded-lg border ' + (type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200');
+    el.classList.remove('hidden');
 }
 
 function updateStats() {

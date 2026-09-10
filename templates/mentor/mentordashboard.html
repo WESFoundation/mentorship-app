@@ -199,9 +199,9 @@
           </div>
         </div>
       </div>
-      <div class="divide-y divide-slate-50">
-        {% for m in mentee_leaderboard[:5] %}
-        <div class="px-6 py-3.5 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+      <div class="divide-y divide-slate-50" id="leaderboard-list">
+        {% for m in mentee_leaderboard %}
+        <div class="px-6 py-3.5 flex items-center justify-between hover:bg-slate-50/50 transition-colors leaderboard-item{% if loop.index > 5 %} hidden{% endif %}">
           <div class="flex items-center gap-4">
             <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold
               {% if loop.index == 1 %}bg-amber-100 text-amber-700
@@ -237,6 +237,14 @@
         </div>
         {% endfor %}
       </div>
+      {% if mentee_leaderboard|length > 5 %}
+      <div class="px-6 py-3 border-t border-slate-100 text-center">
+        <button onclick="toggleLeaderboard()" id="leaderboard-toggle" class="text-sm font-semibold text-blue-600 hover:text-blue-800 transition flex items-center gap-1.5 mx-auto">
+          <span id="leaderboard-toggle-text">Show All ({{ mentee_leaderboard|length }})</span>
+          <svg id="leaderboard-toggle-icon" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+      </div>
+      {% endif %}
     </div>
     {% endif %}
 
@@ -323,7 +331,7 @@
           </div>
           <div>
             <h3 class="text-lg font-bold">Become a Premium Mentor</h3>
-            <p class="text-amber-100 text-sm mt-0.5">Get the chance to earn money while mentoring sponsored mentees from corporations and government programs.</p>
+            <p class="text-amber-100 text-sm mt-0.5">Get the chance to earn an honorarium while mentoring sponsored mentees from corporations and government programs.</p>
           </div>
         </div>
         <button onclick="openPremiumModal()" class="shrink-0 px-6 py-3 bg-white text-amber-700 font-bold rounded-xl shadow-lg hover:bg-amber-50 hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center gap-2">
@@ -514,5 +522,26 @@
       document.getElementById('myRatingStatus').textContent = r.completed_mentorships + ' completed mentorships';
     } catch(e) { console.error('Rating fetch error:', e); }
   })();
+
+  // Leaderboard toggle
+  let leaderboardExpanded = false;
+  function toggleLeaderboard() {
+    leaderboardExpanded = !leaderboardExpanded;
+    const items = document.querySelectorAll('.leaderboard-item');
+    items.forEach((item, i) => {
+      if (i >= 5) {
+        item.classList.toggle('hidden', !leaderboardExpanded);
+      }
+    });
+    const text = document.getElementById('leaderboard-toggle-text');
+    const icon = document.getElementById('leaderboard-toggle-icon');
+    if (leaderboardExpanded) {
+      text.textContent = 'Show Less';
+      icon.style.transform = 'rotate(180deg)';
+    } else {
+      text.textContent = 'Show All (' + items.length + ')';
+      icon.style.transform = 'rotate(0deg)';
+    }
+  }
 </script>
 {% endblock %}

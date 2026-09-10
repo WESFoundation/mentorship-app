@@ -848,27 +848,37 @@ document.addEventListener("DOMContentLoaded", function() {
 
 // ===== MENTOR REVIEW MODAL =====
 let currentReviewMentorshipId = null;
-let selectedMentorReviewRating = 0;
+let mentorReviewRatings = { engagement: 0, punctuality: 0, progress: 0, communication: 0 };
 
 function openMentorReviewModal(mentoshipId, menteeName) {
   currentReviewMentorshipId = mentoshipId;
-  selectedMentorReviewRating = 0;
+  mentorReviewRatings = { engagement: 0, punctuality: 0, progress: 0, communication: 0 };
   document.getElementById('review-mentee-name').textContent = menteeName;
   document.getElementById('review-feedback').value = '';
   document.getElementById('review-strengths').value = '';
   document.getElementById('review-improvements').value = '';
   document.getElementById('review-error').classList.add('hidden');
   document.getElementById('review-success').classList.add('hidden');
-  updateReviewStarDisplay(0);
+  // Reset all star displays
+  ['engagement', 'punctuality', 'progress', 'communication'].forEach(function(cat) {
+    updateReviewCategoryStars(cat, 0);
+    document.getElementById('review-val-' + cat).textContent = '--';
+  });
+  document.getElementById('review-final-computed').textContent = '--';
+
   fetch('/api/get_mentorship_rating_data/' + mentoshipId)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.success && data.mentor_review) {
-        selectedMentorReviewRating = data.mentor_review.rating;
-        updateReviewStarDisplay(selectedMentorReviewRating);
-        document.getElementById('review-feedback').value = data.mentor_review.feedback || '';
-        document.getElementById('review-strengths').value = data.mentor_review.strengths || '';
-        document.getElementById('review-improvements').value = data.mentor_review.improvements || '';
+        var mr = data.mentor_review;
+        if (mr.engagement) { mentorReviewRatings.engagement = mr.engagement; updateReviewCategoryStars('engagement', mr.engagement); document.getElementById('review-val-engagement').textContent = mr.engagement + '/5'; }
+        if (mr.punctuality) { mentorReviewRatings.punctuality = mr.punctuality; updateReviewCategoryStars('punctuality', mr.punctuality); document.getElementById('review-val-punctuality').textContent = mr.punctuality + '/5'; }
+        if (mr.progress) { mentorReviewRatings.progress = mr.progress; updateReviewCategoryStars('progress', mr.progress); document.getElementById('review-val-progress').textContent = mr.progress + '/5'; }
+        if (mr.communication) { mentorReviewRatings.communication = mr.communication; updateReviewCategoryStars('communication', mr.communication); document.getElementById('review-val-communication').textContent = mr.communication + '/5'; }
+        if (mr.feedback) document.getElementById('review-feedback').value = mr.feedback;
+        if (mr.strengths) document.getElementById('review-strengths').value = mr.strengths;
+        if (mr.improvements) document.getElementById('review-improvements').value = mr.improvements;
+        computeMentorReviewFinal();
       }
     }).catch(function() {});
   document.getElementById('mentorReviewModal').classList.remove('hidden');
@@ -877,16 +887,18 @@ function openMentorReviewModal(mentoshipId, menteeName) {
 function closeMentorReviewModal() {
   document.getElementById('mentorReviewModal').classList.add('hidden');
   currentReviewMentorshipId = null;
-  selectedMentorReviewRating = 0;
+  mentorReviewRatings = { engagement: 0, punctuality: 0, progress: 0, communication: 0 };
 }
 
-function setMentorReviewRating(rating) {
-  selectedMentorReviewRating = rating;
-  updateReviewStarDisplay(rating);
+function setMentorReviewCategoryRating(cat, rating) {
+  mentorReviewRatings[cat] = rating;
+  updateReviewCategoryStars(cat, rating);
+  document.getElementById('review-val-' + cat).textContent = rating + '/5';
+  computeMentorReviewFinal();
 }
 
-function updateReviewStarDisplay(rating) {
-  var stars = document.querySelectorAll('.review-star');
+function updateReviewCategoryStars(cat, rating) {
+  var stars = document.querySelectorAll('.review-star-' + cat);
   stars.forEach(function(star, idx) {
     if (idx < rating) {
       star.classList.add('text-yellow-400');
@@ -898,9 +910,20 @@ function updateReviewStarDisplay(rating) {
   });
 }
 
+function computeMentorReviewFinal() {
+  var vals = [mentorReviewRatings.engagement, mentorReviewRatings.punctuality, mentorReviewRatings.progress, mentorReviewRatings.communication].filter(function(v) { return v > 0; });
+  if (vals.length === 0) {
+    document.getElementById('review-final-computed').textContent = '--';
+    return;
+  }
+  var avg = (vals.reduce(function(a, b) { return a + b; }, 0) / vals.length).toFixed(1);
+  document.getElementById('review-final-computed').textContent = avg + ' / 5.0';
+}
+
 function submitMentorReview() {
-  if (!currentReviewMentorshipId || selectedMentorReviewRating < 1) {
-    document.getElementById('review-error').textContent = 'Please select a star rating (1-5).';
+  var vals = [mentorReviewRatings.engagement, mentorReviewRatings.punctuality, mentorReviewRatings.progress, mentorReviewRatings.communication].filter(function(v) { return v > 0; });
+  if (!currentReviewMentorshipId || vals.length === 0) {
+    document.getElementById('review-error').textContent = 'Please rate at least one category.';
     document.getElementById('review-error').classList.remove('hidden');
     return;
   }
@@ -909,7 +932,10 @@ function submitMentorReview() {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
       mentorship_id: currentReviewMentorshipId,
-      rating: selectedMentorReviewRating,
+      engagement: mentorReviewRatings.engagement,
+      punctuality: mentorReviewRatings.punctuality,
+      progress: mentorReviewRatings.progress,
+      communication: mentorReviewRatings.communication,
       feedback: document.getElementById('review-feedback').value,
       strengths: document.getElementById('review-strengths').value,
       improvements: document.getElementById('review-improvements').value
@@ -942,17 +968,89 @@ function submitMentorReview() {
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
+      <p class="text-sm text-gray-500 mt-1">Rate <strong id="review-mentee-name"></strong>'s performance</p>
     </div>
     <div class="p-6 space-y-5">
-      <p class="text-gray-600">How would you rate <strong id="review-mentee-name"></strong>'s performance during the mentorship?</p>
 
-      <!-- Star Rating -->
-      <div class="flex justify-center gap-2">
-        <button onclick="setMentorReviewRating(1)" class="review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
-        <button onclick="setMentorReviewRating(2)" class="review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
-        <button onclick="setMentorReviewRating(3)" class="review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
-        <button onclick="setMentorReviewRating(4)" class="review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
-        <button onclick="setMentorReviewRating(5)" class="review-star text-3xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+      <!-- Rating Categories -->
+      <div class="space-y-4">
+        <!-- Engagement -->
+        <div class="bg-blue-50 rounded-lg p-4 border border-blue-100">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <p class="text-sm font-semibold text-gray-800">Engagement & Participation</p>
+              <p class="text-xs text-gray-500">Active involvement, questions asked, initiative</p>
+            </div>
+            <span class="text-sm font-bold text-blue-600" id="review-val-engagement">--</span>
+          </div>
+          <div class="flex gap-1">
+            <button onclick="setMentorReviewCategoryRating('engagement',1)" class="review-star-engagement text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('engagement',2)" class="review-star-engagement text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('engagement',3)" class="review-star-engagement text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('engagement',4)" class="review-star-engagement text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('engagement',5)" class="review-star-engagement text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+          </div>
+        </div>
+
+        <!-- Punctuality -->
+        <div class="bg-green-50 rounded-lg p-4 border border-green-100">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <p class="text-sm font-semibold text-gray-800">Punctuality & Reliability</p>
+              <p class="text-xs text-gray-500">Meeting attendance, deadline adherence, dependability</p>
+            </div>
+            <span class="text-sm font-bold text-green-600" id="review-val-punctuality">--</span>
+          </div>
+          <div class="flex gap-1">
+            <button onclick="setMentorReviewCategoryRating('punctuality',1)" class="review-star-punctuality text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('punctuality',2)" class="review-star-punctuality text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('punctuality',3)" class="review-star-punctuality text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('punctuality',4)" class="review-star-punctuality text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('punctuality',5)" class="review-star-punctuality text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+          </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="bg-purple-50 rounded-lg p-4 border border-purple-100">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <p class="text-sm font-semibold text-gray-800">Progress & Growth</p>
+              <p class="text-xs text-gray-500">Goal achievement, skill development, learning outcomes</p>
+            </div>
+            <span class="text-sm font-bold text-purple-600" id="review-val-progress">--</span>
+          </div>
+          <div class="flex gap-1">
+            <button onclick="setMentorReviewCategoryRating('progress',1)" class="review-star-progress text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('progress',2)" class="review-star-progress text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('progress',3)" class="review-star-progress text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('progress',4)" class="review-star-progress text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('progress',5)" class="review-star-progress text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+          </div>
+        </div>
+
+        <!-- Communication -->
+        <div class="bg-amber-50 rounded-lg p-4 border border-amber-100">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <p class="text-sm font-semibold text-gray-800">Communication & Responsiveness</p>
+              <p class="text-xs text-gray-500">Clarity, responsiveness, feedback quality</p>
+            </div>
+            <span class="text-sm font-bold text-amber-600" id="review-val-communication">--</span>
+          </div>
+          <div class="flex gap-1">
+            <button onclick="setMentorReviewCategoryRating('communication',1)" class="review-star-communication text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('communication',2)" class="review-star-communication text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('communication',3)" class="review-star-communication text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('communication',4)" class="review-star-communication text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+            <button onclick="setMentorReviewCategoryRating('communication',5)" class="review-star-communication text-2xl text-gray-300 hover:text-yellow-400 transition">&#9733;</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Computed Average -->
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+        <p class="text-xs text-gray-500 mb-1">Mentee Performance Rating (average of rated criteria)</p>
+        <p class="text-lg font-bold text-amber-600" id="review-final-computed">--</p>
       </div>
 
       <div>

@@ -1333,52 +1333,56 @@
     const currentCity = {{ city|tojson }};
 
     let locationData = {};
+    let allCountriesData = []; // [{name, dial_code, code}]
 
-    // Fetch location data from API
-    fetch('/api/location_data')
-        .then(r => r.json())
-        .then(data => {
-            locationData = data;
-            populateCountries();
-            // If we have a saved country, select it and trigger state/city load
-            if (currentCountry) {
-                countrySelect.value = currentCountry;
-                onCountryChange();
-            }
-        })
-        .catch(err => {
-            console.error('Failed to load location data:', err);
-            // Fallback: add Other option
-            const opt = document.createElement('option');
-            opt.value = 'Other';
-            opt.textContent = '🌍 Other (Please specify)';
-            countrySelect.appendChild(opt);
-        });
+    // Fetch location data + all countries in parallel
+    Promise.all([
+        fetch('/api/location_data').then(r => r.json()),
+        fetch('/api/all_countries').then(r => r.json())
+    ]).then(([locData, countryData]) => {
+        locationData = locData;
+        allCountriesData = (countryData.countries || []);
+        populateCountries();
+        if (currentCountry) {
+            countrySelect.value = currentCountry;
+            onCountryChange();
+        }
+    }).catch(err => {
+        console.error('Failed to load data:', err);
+        const opt = document.createElement('option');
+        opt.value = 'Other';
+        opt.textContent = '🌍 Other (Please specify)';
+        countrySelect.appendChild(opt);
+    });
+
+    // Country name -> dial code lookup
+    function getDialCodeForCountry(countryName) {
+        const match = allCountriesData.find(c => c.name === countryName);
+        return match ? match.dial_code : null;
+    }
 
     function populateCountries() {
-        // Clear existing options
         countrySelect.innerHTML = '<option value="">Select Country</option>';
 
-        // Group countries by region
+        // Group by region
         const regions = {
-            'Asia': ['India', 'Pakistan', 'Bangladesh', 'Nepal', 'Sri Lanka', 'China', 'Japan', 'South Korea', 'Singapore', 'Malaysia', 'Indonesia', 'Philippines', 'Thailand', 'Vietnam'],
-            'Middle East': ['UAE', 'Saudi Arabia', 'Qatar', 'Kuwait', 'Oman', 'Bahrain', 'Israel', 'Turkey'],
-            'Europe': ['UK', 'Germany', 'France', 'Italy', 'Spain', 'Netherlands', 'Belgium', 'Luxembourg', 'Switzerland', 'Austria', 'Sweden', 'Norway', 'Denmark', 'Finland', 'Poland', 'Portugal', 'Greece', 'Czech Republic', 'Hungary', 'Russia', 'Ukraine', 'Ireland'],
-            'Americas': ['USA', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'Chile', 'Colombia'],
-            'Oceania': ['Australia', 'New Zealand'],
-            'Africa': ['South Africa', 'Nigeria', 'Kenya', 'Egypt', 'Morocco']
+            'Asia': ['Afghanistan', 'Armenia', 'Azerbaijan', 'Bahrain', 'Bangladesh', 'Bhutan', 'Brunei', 'Cambodia', 'China', 'Cyprus', 'Georgia', 'Hong Kong', 'India', 'Indonesia', 'Iran', 'Iraq', 'Israel', 'Japan', 'Jordan', 'Kazakhstan', 'Kuwait', 'Kyrgyzstan', 'Laos', 'Lebanon', 'Macau', 'Malaysia', 'Maldives', 'Mongolia', 'Myanmar', 'Nepal', 'North Korea', 'Oman', 'Pakistan', 'Palestine', 'Philippines', 'Qatar', 'Saudi Arabia', 'Singapore', 'South Korea', 'Sri Lanka', 'Syria', 'Taiwan', 'Tajikistan', 'Thailand', 'Timor-Leste', 'Turkey', 'Turkmenistan', 'United Arab Emirates', 'Uzbekistan', 'Vietnam', 'Yemen'],
+            'Europe': ['Albania', 'Andorra', 'Austria', 'Belarus', 'Belgium', 'Bosnia and Herzegovina', 'Bulgaria', 'Croatia', 'Czech Republic', 'Denmark', 'Estonia', 'Finland', 'France', 'Germany', 'Greece', 'Hungary', 'Iceland', 'Ireland', 'Italy', 'Latvia', 'Liechtenstein', 'Lithuania', 'Luxembourg', 'Malta', 'Moldova', 'Monaco', 'Montenegro', 'Netherlands', 'North Macedonia', 'Norway', 'Poland', 'Portugal', 'Romania', 'Russia', 'San Marino', 'Serbia', 'Slovakia', 'Slovenia', 'Spain', 'Sweden', 'Switzerland', 'Ukraine', 'United Kingdom', 'Vatican City'],
+            'Americas': ['Antigua and Barbuda', 'Argentina', 'Bahamas', 'Barbados', 'Belize', 'Bolivia', 'Brazil', 'Canada', 'Chile', 'Colombia', 'Costa Rica', 'Cuba', 'Dominica', 'Dominican Republic', 'Ecuador', 'El Salvador', 'Grenada', 'Guatemala', 'Guyana', 'Haiti', 'Honduras', 'Jamaica', 'Mexico', 'Nicaragua', 'Panama', 'Paraguay', 'Peru', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Suriname', 'Trinidad and Tobago', 'United States', 'Uruguay', 'Venezuela'],
+            'Africa': ['Algeria', 'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cameroon', 'Cape Verde', 'Central African Republic', 'Chad', 'Comoros', 'Congo', 'DR Congo', "Cote d'Ivoire", 'Djibouti', 'Egypt', 'Equatorial Guinea', 'Eritrea', 'Eswatini', 'Ethiopia', 'Gabon', 'Gambia', 'Ghana', 'Guinea', 'Guinea-Bissau', 'Kenya', 'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius', 'Morocco', 'Mozambique', 'Namibia', 'Niger', 'Nigeria', 'Rwanda', 'Sao Tome and Principe', 'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 'South Africa', 'South Sudan', 'Sudan', 'Tanzania', 'Togo', 'Tunisia', 'Uganda', 'Zambia', 'Zimbabwe'],
+            'Oceania': ['Australia', 'Fiji', 'Kiribati', 'Marshall Islands', 'Micronesia', 'Nauru', 'New Zealand', 'Palau', 'Papua New Guinea', 'Samoa', 'Solomon Islands', 'Tonga', 'Tuvalu', 'Vanuatu']
         };
 
-        // Build a set of all countries in our data
-        const allCountries = Object.keys(locationData);
+        // Build name set for quick lookup
+        const allNames = new Set(allCountriesData.map(c => c.name));
 
-        // Add countries by region (only those in locationData)
+        // Add countries by region
         for (const [region, countries] of Object.entries(regions)) {
-            const availableCountries = countries.filter(c => allCountries.includes(c) || c === currentCountry);
-            if (availableCountries.length > 0) {
+            const available = countries.filter(c => allNames.has(c));
+            if (available.length > 0) {
                 const group = document.createElement('optgroup');
                 group.label = region;
-                for (const c of availableCountries) {
+                for (const c of available.sort()) {
                     const opt = document.createElement('option');
                     opt.value = c;
                     opt.textContent = c;
@@ -1388,22 +1392,22 @@
             }
         }
 
-        // Add any countries in locationData not in our predefined regions
-        const allRegionCountries = Object.values(regions).flat();
-        const extraCountries = allCountries.filter(c => !allRegionCountries.includes(c));
-        if (extraCountries.length > 0) {
+        // Add remaining countries not in any region
+        const inRegions = new Set(Object.values(regions).flat());
+        const remaining = allCountriesData.filter(c => !inRegions.has(c.name));
+        if (remaining.length > 0) {
             const group = document.createElement('optgroup');
             group.label = 'Other Countries';
-            for (const c of extraCountries) {
+            for (const c of remaining) {
                 const opt = document.createElement('option');
-                opt.value = c;
-                opt.textContent = c;
+                opt.value = c.name;
+                opt.textContent = c.name;
                 group.appendChild(opt);
             }
             countrySelect.appendChild(group);
         }
 
-        // Always add "Other" option
+        // "Other" option
         const otherOpt = document.createElement('option');
         otherOpt.value = 'Other';
         otherOpt.textContent = '🌍 Other (Please specify)';
@@ -1412,6 +1416,17 @@
 
     function onCountryChange() {
         const country = countrySelect.value;
+
+        // Auto-update phone country code when country changes
+        if (country && country !== 'Other') {
+            const dialCode = getDialCodeForCountry(country);
+            if (dialCode) {
+                const phoneInput = document.querySelector('input[name="whatsapp_country_code"]');
+                if (phoneInput) {
+                    phoneInput.value = dialCode;
+                }
+            }
+        }
 
         // Reset state and city
         stateSelect.innerHTML = '<option value="">Select State</option>';
