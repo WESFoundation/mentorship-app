@@ -92,7 +92,7 @@
 
 </style>
 
-<div class="max-w-6xl mx-auto mt-8 p-6 bg-gradient-to-br from-gray-50 to-blue-50 rounded-2xl shadow-2xl">
+<div class="max-w-[90rem] mx-auto mt-8 p-6 bg-gradient-to-br from-gray-50 to-blue-50 rounded-2xl shadow-2xl">
     <form id="mentorProfileForm" action="{{ url_for('editmentorprofile') }}" method="POST" enctype="multipart/form-data" class="space-y-8" onsubmit="return validateForm()">
         <!-- Profile Header -->
         <div class="flex flex-col items-center md:flex-row md:items-center md:justify-start space-y-6 md:space-y-0 md:space-x-8 mb-8 p-6 bg-white rounded-xl shadow-md">
@@ -1335,6 +1335,15 @@
     let locationData = {};
     let allCountriesData = []; // [{name, dial_code, code}]
 
+    // Map all_countries names → LOCATION_DATA keys (for countries with state/city data)
+    const COUNTRY_KEY_MAP = {
+        'United States': 'USA'
+    };
+
+    function getCountryDataKey(countryName) {
+        return COUNTRY_KEY_MAP[countryName] || countryName;
+    }
+
     // Fetch location data + all countries in parallel
     Promise.all([
         fetch('/api/location_data').then(r => r.json()),
@@ -1443,7 +1452,7 @@
 
         otherCountryField.style.display = 'none';
 
-        const countryData = locationData[country];
+        const countryData = locationData[getCountryDataKey(country)];
         if (!countryData) {
             // Country not in our data - show state as free text
             stateFieldContainer.style.display = 'none';

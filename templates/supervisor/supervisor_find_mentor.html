@@ -71,7 +71,7 @@
   .rating-popup .rb-final { background: #fef3c7; margin: -24px; margin-top: 0; padding: 16px 24px; border-top: 2px solid #fbbf24; }
 </style>
 
-<main class="max-w-7xl mx-auto px-2 sm:px-3 lg:px-3 py-2">
+<main class="max-w-[90rem] mx-auto px-2 sm:px-3 lg:px-3 py-2">
 
   <section id="mentors" class="p-6 bg-white rounded-xl shadow-sm">
     <div class="mb-6 flex items-center justify-between">
@@ -533,7 +533,7 @@
                     <p class="font-bold text-amber-600" id="modalTaskStars">--</p>
                   </div>
                   <div class="bg-white rounded-lg p-3 border border-amber-200 col-span-2">
-                    <p class="text-xs text-gray-500 mb-1">Supervisor Rating</p>
+                    <p class="text-xs text-gray-500 mb-1">Admin Rating</p>
                     <p class="font-bold text-red-600" id="modalSupStars">--</p>
                   </div>
                 </div>
@@ -904,10 +904,10 @@
           <div class="rb-row"><span class="rb-label">Useful Skills</span><span class="rb-value" id="popupSk">--</span></div>
           <div class="rb-row"><span class="rb-label">Mentorship Experience</span><span class="rb-value" id="popupMe">--</span></div>
           <div class="rb-row"><span class="rb-label">Task Experience</span><span class="rb-value" id="popupTe">--</span></div>
-          <div class="rb-row"><span class="rb-label">Supervisor Rating</span><span class="rb-value" id="popupSup">--</span></div>
+          <div class="rb-row"><span class="rb-label">Admin Rating</span><span class="rb-value" id="popupSup">--</span></div>
         </div>
       </div>
-      <!-- Supervisor Rating Input -->
+      <!-- Admin Rating Input -->
       <div class="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
         <p class="text-sm font-semibold text-gray-700 mb-2">Rate this mentor (1-5 stars):</p>
         <div class="flex items-center gap-3">
@@ -935,7 +935,7 @@
 </div>
 
 <script>
-  // ---------- Supervisor Rating System ----------
+  // ---------- Admin Rating System ----------
   function supRenderStars(containerId, rating) {
     const container = document.getElementById(containerId);
     if (!container) return;

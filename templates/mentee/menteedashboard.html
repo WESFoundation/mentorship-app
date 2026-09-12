@@ -19,7 +19,7 @@
 </style>
 
 <!-- Main Content Container -->
-<main class="max-w-7xl mx-auto py-2 animate-slide-up">
+<main class="max-w-[90rem] mx-auto py-2 animate-slide-up">
 
   <!-- Dashboard Section -->
   <section id="dashboard" class="p-6 sm:p-8 glass-card rounded-2xl shadow-xl">
@@ -149,6 +149,32 @@
       </div>
     </div>
     {% endif %}
+
+    <!-- Scholarly Mentee Prompt -->
+    <div class="mb-8 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 rounded-2xl p-6 text-white shadow-xl shadow-blue-500/20 relative overflow-hidden">
+      <div class="absolute inset-0 opacity-10">
+        <svg class="w-full h-full" viewBox="0 0 800 200"><circle cx="700" cy="20" r="120" fill="white"/><circle cx="100" cy="180" r="80" fill="white"/></svg>
+      </div>
+      <div class="relative flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/30 shrink-0">
+            <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3.001zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold">Become a Scholarly Mentee</h3>
+            <p class="text-blue-100 text-sm mt-0.5">Get matched faster by building a strong rating through task completion and mentor feedback.</p>
+          </div>
+        </div>
+        <button onclick="openScholarlyModal()" class="shrink-0 px-6 py-3 bg-white text-blue-700 font-bold rounded-xl shadow-lg hover:bg-blue-50 hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center gap-2">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3.001zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762z"/>
+          </svg>
+          Learn More
+        </button>
+      </div>
+    </div>
 
     <!-- Stats Overview -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">

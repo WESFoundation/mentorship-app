@@ -140,6 +140,16 @@
             </button>
             {% endif %}
 
+            <!-- Scholarly Mentee Button (Mentees only) -->
+            {% if session.get('user_type') == '2' %}
+            <button onclick="openScholarlyModal()" class="group flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-300 hover:from-blue-100 hover:to-indigo-100 hover:border-blue-400 transition-all duration-200 shadow-sm hover:shadow" title="Scholarly Mentee">
+                <svg class="w-4 h-4 text-blue-500 group-hover:text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3.001zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/>
+                </svg>
+                <span class="text-xs font-bold text-blue-700 group-hover:text-blue-800 hidden sm:block">Scholarly</span>
+            </button>
+            {% endif %}
+
             <!-- Notifications Bell -->
             <div class="relative">
                 <button id="notification-bell-btn"
@@ -1228,6 +1238,13 @@
     function closePremiumModal() {
         document.getElementById('premiumModal').classList.add('hidden');
     }
+    // ---------- Scholarly Mentee Modal ----------
+    function openScholarlyModal() {
+        document.getElementById('scholarlyModal').classList.remove('hidden');
+    }
+    function closeScholarlyModal() {
+        document.getElementById('scholarlyModal').classList.add('hidden');
+    }
     </script>
 
 <!-- Premium Mentor Modal -->
@@ -1266,9 +1283,9 @@
       <div class="mb-6">
         <h3 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
           <svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
-          What is a Premium Mentor?
+          Who is a Premium Mentor?
         </h3>
-        <p class="text-gray-600 leading-relaxed">Premium Mentors are elite, verified mentors on Mentor Connect who are matched with <strong>sponsored mentees</strong> &mdash; individuals whose mentorship is funded by corporations, government programs, and institutional partnerships.</p>
+        <p class="text-gray-600 leading-relaxed">Premium Mentors are verified mentors with proven skill and expertise on Mentor Connect who are matched with <strong>sponsored mentees</strong> &mdash; individuals whose mentorship is funded by corporations, government programs, and institutional partnerships.</p>
       </div>
 
       <!-- How it Works -->
@@ -1296,7 +1313,7 @@
             <div class="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center shrink-0 font-bold text-sm">3</div>
             <div>
               <p class="font-semibold text-purple-900">Earn an Honorarium for Your Time</p>
-              <p class="text-sm text-purple-700">Receive an honorarium for each mentorship session conducted. Your time and expertise are valued and rewarded.</p>
+              <p class="text-sm text-purple-700">You may receive an honorarium for each mentorship session conducted. Your time and expertise invested are valued and rewarded.</p>
             </div>
           </div>
         </div>
@@ -1367,6 +1384,148 @@
           Get Started &rarr;
         </button>
         <p class="text-xs text-gray-500 mt-3">Contact your supervisor to learn more about the Premium Mentorship program.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Scholarly Mentee Modal -->
+<div id="scholarlyModal" class="fixed inset-0 hidden bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" onclick="if(event.target===this)closeScholarlyModal()">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-auto overflow-hidden max-h-[90vh] flex flex-col">
+
+    <!-- Header -->
+    <div class="relative bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 px-8 py-6 text-white shrink-0 overflow-hidden">
+      <div class="absolute inset-0 opacity-10">
+        <svg class="w-full h-full" viewBox="0 0 400 200"><circle cx="350" cy="30" r="80" fill="white"/><circle cx="50" cy="170" r="60" fill="white"/></svg>
+      </div>
+      <div class="relative flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/30">
+            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3.001zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/>
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-2xl font-bold">Scholarly Mentee Program</h2>
+            <p class="text-blue-100 text-sm mt-0.5">Stand out and get matched faster</p>
+          </div>
+        </div>
+        <button onclick="closeScholarlyModal()" class="p-2 rounded-lg hover:bg-white/20 transition-colors">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="p-8 overflow-y-auto">
+
+      <!-- What is a Scholarly Mentee -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+          Who is a Scholarly Mentee?
+        </h3>
+        <p class="text-gray-600 leading-relaxed">Scholarly Mentees are engaged, committed learners on Mentor Connect who demonstrate strong participation, timely task completion, and positive feedback from their mentors. A higher rating means <strong>mentors are more interested</strong> in pairing with you &mdash; helping you get matched faster and access better mentorship opportunities.</p>
+      </div>
+
+      <!-- How it Works -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          How Does Your Rating Work?
+        </h3>
+        <div class="space-y-3">
+          <div class="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div class="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center shrink-0 font-bold text-sm">1</div>
+            <div>
+              <p class="font-semibold text-blue-900">Your Profile &amp; Skills</p>
+              <p class="text-sm text-blue-700">A complete profile with clear goals and interests helps mentors understand how to guide you.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+            <div class="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center shrink-0 font-bold text-sm">2</div>
+            <div>
+              <p class="font-semibold text-green-900">Task Completion &amp; Punctuality</p>
+              <p class="text-sm text-green-700">Completing tasks on time and attending sessions consistently builds your track record.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+            <div class="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center shrink-0 font-bold text-sm">3</div>
+            <div>
+              <p class="font-semibold text-purple-900">Mentor Feedback on You</p>
+              <p class="text-sm text-purple-700">Your mentor's reviews of your engagement, punctuality, progress, and communication directly influence your rating.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Benefits -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"/></svg>
+          Benefits of Being a Scholarly Mentee
+        </h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="p-3 bg-blue-50 rounded-lg border border-blue-200 text-center">
+            <div class="text-2xl mb-1">&#127919;</div>
+            <p class="font-semibold text-blue-900 text-sm">Faster Matching</p>
+            <p class="text-xs text-blue-700">Mentors prefer high-rated mentees</p>
+          </div>
+          <div class="p-3 bg-indigo-50 rounded-lg border border-indigo-200 text-center">
+            <div class="text-2xl mb-1">&#127942;</div>
+            <p class="font-semibold text-indigo-900 text-sm">Scholarly Badge</p>
+            <p class="text-xs text-indigo-700">Stand out on the platform</p>
+          </div>
+          <div class="p-3 bg-green-50 rounded-lg border border-green-200 text-center">
+            <div class="text-2xl mb-1">&#128640;</div>
+            <p class="font-semibold text-green-900 text-sm">Priority Access</p>
+            <p class="text-xs text-green-700">Get matched with top mentors first</p>
+          </div>
+          <div class="p-3 bg-purple-50 rounded-lg border border-purple-200 text-center">
+            <div class="text-2xl mb-1">&#128200;</div>
+            <p class="font-semibold text-purple-900 text-sm">Track Growth</p>
+            <p class="text-xs text-purple-700">See your progress over time</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Eligibility Criteria -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          How to Improve Your Rating
+        </h3>
+        <div class="bg-indigo-50 rounded-lg border border-indigo-200 p-4">
+          <ul class="space-y-2">
+            <li class="flex items-center gap-2 text-sm text-indigo-800">
+              <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+              Complete your mentee profile (100%)
+            </li>
+            <li class="flex items-center gap-2 text-sm text-indigo-800">
+              <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+              Complete tasks on time and attend sessions
+            </li>
+            <li class="flex items-center gap-2 text-sm text-indigo-800">
+              <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+              Communicate actively with your mentor
+            </li>
+            <li class="flex items-center gap-2 text-sm text-indigo-800">
+              <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+              Receive positive feedback from your mentor
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-300 rounded-xl p-6 text-center">
+        <p class="text-gray-700 mb-4">Ready to stand out and get matched with the best mentors?</p>
+        <button onclick="closeScholarlyModal()" class="px-8 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 hover:from-blue-600 hover:to-indigo-600 hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+          Get Started &rarr;
+        </button>
+        <p class="text-xs text-gray-500 mt-3">Keep completing tasks and engaging with your mentors to improve your rating.</p>
       </div>
     </div>
   </div>
