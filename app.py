@@ -9833,7 +9833,7 @@ def api_mentee_rating_simple(mentee_id):
         try:
             mp = MenteeProfile.query.filter_by(user_id=mentee_id).first()
             if mp:
-                goal_fields = [mp.goal, mp.career aspirations if hasattr(mp, 'career_aspirations') else None]
+                goal_fields = [mp.goal, getattr(mp, 'career_aspirations', None)]
                 filled = sum(1 for f in goal_fields if f and str(f).strip())
                 goal_stars = round(min(5, filled * 2.5), 1)
         except Exception:
