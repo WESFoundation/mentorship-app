@@ -8565,8 +8565,7 @@ def get_task_rating(task_type, task_id):
         return jsonify({'success': False, 'message': str(e)})
 
 
-# ===== MEETING PARTICIPANT SYNC (JSON file + durable DB embedding) =====
-MEETING_PARTICIPANTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'meeting_participants_data')
+# ===== MEETING PARTICIPANT SYNC (Pure Database Integration via meeting_description) =====
 
 def _clean_meeting_description(desc):
     """Strip embedded participants JSON metadata comment from meeting description for clean UI display."""
@@ -8598,10 +8597,6 @@ def _extract_participants_from_description(desc):
             return {}
     return {}
 
-def _get_meeting_participants_path(meeting_id):
-    os.makedirs(MEETING_PARTICIPANTS_DIR, exist_ok=True)
-    return os.path.join(MEETING_PARTICIPANTS_DIR, f'meeting_{meeting_id}.json')
-
 _MEETING_PARTICIPANTS_CACHE = None
 _MEETING_PARTICIPANTS_CACHE_TIME = 0
 
@@ -8611,15 +8606,8 @@ def _invalidate_meeting_participants_cache():
     _MEETING_PARTICIPANTS_CACHE_TIME = 0
 
 def _save_meeting_participants(meeting_id, participants):
-    """Save participants to JSON file and persistently embed into meeting.meeting_description in DB."""
-    path = _get_meeting_participants_path(meeting_id)
-    try:
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(participants, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        app.logger.warning(f"Could not write meeting participants file for {meeting_id}: {e}")
+    """Persistently embed participants JSON metadata into meeting.meeting_description in the database."""
     _invalidate_meeting_participants_cache()
-    # Embed into meeting_description in database for permanent persistence across container recycles
     try:
         meeting = db.session.get(MeetingRequest, int(meeting_id))
         if meeting:
@@ -8631,88 +8619,74 @@ def _save_meeting_participants(meeting_id, participants):
         app.logger.warning(f"Failed to embed participants in description for meeting {meeting_id}: {e}")
 
 def _get_meeting_participants(meeting_id):
-    """Retrieve meeting participants from JSON file with database description fallback & inference."""
-    path = _get_meeting_participants_path(meeting_id)
+    """Retrieve meeting participants directly from the database (meeting_description) with inference fallback."""
+    global _MEETING_PARTICIPANTS_CACHE, _MEETING_PARTICIPANTS_CACHE_TIME
+    now = time.time()
+    if _MEETING_PARTICIPANTS_CACHE is not None and (now - _MEETING_PARTICIPANTS_CACHE_TIME < 5):
+        if int(meeting_id) in _MEETING_PARTICIPANTS_CACHE:
+            return _MEETING_PARTICIPANTS_CACHE[int(meeting_id)]
+
     data = {}
-    if os.path.exists(path):
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-        except Exception:
-            data = {}
-    
-    # If missing or lacking mentee_id/mentor_id, fallback to meeting_description or DB inference
-    if not data or not data.get("mentee_id"):
-        try:
-            meeting = db.session.get(MeetingRequest, int(meeting_id))
-            if meeting:
-                extracted = _extract_participants_from_description(meeting.meeting_description)
-                if extracted:
-                    data.update(extracted)
-                req = db.session.get(User, meeting.requester_id) if meeting.requester_id else None
-                rec = db.session.get(User, meeting.requested_to_id) if meeting.requested_to_id else None
-                if not data.get("mentee_id"):
-                    if req and str(req.user_type) == "2":
-                        data["mentee_id"] = req.id
-                    elif rec and str(rec.user_type) == "2":
-                        data["mentee_id"] = rec.id
-                if not data.get("mentor_id"):
-                    if req and str(req.user_type) == "1":
-                        data["mentor_id"] = req.id
-                    elif rec and str(rec.user_type) == "1":
-                        data["mentor_id"] = rec.id
-                
-                # If still missing mentee_id and mentor is known: infer from MentorshipRequest
-                if not data.get("mentee_id") and data.get("mentor_id"):
-                    m_mentor_id = data["mentor_id"]
-                    m_query = MentorshipRequest.query.filter_by(mentor_id=m_mentor_id, final_status="approved")
-                    if req and str(req.user_type) == "3":
-                        direct_mentors, direct_mentees = _get_institution_members(req, include_paired=False)
-                        inst_mentee_ids = [m.id for m in direct_mentees]
-                        if inst_mentee_ids:
-                            m_query = m_query.filter(MentorshipRequest.mentee_id.in_(inst_mentee_ids))
-                    mentorship = m_query.first()
-                    if mentorship:
-                        data["mentee_id"] = mentorship.mentee_id
-                
-                # If we resolved mentee_id or mentor_id, save to file
-                if data.get("mentee_id") or data.get("mentor_id"):
-                    try:
-                        with open(path, 'w', encoding='utf-8') as f:
-                            json.dump(data, f, ensure_ascii=False, indent=2)
-                    except Exception:
-                        pass
-        except Exception as e:
-            app.logger.warning(f"Error in fallback _get_meeting_participants({meeting_id}): {e}")
+    try:
+        meeting = db.session.get(MeetingRequest, int(meeting_id))
+        if meeting:
+            extracted = _extract_participants_from_description(meeting.meeting_description)
+            if extracted:
+                data.update(extracted)
+            req = db.session.get(User, meeting.requester_id) if meeting.requester_id else None
+            rec = db.session.get(User, meeting.requested_to_id) if meeting.requested_to_id else None
+            if not data.get("mentee_id"):
+                if req and str(req.user_type) == "2":
+                    data["mentee_id"] = req.id
+                elif rec and str(rec.user_type) == "2":
+                    data["mentee_id"] = rec.id
+            if not data.get("mentor_id"):
+                if req and str(req.user_type) == "1":
+                    data["mentor_id"] = req.id
+                elif rec and str(rec.user_type) == "1":
+                    data["mentor_id"] = rec.id
+
+            # If still missing mentee_id and mentor is known: infer from MentorshipRequest
+            if not data.get("mentee_id") and data.get("mentor_id"):
+                m_mentor_id = data["mentor_id"]
+                m_query = MentorshipRequest.query.filter_by(mentor_id=m_mentor_id, final_status="approved")
+                if req and str(req.user_type) == "3":
+                    direct_mentors, direct_mentees = _get_institution_members(req, include_paired=False)
+                    inst_mentee_ids = [m.id for m in direct_mentees]
+                    if inst_mentee_ids:
+                        m_query = m_query.filter(MentorshipRequest.mentee_id.in_(inst_mentee_ids))
+                mentorship = m_query.first()
+                if mentorship:
+                    data["mentee_id"] = mentorship.mentee_id
+
+            # If inferred and not yet embedded in the database, persist to DB description
+            if (data.get("mentee_id") or data.get("mentor_id")) and not extracted:
+                try:
+                    meeting.meeting_description = _embed_participants_in_description(meeting.meeting_description, data)
+                    db.session.commit()
+                except Exception:
+                    pass
+    except Exception as e:
+        app.logger.warning(f"Error in _get_meeting_participants({meeting_id}): {e}")
 
     return data
 
 def _get_all_meeting_participants():
+    """Retrieve all meeting participants from the database using in-memory cache for speed."""
     global _MEETING_PARTICIPANTS_CACHE, _MEETING_PARTICIPANTS_CACHE_TIME
     now = time.time()
     if _MEETING_PARTICIPANTS_CACHE is not None and (now - _MEETING_PARTICIPANTS_CACHE_TIME < 5):
         return _MEETING_PARTICIPANTS_CACHE
-    os.makedirs(MEETING_PARTICIPANTS_DIR, exist_ok=True)
+
     result = {}
-    for fname in os.listdir(MEETING_PARTICIPANTS_DIR):
-        if fname.startswith('meeting_') and fname.endswith('.json'):
-            try:
-                meeting_id = int(fname.replace('meeting_', '').replace('.json', ''))
-                with open(os.path.join(MEETING_PARTICIPANTS_DIR, fname), 'r', encoding='utf-8') as f:
-                    result[meeting_id] = json.load(f)
-            except Exception:
-                pass
-    
-    # Also check database meetings with embedded participants if files were wiped
     try:
         meetings_with_comments = MeetingRequest.query.filter(MeetingRequest.meeting_description.like('%<!--participants:%')).all()
         for m in meetings_with_comments:
-            if m.id not in result:
-                pdata = _extract_participants_from_description(m.meeting_description)
-                if pdata:
-                    result[m.id] = pdata
-    except Exception:
-        pass
+            pdata = _extract_participants_from_description(m.meeting_description)
+            if pdata:
+                result[m.id] = pdata
+    except Exception as e:
+        app.logger.warning(f"Error fetching meeting participants from DB: {e}")
 
     _MEETING_PARTICIPANTS_CACHE = result
     _MEETING_PARTICIPANTS_CACHE_TIME = now
@@ -8780,7 +8754,7 @@ def _resolve_meeting_participants(meeting):
 # Stages: not-started, committed, in-progress, done
 
 def _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id, all_pdata=None):
-    """Check if any meeting in meeting_participants_data is linked to this task."""
+    """Check if any meeting stored in the database is linked to this task."""
     if all_pdata is None:
         all_pdata = _get_all_meeting_participants()
     str_task_id = str(task_id)
@@ -10318,6 +10292,27 @@ def get_supervisor_tasks_data():
         meetings_map = {m.id: m for m in MeetingRequest.query.all()}
         all_pdata = _get_all_meeting_participants()
 
+        # Pre-fetch all mentee feedbacks
+        mentee_feedbacks = MenteeFeedback.query.all()
+        mentee_fb_map = {(mf.task_type, mf.task_id): mf for mf in mentee_feedbacks}
+        mentee_fb_dual_map = {(mf.task_type, mf.task_id, mf.mentee_id): mf for mf in mentee_feedbacks if mf.mentee_id}
+
+        def _resolve_task_mentee_fb(ttype, tid, mid=None, master_tid=None):
+            fb = mentee_fb_map.get((ttype, tid))
+            if not fb and ttype == 'master':
+                if master_tid:
+                    if mid:
+                        fb = mentee_fb_dual_map.get(('master', master_tid, mid))
+                    if not fb:
+                        fb = mentee_fb_map.get(('master', master_tid))
+                if not fb and mid:
+                    fb = mentee_fb_dual_map.get(('master', tid, mid))
+            if not fb:
+                return False, 0
+            has_fb = bool(fb.rating or fb.mentor_rating or (fb.text or '').strip() or (fb.challenges or '').strip() or (fb.next_steps or '').strip() or (fb.extra or '').strip())
+            rating_val = fb.rating or fb.mentor_rating or 0
+            return has_fb, rating_val
+
         personal_tasks = PersonalTask.query.all()
         mentee_tasks = MenteeTask.query.all()
 
@@ -10330,6 +10325,7 @@ def get_supervisor_tasks_data():
             mentee = users_map.get(task.mentee_id)
             mentor = users_map.get(task.mentor_id) if task.mentor_id else None
             rating_obj = ratings_map.get(('personal', task.id))
+            has_mf, mf_rating = _resolve_task_mentee_fb("personal", task.id, task.mentee_id)
             
             due_date = task.due_date or default_due
             status = compute_task_progress_status(
@@ -10352,6 +10348,10 @@ def get_supervisor_tasks_data():
                 'menteeName': mentee.name if mentee else 'Unknown',
                 'category': 'Personal Task',
                 'rating': rating_obj.rating if rating_obj else None,
+                'menteeRating': mf_rating,
+                'mentee_rating': mf_rating,
+                'hasMenteeFeedback': has_mf,
+                'has_mentee_feedback': has_mf,
                 'isCritical': is_critical,
                 'type': 'personal',
                 'journey_phase': 'Custom Task',
@@ -10367,6 +10367,7 @@ def get_supervisor_tasks_data():
             
             if master_task and mentee and mentor:
                 rating_obj = ratings_map.get(('master', task.id))
+                has_mf, mf_rating = _resolve_task_mentee_fb("master", task.id, task.mentee_id, task.task_id)
                 due_date = task.due_date or default_due
                 status = compute_task_progress_status(
                     "master", task.id, task.mentee_id, task.mentor_id,
@@ -10388,6 +10389,10 @@ def get_supervisor_tasks_data():
                     'menteeName': mentee.name,
                     'category': 'Mentorship Task',
                     'rating': rating_obj.rating if rating_obj else None,
+                    'menteeRating': mf_rating,
+                    'mentee_rating': mf_rating,
+                    'hasMenteeFeedback': has_mf,
+                    'has_mentee_feedback': has_mf,
                     'isCritical': is_overdue,
                     'type': 'master',
                     'journey_phase': master_task.journey_phase,
@@ -10445,6 +10450,27 @@ def supervisor_tasks():
         meetings_map = {m.id: m for m in MeetingRequest.query.all()}
         all_pdata = _get_all_meeting_participants()
 
+        # Pre-fetch all mentee feedbacks
+        mentee_feedbacks = MenteeFeedback.query.all()
+        mentee_fb_map = {(mf.task_type, mf.task_id): mf for mf in mentee_feedbacks}
+        mentee_fb_dual_map = {(mf.task_type, mf.task_id, mf.mentee_id): mf for mf in mentee_feedbacks if mf.mentee_id}
+
+        def _resolve_sup_mentee_fb(ttype, tid, mid=None, master_tid=None):
+            fb = mentee_fb_map.get((ttype, tid))
+            if not fb and ttype == 'master':
+                if master_tid:
+                    if mid:
+                        fb = mentee_fb_dual_map.get(('master', master_tid, mid))
+                    if not fb:
+                        fb = mentee_fb_map.get(('master', master_tid))
+                if not fb and mid:
+                    fb = mentee_fb_dual_map.get(('master', tid, mid))
+            if not fb:
+                return False, 0
+            has_fb = bool(fb.rating or fb.mentor_rating or (fb.text or '').strip() or (fb.challenges or '').strip() or (fb.next_steps or '').strip() or (fb.extra or '').strip())
+            rating_val = fb.rating or fb.mentor_rating or 0
+            return has_fb, rating_val
+
         # Get all tasks with proper joins
         personal_tasks = db.session.query(PersonalTask, User).join(
             User, PersonalTask.mentee_id == User.id
@@ -10463,6 +10489,7 @@ def supervisor_tasks():
         for task, user in personal_tasks:
             mentor = users_map.get(task.mentor_id) if task.mentor_id else None
             r_obj = ratings_map.get(('personal', task.id))
+            has_mf, mf_rating = _resolve_sup_mentee_fb("personal", task.id, task.mentee_id)
             status = compute_task_progress_status(
                 "personal", task.id, task.mentee_id, task.mentor_id or None,
                 ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
@@ -10479,13 +10506,18 @@ def supervisor_tasks():
                 'mentor_name': mentor.name if mentor else 'Self',
                 'category': 'Personal Task',
                 'type': 'personal',
-                'rating': r_obj.rating if r_obj else None
+                'rating': r_obj.rating if r_obj else None,
+                'mentee_rating': mf_rating,
+                'menteeRating': mf_rating,
+                'has_mentee_feedback': has_mf,
+                'hasMenteeFeedback': has_mf
             })
         
         # Process mentee tasks  
         for task, master, user in mentee_tasks:
             mentor = users_map.get(task.mentor_id)
             r_obj = ratings_map.get(('master', task.id))
+            has_mf, mf_rating = _resolve_sup_mentee_fb("master", task.id, task.mentee_id, task.task_id)
             status = compute_task_progress_status(
                 "master", task.id, task.mentee_id, task.mentor_id,
                 ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
@@ -10502,7 +10534,11 @@ def supervisor_tasks():
                 'mentor_name': mentor.name if mentor else 'Unknown',
                 'category': 'Mentorship Task',
                 'type': 'master',
-                'rating': r_obj.rating if r_obj else None
+                'rating': r_obj.rating if r_obj else None,
+                'mentee_rating': mf_rating,
+                'menteeRating': mf_rating,
+                'has_mentee_feedback': has_mf,
+                'hasMenteeFeedback': has_mf
             })
         
         # Add serial numbers to all_tasks (dicts) for display
