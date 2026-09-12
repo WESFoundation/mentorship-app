@@ -9911,6 +9911,7 @@ def institution_calendar():
             "status": status,
             "description": meeting.meeting_description or "No description provided",
             "meet_link": meeting.meet_link,
+            "include_institutions": participants_info.get("include_institutions", False) if participants_info else False,
             "created_at": meeting.created_at.strftime("%Y-%m-%d %H:%M:%S") if meeting.created_at else ""
         })
     
@@ -12227,12 +12228,14 @@ def mentee_create_meeting_request(mentor_id):
 
 @app.route("/get_tasks_for_mentorship")
 def get_tasks_for_mentorship():
-    """Return tasks for a given (mentee_id, mentor_id) pair as JSON. Allowed for Supervisor and Institution."""
+    """Return active (non-completed) tasks for a given (mentee_id, mentor_id) pair as JSON.
+    Allowed for Supervisor and Institution. Excludes tasks with status 'done'."""
     if "email" not in session or session.get("user_type") not in ("0", "3"):
         return jsonify({"error": "Unauthorized"}), 401
 
     mentee_id = request.args.get("mentee_id", type=int)
     mentor_id = request.args.get("mentor_id", type=int)
+    include_done = request.args.get("include_done", "0") == "1"
 
     if not mentee_id or not mentor_id:
         return jsonify({"tasks": []})
@@ -12244,12 +12247,16 @@ def get_tasks_for_mentorship():
 
     task_list = []
     for t in tasks:
+        status = compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id)
+        # Filter out completed tasks unless include_done is requested
+        if not include_done and status == "done":
+            continue
         master = t.master_task
         task_list.append({
             "id": t.id,
             "meeting_number": t.meeting_number,
             "month": t.month,
-            "status": compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id),
+            "status": status,
             "due_date": t.due_date.strftime("%b %d, %Y") if t.due_date else "",
             "purpose": master.purpose_of_call if master else "",
             "mentor_focus": master.mentor_focus if master else "",
@@ -12693,6 +12700,49 @@ def update_meeting_ajax():
         meeting.meet_link = meet_link if meet_link else meeting.meet_link
 
         db.session.commit()
+
+        # Handle include_institutions flag — send notification emails to institution users
+        include_institutions = data.get("include_institutions", False)
+        if include_institutions:
+            try:
+                included_institution_users = []
+                participants = _get_meeting_participants(meeting.id)
+                if participants:
+                    mentee_id = participants.get("mentee_id")
+                    mentor_id = participants.get("mentor_id")
+                    if mentee_id:
+                        mentee_user = db.session.get(User, int(mentee_id))
+                        if mentee_user and mentee_user.institution_id:
+                            inst = Institution.query.get(mentee_user.institution_id)
+                            if inst and inst.user:
+                                included_institution_users.append(inst.user)
+                    if mentor_id:
+                        mentor_user = db.session.get(User, int(mentor_id))
+                        if mentor_user and mentor_user.institution_id:
+                            inst = Institution.query.get(mentor_user.institution_id)
+                            if inst and inst.user and inst.user.id not in [u.id for u in included_institution_users]:
+                                included_institution_users.append(inst.user)
+                if included_institution_users:
+                    from datetime import datetime as dt
+                    start_datetime = dt.combine(meeting_date, meeting_time)
+                    _send_meeting_link_email(
+                        meeting=meeting,
+                        meet_link=meet_link,
+                        calendar_add_link="",
+                        teams_calendar_link="",
+                        platform=meeting.meeting_platform if hasattr(meeting, 'meeting_platform') else "google",
+                        title=title,
+                        start_datetime=start_datetime,
+                        timezone=timezone_val,
+                        mentor_id=participants.get("mentor_id") if participants else None,
+                        mentee_id=participants.get("mentee_id") if participants else None,
+                        supervisor=user,
+                        requested_to=None,
+                        extra_recipients=included_institution_users
+                    )
+            except Exception as e:
+                app.logger.error(f"Failed to send institution notification on edit: {e}")
+
         return jsonify({"success": True, "message": "Meeting updated successfully"})
     except ValueError as e:
         db.session.rollback()

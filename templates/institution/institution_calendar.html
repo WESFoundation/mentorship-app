@@ -278,49 +278,50 @@
                 <p id="sched-view-hint" class="text-xs text-gray-500 mt-1">Select a mentee to see their connected mentors</p>
             </div>
 
-            <div id="sched-participants-container" class="space-y-4">
-                <div id="sched-mentee-block">
-                    <label for="sched-mentee" class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentee-label">Select Mentee</span> <span class="text-red-500">*</span></label>
-                    <select id="sched-mentee" name="mentee_id" data-no-search class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
-                        <option value="">Choose a mentee...</option>
-                        {% for mentee in mentees %}
-                        <option value="{{ mentee.id }}" data-name="{{ mentee.name | e }}" data-institution="{{ (mentee.display_institution or mentee.institution or '') | e }}" data-institution-id="{{ mentee.display_institution_id or (mentee.institution_id or '') }}">{{ mentee.name }} ({{ mentee.email }})</option>
-                        {% endfor %}
-                    </select>
-                    <p id="sched-mentee-error" class="hidden text-xs text-red-600 mt-1 font-medium items-center gap-1">
-                        <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-                        Mentee is required. Please select a mentee.
-                    </p>
+            <div id="sched-participants-container" class="space-y-3">
+                <div id="sched-mentee-block" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label for="sched-mentee" class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentee-label">Select Mentee</span> <span class="text-red-500">*</span></label>
+                        <select id="sched-mentee" name="mentee_id" data-no-search class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <option value="">Choose a mentee...</option>
+                            {% for mentee in mentees %}
+                            <option value="{{ mentee.id }}" data-name="{{ mentee.name | e }}" data-email="{{ mentee.email | e }}" data-institution="{{ (mentee.display_institution or mentee.institution or '') | e }}" data-institution-id="{{ mentee.display_institution_id or (mentee.institution_id or '') }}">{{ mentee.name }} ({{ mentee.email }})</option>
+                            {% endfor %}
+                        </select>
+                        <p id="sched-mentee-error" class="hidden text-xs text-red-600 mt-1 font-medium items-center gap-1">
+                            <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                            Mentee is required. Please select a mentee.
+                        </p>
+                    </div>
+                    <div>
+                        <label for="sched-mentee-institution" class="block text-sm font-medium text-gray-700 mb-1">Mentee's Institute</label>
+                        <input type="text" id="sched-mentee-institution" name="mentee_institution" readonly
+                            value="Not specified"
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm cursor-not-allowed" style="word-wrap:break-word;white-space:normal;overflow-wrap:break-word;min-height:42px;">
+                        <input type="hidden" id="sched-mentee-institute-id" name="mentee_institution_id" value="">
+                    </div>
                 </div>
-                <div id="sched-mentor-block">
-                    <label for="sched-mentor" class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentor-label">Select Mentor</span> <span class="text-red-500">*</span></label>
-                    <select id="sched-mentor" name="mentor_id" data-no-search class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
-                        <option value="">Choose a mentor...</option>
-                        {% for mentor in mentors %}
-                        <option value="{{ mentor.id }}" data-name="{{ mentor.name | e }}" data-institution="{{ (mentor.display_institution or mentor.institution or '') | e }}" data-institution-id="{{ mentor.display_institution_id or (mentor.institution_id or '') }}">{{ mentor.name }} ({{ mentor.email }})</option>
-                        {% endfor %}
-                    </select>
-                    <p id="sched-mentor-error" class="hidden text-xs text-red-600 mt-1 font-medium items-center gap-1">
-                        <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-                        Mentor is required. Please select a mentor.
-                    </p>
-                </div>
-            </div>
-            <!-- Institute Fields -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label for="sched-mentee-institution" class="block text-sm font-medium text-gray-700 mb-1">Mentee's Institute</label>
-                    <input type="text" id="sched-mentee-institution" name="mentee_institution" readonly
-                        value="Not specified"
-                        class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm cursor-not-allowed">
-                    <input type="hidden" id="sched-mentee-institute-id" name="mentee_institution_id" value="">
-                </div>
-                <div>
-                    <label for="sched-mentor-institution" class="block text-sm font-medium text-gray-700 mb-1">Mentor's Institute</label>
-                    <input type="text" id="sched-mentor-institution" name="mentor_institution" readonly
-                        value="Not specified"
-                        class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm cursor-not-allowed">
-                    <input type="hidden" id="sched-mentor-institute-id" name="mentor_institution_id" value="">
+                <div id="sched-mentor-block" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label for="sched-mentor" class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentor-label">Select Mentor</span> <span class="text-red-500">*</span></label>
+                        <select id="sched-mentor" name="mentor_id" data-no-search class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <option value="">Choose a mentor...</option>
+                            {% for mentor in mentors %}
+                            <option value="{{ mentor.id }}" data-name="{{ mentor.name | e }}" data-email="{{ mentor.email | e }}" data-institution="{{ (mentor.display_institution or mentor.institution or '') | e }}" data-institution-id="{{ mentor.display_institution_id or (mentor.institution_id or '') }}">{{ mentor.name }} ({{ mentor.email }})</option>
+                            {% endfor %}
+                        </select>
+                        <p id="sched-mentor-error" class="hidden text-xs text-red-600 mt-1 font-medium items-center gap-1">
+                            <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                            Mentor is required. Please select a mentor.
+                        </p>
+                    </div>
+                    <div>
+                        <label for="sched-mentor-institution" class="block text-sm font-medium text-gray-700 mb-1">Mentor's Institute</label>
+                        <input type="text" id="sched-mentor-institution" name="mentor_institution" readonly
+                            value="Not specified"
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 text-sm cursor-not-allowed" style="word-wrap:break-word;white-space:normal;overflow-wrap:break-word;min-height:42px;">
+                        <input type="hidden" id="sched-mentor-institute-id" name="mentor_institution_id" value="">
+                    </div>
                 </div>
             </div>
             <div id="sched-participant-banner" class="hidden p-3 bg-blue-50 rounded-lg border border-blue-200">
@@ -592,6 +593,18 @@
                         <option value="Pacific/Auckland">New Zealand (NZST)</option>
                     </optgroup>
                 </select>
+            </div>
+
+            <!-- Include Institutions Flag -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <label class="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" id="edit-include-institutions" name="include_institutions"
+                        class="mt-0.5 h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                    <div>
+                        <span class="text-sm font-medium text-gray-700">Notify Participant Institutions</span>
+                        <p class="text-xs text-gray-500 mt-0.5">Flag this meeting to also send notifications and calendar updates to the institutions that the mentor and mentee belong to.</p>
+                    </div>
+                </label>
             </div>
 
             <div id="edit-status-msg" class="text-sm hidden"></div>
@@ -1248,6 +1261,9 @@ function openEditMeetingModal() {
     // Timezone
     document.getElementById('edit-timezone').value = meeting.timezone || 'Asia/Kolkata';
 
+    // Flag Institute checkbox — pre-check if meeting was flagged
+    document.getElementById('edit-include-institutions').checked = !!meeting.include_institutions;
+
     // Reset status messages
     document.getElementById('edit-status').classList.add('hidden');
     document.getElementById('edit-status-msg').classList.add('hidden');
@@ -1339,7 +1355,8 @@ document.getElementById('editMeetingForm').addEventListener('submit', function(e
             duration: duration,
             platform: platform,
             meet_link: meetLink,
-            timezone: timezone
+            timezone: timezone,
+            include_institutions: document.getElementById('edit-include-institutions').checked
         })
     })
     .then(async function(r) {
@@ -1366,6 +1383,7 @@ document.getElementById('editMeetingForm').addEventListener('submit', function(e
             meetings[idx].time = String(h12).padStart(2, '0') + ':' + minute + ' ' + ampm;
             meetings[idx].duration = parseInt(duration, 10);
             meetings[idx].meet_link = meetLink;
+            meetings[idx].include_institutions = document.getElementById('edit-include-institutions').checked;
         }
         renderCalendar();
         updateStats();
@@ -1643,9 +1661,9 @@ async function loadTasksForInstitutionMeeting(menteeId, mentorId) {
                 opt.textContent = label;
                 taskSel.appendChild(opt);
             });
-            if (hint) hint.textContent = data.tasks.length + ' tasks available for this pair.';
+            if (hint) hint.textContent = data.tasks.length + ' active task(s) available (completed tasks hidden).';
         } else {
-            if (hint) hint.textContent = 'No tasks found for this pair. Proceeding with general meeting.';
+            if (hint) hint.textContent = 'No active tasks for this pair. All tasks may be completed. Proceeding with general meeting.';
         }
     } catch(e) {
         console.error('Failed to load tasks:', e);
