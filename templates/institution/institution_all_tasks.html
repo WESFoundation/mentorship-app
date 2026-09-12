@@ -705,6 +705,11 @@
                         <label class="text-xs font-bold text-emerald-700 uppercase tracking-wide block mb-1">Next Steps:</label>
                         <p id="mentee-display-next" class="text-gray-700 text-sm bg-white p-3 rounded-lg border border-emerald-100 leading-relaxed"></p>
                     </div>
+
+                    <div id="mentee-extra-container" class="hidden">
+                        <label class="text-xs font-bold text-teal-700 uppercase tracking-wide block mb-1">Additional Notes:</label>
+                        <p id="mentee-display-extra" class="text-gray-700 text-sm bg-teal-50/60 p-3 rounded-lg border border-teal-200 leading-relaxed"></p>
+                    </div>
                 </div>
             </div>
 
@@ -1169,7 +1174,7 @@ function createTaskHTML(task, index) {
                     <div class="bg-white p-2.5 rounded-lg border border-slate-100 flex flex-col justify-between pointer-events-none">
                         <span class="text-slate-500 font-medium mb-1">Mentee Rating</span>
                         <div>
-                            ${task.menteeRating ? renderStars(task.menteeRating) : '<span class="text-gray-400 font-normal">Pending</span>'}
+                            ${task.menteeRating ? renderStars(task.menteeRating) : (task.hasMenteeFeedback ? '<span class="text-emerald-600 font-semibold">Submitted ✓</span>' : '<span class="text-gray-400 font-normal">Pending</span>')}
                         </div>
                     </div>
                     <div class="bg-white p-2.5 rounded-lg border border-slate-100 flex flex-col justify-between pointer-events-none">
@@ -1484,25 +1489,40 @@ async function loadMenteeRating(taskId) {
                 if (mScoreEl) mScoreEl.textContent = fb.mentor_rating ? `${fb.mentor_rating}/5` : 'No rating';
                 
                 const dEl = document.getElementById('mentee-display-date');
-                if (dEl && fb.date) dEl.textContent = `Submitted: ${new Date(fb.date).toLocaleDateString()}`;
+                if (dEl && (fb.date || fb.created_at)) dEl.textContent = `Submitted: ${new Date(fb.date || fb.created_at).toLocaleDateString()}`;
                 
                 const refEl = document.getElementById('mentee-display-reflection');
                 if (refEl) refEl.textContent = fb.text || 'No reflection provided.';
                 
                 const cCont = document.getElementById('mentee-challenges-container');
-                if (fb.challenges) {
-                    document.getElementById('mentee-display-challenges').textContent = fb.challenges;
-                    cCont.classList.remove('hidden');
-                } else {
-                    cCont.classList.add('hidden');
+                if (cCont) {
+                    if (fb.challenges && fb.challenges.trim()) {
+                        document.getElementById('mentee-display-challenges').textContent = fb.challenges;
+                        cCont.classList.remove('hidden');
+                    } else {
+                        cCont.classList.add('hidden');
+                    }
                 }
                 
                 const nCont = document.getElementById('mentee-next-container');
-                if (fb.nextSteps) {
-                    document.getElementById('mentee-display-next').textContent = fb.nextSteps;
-                    nCont.classList.remove('hidden');
-                } else {
-                    nCont.classList.add('hidden');
+                const nextVal = fb.nextSteps || fb.next_steps;
+                if (nCont) {
+                    if (nextVal && nextVal.trim()) {
+                        document.getElementById('mentee-display-next').textContent = nextVal;
+                        nCont.classList.remove('hidden');
+                    } else {
+                        nCont.classList.add('hidden');
+                    }
+                }
+
+                const eCont = document.getElementById('mentee-extra-container');
+                if (eCont) {
+                    if (fb.extra && fb.extra.trim()) {
+                        document.getElementById('mentee-display-extra').textContent = fb.extra;
+                        eCont.classList.remove('hidden');
+                    } else {
+                        eCont.classList.add('hidden');
+                    }
                 }
                 return;
             }

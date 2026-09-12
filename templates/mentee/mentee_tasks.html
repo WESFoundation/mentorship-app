@@ -1265,6 +1265,26 @@
             var isCompleted = taskStatus === 'completed';
 
             if (!raw) {
+                // Fallback: fetch from server if localStorage is empty
+                fetch('/get_mentee_feedback/' + taskType + '/' + taskId)
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (res && res.success && res.feedback) {
+                            var fb = res.feedback;
+                            var payload = {
+                                text: fb.text || '',
+                                extra: fb.extra || '',
+                                challenges: fb.challenges || '',
+                                nextSteps: fb.next_steps || fb.nextSteps || '',
+                                rating: fb.rating || '',
+                                mentorRating: fb.mentor_rating || fb.mentorRating || '',
+                                date: fb.date || fb.created_at || ''
+                            };
+                            localStorage.setItem(key, JSON.stringify(payload));
+                            loadMenteeFeedback(taskId, taskType, taskStatus);
+                        }
+                    }).catch(function(e) { console.error('Error fetching server mentee feedback:', e); });
+
                 if (details) details.classList.add('hidden');
                 if (noMsg) noMsg.classList.remove('hidden');
                 if (progressText) {

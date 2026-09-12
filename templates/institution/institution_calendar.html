@@ -473,6 +473,8 @@
         </div>
         <form id="editMeetingForm" novalidate class="p-6 space-y-4">
             <input type="hidden" id="edit-meeting-id" name="meeting_id">
+            <input type="hidden" id="edit-mentor-id" name="mentor_id">
+            <input type="hidden" id="edit-mentee-id" name="mentee_id">
 
             <div id="edit-status" class="hidden text-sm p-3 rounded-lg border"></div>
 
@@ -1206,6 +1208,8 @@ function openEditMeetingModal() {
 
     // Populate edit form
     document.getElementById('edit-meeting-id').value = meeting.id;
+    document.getElementById('edit-mentor-id').value = meeting.mentor_id || '';
+    document.getElementById('edit-mentee-id').value = meeting.mentee_id || '';
     document.getElementById('edit-mentor-name').value = meeting.mentor || '';
     document.getElementById('edit-mentee-name').value = meeting.mentee || '';
     document.getElementById('edit-title').value = meeting.title || '';
@@ -1306,6 +1310,8 @@ document.getElementById('editMeetingForm').addEventListener('submit', function(e
     statusMsg.classList.add('hidden');
 
     var meetingId = document.getElementById('edit-meeting-id').value;
+    var mentorId = document.getElementById('edit-mentor-id').value;
+    var menteeId = document.getElementById('edit-mentee-id').value;
     var title = document.getElementById('edit-title').value.trim();
     var description = document.getElementById('edit-description').value.trim();
     var date = document.getElementById('edit-date').value;
@@ -1348,6 +1354,8 @@ document.getElementById('editMeetingForm').addEventListener('submit', function(e
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             meeting_id: meetingId,
+            mentor_id: mentorId,
+            mentee_id: menteeId,
             title: title,
             description: description,
             date: date,
