@@ -7635,9 +7635,9 @@ def collect_all_system_work_rows():
 
 def _build_institution_export(user):
     """Build a multi-sheet Excel workbook with all institution data.
-    Returns (Workbook, filename_label)."""
+    Optimized: batch queries, no N+1, no per-cell styling loop."""
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.styles import Font, PatternFill, Alignment
     from openpyxl.utils import get_column_letter
     import json as _json
 
@@ -7645,279 +7645,202 @@ def _build_institution_export(user):
     institution_mentors, institution_mentees = _get_institution_members(user, include_paired=False)
 
     wb = Workbook()
+    hdr_font = Font(bold=True, color="FFFFFF", size=11)
+    hdr_fill = PatternFill(start_color="2563EB", end_color="2563EB", fill_type="solid")
+    hdr_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-    header_font = Font(bold=True, color="FFFFFF", size=11)
-    header_fill = PatternFill(start_color="2563EB", end_color="2563EB", fill_type="solid")
-    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    cell_align = Alignment(vertical="top", wrap_text=True)
-    thin_border = Border(
-        left=Side(style="thin", color="D1D5DB"),
-        right=Side(style="thin", color="D1D5DB"),
-        top=Side(style="thin", color="D1D5DB"),
-        bottom=Side(style="thin", color="D1D5DB")
-    )
-    alt_fill = PatternFill(start_color="F0F4FF", end_color="F0F4FF", fill_type="solid")
-
-    def style_sheet(ws, headers, col_widths):
-        for col_idx, (h, w) in enumerate(zip(headers, col_widths), 1):
-            cell = ws.cell(row=1, column=col_idx, value=h)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = header_align
-            cell.border = thin_border
-            ws.column_dimensions[get_column_letter(col_idx)].width = w
-        ws.auto_filter.ref = ws.dimensions
+    def make_sheet(title, headers, col_widths):
+        ws = wb.active if not wb.sheetnames else wb.create_sheet(title)
+        if not wb.sheetnames:
+            ws.title = title
+        for ci, (h, w) in enumerate(zip(headers, col_widths), 1):
+            c = ws.cell(row=1, column=ci, value=h)
+            c.font = hdr_font
+            c.fill = hdr_fill
+            c.alignment = hdr_align
+            ws.column_dimensions[get_column_letter(ci)].width = w
         ws.freeze_panes = "A2"
+        return ws
 
-    def style_rows(ws, row_count):
-        for r in range(2, row_count + 2):
-            for c in range(1, ws.max_column + 1):
-                cell = ws.cell(row=r, column=c)
-                cell.alignment = cell_align
-                cell.border = thin_border
-                if r % 2 == 0:
-                    cell.fill = alt_fill
-
-    # ── Sheet 1: Mentors ──
-    ws1 = wb.active
-    ws1.title = "Mentors"
-    h1 = ["Name", "Email", "Profession", "Location", "Education", "Experience",
-           "Skills", "Profile Complete (%)", "Mentor Rating (0-5)", "Status"]
-    w1 = [22, 28, 20, 18, 22, 14, 30, 16, 16, 12]
-    style_sheet(ws1, h1, w1)
-    for m_user in institution_mentors:
-        mp = m_user.mentor_profile
-        profile_pct = 0
-        try:
-            profile_pct = _compute_profile_completeness_score(m_user.id, "1")
-        except Exception:
-            pass
-        mentor_rating = 0.0
-        try:
-            sup = MentorProfile.query.filter_by(user_id=m_user.id).first()
-            if sup and getattr(sup, "supervisor_rating", None):
-                mentor_rating = float(sup.supervisor_rating)
-        except Exception:
-            pass
-        skills = ""
-        if mp and mp.mentor_skills:
-            try:
-                skills = ", ".join([s.get("name", "") if isinstance(s, dict) else str(s) for s in mp.mentor_skills])
-            except Exception:
-                skills = str(mp.mentor_skills)
-        row = [
-            m_user.name or "",
-            m_user.email or "",
-            mp.profession if mp else "",
-            mp.location if mp else "",
-            mp.education if mp else "",
-            mp.years_of_experience if mp else "",
-            skills,
-            round(profile_pct, 1),
-            mentor_rating,
-            "Active" if m_user.status != "inactive" else "Inactive"
-        ]
-        ws1.append(row)
-    style_rows(ws1, len(institution_mentors))
-
-    # ── Sheet 2: Mentees ──
-    ws2 = wb.create_sheet("Mentees")
-    h2 = ["Name", "Email", "Institution", "School/College", "Goal", "Profile Complete (%)"]
-    w2 = [22, 28, 22, 22, 30, 16]
-    style_sheet(ws2, h2, w2)
-    for e_user in institution_mentees:
-        ep = e_user.mentee_profile
-        profile_pct = 0
-        try:
-            profile_pct = _compute_profile_completeness_score(e_user.id, "2")
-        except Exception:
-            pass
-        row = [
-            e_user.name or "",
-            e_user.email or "",
-            e_user.institution or "",
-            getattr(ep, "school_college_name", "") if ep else "",
-            getattr(ep, "goal", "") if ep else "",
-            round(profile_pct, 1)
-        ]
-        ws2.append(row)
-    style_rows(ws2, len(institution_mentees))
-
-    # ── Sheet 3: Mentorships ──
-    ws3 = wb.create_sheet("Mentorships")
-    h3 = ["Mentor Name", "Mentor Email", "Mentee Name", "Mentee Email", "Type",
-           "Status", "Rating (0-5)", "Started", "Completed"]
-    w3 = [22, 28, 22, 28, 14, 14, 14, 14, 14]
-    style_sheet(ws3, h3, w3)
+    # ── Batch-fetch all data upfront ──
     mentee_ids = [m.id for m in institution_mentees]
     mentor_ids = [m.id for m in institution_mentors]
+    all_user_ids = list(set(mentee_ids + mentor_ids))
+
+    # All mentorship requests
     all_mr = []
     if mentee_ids:
         all_mr.extend(MentorshipRequest.query.filter(MentorshipRequest.mentee_id.in_(mentee_ids)).all())
     if mentor_ids:
-        existing_ids = {mr.id for mr in all_mr}
+        existing = {mr.id for mr in all_mr}
         for mr in MentorshipRequest.query.filter(MentorshipRequest.mentor_id.in_(mentor_ids)).all():
-            if mr.id not in existing_ids:
+            if mr.id not in existing:
                 all_mr.append(mr)
+
+    # All tasks in bulk
+    all_master_tasks = MenteeTask.query.filter(MenteeTask.mentee_id.in_(mentee_ids)).all() if mentee_ids else []
+    all_personal_tasks = PersonalTask.query.filter(PersonalTask.mentee_id.in_(mentee_ids)).all() if mentee_ids else []
+
+    # All feedback in bulk
+    all_feedback = MenteeFeedback.query.filter(MenteeFeedback.mentee_id.in_(mentee_ids)).all() if mentee_ids else []
+    all_reflections = MentorReflection.query.filter(MentorReflection.mentee_id.in_(mentee_ids)).all() if mentee_ids else []
+
+    # All meetings in bulk
+    all_meetings = MeetingRequest.query.filter(
+        or_(MeetingRequest.requester_id.in_(all_user_ids),
+            MeetingRequest.requested_to_id.in_(all_user_ids))
+    ).all() if all_user_ids else []
+
+    # Build lookup dicts
+    user_cache = {}
+    def get_user(uid):
+        if uid not in user_cache:
+            user_cache[uid] = db.session.get(User, uid)
+        return user_cache[uid]
+
+    mentorships_by_mentee = {}
+    mentorships_by_mentor = {}
     for mr in all_mr:
-        m_user = db.session.get(User, mr.mentor_id)
-        e_user = db.session.get(User, mr.mentee_id)
-        done, _ = _check_mentorship_completed(mr.mentee_id, mr.mentor_id)
-        mr_rating = 0
-        try:
-            if mr.rating:
-                mr_rating = mr.rating
-        except Exception:
-            pass
-        row = [
-            m_user.name if m_user else "",
-            m_user.email if m_user else "",
-            e_user.name if e_user else "",
-            e_user.email if e_user else "",
+        mentorships_by_mentee.setdefault(mr.mentee_id, []).append(mr)
+        mentorships_by_mentor.setdefault(mr.mentor_id, []).append(mr)
+
+    tasks_by_mentee = {}
+    for t in all_master_tasks:
+        tasks_by_mentee.setdefault(t.mentee_id, []).append(t)
+    for t in all_personal_tasks:
+        tasks_by_mentee.setdefault(t.mentee_id, []).append(t)
+
+    feedback_by_mentee = {}
+    for fb in all_feedback:
+        feedback_by_mentee.setdefault(fb.mentee_id, []).append(fb)
+    for ref in all_reflections:
+        feedback_by_mentee.setdefault(ref.mentee_id, []).append(ref)
+
+    meetings_by_user = {}
+    for mt in all_meetings:
+        if mt.requester_id:
+            meetings_by_user.setdefault(mt.requester_id, []).append(mt)
+        if mt.requested_to_id:
+            meetings_by_user.setdefault(mt.requested_to_id, []).append(mt)
+
+    # ── Sheet 1: Mentors ──
+    ws1 = make_sheet("Mentors",
+        ["Name", "Email", "Profession", "Location", "Education", "Experience", "Mentor Rating (0-5)", "Status"],
+        [22, 28, 20, 18, 22, 14, 16, 12])
+    for m_user in institution_mentors:
+        mp = m_user.mentor_profile
+        mentor_rating = 0.0
+        if mp and getattr(mp, "supervisor_rating", None):
+            mentor_rating = float(mp.supervisor_rating)
+        ws1.append([
+            m_user.name or "", m_user.email or "",
+            mp.profession if mp else "", mp.location if mp else "",
+            mp.education if mp else "", mp.years_of_experience if mp else "",
+            mentor_rating, "Active" if m_user.status != "inactive" else "Inactive"
+        ])
+
+    # ── Sheet 2: Mentees ──
+    ws2 = make_sheet("Mentees",
+        ["Name", "Email", "Institution", "School/College", "Goal", "Active Mentorships"],
+        [22, 28, 22, 22, 30, 16])
+    for e_user in institution_mentees:
+        ep = e_user.mentee_profile
+        active_mr = mentorships_by_mentee.get(e_user.id, [])
+        ws2.append([
+            e_user.name or "", e_user.email or "",
+            e_user.institution or "",
+            getattr(ep, "school_college_name", "") if ep else "",
+            getattr(ep, "goal", "") if ep else "",
+            len(active_mr)
+        ])
+
+    # ── Sheet 3: Mentorships ──
+    ws3 = make_sheet("Mentorships",
+        ["Mentor Name", "Mentor Email", "Mentee Name", "Mentee Email", "Type",
+         "Status", "Rating (0-5)", "Started"],
+        [22, 28, 22, 28, 14, 14, 14, 14])
+    for mr in all_mr:
+        mu = get_user(mr.mentor_id)
+        eu = get_user(mr.mentee_id)
+        ws3.append([
+            mu.name if mu else "", mu.email if mu else "",
+            eu.name if eu else "", eu.email if eu else "",
             mr.mentorship_type or "",
             mr.final_status or mr.supervisor_status or "",
-            mr_rating,
-            mr.created_at.strftime("%Y-%m-%d") if mr.created_at else "",
-            "Yes" if done else "No"
-        ]
-        ws3.append(row)
-    style_rows(ws3, len(all_mr))
+            mr.rating or 0,
+            mr.created_at.strftime("%Y-%m-%d") if mr.created_at else ""
+        ])
 
     # ── Sheet 4: Tasks ──
-    ws4 = wb.create_sheet("Tasks")
-    h4 = ["Mentee Name", "Mentee Email", "Mentor Name", "Task Type", "Work/Task",
-           "Details", "Month", "Meeting No.", "Due Date", "Status", "Progress (%)", "Priority"]
-    w4 = [22, 28, 22, 12, 25, 30, 14, 12, 14, 14, 12, 12]
-    style_sheet(ws4, h4, w4)
-    task_rows = []
+    ws4 = make_sheet("Tasks",
+        ["Mentee Name", "Mentee Email", "Task Type", "Work/Task",
+         "Details", "Month", "Meeting No.", "Due Date", "Progress (%)", "Priority"],
+        [22, 28, 12, 25, 30, 14, 12, 14, 12, 12])
     for e_user in institution_mentees:
-        tasks = MenteeTask.query.filter_by(mentee_id=e_user.id).all()
-        for t in tasks:
-            master = t.master_task
-            mentor = db.session.get(User, t.mentor_id) if t.mentor_id else None
-            status = compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id)
-            task_rows.append({
-                "mentee_name": e_user.name or "",
-                "mentee_email": e_user.email or "",
-                "mentor_name": mentor.name if mentor else "",
-                "type": "Master",
-                "work": master.journey_phase if master else "",
-                "details": master.purpose_of_call if master else "",
-                "month": t.month or "",
-                "meeting_no": t.meeting_number or "",
-                "due_date": t.due_date.strftime("%Y-%m-%d") if t.due_date else "",
-                "status": status,
-                "progress": t.progress or 0,
-                "priority": t.priority or "medium"
-            })
-        ptasks = PersonalTask.query.filter_by(mentee_id=e_user.id).all()
-        for t in ptasks:
-            status = compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id or None)
-            task_rows.append({
-                "mentee_name": e_user.name or "",
-                "mentee_email": e_user.email or "",
-                "mentor_name": (db.session.get(User, t.mentor_id).name if t.mentor_id else "") if t.mentor_id else "",
-                "type": "Personal",
-                "work": t.title or "",
-                "details": t.description or "",
-                "month": "",
-                "meeting_no": "",
-                "due_date": t.due_date.strftime("%Y-%m-%d") if t.due_date else "",
-                "status": status,
-                "progress": t.progress or 0,
-                "priority": t.priority or "medium"
-            })
-    for tr in task_rows:
-        ws4.append([tr["mentee_name"], tr["mentee_email"], tr["mentor_name"],
-                     tr["type"], tr["work"], tr["details"], tr["month"],
-                     tr["meeting_no"], tr["due_date"], tr["status"],
-                     tr["progress"], tr["priority"]])
-    style_rows(ws4, len(task_rows))
+        for t in tasks_by_mentee.get(e_user.id, []):
+            if hasattr(t, "master_task") and t.master_task:
+                master = t.master_task
+                ws4.append([
+                    e_user.name or "", e_user.email or "",
+                    "Master", master.journey_phase if master else "",
+                    master.purpose_of_call if master else "",
+                    t.month or "", t.meeting_number or "",
+                    t.due_date.strftime("%Y-%m-%d") if t.due_date else "",
+                    t.progress or 0, t.priority or "medium"
+                ])
+            elif hasattr(t, "title"):
+                ws4.append([
+                    e_user.name or "", e_user.email or "",
+                    "Personal", t.title or "",
+                    t.description or "",
+                    "", "",
+                    t.due_date.strftime("%Y-%m-%d") if t.due_date else "",
+                    t.progress or 0, t.priority or "medium"
+                ])
 
     # ── Sheet 5: Feedback & Ratings ──
-    ws5 = wb.create_sheet("Feedback & Ratings")
-    h5 = ["Mentee Name", "Mentee Email", "Mentor Name", "Feedback Type",
-           "Mentor Rating (1-5)", "Detailed Criteria", "Date"]
-    w5 = [22, 28, 22, 16, 16, 40, 14]
-    style_sheet(ws5, h5, w5)
-    feedback_rows = []
+    ws5 = make_sheet("Feedback & Ratings",
+        ["Mentee Name", "Mentee Email", "Mentor Name", "Feedback Type",
+         "Mentor Rating (1-5)", "Detailed Criteria", "Date"],
+        [22, 28, 22, 16, 16, 40, 14])
     for e_user in institution_mentees:
-        fbs = MenteeFeedback.query.filter_by(mentee_id=e_user.id).all()
-        for fb in fbs:
-            mentor = db.session.get(User, fb.mentor_id) if fb.mentor_id else None
+        for fb in feedback_by_mentee.get(e_user.id, []):
+            mu = get_user(getattr(fb, "mentor_id", None))
             detailed = ""
-            if fb.extra:
+            if getattr(fb, "extra", None):
                 try:
                     d = _json.loads(fb.extra)
-                    parts = [f"{k}: {v}/5" for k, v in d.items() if isinstance(v, (int, float))]
-                    detailed = "; ".join(parts)
+                    detailed = "; ".join(f"{k}: {v}/5" for k, v in d.items() if isinstance(v, (int, float)))
                 except Exception:
                     pass
-            feedback_rows.append([
+            ftype = "Mentor Reflection" if isinstance(fb, MentorReflection) else (fb.task_type or "")
+            ws5.append([
                 e_user.name or "", e_user.email or "",
-                mentor.name if mentor else "",
-                fb.task_type or "",
-                fb.mentor_rating or "",
+                mu.name if mu else "", ftype,
+                getattr(fb, "mentor_rating", "") or "",
                 detailed,
                 fb.created_at.strftime("%Y-%m-%d") if fb.created_at else ""
             ])
-        mrs = MentorReflection.query.filter_by(mentee_id=e_user.id).all()
-        for ref in mrs:
-            mentor = db.session.get(User, ref.mentor_id) if ref.mentor_id else None
-            detailed = ""
-            if ref.extra:
-                try:
-                    d = _json.loads(ref.extra)
-                    parts = [f"{k}: {v}/5" for k, v in d.items() if isinstance(v, (int, float))]
-                    detailed = "; ".join(parts)
-                except Exception:
-                    pass
-            feedback_rows.append([
-                e_user.name or "", e_user.email or "",
-                mentor.name if mentor else "",
-                "Mentor Reflection",
-                ref.mentor_rating or "",
-                detailed,
-                ref.created_at.strftime("%Y-%m-%d") if ref.created_at else ""
-            ])
-    for fr in feedback_rows:
-        ws5.append(fr)
-    style_rows(ws5, len(feedback_rows))
 
     # ── Sheet 6: Meetings ──
-    ws6 = wb.create_sheet("Meetings")
-    h6 = ["Title", "Mentor", "Mentee", "Date", "Time", "Duration (min)",
-           "Platform", "Link", "Status", "Created By"]
-    w6 = [25, 22, 22, 14, 12, 14, 14, 35, 12, 22]
-    style_sheet(ws6, h6, w6)
-    meeting_ids = set()
-    for mr in all_mr:
-        meetings = MeetingRequest.query.filter(
-            or_(
-                MeetingRequest.requester_id == mr.mentor_id,
-                MeetingRequest.requested_to_id == mr.mentor_id,
-                MeetingRequest.requester_id == mr.mentee_id,
-                MeetingRequest.requested_to_id == mr.mentee_id
-            )
-        ).all()
-        for mt in meetings:
-            if mt.id not in meeting_ids:
-                meeting_ids.add(mt.id)
-                req_user = db.session.get(User, mt.requester_id)
-                row = [
-                    mt.meeting_title or "",
-                    (db.session.get(User, mt.requester_id).name if mt.requester_id else "") if mt.requester_id else "",
-                    (db.session.get(User, mt.requested_to_id).name if mt.requested_to_id else "") if mt.requested_to_id else "",
-                    mt.meeting_date.strftime("%Y-%m-%d") if mt.meeting_date else "",
-                    mt.meeting_time.strftime("%H:%M") if mt.meeting_time else "",
-                    mt.meeting_duration or "",
-                    "",
-                    mt.meet_link or "",
-                    mt.status or "",
-                    req_user.name if req_user else ""
-                ]
-                ws6.append(row)
-    style_rows(ws6, len(meeting_ids))
+    ws6 = make_sheet("Meetings",
+        ["Title", "Requester", "Requested To", "Date", "Time", "Duration (min)", "Status"],
+        [25, 22, 22, 14, 12, 14, 12])
+    seen_meetings = set()
+    for mt in all_meetings:
+        if mt.id in seen_meetings:
+            continue
+        seen_meetings.add(mt.id)
+        ru = get_user(mt.requester_id)
+        tu = get_user(mt.requested_to_id)
+        ws6.append([
+            mt.meeting_title or "",
+            ru.name if ru else "", tu.name if tu else "",
+            mt.meeting_date.strftime("%Y-%m-%d") if mt.meeting_date else "",
+            mt.meeting_time.strftime("%H:%M") if mt.meeting_time else "",
+            mt.meeting_duration or "",
+            mt.status or ""
+        ])
 
     fname = f"institution_data_{institution_name or 'export'}"
     return wb, fname
@@ -7933,11 +7856,19 @@ def export_institution_data():
     if not user:
         return redirect(url_for("signin"))
 
-    wb, fname = _build_institution_export(user)
+    try:
+        wb, fname = _build_institution_export(user)
+    except Exception as e:
+        app.logger.error(f"Institution export build failed: {e}")
+        return "Export failed. Please try again or contact support.", 500
 
     from io import BytesIO
     output = BytesIO()
-    wb.save(output)
+    try:
+        wb.save(output)
+    except Exception as e:
+        app.logger.error(f"Institution export save failed: {e}")
+        return "Export failed while generating file. Please try again.", 500
     output.seek(0)
 
     from flask import send_file
