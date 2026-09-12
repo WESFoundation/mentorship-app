@@ -89,12 +89,12 @@
     {% block style %}{% endblock %}
 </head>
 
-<body class="flex flex-col h-screen overflow-hidden text-slate-800">
+<body class="flex flex-col min-h-screen md:h-screen md:overflow-hidden text-slate-800">
 
     <!-- Navbar -->
-    <nav class="glass-nav flex justify-between items-center px-6 py-3 z-30 sticky top-0 shadow-sm">
+    <nav class="glass-nav flex justify-between items-center px-3 sm:px-6 py-2.5 sm:py-3 z-30 sticky top-0 shadow-sm">
         <!-- Logo -->
-        <div class="flex items-center space-x-3">
+        <div class="flex items-center space-x-2 sm:space-x-3">
             <a href="
             {% if session.get('user_type') == '0' %}
                 {{ url_for('supervisordashboard') }}
@@ -107,12 +107,12 @@
             {% else %}
                 {{ url_for('home') }}
             {% endif %}
-            " class="flex items-center gap-3 group">
+            " class="flex items-center gap-2 sm:gap-3 group">
                 <img src="{{ url_for('static', filename='img/logo.jpg') }}" alt="LOGO"
-                    class="h-10 w-10 rounded-xl shadow-md group-hover:scale-105 transition-transform">
+                    class="h-8 w-8 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl shadow-md group-hover:scale-105 transition-transform">
                 <div class="flex flex-col">
-                    <span class="text-lg font-bold text-gradient">Mentor Connect</span>
-                    <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">{% block user %}{%
+                    <span class="text-base sm:text-lg font-bold text-gradient leading-tight">Mentor Connect</span>
+                    <span class="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider">{% block user %}{%
                         endblock %}</span>
                 </div>
             </a>
@@ -121,7 +121,8 @@
         <!-- Toggle Sidebar Button (only on mobile) -->
         {% if show_sidebar %}
         <button id="sidebarToggle"
-            class="md:hidden p-2 rounded-xl hover:bg-slate-100/50 text-slate-600 transition-colors">
+            class="md:hidden p-2 rounded-xl hover:bg-slate-100/50 text-slate-600 transition-colors"
+            aria-label="Toggle navigation menu">
             <!-- Hamburger Icon -->
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -166,7 +167,7 @@
 
                 <!-- Notification dropdown -->
                 <div id="notification-menu"
-                    class="hidden absolute right-0 mt-2 w-80 bg-white/95 backdrop-blur-xl rounded-xl shadow-xl border border-slate-100 py-2 ring-1 ring-black ring-opacity-5 z-50">
+                    class="hidden absolute right-0 mt-2 w-[calc(100vw-1.5rem)] max-w-sm sm:w-80 bg-white/95 backdrop-blur-xl rounded-xl shadow-xl border border-slate-100 py-2 ring-1 ring-black ring-opacity-5 z-50">
                     <div class="px-4 py-3 border-b border-slate-100 mb-1 flex items-center justify-between">
                         <p class="text-sm font-medium text-slate-900">Notifications</p>
                         <button id="notification-mark-read"
@@ -266,9 +267,22 @@
     <div class="flex flex-1 overflow-hidden relative">
         {% if show_sidebar %}
         <!-- Sidebar -->
-        <aside id="sidebar" class="sidebar w-72 flex-shrink-0 flex flex-col transition-all duration-300 ease-in-out z-20
+        <aside id="sidebar" class="sidebar w-72 flex-shrink-0 flex flex-col transition-all duration-300 ease-in-out z-40
                           fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0
-                          overflow-y-auto custom-scrollbar border-r border-slate-200/10 shadow-xl">
+                          overflow-y-auto custom-scrollbar border-r border-slate-200/10 shadow-2xl">
+
+            <!-- Mobile Close Header -->
+            <div class="md:hidden flex items-center justify-between p-4 border-b border-white/10 bg-slate-900/40">
+                <div class="flex items-center gap-2">
+                    <img src="{{ url_for('static', filename='img/logo.jpg') }}" alt="LOGO" class="h-7 w-7 rounded-lg">
+                    <span class="text-sm font-bold text-white">Menu</span>
+                </div>
+                <button id="sidebarCloseBtn" class="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition" aria-label="Close navigation menu">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
 
             <div class="p-4 space-y-1">
                 {% if session.get('user_type') == '0' %}
@@ -693,11 +707,11 @@
         </aside>
 
         <!-- Overlay (SEPARATE) -->
-        <div id="overlay" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden z-10 md:hidden"></div>
+        <div id="overlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden z-30 md:hidden"></div>
         {% endif %}
 
         <!-- Main Content Area -->
-        <main class="flex-1 p-6 md:p-10 overflow-y-auto pb-32">
+        <main class="flex-1 p-3.5 sm:p-5 md:p-10 overflow-y-auto pb-32">
             {% block content %}{% endblock %}
         </main>
     </div>
@@ -772,17 +786,31 @@
         // Sidebar Functionality
         const sidebar = document.getElementById("sidebar");
         const toggleBtn = document.getElementById("sidebarToggle");
+        const closeBtn = document.getElementById("sidebarCloseBtn");
         const overlay = document.getElementById("overlay");
 
-        if (toggleBtn && sidebar && overlay) {
-            toggleBtn.addEventListener("click", () => {
-                sidebar.classList.toggle("-translate-x-full");
-                overlay.classList.toggle("hidden");
-            });
+        if (sidebar && overlay) {
+            function openSidebar() {
+                sidebar.classList.remove("-translate-x-full");
+                overlay.classList.remove("hidden");
+                document.body.classList.add("overflow-hidden");
+            }
 
-            overlay.addEventListener("click", () => {
+            function closeSidebar() {
                 sidebar.classList.add("-translate-x-full");
                 overlay.classList.add("hidden");
+                document.body.classList.remove("overflow-hidden");
+            }
+
+            if (toggleBtn) toggleBtn.addEventListener("click", openSidebar);
+            if (closeBtn) closeBtn.addEventListener("click", closeSidebar);
+            overlay.addEventListener("click", closeSidebar);
+
+            // Close sidebar when a navigation link is clicked on mobile
+            sidebar.querySelectorAll("a").forEach(link => {
+                link.addEventListener("click", () => {
+                    if (window.innerWidth < 768) closeSidebar();
+                });
             });
         }
 
