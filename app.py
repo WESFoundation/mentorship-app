@@ -10373,13 +10373,14 @@ def get_supervisor_tasks_data():
                     "master", task.id, task.mentee_id, task.mentor_id,
                     ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
                 )
-                is_overdue = due_date < now_dt and status != 'done'
+                is_overdue = (due_date < now_dt) if isinstance(due_date, datetime) else False
+                is_critical = is_overdue and status != 'done'
                 
                 tasks.append({
                     'id': f"master_{task.id}",
                     'title': f"{master_task.purpose_of_call} - {master_task.month}",
                     'description': master_task.mentee_focus or 'No description provided',
-                    'dueDate': due_date.isoformat(),
+                    'dueDate': due_date.isoformat() if hasattr(due_date, 'isoformat') else str(due_date),
                     'priority': 'medium',
                     'status': status,
                     'progress': task.progress or 0,
@@ -10393,7 +10394,7 @@ def get_supervisor_tasks_data():
                     'mentee_rating': mf_rating,
                     'hasMenteeFeedback': has_mf,
                     'has_mentee_feedback': has_mf,
-                    'isCritical': is_overdue,
+                    'isCritical': is_critical,
                     'type': 'master',
                     'journey_phase': master_task.journey_phase,
                     'month': master_task.month,
@@ -10420,7 +10421,10 @@ def get_supervisor_tasks_data():
         })
         
     except Exception as e:
+        db.session.rollback()
         print(f"Error in get_supervisor_tasks_data: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "success": False,
             "message": str(e),
@@ -10549,15 +10553,11 @@ def supervisor_tasks():
                 pass
 
         # Get all mentees and mentors for task creation dropdowns
-        all_mentees = db.session.query(User, MenteeProfile).join(
-            MenteeProfile, User.id == MenteeProfile.user_id
-        ).filter(User.user_type == 2).all()
-        mentee_list = [{'id': u.id, 'name': u.name} for u, mp in all_mentees]
+        all_mentees = User.query.filter_by(user_type="2").order_by(User.name.asc()).all()
+        mentee_list = [{'id': u.id, 'name': u.name or u.email or f"Mentee #{u.id}"} for u in all_mentees]
 
-        all_mentors = db.session.query(User, MentorProfile).join(
-            MentorProfile, User.id == MentorProfile.user_id
-        ).filter(User.user_type == 1).all()
-        mentor_list = [{'id': u.id, 'name': u.name} for u, mp in all_mentors]
+        all_mentors = User.query.filter_by(user_type="1").order_by(User.name.asc()).all()
+        mentor_list = [{'id': u.id, 'name': u.name or u.email or f"Mentor #{u.id}"} for u in all_mentors]
 
         return render_template(
             "supervisor/supervisor_tasks.html",
@@ -10569,6 +10569,7 @@ def supervisor_tasks():
         )
         
     except Exception as e:
+        db.session.rollback()
         print(f"❌ Error in supervisor_tasks: {str(e)}")
         import traceback
         traceback.print_exc()
@@ -10576,7 +10577,9 @@ def supervisor_tasks():
             "supervisor/supervisor_tasks.html",
             show_sidebar=True,
             profile_complete=True,
-            all_tasks=[]
+            all_tasks=[],
+            mentees_for_task=[],
+            mentors_for_task=[]
         )
         
 
@@ -10600,13 +10603,13 @@ def supervisor_create_task():
         
         # Verify mentee exists
         mentee = User.query.get(mentee_id)
-        if not mentee or mentee.user_type != 2:
+        if not mentee or str(mentee.user_type) != "2":
             return jsonify({"success": False, "message": "Invalid mentee selected"})
         
         # Verify mentor if provided
         if mentor_id:
             mentor = User.query.get(mentor_id)
-            if not mentor or mentor.user_type != 1:
+            if not mentor or str(mentor.user_type) != "1":
                 return jsonify({"success": False, "message": "Invalid mentor selected"})
         
         # Convert due date
