@@ -27,10 +27,29 @@
   }
   .calendar-day {
     background: white;
-    min-height: 100px;
+    height: 120px;
+    min-height: 120px;
+    max-height: 120px;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 6px;
     cursor: pointer;
     transition: background 0.15s;
+    box-sizing: border-box;
+  }
+  .calendar-day::-webkit-scrollbar {
+    width: 3px;
+  }
+  .calendar-day::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .calendar-day::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+  .calendar-day {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
   }
   .calendar-day:hover { background: #f8fafc; }
   .calendar-day.other-month { background: #f9fafb; color: #9ca3af; }
@@ -75,8 +94,11 @@
       font-size: 11px;
     }
     .calendar-day {
-      min-height: 52px;
+      height: 64px;
+      min-height: 64px;
+      max-height: 64px;
       padding: 3px 2px;
+      overflow-y: auto;
     }
     .day-number {
       font-size: 11px;
@@ -142,7 +164,7 @@
     <div class="calendar-day-header"><span class="hidden sm:inline">Thu</span><span class="sm:hidden">T</span></div>
     <div class="calendar-day-header"><span class="hidden sm:inline">Fri</span><span class="sm:hidden">F</span></div>
     <div class="calendar-day-header"><span class="hidden sm:inline">Sat</span><span class="sm:hidden">S</span></div>
-    <div id="calendar-days" class="col-span-7 grid grid-cols-7 gap-px"></div>
+    <div id="calendar-days" class="col-span-7 grid grid-cols-7 gap-px bg-gray-200"></div>
   </div>
 
   <!-- Empty state -->
@@ -221,14 +243,14 @@ function initializeEvents() {
     {% for meeting in meetings %}
     {
       id: {{ meeting.id }},
-      title: "{{ meeting.title }}",
+      title: {{ (meeting.title or '') | tojson }},
       date: new Date("{{ meeting.date.strftime('%Y-%m-%dT%H:%M:%S') }}"),
-      duration: {{ meeting.duration }},
-      mentor: "{{ meeting.mentor }}",
-      type: "{{ meeting.type }}",
-      status: "{{ meeting.status }}",
-      description: "{{ meeting.description }}",
-      meet_link: "{{ meeting.meet_link or '' }}"
+      duration: {{ meeting.duration or 0 }},
+      mentor: {{ (meeting.mentor or '') | tojson }},
+      type: {{ (meeting.type or '') | tojson }},
+      status: {{ (meeting.status or '') | tojson }},
+      description: {{ (meeting.description or '') | tojson }},
+      meet_link: {{ (meeting.meet_link or '') | tojson }}
     }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];

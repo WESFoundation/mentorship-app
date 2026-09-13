@@ -14,12 +14,41 @@
 }
 
 .calendar-day {
+    height: 120px;
     min-height: 120px;
+    max-height: 120px;
+    overflow-y: auto;
+    overflow-x: hidden;
     background: white;
     transition: all 0.2s;
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     margin: 2px;
+    box-sizing: border-box;
+}
+
+.calendar-day::-webkit-scrollbar {
+    width: 3px;
+}
+.calendar-day::-webkit-scrollbar-track {
+    background: transparent;
+}
+.calendar-day::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+.calendar-day {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+@media (max-width: 640px) {
+    .calendar-day {
+        height: 64px;
+        min-height: 64px;
+        max-height: 64px;
+        padding: 4px;
+    }
 }
 
 .calendar-day:hover {

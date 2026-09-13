@@ -64,11 +64,38 @@
   
   .calendar-day {
     background: white;
+    height: 120px;
     min-height: 120px;
+    max-height: 120px;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 8px;
     position: relative;
     cursor: pointer;
     transition: background 0.2s;
+    box-sizing: border-box;
+  }
+  .calendar-day::-webkit-scrollbar {
+    width: 3px;
+  }
+  .calendar-day::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .calendar-day::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+  .calendar-day {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+  @media (max-width: 640px) {
+    .calendar-day {
+      height: 64px;
+      min-height: 64px;
+      max-height: 64px;
+      padding: 4px;
+    }
   }
   
   .calendar-day:hover {
@@ -208,9 +235,7 @@
         <div class="calendar-day-header">Sat</div>
         
         <!-- Days will be populated by JavaScript -->
-        <div id="calendar-days" class="col-span-7 grid grid-cols-7 gap-1 bg-gray-200">
-          <!-- Calendar days will be inserted here by JavaScript -->
-        </div>
+        <div id="calendar-days" class="col-span-7 grid grid-cols-7 gap-1 bg-gray-200"></div>
       </div>
     </div>
     
@@ -350,15 +375,15 @@ function initializeEvents() {
     {% for meeting in meetings %}
     {
       id: {{ meeting.id }},
-      title: "{{ meeting.title }}",
+      title: {{ (meeting.title or '') | tojson }},
       date: new Date("{{ meeting.date.strftime('%Y-%m-%dT%H:%M:%S') }}"),
-      duration: {{ meeting.duration }},
-      mentee: "{{ meeting.mentee }}",
-      mentee_email: "{{ meeting.mentee_email }}",
-      type: "{{ meeting.type }}",
-      status: "{{ meeting.status }}",
-      description: "{{ meeting.description }}",
-      meet_link: "{{ meeting.meet_link or '' }}"
+      duration: {{ meeting.duration or 0 }},
+      mentee: {{ (meeting.mentee or '') | tojson }},
+      mentee_email: {{ (meeting.mentee_email or '') | tojson }},
+      type: {{ (meeting.type or '') | tojson }},
+      status: {{ (meeting.status or '') | tojson }},
+      description: {{ (meeting.description or '') | tojson }},
+      meet_link: {{ (meeting.meet_link or '') | tojson }}
     }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
