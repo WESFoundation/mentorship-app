@@ -79,11 +79,12 @@
         </label>
         <select id="task_select"
           class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white">
-          <option value="">No specific task — general discussion</option>
+          <option value="" data-task-id="" data-task-type="">No specific task — general discussion</option>
           {% for task in running_tasks %}
           {% set task_num = task.meeting_number if task.meeting_number else loop.index %}
           {% set task_name = task.master_task.purpose_of_call if task.master_task else 'Meeting Task ' ~ loop.index %}
-          <option value="{{ task_num }}. {{ task_name }}{% if task.master_task %} - {{ task.master_task.month }}{% endif %}">
+          {% set task_label = task_num ~ '. ' ~ task_name ~ ((' - ' ~ task.master_task.month) if task.master_task else '') %}
+          <option value="{{ task.id }}" data-task-id="{{ task.id }}" data-task-type="master" data-task-label="{{ task_label }}">
             {{ task_num }}. {{ task_name|truncate(60) }}{% if task.master_task %} · {{ task.master_task.journey_phase }}{% endif %}
           </option>
           {% endfor %}
@@ -393,10 +394,14 @@ function toggleCustomLink() {
 async function createMeeting() {
   const title = document.getElementById("title").value.trim();
   const taskSelect = document.getElementById("task_select");
-  const selectedTask = taskSelect ? taskSelect.value.trim() : "";
+  const selectedOpt = taskSelect && taskSelect.selectedIndex >= 0 ? taskSelect.options[taskSelect.selectedIndex] : null;
+  const selectedTaskId = selectedOpt ? (selectedOpt.value || selectedOpt.getAttribute("data-task-id") || "") : "";
+  const selectedTaskLabel = selectedOpt ? (selectedOpt.getAttribute("data-task-label") || (selectedTaskId ? selectedOpt.text.trim() : "")) : "";
+  const selectedTaskType = selectedOpt ? (selectedOpt.getAttribute("data-task-type") || "master") : "master";
+
   let finalTitle = title;
-  if (selectedTask && !title.includes("[Task:")) {
-    finalTitle = `${title} [Task: ${selectedTask}]`;
+  if (selectedTaskId && selectedTaskLabel && !title.includes("[Task:")) {
+    finalTitle = `${title} [Task: ${selectedTaskLabel}]`;
   }
   const date = document.getElementById("date").value;
   const hour = document.getElementById("hour").value;
@@ -511,7 +516,20 @@ async function createMeeting() {
     const response = await fetch("/create_meeting_ajax", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: finalTitle, date, start_time, duration, timezone, mentor_id, mentee_id, platform, custom_link, institution_id })
+      body: JSON.stringify({
+        title: finalTitle,
+        date,
+        start_time,
+        duration,
+        timezone,
+        mentor_id,
+        mentee_id,
+        platform,
+        custom_link,
+        institution_id,
+        task_id: selectedTaskId || "",
+        task_type: selectedTaskType || "master"
+      })
     });
 
     let data = null;
