@@ -83,9 +83,11 @@
           {% for task in running_tasks %}
           {% set task_num = task.meeting_number if task.meeting_number else loop.index %}
           {% set task_name = task.master_task.purpose_of_call if task.master_task else 'Meeting Task ' ~ loop.index %}
+          {% set raw_st = task.computed_status or task.status or 'not-started' %}
+          {% set st_display = 'Not Started' if raw_st in ['not-started', 'pending', 'to-do'] else ('Committed' if raw_st == 'committed' else ('In Progress' if raw_st == 'in-progress' else ('Done' if raw_st in ['done', 'completed'] else raw_st.capitalize()))) %}
           {% set task_label = task_num ~ '. ' ~ task_name ~ ((' - ' ~ task.master_task.month) if task.master_task else '') %}
           <option value="{{ task.id }}" data-task-id="{{ task.id }}" data-task-type="master" data-task-label="{{ task_label }}">
-            {{ task_num }}. {{ task_name|truncate(60) }}{% if task.master_task %} · {{ task.master_task.journey_phase }}{% endif %}
+            {{ task_num }}. {{ task_name|truncate(55) }}{% if task.master_task %} · {{ task.master_task.journey_phase }}{% endif %} ({{ st_display }})
           </option>
           {% endfor %}
         </select>

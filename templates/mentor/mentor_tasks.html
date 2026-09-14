@@ -655,7 +655,7 @@
                 <div class="flex flex-wrap gap-2 items-center">
                     <span id="detail-task-type" class="task-badge">Personal Task</span>
                     <span id="detail-task-priority-badge" class="priority-high">High Priority</span>
-                    <span id="detail-task-status" class="task-status status-pending">To Do</span>
+                    <span id="detail-task-status" class="task-status status-not-started">Not Started</span>
                 </div>
             </div>
             <button onclick="closeTaskDetailsModal()" class="text-gray-400 hover:text-gray-600 ml-4">
@@ -1070,9 +1070,11 @@ function populateTaskDetailsModal(task) {
         
         // Status and Priority with null checks
         const statusElement = getElement('detail-task-status');
+        const stText = getStatusText(task.status, task.due_date);
+        const stClass = getStatusClass(task.status, task.due_date);
         if (statusElement) {
-            statusElement.textContent = getStatusText(task.status);
-            statusElement.className = 'task-status ' + getStatusClass(task.status);
+            statusElement.textContent = stText;
+            statusElement.className = 'task-status ' + stClass;
         }
         
         const priorityBadge = getElement('detail-task-priority-badge');
@@ -1089,19 +1091,12 @@ function populateTaskDetailsModal(task) {
         // Progress with null checks
         const progressText = getElement('detail-progress-text');
         if (progressText) {
-            if (task.status === 'done') {
-                progressText.textContent = 'Done';
-                progressText.className = 'text-sm font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full';
-            } else if (task.status === 'in-progress') {
-                progressText.textContent = 'In Progress';
-                progressText.className = 'text-sm font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-full';
-            } else if (task.status === 'committed') {
-                progressText.textContent = 'Committed';
-                progressText.className = 'text-sm font-medium bg-amber-100 text-amber-700 px-3 py-1 rounded-full';
-            } else {
-                progressText.textContent = 'Not Started';
-                progressText.className = 'text-sm font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full';
-            }
+            progressText.textContent = stText;
+            progressText.className = 'text-sm font-medium px-3 py-1 rounded-full ' +
+                (stText === 'Done' ? 'bg-emerald-100 text-emerald-700' :
+                 stText === 'In Progress' ? 'bg-blue-100 text-blue-700' :
+                 stText === 'Committed' ? 'bg-amber-100 text-amber-700' :
+                 stText === 'Overdue' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600');
         }
         
         // Additional fields for personal tasks
@@ -1187,11 +1182,20 @@ function populateFromDOM(taskId, taskType) {
         if (dueDateDisplay) dueDateDisplay.textContent = dueDate;
         
         // Status
-        const statusText = getStatusText(status.toLowerCase());
-        const statusClass = getStatusClass(status.toLowerCase());
+        const statusText = getStatusText(status.toLowerCase(), dueDate);
+        const statusClass = getStatusClass(status.toLowerCase(), dueDate);
         if (statusDisplay) {
             statusDisplay.textContent = statusText;
             statusDisplay.className = 'task-status ' + statusClass;
+        }
+        const progressText = getElement('detail-progress-text');
+        if (progressText) {
+            progressText.textContent = statusText;
+            progressText.className = 'text-sm font-medium px-3 py-1 rounded-full ' +
+                (statusText === 'Done' ? 'bg-emerald-100 text-emerald-700' :
+                 statusText === 'In Progress' ? 'bg-blue-100 text-blue-700' :
+                 statusText === 'Committed' ? 'bg-amber-100 text-amber-700' :
+                 statusText === 'Overdue' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600');
         }
         
         // Hide edit button for master tasks
@@ -1202,9 +1206,12 @@ function populateFromDOM(taskId, taskType) {
     }
 }
 
-function getStatusText(status) {
+function getStatusText(status, dueDate) {
     if (!status) return 'Not Started';
     const s = String(status).trim().toLowerCase().replace(/\s+/g, '-');
+    if (dueDate && new Date(dueDate) < new Date().setHours(0,0,0,0) && s !== 'done' && s !== 'completed') {
+        return 'Overdue';
+    }
     const statusMap = {
         'not-started': 'Not Started',
         'committed': 'Committed',
@@ -1218,9 +1225,12 @@ function getStatusText(status) {
     return statusMap[s] || 'Not Started';
 }
 
-function getStatusClass(status) {
+function getStatusClass(status, dueDate) {
     if (!status) return 'status-not-started';
     const s = String(status).trim().toLowerCase().replace(/\s+/g, '-');
+    if (dueDate && new Date(dueDate) < new Date().setHours(0,0,0,0) && s !== 'done' && s !== 'completed') {
+        return 'status-overdue';
+    }
     const classMap = {
         'not-started': 'status-not-started',
         'committed': 'status-committed',

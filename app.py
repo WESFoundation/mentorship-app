@@ -13067,12 +13067,19 @@ def mentee_create_meeting_request(mentor_id):
         return redirect(url_for("my_mentors"))
 
     # Tasks currently being worked on in this mentorship (not completed yet),
+    # Tasks currently being worked on in this mentorship (not completed yet),
     # so the mentee can pick one to discuss during the meeting
-    running_tasks = MenteeTask.query.filter(
+    raw_tasks = MenteeTask.query.filter(
         MenteeTask.mentee_id == mentee.id,
-        MenteeTask.mentor_id == mentor.id,
-        MenteeTask.status.in_(["pending", "in-progress"])
+        MenteeTask.mentor_id == mentor.id
     ).order_by(MenteeTask.meeting_number.asc()).all()
+
+    running_tasks = []
+    for t in raw_tasks:
+        st = compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id)
+        setattr(t, 'computed_status', st)
+        if st != 'done':
+            running_tasks.append(t)
 
     # All active institutions for the institute selection dropdown
     all_institutions = Institution.query.filter_by(status="active").all()
