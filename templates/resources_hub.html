@@ -160,9 +160,9 @@
 </main>
 
 <!-- ============ NOTE MODAL (create / edit) ============ -->
-<div id="noteModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-auto overflow-hidden animate-scale-in border border-slate-100">
-    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+<div id="noteModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-sm sm:max-w-lg w-full mx-auto overflow-hidden animate-scale-in border border-slate-100">
+    <div class="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-600 to-purple-600 text-white">
       <h3 id="noteModalTitle" class="text-lg font-bold">Add a Note</h3>
       <button onclick="closeNoteModal()" class="p-1.5 rounded-lg hover:bg-white/20 transition-colors">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -261,9 +261,9 @@
 </div>
 
 <!-- ============ VIEW NOTE MODAL ============ -->
-<div id="viewModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-auto overflow-hidden animate-scale-in border border-slate-100">
-    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+<div id="viewModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-sm sm:max-w-lg w-full mx-auto overflow-hidden animate-scale-in border border-slate-100">
+    <div class="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between">
       <h3 id="viewNoteTitle" class="text-lg font-bold text-slate-800">Note</h3>
       <button onclick="closeViewModal()" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

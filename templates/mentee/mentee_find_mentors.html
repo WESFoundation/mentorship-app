@@ -50,7 +50,7 @@
 
   <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 relative z-20">
     <!-- Search & Filters Card -->
-    <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-8">
+    <div class="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6 mb-8">
       <!-- Search Input -->
       <div class="relative group mb-6">
         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -69,7 +69,7 @@
       <!-- Filters -->
       <form method="GET" action="{{ url_for('find_mentor') }}" class="flex flex-wrap items-center gap-4">
 
-        <div class="flex-1 min-w-[200px] grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="flex-1 min-w-[200px] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <!-- Profession -->
           <div class="relative">
             <select name="profession"
@@ -512,9 +512,9 @@
 
 <!-- Contact / Feedback Modal (Request Specific Mentor) -->
 <div id="contactFeedbackModal" class="fixed inset-0 hidden bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-auto overflow-hidden animate-scale-in border border-slate-100 max-h-[92vh] flex flex-col">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-sm sm:max-w-md md:max-w-lg w-full mx-auto overflow-hidden animate-scale-in border border-slate-100 max-h-[92vh] flex flex-col">
     <!-- Header -->
-    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-600 to-indigo-600 text-white shrink-0">
+    <div class="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-600 to-indigo-600 text-white shrink-0">
       <div class="flex items-center gap-2.5">
         <div class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
           <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1004,10 +1004,10 @@
 
 <!-- Request Mentorship Modal -->
 <div id="requestModal" class="fixed inset-0 hidden bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-auto overflow-hidden animate-scale-in border border-slate-100 max-h-[92vh] flex flex-col relative">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-sm sm:max-w-md md:max-w-lg w-full mx-auto overflow-hidden animate-scale-in border border-slate-100 max-h-[92vh] flex flex-col relative">
     
     <!-- Modal Header -->
-    <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
+    <div class="px-4 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
       <div class="flex items-center gap-2.5">
         <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

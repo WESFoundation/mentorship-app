@@ -33,10 +33,10 @@
       
       <!-- Filters -->
       <form method="GET" action="">
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
           <!-- Stream -->
           <div class="relative">
-            <select name="stream" class="appearance-none pl-4 pr-10 py-2 border rounded-full text-gray-700 bg-white">
+            <select name="stream" class="w-full sm:w-auto appearance-none pl-4 pr-10 py-2 border rounded-full text-gray-700 bg-white">
               <option value="" {% if not request.args.get('stream') %}selected{% endif %}>All Streams</option>
               {% for stream in streams %}
               <option value="{{ stream }}" {% if request.args.get('stream') == stream %}selected{% endif %}>
@@ -48,7 +48,7 @@
 
           <!-- School -->
           <div class="relative">
-            <select name="school" class="appearance-none pl-4 pr-10 py-2 border rounded-full text-gray-700 bg-white">
+            <select name="school" class="w-full sm:w-auto appearance-none pl-4 pr-10 py-2 border rounded-full text-gray-700 bg-white">
               <option value="" {% if not request.args.get('school') %}selected{% endif %}>All Schools</option>
               {% for school in schools %}
               <option value="{{ school }}" {% if request.args.get('school') == school %}selected{% endif %}>
@@ -60,7 +60,7 @@
 
           <!-- Goal -->
           <div class="relative">
-            <select name="goal" class="appearance-none pl-4 pr-10 py-2 border rounded-full text-gray-700 bg-white">
+            <select name="goal" class="w-full sm:w-auto appearance-none pl-4 pr-10 py-2 border rounded-full text-gray-700 bg-white">
               <option value="" {% if not request.args.get('goal') %}selected{% endif %}>All Goals</option>
               {% for goal in goals %}
               <option value="{{ goal }}" {% if request.args.get('goal') == goal %}selected{% endif %}>
@@ -71,7 +71,7 @@
           </div>
 
           <!-- Search Button -->
-          <button type="submit" class="px-5 py-2 rounded-full bg-blue-600 text-white font-medium">
+          <button type="submit" class="w-full sm:w-auto px-5 py-2 rounded-full bg-blue-600 text-white font-medium">
             Search
           </button>
         </div>

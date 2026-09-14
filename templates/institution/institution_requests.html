@@ -137,21 +137,21 @@
 
   <!-- Search and Filter Bar -->
   <div class="mb-4 flex flex-wrap gap-3 items-center">
-    <div class="relative flex-1 min-w-[200px]">
+    <div class="relative flex-1 min-w-full sm:min-w-[200px]">
       <input type="text" id="instRequestSearch" placeholder="Search by mentee, mentor, purpose..." 
              class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" onkeyup="filterInstRequests()">
       <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
       </svg>
     </div>
-    <select id="instRequestStatusFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterInstRequests()">
+    <select id="instRequestStatusFilter" class="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterInstRequests()">
       <option value="">All Status</option>
       <option value="pending">Pending</option>
       <option value="accepted">Accepted</option>
       <option value="rejected">Rejected</option>
       <option value="approved">Approved</option>
     </select>
-    <select id="instRequestTypeFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterInstRequests()">
+    <select id="instRequestTypeFilter" class="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterInstRequests()">
       <option value="">All Types</option>
       <option value="anchor">Anchor Mentor</option>
       <option value="guidance">Guidance Mentor</option>
@@ -160,16 +160,16 @@
   <div id="instRequestResultsCount" class="text-xs text-gray-500 mb-3"></div>
 
   {% if mentorship_requests and mentorship_requests|length > 0 %}
-  <div class="overflow-x-auto rounded-xl border border-gray-200">
+  <div class="overflow-x-auto table-responsive rounded-xl border border-gray-200">
     <table class="min-w-full divide-y divide-gray-200">
       <thead class="bg-gray-50">
         <tr>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Connection</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purpose</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor Status</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supervisor</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Final</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Actions</th>
+          <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Connection</th>
+          <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purpose</th>
+          <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor Status</th>
+          <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supervisor</th>
+          <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Final</th>
+          <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Actions</th>
         </tr>
       </thead>
       <tbody class="bg-white divide-y divide-gray-200">
@@ -179,16 +179,16 @@
             data-status="{{ request.final_status|lower if request.final_status else '' }}"
             data-mentor-status="{{ request.mentor_status|lower if request.mentor_status else '' }}"
             data-type="{{ request.mentor_type|lower if request.mentor_type else '' }}">
-          <td class="px-6 py-4 whitespace-nowrap">
+          <td class="px-3 sm:px-6 py-4 whitespace-nowrap">
             <div class="flex items-center">
               <!-- Mentee -->
               <div class="flex items-center">
           {% if request.mentee.mentee_profile and request.mentee.mentee_profile.profile_picture %}
                 <img src="{{ url_for('static', filename='uploads/' ~ request.mentee.mentee_profile.profile_picture) }}"
                      alt="{{ request.mentee.name }}"
-                     class="w-10 h-10 rounded-full object-cover mr-3 mentee-avatar">
+                     class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3 mentee-avatar">
                 {% else %}
-                <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3">
+                <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-2 sm:mr-3">
                   <span class="text-sm font-semibold">{{ request.mentee.name[0] if request.mentee and request.mentee.name else '?' }}</span>
                 </div>
                 {% endif %}
@@ -214,38 +214,38 @@
                 {% if request.mentor.mentor_profile and request.mentor.mentor_profile.profile_picture %}
                 <img src="{{ url_for('static', filename='uploads/' ~ request.mentor.mentor_profile.profile_picture) }}"
                      alt="{{ request.mentor.name }}"
-                     class="w-10 h-10 rounded-full object-cover ml-3 mentor-avatar">
+                     class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover ml-3 mentor-avatar">
                 {% else %}
-                <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 ml-3">
+                <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 ml-3">
                   <span class="text-sm font-semibold">{{ request.mentor.name[0] if request.mentor and request.mentor.name else '?' }}</span>
                 </div>
                 {% endif %}
               </div>
             </div>
           </td>
-      <td class="px-6 py-4 max-w-[280px] min-w-[160px] break-words">
+      <td class="px-3 sm:px-6 py-4 max-w-[280px] min-w-[160px] break-words">
             <div class="text-sm font-medium text-gray-800">{{ request.purpose }}</div>
             <div class="text-xs text-gray-500 mt-1">Type: {{ request.mentor_type|title if request.mentor_type else '—' }} &middot; Duration: {{ request.duration_months }} months</div>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
+          <td class="px-3 sm:px-6 py-4 whitespace-nowrap">
             <span class="status-badge {% if request.mentor_status == 'accepted' %}status-accepted{% elif request.mentor_status == 'rejected' %}status-rejected{% else %}status-pending{% endif %} text-xs">
               {{ request.mentor_status }}
             </span>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
+          <td class="px-3 sm:px-6 py-4 whitespace-nowrap">
             <span class="status-badge {% if request.supervisor_status == 'approved' %}status-approved{% elif request.supervisor_status == 'rejected' %}status-rejected{% else %}status-pending{% endif %} text-xs">
               {{ request.supervisor_status }}
             </span>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap">
+          <td class="px-3 sm:px-6 py-4 whitespace-nowrap">
             <span class="status-badge {% if request.final_status == 'approved' %}status-approved{% elif request.final_status == 'rejected' %}status-rejected{% else %}status-pending{% endif %} text-xs">
               {{ request.final_status }}
             </span>
           </td>
-          <td class="px-6 py-4 whitespace-nowrap text-right">
+          <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
 
       <div class="flex gap-2 justify-end">
-              <button class="view-mentee-profile-btn px-3 py-2 bg-blue-100 text-blue-700 text-xs font-medium rounded-lg hover:bg-blue-200 transition duration-200"
+              <button class="view-mentee-profile-btn px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-100 text-blue-700 text-xs sm:text-sm font-medium rounded-lg hover:bg-blue-200 transition duration-200"
           data-mentee-id="{{ request.mentee.id if request.mentee else '' }}"
           data-mentee-name="{{ request.mentee.name if request.mentee else '' }}"
           data-mentee-email="{{ request.mentee.email if request.mentee else '' }}"
@@ -413,8 +413,8 @@
 </div>
 
 <!-- Mentor Profile Modal -->
-<div id="mentorProfileModal" class="fixed inset-0 hidden bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-  <div class="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative">
+<div id="mentorProfileModal" class="fixed inset-0 hidden bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm sm:max-w-lg md:max-w-4xl max-h-[90vh] overflow-y-auto relative">
     <button onclick="closeMentorProfileModal()" class="absolute top-5 right-5 text-gray-400 hover:text-gray-600 transition-colors duration-200 text-xl bg-white rounded-full p-1 shadow-sm z-10">✕</button>
     <div class="sticky top-0 bg-white z-10 px-8 pt-8 pb-4 border-b border-gray-100">
       <h2 class="text-2xl font-bold text-gray-800 flex items-center">

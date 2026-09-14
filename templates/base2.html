@@ -28,6 +28,8 @@
 
     <!-- Custom Design System -->
     <link rel="stylesheet" href="{{ url_for('static', filename='design-system.css') }}">
+    <!-- Mobile Responsive -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}">
 
     <!-- FullCalendar CSS -->
     <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
@@ -706,9 +708,9 @@
     {% if session.get('user_type') in ['1', '2'] and profile_complete == False %}
     <div id="profile-complete-popup"
         class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center popup-z-index z-[9999]">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4 animate-scale-in border border-slate-100">
-            <div class="flex items-center mb-6">
-                <div class="bg-amber-100 p-3 rounded-xl mr-4">
+    <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4 animate-scale-in border border-slate-100">
+        <div class="flex items-center mb-4 sm:mb-6">
+            <div class="bg-amber-100 p-2.5 sm:p-3 rounded-xl mr-3 sm:mr-4 shrink-0">
                     <svg class="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z">
@@ -1248,8 +1250,8 @@
     </script>
 
 <!-- Premium Mentor Modal -->
-<div id="premiumModal" class="fixed inset-0 hidden bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" onclick="if(event.target===this)closePremiumModal()">
-  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-auto overflow-hidden max-h-[90vh] flex flex-col">
+<div id="premiumModal" class="fixed inset-0 hidden bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 sm:p-4" onclick="if(event.target===this)closePremiumModal()">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-sm sm:max-w-md md:max-w-2xl w-full mx-auto overflow-hidden max-h-[90vh] flex flex-col">
 
     <!-- Header -->
     <div class="relative bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 px-8 py-6 text-white shrink-0 overflow-hidden">
@@ -1390,8 +1392,8 @@
 </div>
 
 <!-- Scholarly Mentee Modal -->
-<div id="scholarlyModal" class="fixed inset-0 hidden bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" onclick="if(event.target===this)closeScholarlyModal()">
-  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-auto overflow-hidden max-h-[90vh] flex flex-col">
+<div id="scholarlyModal" class="fixed inset-0 hidden bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 sm:p-4" onclick="if(event.target===this)closeScholarlyModal()">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-sm sm:max-w-md md:max-w-2xl w-full mx-auto overflow-hidden max-h-[90vh] flex flex-col">
 
     <!-- Header -->
     <div class="relative bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 px-8 py-6 text-white shrink-0 overflow-hidden">

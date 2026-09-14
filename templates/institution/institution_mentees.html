@@ -13,37 +13,37 @@
 
     <!-- Search and Filters -->
     <div class="mb-6 flex flex-wrap gap-3 items-center">
-      <div class="relative flex-1 min-w-[200px]">
+      <div class="relative flex-1 min-w-full sm:min-w-[200px]">
         <input type="text" id="menteeSearch" placeholder="Search mentees by name, school, goal..."
           class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" onkeyup="filterMentees()">
         <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
         </svg>
       </div>
-      <select id="menteeStatusFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentees()">
+      <select id="menteeStatusFilter" class="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentees()">
         <option value="">All Status</option>
         <option value="active">Active</option>
         <option value="inactive">Inactive</option>
       </select>
-      <select id="menteeStreamFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentees()">
+      <select id="menteeStreamFilter" class="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentees()">
         <option value="">All Streams</option>
       </select>
-      <select id="menteeSchoolFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentees()">
+      <select id="menteeSchoolFilter" class="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentees()">
         <option value="">All Schools</option>
       </select>
       <div class="ml-auto text-xs text-gray-500" id="menteeResultsCountInstitution"></div>
     </div>
 
     {% if mentees and mentees|length > 0 %}
-    <div class="overflow-x-auto rounded-xl border border-gray-200">
+    <div class="overflow-x-auto table-responsive rounded-xl border border-gray-200">
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
           <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentee</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stream</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Goal</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentee</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stream</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Goal</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
@@ -52,13 +52,13 @@
               data-status="{{ mentee.status|lower if mentee.status else 'active' }}"
               data-stream="{{ (mentee.mentee_profile.course_stream if mentee.mentee_profile else '')|lower }}"
               data-school="{{ (mentee.mentee_profile.school_college_name if mentee.mentee_profile else '')|lower }}">
-            <td class="px-6 py-4 whitespace-nowrap max-w-[280px]">
+            <td class="px-3 sm:px-6 py-4 whitespace-nowrap max-w-[280px]">
               <div class="flex items-center">
                 {% if mentee.mentee_profile and mentee.mentee_profile.profile_picture %}
                 <img src="{{ url_for('static', filename='uploads/' ~ mentee.mentee_profile.profile_picture) }}" alt="{{ mentee.name }}"
-                  class="w-10 h-10 rounded-full object-cover mr-3">
+                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3">
                 {% else %}
-                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 mr-3">
+                <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 mr-2 sm:mr-3">
                   <span class="font-semibold">{{ mentee.name[0] if mentee.name else '?' }}</span>
                 </div>
                 {% endif %}
@@ -68,11 +68,11 @@
                 </div>
               </div>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 mentee-stream max-w-[150px] truncate">{{ mentee.mentee_profile.stream if mentee.mentee_profile else 'Not specified' }}</td>
-            <td class="px-6 py-4 text-sm text-gray-600 mentee-goal min-w-[160px] max-w-[260px] break-words">{{ mentee.mentee_profile.goal if mentee.mentee_profile else 'Not specified' }}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentee-email max-w-[220px] truncate">{{ mentee.email }}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-right">
-              <button class="view-profile-btn px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition"
+            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700 mentee-stream max-w-[150px] truncate">{{ mentee.mentee_profile.stream if mentee.mentee_profile else 'Not specified' }}</td>
+            <td class="px-3 sm:px-6 py-4 text-sm text-gray-600 mentee-goal min-w-[160px] max-w-[260px] break-words">{{ mentee.mentee_profile.goal if mentee.mentee_profile else 'Not specified' }}</td>
+            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentee-email max-w-[220px] truncate">{{ mentee.email }}</td>
+            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
+              <button class="view-profile-btn px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-100 text-gray-700 text-xs sm:text-sm font-medium rounded-lg hover:bg-gray-200 transition"
                 data-mentee='{{ {
                     "id": mentee.id or "",
                     "name": mentee.name or "",

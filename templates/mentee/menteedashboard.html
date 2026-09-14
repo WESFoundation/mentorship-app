@@ -259,17 +259,17 @@
           {% if upcoming_sessions_list and upcoming_sessions_list|length > 0 %}
           {% for session in upcoming_sessions_list %}
           <div
-            class="flex justify-between items-center p-4 bg-white rounded-xl border border-slate-100 hover:shadow-lg hover:border-blue-200 transition-all duration-300 group">
-            <div class="flex items-center gap-4">
+            class="flex flex-col sm:flex-row sm:justify-between sm:items-center p-4 bg-white rounded-xl border border-slate-100 hover:shadow-lg hover:border-blue-200 transition-all duration-300 group gap-3">
+            <div class="flex items-center gap-3 sm:gap-4">
               <div
-                class="w-14 h-14 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl flex flex-col items-center justify-center border border-blue-200 text-xs font-bold text-blue-700 shadow-sm group-hover:scale-105 transition-transform">
+                class="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl flex flex-col items-center justify-center border border-blue-200 text-xs font-bold text-blue-700 shadow-sm group-hover:scale-105 transition-transform shrink-0">
                 <span class="text-lg leading-none">{{ session.date.split('-')[2] if session.date else '01' }}</span>
                 <span class="text-[10px] uppercase tracking-wide opacity-80">DAY</span>
               </div>
-              <div>
-                <p class="font-bold text-slate-800 text-lg group-hover:text-blue-700 transition-colors">{{
+              <div class="min-w-0">
+                <p class="font-bold text-slate-800 text-base sm:text-lg group-hover:text-blue-700 transition-colors truncate">{{
                   session.mentor_name }}</p>
-                <div class="flex items-center gap-2 mt-1">
+                <div class="flex flex-wrap items-center gap-2 mt-1">
                   <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-medium">{{ session.time
                     }}</span>
                   {% if session.topic %}
@@ -281,7 +281,7 @@
               </div>
             </div>
             <button
-              class="btn btn-sm btn-outline text-blue-600 border-blue-200 hover:bg-blue-50 hover:border-blue-300 transition-all">Details</button>
+              class="btn btn-sm btn-outline text-blue-600 border-blue-200 hover:bg-blue-50 hover:border-blue-300 transition-all sm:self-center self-end">Details</button>
           </div>
           {% endfor %}
           {% else %}

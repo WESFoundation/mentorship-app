@@ -360,19 +360,19 @@
           {% if upcoming_sessions_list and upcoming_sessions_list|length > 0 %}
           {% for session in upcoming_sessions_list %}
           <div
-            class="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100 hover:bg-white hover:shadow-md transition-all">
-            <div class="flex items-center gap-4">
+            class="flex flex-col sm:flex-row sm:justify-between sm:items-center p-4 bg-slate-50 rounded-xl border border-slate-100 hover:bg-white hover:shadow-md transition-all gap-3">
+            <div class="flex items-center gap-3 sm:gap-4">
               <div
-                class="w-12 h-12 bg-white rounded-xl flex flex-col items-center justify-center border border-slate-100 shadow-sm text-xs font-bold text-slate-600">
+                class="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-xl flex flex-col items-center justify-center border border-slate-100 shadow-sm text-xs font-bold text-slate-600 shrink-0">
                 <span>{{ session.date.split('-')[2] if session.date else '01' }}</span>
                 <span class="text-[10px] text-slate-400 uppercase">DAY</span>
               </div>
-              <div>
-                <p class="font-bold text-slate-800">{{ session.mentee_name }}</p>
+              <div class="min-w-0">
+                <p class="font-bold text-slate-800 truncate">{{ session.mentee_name }}</p>
                 <p class="text-sm text-slate-500">{{ session.time }}</p>
               </div>
             </div>
-            <button class="btn btn-sm btn-outline text-primary border-primary">Details</button>
+            <button class="btn btn-sm btn-outline text-primary border-primary sm:self-center self-end">Details</button>
           </div>
           {% endfor %}
           {% else %}
@@ -401,25 +401,25 @@
           {% if incoming_requests and incoming_requests|length > 0 %}
           {% for request in incoming_requests[:3] %}
           <div class="p-4 bg-white rounded-xl border border-slate-100 shadow-sm">
-            <div class="flex items-center justify-between mb-4">
-              <div class="flex items-center gap-3">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2">
+              <div class="flex items-center gap-3 min-w-0">
                 {% if request.mentee.mentee_profile and request.mentee.mentee_profile.profile_picture %}
                 <img src="{{ url_for('static', filename='uploads/' ~ request.mentee.mentee_profile.profile_picture) }}"
-                  alt="{{ request.mentee.name }}" class="w-10 h-10 rounded-full object-cover ring-2 ring-primary/20">
+                  alt="{{ request.mentee.name }}" class="w-10 h-10 rounded-full object-cover ring-2 ring-primary/20 shrink-0">
                 {% else %}
                 <div
-                  class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center text-primary font-bold ring-2 ring-primary/20">
+                  class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center text-primary font-bold ring-2 ring-primary/20 shrink-0">
                   {{ request.mentee.name[0] if request.mentee.name else '?' }}
                 </div>
                 {% endif %}
-                <div>
-                  <p class="font-bold text-slate-800">{{ request.mentee.name }}</p>
-                  <p class="text-xs text-slate-500 line-clamp-1">{{ request.purpose if request.purpose else 'Mentorship
+                <div class="min-w-0">
+                  <p class="font-bold text-slate-800 truncate">{{ request.mentee.name }}</p>
+                  <p class="text-xs text-slate-500 truncate">{{ request.purpose if request.purpose else 'Mentorship
                     request' }}</p>
                 </div>
               </div>
               <span
-                class="text-[10px] uppercase font-bold px-2 py-1 rounded-full {% if request.mentor_status == 'accepted' %}bg-emerald-100 text-emerald-700{% elif request.mentor_status == 'rejected' %}bg-red-100 text-red-700{% else %}bg-amber-100 text-amber-700{% endif %}">
+                class="text-[10px] uppercase font-bold px-2 py-1 rounded-full self-start sm:self-auto shrink-0 {% if request.mentor_status == 'accepted' %}bg-emerald-100 text-emerald-700{% elif request.mentor_status == 'rejected' %}bg-red-100 text-red-700{% else %}bg-amber-100 text-amber-700{% endif %}">
                 {{ request.mentor_status }}
               </span>
             </div>

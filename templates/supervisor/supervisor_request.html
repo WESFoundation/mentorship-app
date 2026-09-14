@@ -204,17 +204,17 @@
     </div>
 
     {% if all_requests and all_requests|length > 0 %}
-    <div class="overflow-x-auto rounded-xl border border-gray-200">
+    <div class="overflow-x-auto table-responsive rounded-xl border border-gray-200">
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
           <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Connection</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purpose</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor Status
+            <th class="px-3 sm:px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Connection</th>
+            <th class="px-3 sm:px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purpose</th>
+            <th class="px-3 sm:px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor Status
             </th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Your Decision
+            <th class="px-3 sm:px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Your Decision
             </th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">
+            <th class="px-3 sm:px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">
               Actions</th>
           </tr>
         </thead>
@@ -226,15 +226,15 @@
               data-duration="{{ req.duration_months if req.duration_months else '' }}"
               data-mentor-status="{{ req.mentor_status|lower if req.mentor_status else '' }}"
               data-supervisor-status="{{ req.supervisor_status|lower if req.supervisor_status else '' }}">
-            <td class="px-6 py-4 whitespace-nowrap">
+            <td class="px-3 sm:px-6 py-4 whitespace-nowrap">
               <div class="flex items-center">
                 <!-- Mentee -->
                 <div class="flex items-center">
                   {% if req.mentee and req.mentee.mentee_profile and req.mentee.mentee_profile.profile_picture %}
                   <img src="{{ url_for('static', filename='uploads/' ~ req.mentee.mentee_profile.profile_picture) }}"
-                    alt="{{ req.mentee.name }}" class="w-10 h-10 rounded-full object-cover mr-3 mentee-avatar">
+                    alt="{{ req.mentee.name }}" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3 mentee-avatar">
                   {% else %}
-                  <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3">
+                  <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-2 sm:mr-3">
                     <span class="text-sm font-semibold">{{ req.mentee.name[0] if req.mentee.name else '?' }}</span>
                   </div>
                   {% endif %}
@@ -262,38 +262,38 @@
                   </div>
                   {% if req.mentor and req.mentor.mentor_profile and req.mentor.mentor_profile.profile_picture %}
                   <img src="{{ url_for('static', filename='uploads/' ~ req.mentor.mentor_profile.profile_picture) }}"
-                    alt="{{ req.mentor.name }}" class="w-10 h-10 rounded-full object-cover ml-3 mentor-avatar">
+                    alt="{{ req.mentor.name }}" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover ml-3 mentor-avatar">
                   {% else %}
-                  <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 ml-3">
+                  <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 ml-3">
                     <span class="text-sm font-semibold">{{ req.mentor.name[0] if req.mentor.name else '?' }}</span>
                   </div>
                   {% endif %}
                 </div>
               </div>
             </td>
-            <td class="px-6 py-4 max-w-[280px] min-w-[160px] break-words">
+            <td class="px-3 sm:px-6 py-4 max-w-[280px] min-w-[160px] break-words">
               <div class="text-sm font-medium text-gray-800">{{ req.purpose }}</div>
               <div class="text-xs text-gray-500 mt-1">Type: {{ req.mentor_type|title }} · Duration: {{
                 req.duration_months }} months</div>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
+            <td class="px-3 sm:px-6 py-4 whitespace-nowrap">
               <span
                 class="status-badge {% if req.mentor_status == 'accepted' %}status-approved{% elif req.mentor_status == 'rejected' %}status-rejected{% else %}status-pending{% endif %} text-xs">
                 {{ req.mentor_status }}
               </span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
+            <td class="px-3 sm:px-6 py-4 whitespace-nowrap">
               <span
                 class="status-badge {% if req.supervisor_status == 'approved' %}status-approved{% elif req.supervisor_status == 'rejected' %}status-rejected{% else %}status-pending{% endif %} text-xs">
                 {{ req.supervisor_status }}
               </span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-right">
+            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
 
               {% if req.supervisor_status == 'pending' %}
               <div class="flex gap-2 justify-end mb-2">
                 <button
-                  class="view-mentee-profile-btn px-3 py-2 bg-blue-100 text-blue-700 text-xs font-medium rounded-lg hover:bg-blue-200 transition duration-200"
+                  class="view-mentee-profile-btn px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-100 text-blue-700 text-xs sm:text-sm font-medium rounded-lg hover:bg-blue-200 transition duration-200"
                   data-mentee-id="{{ req.mentee.id if req.mentee else '' }}"
                   data-mentee-name="{{ req.mentee.name if req.mentee else '' }}"
                   data-mentee-email="{{ req.mentee.email if req.mentee else '' }}" {% if req.mentee and
@@ -720,8 +720,8 @@
 
 <!-- Mentor Profile Modal -->
 <div id="mentorProfileModal"
-  class="fixed inset-0 hidden bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-  <div class="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative">
+  class="fixed inset-0 hidden bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm sm:max-w-lg md:max-w-4xl max-h-[90vh] overflow-y-auto relative">
     <!-- Close Button -->
     <button onclick="closeMentorProfileModal()"
       class="absolute top-5 right-5 text-gray-400 hover:text-gray-600 transition-colors duration-200 text-xl bg-white rounded-full p-1 shadow-sm z-10">✕</button>

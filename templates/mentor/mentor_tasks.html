@@ -298,7 +298,7 @@
     
     <!-- Header Section -->
     <section class="mb-8">
-        <div class="flex justify-between items-center mb-6">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-gray-900 mb-2">📋 Manage Tasks</h1>
                 <p class="text-gray-600">Assign and track tasks for your mentees</p>
@@ -393,7 +393,7 @@
             <h3 class="text-xl font-semibold text-gray-900 mb-4">Mentorship Tasks</h3>
             <div class="space-y-4">
                 {% for task in mentee_tasks %}
-                <div class="task-card p-6 
+                <div class="task-card p-4 sm:p-6 
                     {% if task.status == 'done' %}done-card{% endif %} 
                     {% if task.due_date and task.due_date.date() < today and task.status != 'done' %}urgent{% endif %}"
                     data-task-type="master" data-task-id="{{ task.id }}" data-task-status="{{ task.status }}" data-mentee-id="{{ task.mentee_id }}">
@@ -477,7 +477,7 @@
             <h3 class="text-xl font-semibold text-gray-900 mb-4">Personal Tasks Assigned by You</h3>
             <div class="space-y-4">
                 {% for task in personal_tasks %}
-                <div class="task-card p-6 
+                <div class="task-card p-4 sm:p-6 
                     {% if task.status == 'done' %}done-card{% endif %} 
                     {% if task.due_date and task.due_date.date() < today and task.status != 'done' %}urgent{% endif %}"
                     data-task-type="personal" data-task-id="{{ task.id }}" data-task-status="{{ task.status }}" data-mentee-id="{{ task.mentee_id }}">
@@ -577,7 +577,7 @@
 
 <!-- Assign Task Modal -->
 <div id="assign-task-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+    <div class="bg-white rounded-xl p-4 sm:p-6 w-full max-w-sm sm:max-w-md md:max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         <h3 class="text-xl font-semibold mb-4">Assign New Task</h3>
         <form id="assign-task-form" class="space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -881,7 +881,7 @@
 
 <!-- Mentor Reflection Modal (placed outside task-details-modal to avoid transform stacking context) -->
 <div id="mentor-feedback-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[60] hidden transition-opacity duration-300">
-    <div class="bg-white rounded-2xl p-8 w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div class="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-sm sm:max-w-md md:max-w-2xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-start mb-6">
             <div>
                 <h3 class="text-xl font-semibold text-slate-900">My Reflection</h3>
@@ -924,7 +924,7 @@
 
 <!-- Rating Modal -->
 <div id="rating-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+    <div class="bg-white rounded-xl p-4 sm:p-6 w-full max-w-sm sm:max-w-md md:max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-start mb-6">
             <div>
                 <h3 class="text-xl font-semibold text-gray-900">Rate Task</h3>
