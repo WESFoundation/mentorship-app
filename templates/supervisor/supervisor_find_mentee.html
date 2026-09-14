@@ -1,6 +1,6 @@
 {% extends "base2.html" %}
 {% block title %}Supervisor Dashboard{% endblock %}
-{% block user %}Supervisor{% endblock %}
+{% block user %}Admin{% endblock %}
 
 {% block profiledrop %}{% endblock %}
 
@@ -179,7 +179,6 @@
       <table class="min-w-full divide-y divide-gray-200">
 <thead class="bg-gray-50">
           <tr>
-<<<<<<< HEAD
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S.No</th>
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentee</th>
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">School</th>
@@ -187,18 +186,8 @@
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Goal</th>
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
-=======
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S.No</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentee</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">School</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stream</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Goal</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
->>>>>>> 0d0f27851481bcbf93c3173864d0bbc9e43d2c88
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
@@ -222,20 +211,12 @@
                 </div>
               </div>
             </td>
-<<<<<<< HEAD
             <td class="px-3 sm:px-6 py-4 text-sm text-gray-700 mentee-school max-w-[200px] break-words">{{ mentee.school_college_name or 'Not specified' }}</td>
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 max-w-[150px] truncate">{{ mentee.stream or '—' }}</td>
             <td class="px-3 sm:px-6 py-4 text-sm text-gray-600 mentee-goal min-w-[160px] max-w-[260px] break-words">{{ mentee.goal or 'Not specified' }}</td>
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentee-email max-w-[220px] truncate">{{ mentee.user.email }}</td>
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ mentee.user.created_at.strftime('%d %b %Y, %I:%M %p') if mentee.user.created_at else 'N/A' }}</td>
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
-=======
-            <td class="px-6 py-4 text-sm text-gray-700 mentee-school max-w-[200px] break-words">{{ mentee.school_college_name or 'Not specified' }}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 max-w-[150px] truncate">{{ mentee.stream or '—' }}</td>
-            <td class="px-6 py-4 text-sm text-gray-600 mentee-goal min-w-[160px] max-w-[260px] break-words">{{ mentee.goal or 'Not specified' }}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentee-email max-w-[220px] truncate">{{ mentee.user.email }}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ mentee.user.created_at.strftime('%d %b %Y, %I:%M %p') if mentee.user.created_at else 'N/A' }}</td>
-            <td class="px-6 py-4 whitespace-nowrap">
+            <td class="px-3 sm:px-6 py-4 whitespace-nowrap">
               <div class="sup-mentee-rating-container inline-flex items-center gap-2 cursor-pointer group" onclick="openMenteeRatingPopup({{ mentee.user_id }}, '{{ mentee.user.name|e }}')" data-mentee-uid="{{ mentee.user_id }}" title="Click to view rating breakdown for {{ mentee.user.name|e }}">
                 <div class="flex items-center gap-0.5 text-xs text-yellow-400" id="sup-mentee-stars-{{ mentee.user_id }}">
                   <span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span>
@@ -244,8 +225,7 @@
                 <span class="text-xs px-2 py-0.5 bg-emerald-50 group-hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded font-medium transition">Details</span>
               </div>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-right">
->>>>>>> 0d0f27851481bcbf93c3173864d0bbc9e43d2c88
+            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
               <button
                 class="view-profile-btn px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-100 text-gray-700 text-xs sm:text-sm font-medium rounded-lg hover:bg-gray-200 transition"
                 data-mentee='{{ {

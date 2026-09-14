@@ -61,7 +61,7 @@
       <div class="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full pointer-events-none"></div>
       <div class="flex items-center justify-between gap-3 mb-4 relative z-10">
         <h3 class="text-lg sm:text-xl font-bold flex items-center gap-2">
-          📋 My Tasks
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg> My Tasks
           {% if spotlight_tasks %}
           <span class="text-xs font-bold bg-white/20 px-2.5 py-1 rounded-full">{{ spotlight_tasks|length }} active</span>
           {% endif %}
@@ -101,7 +101,7 @@
         {% endif %}
       </div>
       {% else %}
-      <p class="relative z-10 text-white/90">🎉 All caught up! No active tasks right now.</p>
+      <p class="relative z-10 text-white/90">All caught up! No active tasks right now.</p>
       {% endif %}
     </div>
 
@@ -316,30 +316,17 @@
           {% if upcoming_sessions_list and upcoming_sessions_list|length > 0 %}
           {% for session in upcoming_sessions_list %}
           <div
-<<<<<<< HEAD
-            class="flex flex-col sm:flex-row sm:justify-between sm:items-center p-4 bg-white rounded-xl border border-slate-100 hover:shadow-lg hover:border-blue-200 transition-all duration-300 group gap-3">
-            <div class="flex items-center gap-3 sm:gap-4">
-              <div
-                class="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl flex flex-col items-center justify-center border border-blue-200 text-xs font-bold text-blue-700 shadow-sm group-hover:scale-105 transition-transform shrink-0">
-                <span class="text-lg leading-none">{{ session.date.split('-')[2] if session.date else '01' }}</span>
-                <span class="text-[10px] uppercase tracking-wide opacity-80">DAY</span>
-=======
             class="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 sm:p-4 bg-white rounded-xl border border-slate-100 hover:shadow-lg hover:border-blue-200 transition-all duration-300 gap-3 group">
             <div class="flex items-center gap-3 sm:gap-4">
               <div
                 class="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl flex flex-col items-center justify-center border border-blue-200 text-xs font-bold text-blue-700 shadow-sm group-hover:scale-105 transition-transform shrink-0">
                 <span class="text-base sm:text-lg leading-none">{{ session.date.split('-')[2] if session.date else '01' }}</span>
                 <span class="text-[9px] sm:text-[10px] uppercase tracking-wide opacity-80">DAY</span>
->>>>>>> 0d0f27851481bcbf93c3173864d0bbc9e43d2c88
               </div>
               <div class="min-w-0">
                 <p class="font-bold text-slate-800 text-base sm:text-lg group-hover:text-blue-700 transition-colors truncate">{{
                   session.mentor_name }}</p>
-<<<<<<< HEAD
-                <div class="flex flex-wrap items-center gap-2 mt-1">
-=======
                 <div class="flex items-center gap-2 mt-1 flex-wrap">
->>>>>>> 0d0f27851481bcbf93c3173864d0bbc9e43d2c88
                   <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-medium">{{ session.time
                     }}</span>
                   {% if session.topic %}
@@ -351,11 +338,7 @@
               </div>
             </div>
             <button
-<<<<<<< HEAD
-              class="btn btn-sm btn-outline text-blue-600 border-blue-200 hover:bg-blue-50 hover:border-blue-300 transition-all sm:self-center self-end">Details</button>
-=======
               class="w-full sm:w-auto btn btn-sm btn-outline text-blue-600 border-blue-200 hover:bg-blue-50 hover:border-blue-300 transition-all text-center">Details</button>
->>>>>>> 0d0f27851481bcbf93c3173864d0bbc9e43d2c88
           </div>
           {% endfor %}
           {% else %}

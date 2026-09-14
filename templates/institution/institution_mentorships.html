@@ -1,6 +1,6 @@
 {% extends "base2.html" %}
 {% block title %}Institution Mentorships{% endblock %}
-{% block user %}Institution{% endblock %}
+{% block user %}Coordinator{% endblock %}
 
 {% block profiledrop %}{% endblock %}
 
@@ -183,15 +183,6 @@
             </span>
             {% endif %}
           </td>
-<<<<<<< HEAD
-          <td class="px-3 sm:px-6 py-4 whitespace-nowrap">
-            {% if mentorship.mentor %}
-            <div class="inline-flex items-center gap-2 cursor-pointer group"
-                 onclick="openRatingPopup({{ mentorship.mentor.id }}, '{{ mentorship.mentor.name|e }}')"
-                 title="Click to view rating breakdown for {{ mentorship.mentor.name|e }}">
-              <div class="flex items-center gap-0.5 text-sm inst-ms-stars-{{ mentorship.mentor.id }}">
-                <span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span>
-=======
           <td class="px-6 py-4 whitespace-nowrap">
             <div class="space-y-1.5">
               {% if mentorship.mentor %}
@@ -203,7 +194,6 @@
                   <span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span>
                 </div>
                 <span class="text-xs font-bold text-gray-700 inst-ms-num-{{ mentorship.mentor.id }}">--</span>
->>>>>>> 0d0f27851481bcbf93c3173864d0bbc9e43d2c88
               </div>
               {% endif %}
               {% if mentorship.mentee %}

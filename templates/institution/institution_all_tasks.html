@@ -1,6 +1,6 @@
 {% extends "base2.html" %}
 {% block title %}Institution Tasks Overview{% endblock %}
-{% block user %}Institution{% endblock %}
+{% block user %}Coordinator{% endblock %}
 {% block profiledrop %}{% endblock %}
 {% block content %}
 
@@ -406,7 +406,7 @@
     <section class="mb-8">
         <div class="flex justify-between items-center mb-6">
             <div>
-                <h1 class="text-3xl font-bold text-gray-900 mb-2">📊 Institution Tasks Dashboard</h1>
+                <h1 class="text-3xl font-bold text-gray-900 mb-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg> Institution Tasks Dashboard</h1>
                 <p class="text-gray-600">Monitor all tasks and mentorship activities for your institution</p>
             </div>
 
@@ -414,7 +414,7 @@
         
         <!-- Insight Card -->
         <div class="insight-card">
-            <h3 class="text-xl font-semibold">📈 Institution Performance Insights</h3>
+            <h3 class="text-xl font-semibold"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg> Institution Performance Insights</h3>
             <p id="insight-text">Loading institution insights...</p>
         </div>
         
@@ -444,7 +444,7 @@
         <h3 class="text-xl font-semibold text-gray-900 mb-4">Institution Overview</h3>
         <div class="overview-grid">
             <div class="overview-card">
-                <h3>📋 Task Distribution</h3>
+                <h3><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg> Task Distribution</h3>
                 <div class="metric-item">
                     <span class="metric-label">Personal Tasks</span>
                     <span class="metric-value" id="personal-tasks">0</span>
@@ -460,7 +460,7 @@
             </div>
             
             <div class="overview-card">
-                <h3>👥 Member Activity</h3>
+                <h3><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/></svg> Member Activity</h3>
                 <div class="metric-item">
                     <span class="metric-label">Active Mentors</span>
                     <span class="metric-value" id="active-mentors">0</span>
@@ -476,7 +476,7 @@
             </div>
             
             <div class="overview-card">
-                <h3>⚡ Performance Metrics</h3>
+                <h3><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Performance Metrics</h3>
                 <div class="metric-item">
                     <span class="metric-label">Completion Rate</span>
                     <span class="metric-value" id="completion-rate">0%</span>
@@ -664,7 +664,7 @@
             <div id="mentee-rating-section" class="bg-emerald-50/60 p-5 rounded-xl border border-emerald-200">
                 <div class="flex items-center justify-between mb-3">
                     <h4 class="font-bold text-emerald-900 text-base flex items-center gap-2">
-                        <span>📋</span> Mentee's Rating & Reflection
+                        <span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg></span> Mentee's Rating & Reflection
                     </h4>
                     <span id="mentee-display-date" class="text-xs text-emerald-700 font-medium"></span>
                 </div>
@@ -717,7 +717,7 @@
             <div id="mentor-rating-section" class="bg-yellow-50/60 p-5 rounded-xl border border-yellow-200">
                 <div class="flex items-center justify-between mb-3">
                     <h4 class="font-bold text-yellow-900 text-base flex items-center gap-2">
-                        <span>⭐</span> Mentor's Rating & Feedback
+                        <span><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg></span> Mentor's Rating & Feedback
                     </h4>
                     <span id="rating-date" class="text-xs text-yellow-700 font-medium"></span>
                 </div>
@@ -755,7 +755,7 @@
             <div id="institute-reflection-section" class="bg-indigo-50/60 p-5 rounded-xl border border-indigo-200">
                 <div class="flex items-center justify-between mb-3">
                     <h4 class="font-bold text-indigo-900 text-base flex items-center gap-2">
-                        <span>🏛️</span> Institute's Reflection
+                        <span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></span> Institute's Reflection
                     </h4>
                     <span id="institute-display-date" class="text-xs text-indigo-700 font-medium"></span>
                 </div>

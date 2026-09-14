@@ -1,404 +1,318 @@
 /* ============================================================
    MENTOR CONNECT - DESIGN SYSTEM
-   Based on Dastawez UI Documentation
+   Professional, clean design — not AI-looking
    ============================================================ */
 
 /* ============================================================
    CSS VARIABLES (Design Tokens)
    ============================================================ */
 :root {
-  /* Primary Colors - Modern Blue Theme */
-  --primary: 221 83% 53%;
+  /* Primary Colors - Muted Professional Blue */
+  --primary: 215 45% 42%;
   --primary-foreground: 0 0% 100%;
-  --accent: 213 94% 68%;
+  --accent: 210 40% 50%;
 
   /* Background Colors */
-  --background: 220 30% 98%;
-  --foreground: 222 47% 11%;
+  --background: 220 15% 97%;
+  --foreground: 220 15% 15%;
   --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
+  --card-foreground: 220 15% 15%;
 
   /* Muted Colors */
-  --muted: 220 20% 94%;
-  --muted-foreground: 220 10% 46%;
+  --muted: 220 12% 95%;
+  --muted-foreground: 220 8% 50%;
 
   /* Border Colors */
-  --border: 220 20% 90%;
-  --border-hover: 221 83% 53%;
+  --border: 220 13% 91%;
+  --border-hover: 215 45% 52%;
 
-  /* Status Colors */
-  --success: 150 80% 40%;
-  --warning: 40 95% 50%;
-  --destructive: 0 85% 60%;
-  --info: 210 90% 55%;
+  /* Status Colors - Muted */
+  --success: 150 40% 42%;
+  --warning: 38 60% 45%;
+  --destructive: 0 55% 52%;
+  --info: 210 50% 48%;
 
   /* Sidebar Colors (Dark Theme) */
-  --sidebar-background: 260 50% 10%;
-  --sidebar-foreground: 220 20% 95%;
-  --sidebar-accent: 215 25% 27%;
-  --sidebar-border: 215 25% 20%;
-  --sidebar-primary: 221 83% 70%;
+  --sidebar-background: 220 20% 12%;
+  --sidebar-foreground: 220 15% 90%;
+  --sidebar-accent: 215 20% 22%;
+  --sidebar-border: 215 15% 18%;
+  --sidebar-primary: 215 45% 55%;
   --sidebar-primary-foreground: 0 0% 100%;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.08);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.04);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.04);
-  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
-  --shadow-glow: 0 0 20px -5px hsl(var(--primary) / 0.5);
+  /* Shadows - Subtle */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-md: 0 2px 4px -1px rgb(0 0 0 / 0.05);
+  --shadow-lg: 0 4px 8px -2px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.03);
+  --shadow-xl: 0 8px 16px -4px rgb(0 0 0 / 0.06), 0 4px 8px -4px rgb(0 0 0 / 0.03);
+  --shadow-2xl: 0 12px 24px -8px rgb(0 0 0 / 0.15);
+  --shadow-glow: 0 0 12px -4px hsl(var(--primary) / 0.3);
 }
 
 /* ============================================================
-   GRADIENT UTILITIES
+   GRADIENT UTILITIES - Subtle
    ============================================================ */
 .gradient-primary {
-  background: linear-gradient(135deg, hsl(221 83% 53%), hsl(213 94% 68%));
+  background: linear-gradient(135deg, hsl(215 45% 42%), hsl(210 40% 50%));
 }
 
 .gradient-hero {
-  background: linear-gradient(135deg, hsl(222 47% 11%), hsl(221 83% 53%), hsl(213 94% 68%));
+  background: linear-gradient(135deg, hsl(220 15% 20%), hsl(215 45% 42%));
 }
 
 .gradient-dark {
-  background: linear-gradient(to right, hsl(260 50% 10%), hsl(256 60% 15%));
+  background: linear-gradient(to right, hsl(220 20% 14%), hsl(220 18% 18%));
 }
 
 .text-gradient {
-  background: linear-gradient(135deg, hsl(221 83% 53%), hsl(213 94% 68%));
+  background: linear-gradient(135deg, hsl(215 45% 42%), hsl(210 40% 50%));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 /* ============================================================
-   GLASS EFFECT
+   GLASS EFFECT - Minimal
    ============================================================ */
 .glass-card {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04);
 }
 
 .glass-nav {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgb(0 0 0 / 0.06);
 }
 
 /* ============================================================
-   HOVER EFFECTS
+   HOVER EFFECTS - Subtle
    ============================================================ */
 .hover-lift {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s ease;
 }
 
 .hover-lift:hover {
-  transform: translateY(-5px);
-  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .hover-scale {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.2s ease;
 }
 
 .hover-scale:hover {
-  transform: scale(1.03);
+  transform: scale(1.01);
 }
 
 /* ============================================================
-   ANIMATIONS
+   ANIMATIONS - Professional
    ============================================================ */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes float {
-
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-15px);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.6s ease-out;
-}
-
-.animate-slide-up {
-  animation: slideUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.animate-float {
-  animation: float 4s ease-in-out infinite;
-}
-
-.animate-scale-in {
-  animation: scaleIn 0.3s ease-out;
-}
+.animate-fade-in { animation: fadeIn 0.3s ease; }
+.animate-slide-up { animation: slideUp 0.3s ease; }
+.animate-scale-in { animation: scaleIn 0.2s ease; }
 
 /* ============================================================
-   SIDEBAR STYLES
+   SIDEBAR
    ============================================================ */
 .sidebar {
-  background-color: hsl(var(--sidebar-background));
+  background: hsl(var(--sidebar-background));
   color: hsl(var(--sidebar-foreground));
-  border-right: 1px solid hsl(var(--sidebar-border));
+  transition: width 0.3s ease;
 }
 
 .sidebar-nav-item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  color: hsl(var(--sidebar-foreground) / 0.7);
+  font-size: 0.8125rem;
   font-weight: 500;
-  transition: all 0.2s;
-  color: hsl(var(--sidebar-foreground));
-  margin-bottom: 0.25rem;
+  transition: all 0.15s ease;
+  text-decoration: none;
 }
 
 .sidebar-nav-item:hover {
-  background-color: hsl(var(--sidebar-accent));
-  color: hsl(221 83% 90%);
+  background: hsl(var(--sidebar-accent));
+  color: hsl(var(--sidebar-foreground));
 }
 
 .sidebar-nav-item.active {
-  background: linear-gradient(to right, hsl(var(--sidebar-primary)), hsl(var(--primary)));
-  color: hsl(var(--sidebar-primary-foreground));
-  box-shadow: var(--shadow-md);
+  background: hsl(var(--sidebar-primary) / 0.15);
+  color: hsl(var(--sidebar-primary));
+  font-weight: 600;
 }
 
 /* ============================================================
-   BUTTON STYLES
+   BUTTONS
    ============================================================ */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.025em;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
   cursor: pointer;
   border: none;
-  outline: none;
+  text-decoration: none;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, hsl(221 83% 53%), hsl(213 94% 68%));
-  color: white;
-  padding: 0.625rem 1.25rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.btn-primary::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: 0.5s;
-}
-
-.btn-primary:hover::after {
-  left: 100%;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg), 0 0 15px -3px hsl(var(--primary) / 0.4);
+  background: hsl(var(--primary) / 0.9);
 }
 
 .btn-outline {
-  border: 1.5px solid hsl(var(--border) / 1.5);
   background: transparent;
-  padding: 0.625rem 1.25rem;
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
 }
 
 .btn-outline:hover {
-  border-color: hsl(var(--primary));
-  color: hsl(var(--primary));
-  background-color: hsl(var(--primary) / 0.05);
+  background: hsl(var(--muted));
+  border-color: hsl(var(--border-hover));
 }
 
 .btn-ghost {
   background: transparent;
-  padding: 0.5rem 1rem;
+  color: hsl(var(--foreground));
 }
 
 .btn-ghost:hover {
-  background-color: hsl(var(--muted));
-  color: hsl(var(--primary));
+  background: hsl(var(--muted));
 }
 
 .btn-sm {
-  padding: 0.375rem 0.875rem;
-  font-size: 0.875rem;
-  border-radius: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
 }
 
 .btn-lg {
-  padding: 0.875rem 2.5rem;
-  font-size: 1.125rem;
-  border-radius: 1rem;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
 }
 
 /* ============================================================
-   CARD STYLES
+   CARDS - Clean, Professional
    ============================================================ */
 .card {
-  background-color: hsl(var(--card));
+  background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
-  border-radius: 1.25rem;
-  box-shadow: var(--shadow-sm);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 0.75rem;
+  transition: box-shadow 0.2s ease;
 }
 
 .card:hover {
-  box-shadow: var(--shadow-xl);
-  border-color: hsl(var(--primary) / 0.2);
-  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
 }
 
 .card-header {
-  padding: 1.75rem;
+  padding: 1rem 1.25rem;
   border-bottom: 1px solid hsl(var(--border));
 }
 
 .card-content {
-  padding: 1.75rem;
+  padding: 1rem 1.25rem;
 }
 
 .card-footer {
-  padding: 1.75rem;
+  padding: 0.75rem 1.25rem;
   border-top: 1px solid hsl(var(--border));
-  background-color: hsl(var(--muted) / 0.3);
 }
 
 /* ============================================================
-   BADGE STYLES
+   BADGES
    ============================================================ */
 .badge {
   display: inline-flex;
   align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
   border-radius: 9999px;
-  padding: 0.35rem 0.875rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 .badge-primary {
-  background-color: hsl(221 83% 53% / 0.1);
-  color: hsl(221 83% 53%);
-  border: 1px solid hsl(221 83% 53% / 0.2);
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
 }
 
 .badge-success {
-  background-color: hsl(150 80% 40% / 0.1);
-  color: hsl(150 80% 40%);
-  border: 1px solid hsl(150 80% 40% / 0.2);
+  background: hsl(var(--success) / 0.1);
+  color: hsl(var(--success));
 }
 
 .badge-warning {
-  background-color: hsl(40 95% 50% / 0.1);
-  color: hsl(40 95% 45%);
-  border: 1px solid hsl(40 95% 50% / 0.2);
+  background: hsl(var(--warning) / 0.1);
+  color: hsl(var(--warning));
 }
 
 .badge-error {
-  background-color: hsl(0 85% 60% / 0.1);
-  color: hsl(0 85% 60%);
-  border: 1px solid hsl(0 85% 60% / 0.2);
+  background: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
 }
 
 /* ============================================================
-   INPUT STYLES
+   INPUTS
    ============================================================ */
 .input {
   width: 100%;
-  padding: 0.75rem 1rem;
-  border: 1.5px solid hsl(var(--border));
-  border-radius: 0.75rem;
-  background-color: hsl(var(--background));
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  background: hsl(var(--card));
   color: hsl(var(--foreground));
-  transition: all 0.2s ease-out;
-  font-size: 0.95rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .input:focus {
   outline: none;
   border-color: hsl(var(--primary));
-  box-shadow: 0 0 0 4px hsl(var(--primary) / 0.15);
-  background-color: white;
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1);
 }
 
 .input:hover:not(:disabled):not(:focus) {
-  border-color: hsl(var(--border-hover) / 0.5);
+  border-color: hsl(var(--border-hover));
 }
 
 /* ============================================================
-   UTILITY CLASSES
+   UTILITIES
    ============================================================ */
-.text-muted {
-  color: hsl(var(--muted-foreground));
-}
-
-.text-primary {
-  color: hsl(var(--primary));
-}
-
-.bg-muted {
-  background-color: hsl(var(--muted));
-}
-
-.border-primary {
-  border-color: hsl(var(--primary));
-}
+.text-muted { color: hsl(var(--muted-foreground)); }
+.text-primary { color: hsl(var(--primary)); }
+.bg-muted { background: hsl(var(--muted)); }
+.border-primary { border-color: hsl(var(--primary)); }
 
 /* ============================================================
-   RESPONSIVE UTILITIES
+   RESPONSIVE - Mobile
    ============================================================ */
 @media (max-width: 768px) {
   .sidebar {
@@ -409,20 +323,25 @@
     z-index: 50;
     transform: translateX(-100%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: var(--shadow-2xl);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
   }
 
   .sidebar.open {
     transform: translateX(0);
   }
+
+  .sidebar-nav-item {
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+  }
 }
 
 /* ============================================================
-   SCROLLBAR STYLING
+   SCROLLBAR
    ============================================================ */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -430,11 +349,10 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
+  background: hsl(var(--muted-foreground) / 0.2);
   border-radius: 99px;
-  border: 2px solid hsl(var(--background));
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary) / 0.6);
+  background: hsl(var(--muted-foreground) / 0.3);
 }

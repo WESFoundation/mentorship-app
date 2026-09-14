@@ -4,9 +4,9 @@
 {% block user %}Edit Mentor Profile{% endblock %}
 
 {% block Sidebar %}
-    <a href="{{ url_for('profile')}}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition duration-150 ease-in-out">👤 My Profile</a>
-    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition duration-150 ease-in-out">⚙️ Settings</a>
-    <a href="{{ url_for('logout')}}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition duration-150 ease-in-out">🚪 Sign out</a>
+    <a href="{{ url_for('profile')}}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition duration-150 ease-in-out"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg> My Profile</a>
+    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition duration-150 ease-in-out"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg> Settings</a>
+    <a href="{{ url_for('logout')}}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition duration-150 ease-in-out"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg> Sign out</a>
 {% endblock %}
 
 {% block content %}
@@ -241,18 +241,18 @@
                             <option value="">Select Industry</option>
                             <option value="Technology" {% if industry_sector == 'Technology' %}selected{% endif %}>💻 Technology</option>
                             <option value="Healthcare" {% if industry_sector == 'Healthcare' %}selected{% endif %}>🏥 Healthcare</option>
-                            <option value="Education" {% if industry_sector == 'Education' %}selected{% endif %}>🎓 Education</option>
+                            <option value="Education" {% if industry_sector == 'Education' %}selected{% endif %}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 14l9-5-9-5-9 5 9 5z"/><path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg> Education</option>
                             <option value="Finance" {% if industry_sector == 'Finance' %}selected{% endif %}>💰 Finance</option>
-                            <option value="Business" {% if industry_sector == 'Business' %}selected{% endif %}>💼 Business</option>
-                            <option value="Creative Arts" {% if industry_sector == 'Creative Arts' %}selected{% endif %}>🎨 Creative Arts</option>
+                            <option value="Business" {% if industry_sector == 'Business' %}selected{% endif %}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> Business</option>
+                            <option value="Creative Arts" {% if industry_sector == 'Creative Arts' %}selected{% endif %}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg> Creative Arts</option>
                             <option value="Science & Research" {% if industry_sector == 'Science & Research' %}selected{% endif %}>🔬 Science & Research</option>
-                            <option value="Government" {% if industry_sector == 'Government' %}selected{% endif %}>🏛️ Government</option>
+                            <option value="Government" {% if industry_sector == 'Government' %}selected{% endif %}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg> Government</option>
                             <option value="Non-Profit" {% if industry_sector == 'Non-Profit' %}selected{% endif %}>🤝 Non-Profit</option>
                             <option value="Manufacturing" {% if industry_sector == 'Manufacturing' %}selected{% endif %}>🏭 Manufacturing</option>
-                            <option value="Retail" {% if industry_sector == 'Retail' %}selected{% endif %}>🛍️ Retail</option>
+                            <option value="Retail" {% if industry_sector == 'Retail' %}selected{% endif %}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg> Retail</option>
                             <option value="Hospitality" {% if industry_sector == 'Hospitality' %}selected{% endif %}>🏨 Hospitality</option>
-                            <option value="Legal" {% if industry_sector == 'Legal' %}selected{% endif %}>⚖️ Legal</option>
-                            <option value="Media & Entertainment" {% if industry_sector == 'Media & Entertainment' %}selected{% endif %}>🎬 Media & Entertainment</option>
+                            <option value="Legal" {% if industry_sector == 'Legal' %}selected{% endif %}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg> Legal</option>
+                            <option value="Media & Entertainment" {% if industry_sector == 'Media & Entertainment' %}selected{% endif %}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> Media & Entertainment</option>
                             <option value="Real Estate" {% if industry_sector == 'Real Estate' %}selected{% endif %}>🏠 Real Estate</option>
                             <option value="Agriculture" {% if industry_sector == 'Agriculture' %}selected{% endif %}>🌾 Agriculture</option>
                             <option value="Other" {% if industry_sector and industry_sector not in ['Technology', 'Healthcare', 'Education', 'Finance', 'Business', 'Creative Arts', 'Science & Research', 'Government', 'Non-Profit', 'Manufacturing', 'Retail', 'Hospitality', 'Legal', 'Media & Entertainment', 'Real Estate', 'Agriculture'] %}selected{% endif %}>🔶 Other</option>
@@ -745,7 +745,7 @@
                         <label class="block text-gray-700 font-semibold mb-2">Academic Status</label>
                         <select name="academic_status" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300">
                             <option value="">Select Status</option>
-                            <option value="Completed" {% if academic_status == "Completed" %}selected{% endif %}>✅ Completed</option>
+                            <option value="Completed" {% if academic_status == "Completed" %}selected{% endif %}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Completed</option>
                             <option value="Pursuing" {% if academic_status == "Pursuing" %}selected{% endif %}>📚 Pursuing</option>
                         </select>
                     </div>
@@ -845,27 +845,27 @@
                 <p class="font-semibold text-gray-700 mb-1">Career Development</p>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Career Guidance" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>🎯 Career Guidance</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg> Career Guidance</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Career Transition" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>🔄 Career Transition</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Career Transition</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Interview Preparation" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>📝 Interview Preparation</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> Interview Preparation</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Resume Building" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>📄 Resume Building</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> Resume Building</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Job Search Strategy" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>🔍 Job Search Strategy</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> Job Search Strategy</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Salary Negotiation" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>💰 Salary Negotiation</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Salary Negotiation</span>
                 </label>
             </div>
 
@@ -874,31 +874,31 @@
                 <p class="font-semibold text-gray-700 mb-1">Technical Skills</p>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Programming" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>💻 Programming</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> Programming</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Data Science" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>📊 Data Science</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg> Data Science</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Machine Learning" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>🤖 Machine Learning</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> Machine Learning</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Web Development" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>🌐 Web Development</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg> Web Development</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Mobile Development" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>📱 Mobile Development</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg> Mobile Development</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Cloud Computing" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>☁️ Cloud Computing</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg> Cloud Computing</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Cybersecurity" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>🔒 Cybersecurity</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg> Cybersecurity</span>
                 </label>
             </div>
 
@@ -907,27 +907,27 @@
                 <p class="font-semibold text-gray-700 mb-1">Professional Skills</p>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Leadership" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>🌟 Leadership</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg> Leadership</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Project Management" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>📊 Project Management</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg> Project Management</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Public Speaking" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>🎤 Public Speaking</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg> Public Speaking</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Communication Skills" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>💬 Communication Skills</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg> Communication Skills</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Time Management" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>⏰ Time Management</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Time Management</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Team Collaboration" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>👥 Team Collaboration</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg> Team Collaboration</span>
                 </label>
             </div>
 
@@ -938,22 +938,22 @@
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="UI/UX Design" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>🎨 UI/UX Design</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg> UI/UX Design</span>
     </label>
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="Graphic Design" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>🖌️ Graphic Design</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg> Graphic Design</span>
     </label>
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="Video Editing" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>🎬 Video Editing</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Video Editing</span>
     </label>
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="Animation" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>✨ Animation</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Animation</span>
     </label>
 </div>
 
@@ -965,22 +965,22 @@
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="Business Strategy" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>📊 Business Strategy</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg> Business Strategy</span>
     </label>
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="Operations Management" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>⚙️ Operations Management</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg> Operations Management</span>
     </label>
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="Human Resource Management" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>👔 Human Resource Management</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg> Human Resource Management</span>
     </label>
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="Financial Planning" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>💰 Financial Planning</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Financial Planning</span>
     </label>
 </div>
 
@@ -990,22 +990,22 @@
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="Artificial Intelligence" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>🤖 Artificial Intelligence</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> Artificial Intelligence</span>
     </label>
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="Blockchain" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>⛓️ Blockchain</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg> Blockchain</span>
     </label>
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="Internet of Things" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>🌐 Internet of Things</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg> Internet of Things</span>
     </label>
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="AR/VR" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>🥽 AR / VR</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg> AR / VR</span>
     </label>
 </div>
 
@@ -1017,22 +1017,22 @@
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="Internships" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>🏢 Internships</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg> Internships</span>
     </label>
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="Hackathons" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>💻 Hackathons</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> Hackathons</span>
     </label>
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="Final Year Projects" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>📚 Final Year Projects</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg> Final Year Projects</span>
     </label>
 
     <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
         <input type="checkbox" value="Scholarships" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-        <span>🎓 Scholarships</span>
+        <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222"/></svg> Scholarships</span>
     </label>
 </div>
 
@@ -1042,23 +1042,23 @@
                 <p class="font-semibold text-gray-700 mb-1">Academic & Research</p>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Research Methodology" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>🔬 Research Methodology</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> Research Methodology</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Academic Writing" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>✍️ Academic Writing</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg> Academic Writing</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Thesis Guidance" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>📚 Thesis Guidance</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg> Thesis Guidance</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Study Abroad" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>✈️ Study Abroad</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg> Study Abroad</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Competitive Exams" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>📝 Competitive Exams</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> Competitive Exams</span>
                 </label>
             </div>
 
@@ -1067,23 +1067,23 @@
                 <p class="font-semibold text-gray-700 mb-1">Entrepreneurship</p>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Startup Guidance" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>🚀 Startup Guidance</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Startup Guidance</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Business Planning" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>📈 Business Planning</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg> Business Planning</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Funding & Investment" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>💸 Funding & Investment</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Funding & Investment</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Marketing Strategy" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>📢 Marketing Strategy</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg> Marketing Strategy</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Product Management" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>📦 Product Management</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg> Product Management</span>
                 </label>
             </div>
 
@@ -1092,23 +1092,23 @@
                 <p class="font-semibold text-gray-700 mb-1">Personal Development</p>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Personal Growth" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>🌱 Personal Growth</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg> Personal Growth</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Mindset & Motivation" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>💪 Mindset & Motivation</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Mindset & Motivation</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Work-Life Balance" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>⚖️ Work-Life Balance</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg> Work-Life Balance</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Networking Skills" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>🤝 Networking Skills</span>
+                    <span><svg class="w-4 h-4 inline-block text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg> Networking Skills</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Personal Branding" class="mr-3 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 topic-checkbox">
-                    <span>🌟 Personal Branding</span>
+                    <span><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg> Personal Branding</span>
                 </label>
             </div>
         </div>
@@ -1151,15 +1151,15 @@
                 <p class="font-semibold text-gray-700 mb-1">Student Groups</p>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="School Students" class="mr-3 h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 mentorship-pref-checkbox">
-                    <span>🎒 School Students (6th-12th)</span>
+                    <span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 14l9-5-9-5-9 5 9 5z"/><path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg> School Students (6th-12th)</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="College Students" class="mr-3 h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 mentorship-pref-checkbox">
-                    <span>🎓 College Students (Undergraduate)</span>
+                    <span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 14l9-5-9-5-9 5 9 5z"/><path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg> College Students (Undergraduate)</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Graduate Students" class="mr-3 h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 mentorship-pref-checkbox">
-                    <span>🎓 Graduate Students (Postgraduate)</span>
+                    <span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 14l9-5-9-5-9 5 9 5z"/><path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg> Graduate Students (Postgraduate)</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="PhD Scholars" class="mr-3 h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 mentorship-pref-checkbox">
@@ -1172,19 +1172,19 @@
                 <p class="font-semibold text-gray-700 mb-1">Professional Groups</p>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Early Professionals" class="mr-3 h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 mentorship-pref-checkbox">
-                    <span>👨‍💼 Early Professionals (0-3 years)</span>
+                    <span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> Early Professionals (0-3 years)</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Mid-Level Professionals" class="mr-3 h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 mentorship-pref-checkbox">
-                    <span>💼 Mid-Level Professionals (4-8 years)</span>
+                    <span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> Mid-Level Professionals (4-8 years)</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Senior Professionals" class="mr-3 h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 mentorship-pref-checkbox">
-                    <span>👔 Senior Professionals (8+ years)</span>
+                    <span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> Senior Professionals (8+ years)</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Career Changers" class="mr-3 h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 mentorship-pref-checkbox">
-                    <span>🔄 Career Changers</span>
+                    <span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Career Changers</span>
                 </label>
             </div>
 
@@ -1193,7 +1193,7 @@
                 <p class="font-semibold text-gray-700 mb-1">Special Groups</p>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Women" class="mr-3 h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 mentorship-pref-checkbox">
-                    <span>👩‍💼 Women Professionals</span>
+                    <span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg> Women Professionals</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Underrepresented Groups" class="mr-3 h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 mentorship-pref-checkbox">
@@ -1201,15 +1201,15 @@
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Entrepreneurs" class="mr-3 h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 mentorship-pref-checkbox">
-                    <span>💡 Entrepreneurs</span>
+                    <span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg> Entrepreneurs</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="Returning Professionals" class="mr-3 h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 mentorship-pref-checkbox">
-                    <span>↩️ Returning Professionals</span>
+                    <span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg> Returning Professionals</span>
                 </label>
                 <label class="flex items-center p-2 hover:bg-gray-100 cursor-pointer rounded">
                     <input type="checkbox" value="First Generation Students" class="mr-3 h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 mentorship-pref-checkbox">
-                    <span>🌟 First Generation Students</span>
+                    <span><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg> First Generation Students</span>
                 </label>
             </div>
 
@@ -1243,10 +1243,10 @@
                         <label class="block text-gray-700 font-semibold mb-2">Availability </label>
                         <select name="availability" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300">
                             <option value="">Select Availability</option>
-                            <option value="Weekdays" {% if availability == 'Weekdays' %}selected{% endif %}>📅 Weekdays</option>
-                            <option value="Weekends" {% if availability == 'Weekends' %}selected{% endif %}>🏖️ Weekends</option>
+                            <option value="Weekdays" {% if availability == 'Weekdays' %}selected{% endif %}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> Weekdays</option>
+                            <option value="Weekends" {% if availability == 'Weekends' %}selected{% endif %}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> Weekends</option>
                             <option value="Evenings" {% if availability == 'Evenings' %}selected{% endif %}>🌙 Evenings</option>
-                            <option value="Flexible" {% if availability == 'Flexible' %}selected{% endif %}>🔄 Flexible</option>
+                            <option value="Flexible" {% if availability == 'Flexible' %}selected{% endif %}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Flexible</option>
                         </select>
                     </div>
 
@@ -1254,10 +1254,10 @@
                         <label class="block text-gray-700 font-semibold mb-2">Connect Frequency </label>
                         <select name="connect_frequency" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300">
                             <option value="">Select Frequency</option>
-                            <option value="Weekly" {% if connect_frequency == 'Weekly' %}selected{% endif %}>📅 Weekly</option>
-                            <option value="Bi-weekly" {% if connect_frequency == 'Bi-weekly' %}selected{% endif %}>🔄 Bi-weekly</option>
-                            <option value="Monthly" {% if connect_frequency == 'Monthly' %}selected{% endif %}>🗓️ Monthly</option>
-                            <option value="As needed" {% if connect_frequency == 'As needed' %}selected{% endif %}>💬 As needed</option>
+                            <option value="Weekly" {% if connect_frequency == 'Weekly' %}selected{% endif %}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> Weekly</option>
+                            <option value="Bi-weekly" {% if connect_frequency == 'Bi-weekly' %}selected{% endif %}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Bi-weekly</option>
+                            <option value="Monthly" {% if connect_frequency == 'Monthly' %}selected{% endif %}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> Monthly</option>
+                            <option value="As needed" {% if connect_frequency == 'As needed' %}selected{% endif %}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg> As needed</option>
                         </select>
                     </div>
 

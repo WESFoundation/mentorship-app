@@ -1,6 +1,6 @@
 {% extends "base2.html" %}
 {% block title %}Institution - All Meetings{% endblock %}
-{% block user %}Institution{% endblock %}
+{% block user %}Coordinator{% endblock %}
 {% block profiledrop %}{% endblock %}
 {% block content %}
 
@@ -9,7 +9,7 @@
 
 <div class="p-6 bg-white rounded-xl shadow-md">
   <div class="flex justify-between items-center mb-6">
-    <h2 class="text-2xl font-bold text-gray-800">📊 All Meetings</h2>
+    <h2 class="text-2xl font-bold text-gray-800"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg> All Meetings</h2>
     <div class="text-sm text-gray-500">
       Total Meetings: <span class="font-semibold">{{ meetings|length }}</span>
     </div>
@@ -68,7 +68,7 @@
     <!-- Upcoming Meetings Section -->
     <div class="mb-10">
       <div class="flex justify-between items-center mb-4">
-        <h3 class="text-xl font-semibold text-gray-800 border-b pb-2">🟢 Upcoming Meetings</h3>
+        <h3 class="text-xl font-semibold text-gray-800 border-b pb-2"><span class="w-2 h-2 bg-green-500 rounded-full inline-block"></span> Upcoming Meetings</h3>
         <span class="text-sm text-gray-500" id="upcomingVisibleCount">0 meetings</span>
       </div>
       
@@ -178,7 +178,7 @@
     <!-- Past Meetings Section -->
     <div>
       <div class="flex justify-between items-center mb-4">
-        <h3 class="text-xl font-semibold text-gray-800 border-b pb-2">🔴 Past Meetings</h3>
+        <h3 class="text-xl font-semibold text-gray-800 border-b pb-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Past Meetings</h3>
         <span class="text-sm text-gray-500" id="pastVisibleCount">0 meetings</span>
       </div>
       
