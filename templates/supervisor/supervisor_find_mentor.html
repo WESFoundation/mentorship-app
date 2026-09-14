@@ -163,43 +163,43 @@
       <table class="min-w-full divide-y divide-gray-200">
 <thead class="bg-gray-50">
           <tr>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S.No</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profession</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Profession</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
           {% for mentor in mentors %}
           <tr class="mentor-row hover:bg-gray-50 transition-colors" data-mentor-id="{{ mentor.id }}">
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-500">{{ mentor.serial }}</td>
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap max-w-[280px]">
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm font-mono text-gray-500">{{ mentor.serial }}</td>
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap max-w-[220px]">
               <div class="flex items-center">
                 {% if mentor.profile_picture %}
                 <img src="{{ url_for('static', filename='uploads/' ~ mentor.profile_picture) }}" alt="{{ mentor.user.name }}"
-                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3">
+                  class="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover mr-1.5 sm:mr-2">
                 {% else %}
                 <div
-                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 mr-2 sm:mr-3">
-                  <span class="font-semibold">{{ mentor.user.name[0] if mentor.user.name else '?' }}</span>
+                  class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 mr-1.5 sm:mr-2">
+                  <span class="font-semibold text-xs">{{ mentor.user.name[0] if mentor.user.name else '?' }}</span>
                 </div>
                 {% endif %}
                 <div>
-                  <div class="text-sm font-semibold text-gray-900 mentor-name">{{ mentor.user.name }}</div>
-                  <div class="text-xs text-gray-500 truncate max-w-[220px]">{{ mentor.organisation or 'Not specified' }}</div>
+                  <div class="text-[11px] sm:text-sm font-semibold text-gray-900 mentor-name leading-tight">{{ mentor.user.name }}</div>
+                  <div class="text-[10px] sm:text-xs text-gray-500 truncate max-w-[180px]">{{ mentor.organisation or 'Not specified' }}</div>
                 </div>
               </div>
             </td>
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700 mentor-profession max-w-[200px] truncate">{{ mentor.profession or 'Not specified' }}</td>
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentor-location max-w-[160px] truncate">{{ mentor.location or 'Not specified' }}</td>
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentor-email max-w-[200px] truncate">{{ mentor.user.email }}</td>
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ mentor.user.created_at.strftime('%d %b %Y, %I:%M %p') if mentor.user.created_at else 'N/A' }}</td>
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap">
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-700 mentor-profession max-w-[150px] truncate">{{ mentor.profession or 'Not specified' }}</td>
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-600 mentor-location max-w-[120px] truncate">{{ mentor.location or 'Not specified' }}</td>
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-600 mentor-email max-w-[170px] truncate">{{ mentor.user.email }}</td>
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-500">{{ mentor.user.created_at.strftime('%d %b %Y') if mentor.user.created_at else 'N/A' }}</td>
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap">
               <div class="sup-rating-container" onclick="openRatingPopup({{ mentor.user_id }}, '{{ mentor.user.name|e }}')" data-mentor-uid="{{ mentor.user_id }}">
                 <div class="sup-rating-stars" id="sup-stars-{{ mentor.user_id }}">
                   <span class="star">&#9734;</span><span class="star">&#9734;</span><span class="star">&#9734;</span><span class="star">&#9734;</span><span class="star">&#9734;</span>
@@ -207,14 +207,14 @@
                 <span class="sup-rating-num" id="sup-num-{{ mentor.user_id }}">--</span>
               </div>
             </td>
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap">
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap">
               {% if not mentor.is_profile_complete %}
-              <span class="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded-md">Profile Incomplete</span>
+              <span class="px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[10px] sm:text-xs font-semibold rounded-md">Incomplete</span>
               {% else %}
-              <span class="px-2 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-md">Complete</span>
+              <span class="px-1.5 py-0.5 bg-green-100 text-green-800 text-[10px] sm:text-xs font-semibold rounded-md">Complete</span>
               {% endif %}
             </td>
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-right">
               <button class="px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-100 text-gray-700 text-xs sm:text-sm font-medium rounded-lg hover:bg-gray-200 transition view-profile-btn"
                 data-mentor-id="{{ mentor.id }}"
                 data-user-id="{{ mentor.user_id }}"
@@ -529,11 +529,11 @@
                     <p class="font-bold text-purple-600" id="modalExpStars">--</p>
                   </div>
                   <div class="bg-white rounded-lg p-3 border border-amber-200">
-                    <p class="text-xs text-gray-500 mb-1">Task Experience</p>
+                    <p class="text-xs text-gray-500 mb-1">Task Completion</p>
                     <p class="font-bold text-amber-600" id="modalTaskStars">--</p>
                   </div>
                   <div class="bg-white rounded-lg p-3 border border-amber-200 col-span-2">
-                    <p class="text-xs text-gray-500 mb-1">Admin Rating</p>
+                    <p class="text-xs text-gray-500 mb-1">Mentee Feedback</p>
                     <p class="font-bold text-red-600" id="modalSupStars">--</p>
                   </div>
                 </div>
@@ -859,10 +859,10 @@
         if (profileStarsEl) profileStarsEl.textContent = (rating.profile_complete != null ? rating.profile_complete.toFixed(1) : '0.0') + ' / 5.0';
         if (skillsStarsEl) skillsStarsEl.textContent = (rating.useful_skills != null ? rating.useful_skills.toFixed(1) : '0.0') + ' / 5.0';
         if (expStarsEl) expStarsEl.textContent = (rating.mentorship_experience != null ? rating.mentorship_experience.toFixed(1) : '0.0') + ' / 5.0';
-        if (taskStarsEl) taskStarsEl.textContent = (rating.mentorship_task_experience != null ? rating.mentorship_task_experience.toFixed(1) : '0.0') + ' / 5.0';
+        if (taskStarsEl) taskStarsEl.textContent = (rating.task_completion != null ? rating.task_completion.toFixed(1) : '0.0') + ' / 5.0';
         if (supStarsEl) {
-          if (rating.has_supervisor_rating) {
-            supStarsEl.textContent = rating.supervisor_rating.toFixed(1) + ' / 5.0';
+          if (rating.has_mentorship_experience) {
+            supStarsEl.textContent = rating.mentee_feedback.toFixed(1) + ' / 5.0';
           } else {
             supStarsEl.textContent = 'Not rated yet';
           }
@@ -902,9 +902,9 @@
         <div class="flex-1">
           <div class="rb-row"><span class="rb-label">Profile Complete</span><span class="rb-value" id="popupPc">--</span></div>
           <div class="rb-row"><span class="rb-label">Useful Skills</span><span class="rb-value" id="popupSk">--</span></div>
-          <div class="rb-row"><span class="rb-label">Mentorship Experience</span><span class="rb-value" id="popupMe">--</span></div>
-          <div class="rb-row"><span class="rb-label">Task Experience</span><span class="rb-value" id="popupTe">--</span></div>
-          <div class="rb-row"><span class="rb-label">Admin Rating</span><span class="rb-value" id="popupSup">--</span></div>
+          <div class="rb-row"><span class="rb-label">Task Completion</span><span class="rb-value" id="popupMe">--</span></div>
+          <div class="rb-row"><span class="rb-label">Mentee Feedback</span><span class="rb-value" id="popupTe">--</span></div>
+          <div class="rb-row"><span class="rb-label">Mentorship Experience</span><span class="rb-value" id="popupSup">--</span></div>
         </div>
       </div>
       <!-- Admin Rating Input -->
@@ -986,9 +986,18 @@
       const uid = c.getAttribute('data-mentor-uid');
       const rating = await fetchSupRating(uid);
       if (!rating) continue;
-      supRenderStars('sup-stars-' + uid, rating.final_rating);
+      const hasAnyRating = rating.has_mentorship_experience || rating.has_task_data;
       const numEl = document.getElementById('sup-num-' + uid);
-      if (numEl) numEl.textContent = rating.final_rating.toFixed(1);
+      if (hasAnyRating) {
+        supRenderStars('sup-stars-' + uid, rating.final_rating);
+        if (numEl) numEl.textContent = rating.final_rating.toFixed(1);
+      } else {
+        if (numEl) {
+          numEl.textContent = 'Not yet rated';
+          numEl.style.fontSize = '10px';
+          numEl.style.color = '#9ca3af';
+        }
+      }
     }
   }
 
@@ -1006,16 +1015,30 @@
     updateSupRateStars(0);
     fetchSupRating(uid).then(rating => {
       if (!rating) return;
-      document.getElementById('popupFinalRating').textContent = rating.final_rating.toFixed(1);
-      supRenderPopupStars('popupStars', rating.final_rating);
+      const hasAnyRating = rating.has_mentorship_experience || rating.has_task_data;
+      if (hasAnyRating) {
+        document.getElementById('popupFinalRating').textContent = rating.final_rating.toFixed(1);
+        supRenderPopupStars('popupStars', rating.final_rating);
+      } else {
+        document.getElementById('popupFinalRating').textContent = 'N/A';
+        supRenderPopupStars('popupStars', 0);
+      }
       document.getElementById('popupPc').textContent = rating.profile_complete.toFixed(1) + ' / 5.0';
       document.getElementById('popupSk').textContent = rating.useful_skills.toFixed(1) + ' / 5.0';
-      document.getElementById('popupMe').textContent = rating.mentorship_experience.toFixed(1) + ' / 5.0';
-      document.getElementById('popupTe').textContent = rating.mentorship_task_experience.toFixed(1) + ' / 5.0';
-      if (rating.has_supervisor_rating) {
-        document.getElementById('popupSup').textContent = rating.supervisor_rating.toFixed(1) + ' / 5.0';
-        currentSupRatingSelection = rating.supervisor_rating;
-        updateSupRateStars(rating.supervisor_rating);
+      if (rating.has_task_data) {
+        document.getElementById('popupMe').textContent = rating.task_completion.toFixed(1) + ' / 5.0';
+      } else {
+        document.getElementById('popupMe').textContent = 'Not yet rated';
+      }
+      if (rating.mentee_feedback != null) {
+        document.getElementById('popupTe').textContent = rating.mentee_feedback.toFixed(1) + ' / 5.0';
+      } else {
+        document.getElementById('popupTe').textContent = 'Not yet rated';
+      }
+      if (rating.has_mentorship_experience) {
+        document.getElementById('popupSup').textContent = rating.mentorship_experience.toFixed(1) + ' / 5.0';
+        currentSupRatingSelection = rating.mentorship_experience;
+        updateSupRateStars(rating.mentorship_experience);
       } else {
         document.getElementById('popupSup').textContent = 'Not rated yet';
         currentSupRatingSelection = 0;

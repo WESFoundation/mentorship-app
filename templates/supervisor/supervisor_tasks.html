@@ -642,6 +642,19 @@
             <!-- Tasks will be populated by JavaScript -->
         </div>
 
+        <!-- Load More Buttons -->
+        <div id="load-more-section" class="hidden mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button id="load-50-btn" onclick="loadMoreTasks(50)" class="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                Load 50 More
+            </button>
+            <button id="load-all-btn" onclick="loadAllTasks()" class="px-5 py-2.5 bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium rounded-lg hover:bg-blue-100 hover:border-blue-300 transition-all flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                Load All Remaining
+            </button>
+            <span id="load-more-count" class="text-xs text-gray-400"></span>
+        </div>
+
         <!-- Empty State -->
         <div id="empty-state" class="empty-state hidden">
             <svg class="w-24 h-24 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1004,13 +1017,19 @@
     }
 
     // Render tasks based on filters
+    var _renderedCount = 0;
+    var _filteredTasksCache = [];
+    var _PAGE_SIZE = 50;
+
     function renderTasks() {
         const container = document.getElementById('tasks-container');
         const emptyState = document.getElementById('empty-state');
         const resultsCount = document.getElementById('results-count');
+        const loadMoreSection = document.getElementById('load-more-section');
+        const loadMoreCount = document.getElementById('load-more-count');
 
         // Filter tasks
-        let filteredTasks = allTasks.filter(task => {
+        _filteredTasksCache = allTasks.filter(task => {
             const matchesFilter = currentFilter === 'all' ||
                 (currentFilter === 'critical' ? task.isCritical :
                     (currentFilter === 'overdue' ? isTaskOverdue(task) : task.status === currentFilter));
@@ -1040,25 +1059,8 @@
             return matchesFilter && matchesSearch && matchesPriority && matchesCategory && matchesMentor && matchesMentee && matchesDate;
         });
 
-        // Update results count
-        if (resultsCount) {
-            resultsCount.textContent = `Showing ${filteredTasks.length} of ${allTasks.length} tasks`;
-        }
-
-        // Update active filters display
-        updateActiveFiltersDisplay();
-
-        if (filteredTasks.length === 0) {
-            container.classList.add('hidden');
-            emptyState.classList.remove('hidden');
-            return;
-        }
-
-        container.classList.remove('hidden');
-        emptyState.classList.add('hidden');
-
         // Sort tasks: critical first, then overdue, then by due date
-        filteredTasks.sort((a, b) => {
+        _filteredTasksCache.sort((a, b) => {
             if (a.isCritical && !b.isCritical) return -1;
             if (b.isCritical && !a.isCritical) return 1;
             if (isTaskOverdue(a) && !isTaskOverdue(b)) return -1;
@@ -1066,8 +1068,75 @@
             return new Date(a.dueDate) - new Date(b.dueDate);
         });
 
-        container.innerHTML = filteredTasks.map((task, index) => createTaskHTML(task, index)).join('');
-        console.log(`🎯 Rendered ${filteredTasks.length} tasks`);
+        // Reset pagination
+        _renderedCount = 0;
+
+        // Update results count
+        if (resultsCount) {
+            resultsCount.textContent = `Showing 0 of ${_filteredTasksCache.length} tasks`;
+        }
+
+        // Update active filters display
+        updateActiveFiltersDisplay();
+
+        if (_filteredTasksCache.length === 0) {
+            container.classList.add('hidden');
+            emptyState.classList.remove('hidden');
+            if (loadMoreSection) loadMoreSection.classList.add('hidden');
+            return;
+        }
+
+        container.classList.remove('hidden');
+        emptyState.classList.add('hidden');
+
+        // Render first batch
+        _renderBatch(container, _PAGE_SIZE);
+
+        // Update load more section
+        _updateLoadMoreUI(loadMoreSection, loadMoreCount, resultsCount);
+        console.log(`Rendered ${Math.min(_PAGE_SIZE, _filteredTasksCache.length)} of ${_filteredTasksCache.length} tasks`);
+    }
+
+    function _renderBatch(container, count) {
+        const batch = _filteredTasksCache.slice(_renderedCount, _renderedCount + count);
+        if (batch.length === 0) return;
+        const html = batch.map((task, i) => createTaskHTML(task, _renderedCount + i)).join('');
+        container.insertAdjacentHTML('beforeend', html);
+        _renderedCount += batch.length;
+    }
+
+    function _updateLoadMoreUI(loadMoreSection, loadMoreCount, resultsCount) {
+        if (!loadMoreSection) return;
+        const remaining = _filteredTasksCache.length - _renderedCount;
+        if (remaining > 0) {
+            loadMoreSection.classList.remove('hidden');
+            document.getElementById('load-50-btn').style.display = remaining <= 50 ? 'none' : '';
+            if (loadMoreCount) loadMoreCount.textContent = `${remaining} task${remaining !== 1 ? 's' : ''} remaining`;
+        } else {
+            loadMoreSection.classList.add('hidden');
+        }
+        if (resultsCount) {
+            resultsCount.textContent = `Showing ${_renderedCount} of ${_filteredTasksCache.length} tasks`;
+        }
+    }
+
+    function loadMoreTasks(count) {
+        const container = document.getElementById('tasks-container');
+        const loadMoreSection = document.getElementById('load-more-section');
+        const loadMoreCount = document.getElementById('load-more-count');
+        const resultsCount = document.getElementById('results-count');
+        _renderBatch(container, count);
+        _updateLoadMoreUI(loadMoreSection, loadMoreCount, resultsCount);
+    }
+
+    function loadAllTasks() {
+        const container = document.getElementById('tasks-container');
+        const loadMoreSection = document.getElementById('load-more-section');
+        const loadMoreCount = document.getElementById('load-more-count');
+        const resultsCount = document.getElementById('results-count');
+        const remaining = _filteredTasksCache.length - _renderedCount;
+        _renderBatch(container, remaining);
+        _updateLoadMoreUI(loadMoreSection, loadMoreCount, resultsCount);
     }
 
     // Check if task is overdue

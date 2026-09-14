@@ -305,6 +305,7 @@
         </div>
         <div class="text-right">
           <p class="text-xs text-amber-600 font-medium" id="myRatingStatus">Loading...</p>
+          <a href="{{ url_for('rating_calculation_page') }}" target="_blank" class="text-xs text-amber-600 hover:text-amber-800 font-semibold underline mt-1 inline-block">How is this calculated? &rarr;</a>
         </div>
       </div>
       <!-- Breakdown Tooltip -->
@@ -312,7 +313,8 @@
         <div class="rb-row"><span class="rb-label">Profile Complete</span><span class="rb-value" id="myTipPc">--</span></div>
         <div class="rb-row"><span class="rb-label">Useful Skills</span><span class="rb-value" id="myTipSk">--</span></div>
         <div class="rb-row"><span class="rb-label">Mentorship Experience</span><span class="rb-value" id="myTipMe">--</span></div>
-        <div class="rb-row"><span class="rb-label">Task Experience</span><span class="rb-value" id="myTipTe">--</span></div>
+        <div class="rb-row"><span class="rb-label">Task Completion</span><span class="rb-value" id="myTipTe">--</span></div>
+        <div class="rb-row"><span class="rb-label">Mentee Feedback</span><span class="rb-value" id="myTipMf">--</span></div>
         <div class="rb-row rb-final"><span class="rb-label font-semibold">Final Rating</span><span class="rb-value text-amber-600" id="myTipFr">--</span></div>
       </div>
     </div>
@@ -517,7 +519,8 @@
       document.getElementById('myTipPc').textContent = r.profile_complete.toFixed(1) + ' / 5.0';
       document.getElementById('myTipSk').textContent = r.useful_skills.toFixed(1) + ' / 5.0';
       document.getElementById('myTipMe').textContent = r.mentorship_experience.toFixed(1) + ' / 5.0';
-      document.getElementById('myTipTe').textContent = r.mentorship_task_experience.toFixed(1) + ' / 5.0';
+      document.getElementById('myTipTe').textContent = r.task_completion.toFixed(1) + ' / 5.0';
+      document.getElementById('myTipMf').textContent = r.mentee_feedback != null ? r.mentee_feedback.toFixed(1) + ' / 5.0' : 'No feedback yet';
       document.getElementById('myTipFr').textContent = r.final_rating.toFixed(1) + ' / 5.0';
       document.getElementById('myRatingStatus').textContent = r.completed_mentorships + ' completed mentorships';
     } catch(e) { console.error('Rating fetch error:', e); }

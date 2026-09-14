@@ -1160,7 +1160,7 @@ async function loadAllMenteeRatings() {
     const tipGc = document.getElementById('tip-gc-' + uid);
     if (tipGc) tipGc.textContent = rating.goal_clarity != null ? rating.goal_clarity.toFixed(1) + ' / 5.0' : 'N/A';
     const tipMe = document.getElementById('tip-me-' + uid);
-    if (tipMe) tipMe.textContent = rating.has_mentorship_data ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'No data';
+    if (tipMe) tipMe.textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'No data';
     const tipTc = document.getElementById('tip-tc-' + uid);
     if (tipTc) tipTc.textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'No data';
     const tipMf = document.getElementById('tip-mf-' + uid);

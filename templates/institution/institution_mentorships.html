@@ -662,9 +662,9 @@
     document.getElementById('popupStars').innerHTML = renderStarsHtml(rating.final_rating);
     document.getElementById('popupPc').textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
     document.getElementById('popupSk').textContent = rating.useful_skills != null ? rating.useful_skills.toFixed(1) + ' / 5.0' : 'N/A';
-    document.getElementById('popupMe').textContent = rating.has_mentorship_data ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'No data';
-    document.getElementById('popupTe').textContent = rating.has_task_data ? rating.mentorship_task_experience.toFixed(1) + ' / 5.0' : 'No data';
-    document.getElementById('popupSup').textContent = rating.has_supervisor_rating ? rating.supervisor_rating.toFixed(1) + ' / 5.0' : 'Not rated';
+    document.getElementById('popupMe').textContent = rating.has_mentorship_experience ? rating.mentee_feedback.toFixed(1) + ' / 5.0' : 'No data';
+    document.getElementById('popupTe').textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'No data';
+    document.getElementById('popupSup').textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'Not rated';
   }
 
   function closeRatingPopup() {
@@ -699,7 +699,7 @@
     document.getElementById('popupMenteeStars').innerHTML = renderStarsHtml(rating.final_rating);
     document.getElementById('popupMenteePc').textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
     document.getElementById('popupMenteeGc').textContent = rating.goal_clarity != null ? rating.goal_clarity.toFixed(1) + ' / 5.0' : 'N/A';
-    document.getElementById('popupMenteeMe').textContent = rating.has_mentorship_data ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'No data';
+    document.getElementById('popupMenteeMe').textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'No data';
     document.getElementById('popupMenteeTc').textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'No data';
     document.getElementById('popupMenteeMf').textContent = rating.has_mentor_feedback ? rating.mentor_feedback.toFixed(1) + ' / 5.0' : 'No feedback yet';
   }
@@ -775,15 +775,15 @@
             <span class="font-bold text-gray-900" id="popupSk">--</span>
           </div>
           <div class="flex justify-between items-center text-sm">
-            <span class="text-gray-600">Mentorship Experience</span>
+            <span class="text-gray-600">Mentee Feedback</span>
             <span class="font-bold text-gray-900" id="popupMe">--</span>
           </div>
           <div class="flex justify-between items-center text-sm">
-            <span class="text-gray-600">Task Experience</span>
+            <span class="text-gray-600">Task Completion</span>
             <span class="font-bold text-gray-900" id="popupTe">--</span>
           </div>
           <div class="flex justify-between items-center text-sm">
-            <span class="text-gray-600">Admin Rating</span>
+            <span class="text-gray-600">Mentorship Experience</span>
             <span class="font-bold text-gray-900" id="popupSup">--</span>
           </div>
         </div>

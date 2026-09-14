@@ -257,7 +257,8 @@
                     <div class="rb-row"><span class="rb-label">Profile Complete</span><span class="rb-value" id="tip-pc-{{ mentor.user_id }}">--</span></div>
                     <div class="rb-row"><span class="rb-label">Useful Skills</span><span class="rb-value" id="tip-sk-{{ mentor.user_id }}">--</span></div>
                     <div class="rb-row"><span class="rb-label">Mentorship Experience</span><span class="rb-value" id="tip-me-{{ mentor.user_id }}">--</span></div>
-                    <div class="rb-row"><span class="rb-label">Task Experience</span><span class="rb-value" id="tip-te-{{ mentor.user_id }}">--</span></div>
+                    <div class="rb-row"><span class="rb-label">Task Completion</span><span class="rb-value" id="tip-te-{{ mentor.user_id }}">--</span></div>
+                    <div class="rb-row"><span class="rb-label">Mentee Feedback</span><span class="rb-value" id="tip-mf-{{ mentor.user_id }}">--</span></div>
                     <div class="rb-row rb-final"><span class="rb-label font-semibold">Final Rating</span><span class="rb-value text-blue-600" id="tip-fr-{{ mentor.user_id }}">--</span></div>
                   </div>
                 </div>
@@ -307,6 +308,7 @@
               </button>
               <button class="view-profile-btn w-full py-2 px-3 bg-white border border-blue-300 text-blue-700 text-xs font-semibold rounded-lg hover:bg-blue-50 hover:border-blue-400"
                 data-mentor-id="{{ mentor.id }}"
+                data-user-id="{{ mentor.user_id }}"
                 data-name="{{ mentor.user.name }}"
                 data-email="{{ mentor.user.email }}"
                 data-profession="{{ mentor.profession }}"
@@ -415,7 +417,8 @@
                   <div class="rb-row"><span class="rb-label">Profile Complete</span><span class="rb-value" id="tip-pc-{{ mentor.user_id }}">--</span></div>
                   <div class="rb-row"><span class="rb-label">Useful Skills</span><span class="rb-value" id="tip-sk-{{ mentor.user_id }}">--</span></div>
                   <div class="rb-row"><span class="rb-label">Mentorship Experience</span><span class="rb-value" id="tip-me-{{ mentor.user_id }}">--</span></div>
-                  <div class="rb-row"><span class="rb-label">Task Experience</span><span class="rb-value" id="tip-te-{{ mentor.user_id }}">--</span></div>
+                  <div class="rb-row"><span class="rb-label">Task Completion</span><span class="rb-value" id="tip-te-{{ mentor.user_id }}">--</span></div>
+                  <div class="rb-row"><span class="rb-label">Mentee Feedback</span><span class="rb-value" id="tip-mf-{{ mentor.user_id }}">--</span></div>
                   <div class="rb-row rb-final"><span class="rb-label font-semibold">Final Rating</span><span class="rb-value text-blue-600" id="tip-fr-{{ mentor.user_id }}">--</span></div>
                 </div>
               </div>
@@ -732,8 +735,12 @@
               <p class="font-bold text-purple-600 text-sm" id="modalExpStars">--</p>
             </div>
             <div class="bg-white rounded-lg p-3 border border-amber-200">
-              <p class="text-xs text-gray-500 mb-1">Task Experience</p>
+              <p class="text-xs text-gray-500 mb-1">Task Completion</p>
               <p class="font-bold text-amber-600 text-sm" id="modalTaskStars">--</p>
+            </div>
+            <div class="bg-white rounded-lg p-3 border border-amber-200">
+              <p class="text-xs text-gray-500 mb-1">Mentee Feedback</p>
+              <p class="font-bold text-pink-600 text-sm" id="modalFeedbackStars">--</p>
             </div>
           </div>
         </div>
@@ -1793,7 +1800,9 @@
       const tipMe = document.getElementById('tip-me-' + uid);
       if (tipMe) tipMe.textContent = rating.mentorship_experience != null ? rating.mentorship_experience.toFixed(1) : '--';
       const tipTe = document.getElementById('tip-te-' + uid);
-      if (tipTe) tipTe.textContent = rating.mentorship_task_experience != null ? rating.mentorship_task_experience.toFixed(1) : '--';
+      if (tipTe) tipTe.textContent = rating.task_completion != null ? rating.task_completion.toFixed(1) : '--';
+      const tipMf = document.getElementById('tip-mf-' + uid);
+      if (tipMf) tipMf.textContent = rating.mentee_feedback != null ? rating.mentee_feedback.toFixed(1) : '--';
       const tipFr = document.getElementById('tip-fr-' + uid);
       if (tipFr) tipFr.textContent = (rating.final_rating != null ? rating.final_rating.toFixed(1) : '--') + ' / 5.0';
     }
@@ -1823,6 +1832,7 @@
     const skillsStarsEl = document.getElementById('modalSkillsStars');
     const expStarsEl = document.getElementById('modalExpStars');
     const taskStarsEl = document.getElementById('modalTaskStars');
+    const feedbackStarsEl = document.getElementById('modalFeedbackStars');
 
     if (finalRatingEl) finalRatingEl.textContent = '--';
     renderModalStars('modalStars', 0);
@@ -1830,6 +1840,7 @@
     if (skillsStarsEl) skillsStarsEl.textContent = 'Loading...';
     if (expStarsEl) expStarsEl.textContent = 'Loading...';
     if (taskStarsEl) taskStarsEl.textContent = 'Loading...';
+    if (feedbackStarsEl) feedbackStarsEl.textContent = 'Loading...';
 
     if (!uid) {
       if (finalRatingEl) finalRatingEl.textContent = '0.0';
@@ -1837,6 +1848,7 @@
       if (skillsStarsEl) skillsStarsEl.textContent = '0.0 / 5.0';
       if (expStarsEl) expStarsEl.textContent = '0.0 / 5.0';
       if (taskStarsEl) taskStarsEl.textContent = '0.0 / 5.0';
+      if (feedbackStarsEl) feedbackStarsEl.textContent = '0.0 / 5.0';
       return;
     }
 
@@ -1848,6 +1860,7 @@
         if (skillsStarsEl) skillsStarsEl.textContent = '0.0 / 5.0';
         if (expStarsEl) expStarsEl.textContent = '0.0 / 5.0';
         if (taskStarsEl) taskStarsEl.textContent = '0.0 / 5.0';
+        if (feedbackStarsEl) feedbackStarsEl.textContent = '0.0 / 5.0';
         return;
       }
       if (finalRatingEl) finalRatingEl.textContent = rating.final_rating != null ? rating.final_rating.toFixed(1) : '0.0';
@@ -1855,7 +1868,8 @@
       if (profileStarsEl) profileStarsEl.textContent = (rating.profile_complete != null ? rating.profile_complete.toFixed(1) : '0.0') + ' / 5.0';
       if (skillsStarsEl) skillsStarsEl.textContent = (rating.useful_skills != null ? rating.useful_skills.toFixed(1) : '0.0') + ' / 5.0';
       if (expStarsEl) expStarsEl.textContent = (rating.mentorship_experience != null ? rating.mentorship_experience.toFixed(1) : '0.0') + ' / 5.0';
-      if (taskStarsEl) taskStarsEl.textContent = (rating.mentorship_task_experience != null ? rating.mentorship_task_experience.toFixed(1) : '0.0') + ' / 5.0';
+      if (taskStarsEl) taskStarsEl.textContent = (rating.task_completion != null ? rating.task_completion.toFixed(1) : '0.0') + ' / 5.0';
+      if (feedbackStarsEl) feedbackStarsEl.textContent = (rating.mentee_feedback != null ? rating.mentee_feedback.toFixed(1) : '0.0') + ' / 5.0';
     });
   };
 </script>

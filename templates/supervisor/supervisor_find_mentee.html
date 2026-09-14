@@ -179,53 +179,52 @@
       <table class="min-w-full divide-y divide-gray-200">
 <thead class="bg-gray-50">
           <tr>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S.No</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentee</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">School</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stream</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Goal</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
-            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Mentee</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">School</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Stream</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Goal</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
           {% for mentee in mentees %}
           <tr class="mentee-row hover:bg-gray-50 transition-colors">
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-500">{{ mentee.serial }}</td>
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap max-w-[280px]">
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm font-mono text-gray-500">{{ mentee.serial }}</td>
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap max-w-[220px]">
               <div class="flex items-center">
                 {% if mentee.profile_picture %}
                 <img src="{{ url_for('static', filename='uploads/' ~ mentee.profile_picture) }}" alt="{{ mentee.user.name }}"
-                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3">
+                  class="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover mr-1.5 sm:mr-2">
                 {% else %}
                 <div
-                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 mr-2 sm:mr-3">
-                  <span class="font-semibold">{{ mentee.user.name[0] if mentee.user.name else '?' }}</span>
+                  class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 mr-1.5 sm:mr-2">
+                  <span class="font-semibold text-xs">{{ mentee.user.name[0] if mentee.user.name else '?' }}</span>
                 </div>
                 {% endif %}
                 <div>
-                  <div class="text-sm font-semibold text-gray-900 mentee-name">{{ mentee.user.name }}</div>
-                  <div class="text-xs text-gray-500">{{ mentee.class_year or '' }}</div>
+                  <div class="text-[11px] sm:text-sm font-semibold text-gray-900 mentee-name leading-tight">{{ mentee.user.name }}</div>
+                  <div class="text-[10px] sm:text-xs text-gray-500">{{ mentee.class_year or '' }}</div>
                 </div>
               </div>
             </td>
-            <td class="px-3 sm:px-6 py-4 text-sm text-gray-700 mentee-school max-w-[200px] break-words">{{ mentee.school_college_name or 'Not specified' }}</td>
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 max-w-[150px] truncate">{{ mentee.stream or '—' }}</td>
-            <td class="px-3 sm:px-6 py-4 text-sm text-gray-600 mentee-goal min-w-[160px] max-w-[260px] break-words">{{ mentee.goal or 'Not specified' }}</td>
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentee-email max-w-[220px] truncate">{{ mentee.user.email }}</td>
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ mentee.user.created_at.strftime('%d %b %Y, %I:%M %p') if mentee.user.created_at else 'N/A' }}</td>
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap">
-              <div class="sup-mentee-rating-container inline-flex items-center gap-2 cursor-pointer group" onclick="openMenteeRatingPopup({{ mentee.user_id }}, '{{ mentee.user.name|e }}')" data-mentee-uid="{{ mentee.user_id }}" title="Click to view rating breakdown for {{ mentee.user.name|e }}">
-                <div class="flex items-center gap-0.5 text-xs text-yellow-400" id="sup-mentee-stars-{{ mentee.user_id }}">
+            <td class="px-1.5 sm:px-2.5 py-3 text-[11px] sm:text-sm text-gray-700 mentee-school max-w-[170px] truncate">{{ mentee.school_college_name or 'Not specified' }}</td>
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-600 max-w-[120px] truncate">{{ mentee.stream or '—' }}</td>
+            <td class="px-1.5 sm:px-2.5 py-3 text-[11px] sm:text-sm text-gray-600 mentee-goal max-w-[200px] truncate">{{ mentee.goal or 'Not specified' }}</td>
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-600 mentee-email max-w-[170px] truncate">{{ mentee.user.email }}</td>
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-500">{{ mentee.user.created_at.strftime('%d %b %Y') if mentee.user.created_at else 'N/A' }}</td>
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap">
+              <div class="sup-mentee-rating-container inline-flex items-center gap-1.5 cursor-pointer group" onclick="openMenteeRatingPopup({{ mentee.user_id }}, '{{ mentee.user.name|e }}')" data-mentee-uid="{{ mentee.user_id }}" title="Click to view rating breakdown for {{ mentee.user.name|e }}">
+                <div class="flex items-center gap-0.5 text-[10px] sm:text-xs text-yellow-400" id="sup-mentee-stars-{{ mentee.user_id }}">
                   <span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span>
                 </div>
-                <span class="text-xs font-bold text-gray-700" id="sup-mentee-num-{{ mentee.user_id }}">--</span>
-                <span class="text-xs px-2 py-0.5 bg-emerald-50 group-hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded font-medium transition">Details</span>
+                <span class="text-[10px] sm:text-xs font-bold text-gray-700" id="sup-mentee-num-{{ mentee.user_id }}">--</span>
               </div>
             </td>
-            <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-right">
               <button
                 class="view-profile-btn px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-100 text-gray-700 text-xs sm:text-sm font-medium rounded-lg hover:bg-gray-200 transition"
                 data-mentee='{{ {
@@ -691,6 +690,16 @@
         openMenteeProfileModal(mentee);
       });
     });
+
+    var urlParams = new URLSearchParams(window.location.search);
+    var openMenteeId = urlParams.get('open_mentee');
+    if (openMenteeId) {
+      var targetBtn = document.querySelector('.view-profile-btn[data-mentee*="\"userId\":' + openMenteeId + '"]') ||
+                      document.querySelector('.view-profile-btn[data-mentee*="\"userId\": ' + openMenteeId + '"]');
+      if (targetBtn) {
+        setTimeout(function() { targetBtn.click(); }, 300);
+      }
+    }
   });
 
   function filterMentees() {
@@ -997,7 +1006,7 @@
     document.getElementById('popupMenteeStars').innerHTML = renderStarsHtml(rating.final_rating);
     document.getElementById('popupMenteePc').textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
     document.getElementById('popupMenteeGc').textContent = rating.goal_clarity != null ? rating.goal_clarity.toFixed(1) + ' / 5.0' : 'N/A';
-    document.getElementById('popupMenteeMe').textContent = rating.has_mentorship_data ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'No data';
+    document.getElementById('popupMenteeMe').textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'No data';
     document.getElementById('popupMenteeTc').textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'No data';
     document.getElementById('popupMenteeMf').textContent = rating.has_mentor_feedback ? rating.mentor_feedback.toFixed(1) + ' / 5.0' : 'No feedback yet';
   }

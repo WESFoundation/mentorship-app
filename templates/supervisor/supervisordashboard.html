@@ -866,9 +866,9 @@
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M12 6.253v13.5m0-13.5C10.835 5.86 9.539 5.378 8 5.255 5.8 4.75 4 6.777 4 9v6a4 4 0 004 4h8a4 4 0 004-4v-6c0-2.223-1.8-4.25-4-3.745-1.539.123-2.835.605-4 1.148z" />
+                  d="M12 6.253v13.5m0-13.5C10.835 5.86 9.539 5.378 8 5.255 5.8 4.777 4 6.777 4 9v6a4 4 0 004 4h8a4 4 0 004-4v-6c0-2.223-1.8-4.25-4-3.745-1.539.123-2.835.605-4 1.148z" />
               </svg>
-              <span class="break-words min-w-0">Goal: {{ mentee.goal if mentee.goal else 'Not specified' }}</span>
+              <span class="truncate min-w-0 cursor-pointer text-blue-600 hover:text-blue-800 hover:underline" title="{{ mentee.goal if mentee.goal else 'Not specified' }}" onclick="window.location.href='{{ url_for('supervisor_find_mentee') }}?open_mentee={{ mentee.user_id }}'">Goal: {{ mentee.goal if mentee.goal else 'Not specified' }}</span>
             </div>
 
             <div class="flex items-start text-sm text-gray-600 mentee-email min-w-0">

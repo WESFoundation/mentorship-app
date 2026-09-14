@@ -9829,7 +9829,7 @@ def api_get_mentor_rating_breakdown(mentor_id):
 @app.route("/api/mentor_rating_simple/<int:mentor_id>")
 def api_mentor_rating_simple(mentor_id):
     """Simple 5-criteria star rating for a mentor. Returns breakdown with 0-5 stars each.
-    Criteria: Profile Complete, Useful Skills, Mentorship Experience, Mentorship Task Experience, Supervisor Rating.
+    Criteria: Profile Completeness, Useful Skills, Task Completion, Mentee Feedback, Mentorship Experience (combined).
     Final rating = average of criteria that have data."""
     if "email" not in session:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
@@ -9837,7 +9837,6 @@ def api_mentor_rating_simple(mentor_id):
     try:
         mentor = db.session.get(User, mentor_id)
         is_mentor_type = str(getattr(mentor, "user_type", "")) in ("1", "mentor")
-        # If mentor_id was actually a MentorProfile id or user is not marked as mentor
         if not mentor or not is_mentor_type:
             mp = db.session.get(MentorProfile, mentor_id)
             if mp:
@@ -9852,10 +9851,10 @@ def api_mentor_rating_simple(mentor_id):
         if not mentor:
             return jsonify({"success": False, "message": "Mentor not found"})
 
-        # 1. Profile Complete (0-5 stars) - based on profile completion percentage
+        # 1. Profile Completeness (0-5 stars)
         try:
             profile_comp = _compute_profile_completeness_score(mentor_id, "1")
-            profile_stars = round(profile_comp / 20, 1)  # 100 -> 5.0
+            profile_stars = round(profile_comp / 20, 1)
         except Exception:
             try:
                 db.session.rollback()
@@ -9863,10 +9862,10 @@ def api_mentor_rating_simple(mentor_id):
                 pass
             profile_stars = 0.0
 
-        # 2. Useful Skills (0-5 stars) - based on skill count, max 10 skills = 5 stars
+        # 2. Useful Skills (0-5 stars)
         try:
             profile_att = _compute_profile_attractiveness_score(mentor_id, "1")
-            skills_stars = round(profile_att / 20, 1)  # 100 -> 5.0
+            skills_stars = round(profile_att / 20, 1)
         except Exception:
             try:
                 db.session.rollback()
@@ -9874,70 +9873,43 @@ def api_mentor_rating_simple(mentor_id):
                 pass
             skills_stars = 0.0
 
-        # 3. Mentorship Experience (0-5 stars) - based on number of completed mentorships
-        has_mentorship_data = False
+        # 3. Task Completion (0-5 stars) - based on task ratings across all mentorships
+        has_task_data = False
         mentorships = []
         completed_count = 0
-        mentorship_stars = 0.0
+        total_tasks = 0
+        completed_tasks = 0
+        task_stars = 0.0
         try:
             mentorships = MentorshipRequest.query.filter_by(
                 mentor_id=mentor_id, final_status="approved"
             ).all()
-            mentorship_rating_sum = 0
-            mentorship_rating_count = 0
             for mr in mentorships:
                 done, _ = _check_mentorship_completed(mr.mentee_id, mr.mentor_id)
                 if done:
                     completed_count += 1
-                mr_score = _compute_mentorship_rating_score(mr.mentee_id, mr.mentor_id)
-                if mr_score > 0:
-                    mentorship_rating_sum += mr_score
-                    mentorship_rating_count += 1
-            has_mentorship_data = len(mentorships) > 0
-            # Score: completed mentorships (each adds ~1 star, max 5) + avg mentee rating
-            exp_from_count = min(completed_count, 5)  # 5+ mentorships = full stars from count
-            if mentorship_rating_count > 0:
-                avg_mr = mentorship_rating_sum / mentorship_rating_count / 20  # convert 0-100 to 0-5
-            else:
-                avg_mr = 0
-            mentorship_stars = round((exp_from_count * 0.5 + avg_mr * 0.5), 1)
-            mentorship_stars = min(5, max(0, mentorship_stars))
-        except Exception:
-            try:
-                db.session.rollback()
-            except Exception:
-                pass
-            mentorships = []
-            completed_count = 0
-            mentorship_stars = 0.0
-
-        # 4. Mentorship Task Experience (0-5 stars) - based on task ratings
-        has_task_data = False
-        total_tasks = 0
-        completed_tasks = 0
-        task_rating_count = 0
-        task_stars = 0.0
-        try:
-            task_rating_sum = 0
-            for mr in mentorships:
                 pair_tasks = MenteeTask.query.filter_by(mentee_id=mr.mentee_id, mentor_id=mr.mentor_id).all()
                 total_tasks += len(pair_tasks)
                 completed_tasks += sum(1 for t in pair_tasks if t.status == "completed")
-                for t in pair_tasks:
-                    tr = TaskRating.query.filter_by(task_type="master", task_id=t.id, mentor_id=mentor_id).first()
-                    if tr:
-                        task_rating_count += 1
-                        task_rating_sum += tr.rating
             has_task_data = total_tasks > 0
-            # Score: task completion rate + avg task rating
-            task_completion_pct = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
-            completion_stars = round(task_completion_pct / 20, 1)  # 100 -> 5.0
-            if task_rating_count > 0:
-                avg_task_rating = task_rating_sum / task_rating_count  # already 1-5
-            else:
-                avg_task_rating = 0
-            task_stars = round((completion_stars * 0.4 + avg_task_rating * 0.6), 1)
-            task_stars = min(5, max(0, task_stars))
+            if total_tasks > 0:
+                task_completion_pct = (completed_tasks / total_tasks * 100)
+                completion_stars = round(task_completion_pct / 20, 1)
+                task_rating_sum = 0
+                task_rating_count = 0
+                for mr in mentorships:
+                    pair_tasks = MenteeTask.query.filter_by(mentee_id=mr.mentee_id, mentor_id=mr.mentor_id).all()
+                    for t in pair_tasks:
+                        tr = TaskRating.query.filter_by(task_type="master", task_id=t.id, mentor_id=mentor_id).first()
+                        if tr:
+                            task_rating_count += 1
+                            task_rating_sum += tr.rating
+                if task_rating_count > 0:
+                    avg_task_rating = task_rating_sum / task_rating_count
+                else:
+                    avg_task_rating = 0
+                task_stars = round((completion_stars * 0.4 + avg_task_rating * 0.6), 1)
+                task_stars = min(5, max(0, task_stars))
         except Exception:
             try:
                 db.session.rollback()
@@ -9945,35 +9917,82 @@ def api_mentor_rating_simple(mentor_id):
                 pass
             total_tasks = 0
             completed_tasks = 0
-            task_rating_count = 0
             task_stars = 0.0
 
-        # 5. Supervisor Rating (0-5 stars) - set by supervisors
-        has_supervisor_rating = False
-        supervisor_rating_stars = 0.0
+        # 4. Mentee Feedback (0-5 stars) - from mentee reflections/feedback on this mentor
+        has_mentee_feedback = False
+        feedback_stars = 0.0
         try:
-            sup_profile = MentorProfile.query.filter_by(user_id=mentor_id).first()
-            if sup_profile and getattr(sup_profile, "supervisor_rating", None) is not None:
-                supervisor_rating_stars = float(sup_profile.supervisor_rating)
-                has_supervisor_rating = True
+            feedback_scores = []
+            for mr in mentorships:
+                pair_tasks = MenteeTask.query.filter_by(mentee_id=mr.mentee_id, mentor_id=mr.mentor_id).all()
+                for t in pair_tasks:
+                    tr = TaskRating.query.filter_by(task_type="master", task_id=t.id, mentor_id=mentor_id).first()
+                    if tr and tr.rating and tr.rating > 0:
+                        feedback_scores.append(tr.rating)
+            reflections = MentorReflection.query.filter_by(mentor_id=mentor_id).all()
+            for ref in reflections:
+                if ref.extra:
+                    try:
+                        import json as _json
+                        detailed = _json.loads(ref.extra)
+                        vals = [v for v in detailed.values() if isinstance(v, (int, float)) and 1 <= v <= 5]
+                        if vals:
+                            feedback_scores.append(sum(vals) / len(vals))
+                    except Exception:
+                        pass
+                if ref.mentor_rating and ref.mentor_rating > 0:
+                    feedback_scores.append(ref.mentor_rating)
+            if feedback_scores:
+                has_mentee_feedback = True
+                feedback_stars = round(min(5, max(0, sum(feedback_scores) / len(feedback_scores))), 1)
         except Exception:
             try:
                 db.session.rollback()
             except Exception:
                 pass
-            supervisor_rating_stars = 0.0
+
+        # 5. Mentorship Experience (0-5 stars) - combined coordinator rating + admin rating
+        has_mentorship_experience = False
+        mentorship_experience_stars = 0.0
+        try:
+            coordinator_rating_sum = 0
+            coordinator_rating_count = 0
+            for mr in mentorships:
+                if mr.rating and mr.rating > 0:
+                    coordinator_rating_sum += float(mr.rating)
+                    coordinator_rating_count += 1
+            coordinator_avg = (coordinator_rating_sum / coordinator_rating_count) if coordinator_rating_count > 0 else None
+
+            sup_profile = MentorProfile.query.filter_by(user_id=mentor_id).first()
+            admin_rating = float(sup_profile.supervisor_rating) if sup_profile and getattr(sup_profile, "supervisor_rating", None) is not None else None
+
+            if coordinator_avg is not None and admin_rating is not None:
+                mentorship_experience_stars = round((coordinator_avg + admin_rating) / 2, 1)
+                has_mentorship_experience = True
+            elif coordinator_avg is not None:
+                mentorship_experience_stars = round(coordinator_avg, 1)
+                has_mentorship_experience = True
+            elif admin_rating is not None:
+                mentorship_experience_stars = round(admin_rating, 1)
+                has_mentorship_experience = True
+            mentorship_experience_stars = min(5, max(0, mentorship_experience_stars))
+        except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
 
         # Final rating = average of only criteria that have data
-        # New mentors with no mentorships/tasks should not be dragged down by 0s
         rated_criteria = []
-        rated_criteria.append(profile_stars)  # always included (profile always exists)
-        rated_criteria.append(skills_stars)   # always included (profile always exists)
-        if has_mentorship_data:
-            rated_criteria.append(mentorship_stars)
+        rated_criteria.append(profile_stars)
+        rated_criteria.append(skills_stars)
         if has_task_data:
             rated_criteria.append(task_stars)
-        if has_supervisor_rating:
-            rated_criteria.append(supervisor_rating_stars)
+        if has_mentee_feedback:
+            rated_criteria.append(feedback_stars)
+        if has_mentorship_experience:
+            rated_criteria.append(mentorship_experience_stars)
         final_rating = round(sum(rated_criteria) / len(rated_criteria), 1) if rated_criteria else 0
         final_rating = min(5, max(0, final_rating))
 
@@ -9983,17 +10002,16 @@ def api_mentor_rating_simple(mentor_id):
             "rating": {
                 "profile_complete": profile_stars,
                 "useful_skills": skills_stars,
-                "mentorship_experience": mentorship_stars,
-                "mentorship_task_experience": task_stars,
-                "supervisor_rating": supervisor_rating_stars,
+                "task_completion": task_stars,
+                "mentee_feedback": feedback_stars,
+                "mentorship_experience": mentorship_experience_stars,
                 "final_rating": final_rating,
                 "completed_mentorships": completed_count,
                 "total_tasks": total_tasks,
                 "completed_tasks": completed_tasks,
-                "task_ratings_count": task_rating_count,
-                "has_mentorship_data": has_mentorship_data,
                 "has_task_data": has_task_data,
-                "has_supervisor_rating": has_supervisor_rating
+                "has_mentee_feedback": has_mentee_feedback,
+                "has_mentorship_experience": has_mentorship_experience
             }
         })
     except Exception as e:
@@ -10004,7 +10022,7 @@ def api_mentor_rating_simple(mentor_id):
 @app.route("/api/mentee_rating_simple/<int:mentee_id>")
 def api_mentee_rating_simple(mentee_id):
     """Simple 5-criteria star rating for a mentee. Returns breakdown with 0-5 stars each.
-    Criteria: Profile Complete, Goal Clarity, Mentorship Experience, Task Completion, Mentor Feedback.
+    Criteria: Profile Completeness, Goal Clarity, Task Completion, Mentor Feedback, Mentorship Experience (combined).
     Final rating = average of criteria that have data."""
     if "email" not in session:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
@@ -10014,7 +10032,7 @@ def api_mentee_rating_simple(mentee_id):
         if not mentee or str(getattr(mentee, "user_type", "")) != "2":
             return jsonify({"success": False, "message": "Mentee not found"})
 
-        # 1. Profile Complete (0-5 stars)
+        # 1. Profile Completeness (0-5 stars)
         try:
             profile_comp = _compute_profile_completeness_score(mentee_id, "2")
             profile_stars = round(profile_comp / 20, 1)
@@ -10025,7 +10043,7 @@ def api_mentee_rating_simple(mentee_id):
                 pass
             profile_stars = 0.0
 
-        # 2. Goal Clarity (0-5 stars) - based on mentee profile completeness & goals
+        # 2. Goal Clarity (0-5 stars)
         goal_stars = 0.0
         try:
             mp = MenteeProfile.query.filter_by(user_id=mentee_id).first()
@@ -10039,41 +10057,7 @@ def api_mentee_rating_simple(mentee_id):
             except Exception:
                 pass
 
-        # 3. Mentorship Experience (0-5 stars) - based on completed mentorships
-        has_mentorship_data = False
-        mentorship_stars = 0.0
-        completed_count = 0
-        try:
-            mentorships = MentorshipRequest.query.filter_by(
-                mentee_id=mentee_id, final_status="approved"
-            ).all()
-            mentorship_rating_sum = 0
-            mentorship_rating_count = 0
-            for mr in mentorships:
-                done, _ = _check_mentorship_completed(mr.mentee_id, mr.mentor_id)
-                if done:
-                    completed_count += 1
-                mr_score = _compute_mentorship_rating_score(mr.mentee_id, mr.mentor_id)
-                if mr_score > 0:
-                    mentorship_rating_sum += mr_score
-                    mentorship_rating_count += 1
-            has_mentorship_data = len(mentorships) > 0
-            exp_from_count = min(completed_count, 5)
-            if mentorship_rating_count > 0:
-                avg_mr = mentorship_rating_sum / mentorship_rating_count / 20
-            else:
-                avg_mr = 0
-            mentorship_stars = round(min(5, max(0, exp_from_count * 0.5 + avg_mr * 0.5)), 1)
-        except Exception:
-            try:
-                db.session.rollback()
-            except Exception:
-                pass
-            mentorships = []
-            completed_count = 0
-            mentorship_stars = 0.0
-
-        # 4. Task Completion (0-5 stars) - based on task completion rate
+        # 3. Task Completion (0-5 stars)
         has_task_data = False
         total_tasks = 0
         completed_tasks = 0
@@ -10095,7 +10079,7 @@ def api_mentee_rating_simple(mentee_id):
             completed_tasks = 0
             task_stars = 0.0
 
-        # 5. Mentor Feedback (0-5 stars) - from mentor reflections on this mentee
+        # 4. Mentor Feedback (0-5 stars) - from mentor reflections on this mentee
         has_mentor_feedback = False
         feedback_stars = 0.0
         try:
@@ -10123,15 +10107,64 @@ def api_mentee_rating_simple(mentee_id):
             except Exception:
                 pass
 
+        # 5. Mentorship Experience (0-5 stars) - combined coordinator rating + admin rating
+        has_mentorship_experience = False
+        mentorship_experience_stars = 0.0
+        completed_count = 0
+        try:
+            mentorships = MentorshipRequest.query.filter_by(
+                mentee_id=mentee_id, final_status="approved"
+            ).all()
+            for mr in mentorships:
+                done, _ = _check_mentorship_completed(mr.mentee_id, mr.mentor_id)
+                if done:
+                    completed_count += 1
+
+            coordinator_rating_sum = 0
+            coordinator_rating_count = 0
+            for mr in mentorships:
+                if mr.rating and mr.rating > 0:
+                    coordinator_rating_sum += float(mr.rating)
+                    coordinator_rating_count += 1
+            coordinator_avg = (coordinator_rating_sum / coordinator_rating_count) if coordinator_rating_count > 0 else None
+
+            # For mentees, check if their mentor has a supervisor rating
+            admin_rating = None
+            if mentorships:
+                mentor_ids = list(set(mr.mentor_id for mr in mentorships))
+                admin_ratings = []
+                for mid in mentor_ids:
+                    m_profile = MentorProfile.query.filter_by(user_id=mid).first()
+                    if m_profile and getattr(m_profile, "supervisor_rating", None) is not None:
+                        admin_ratings.append(float(m_profile.supervisor_rating))
+                if admin_ratings:
+                    admin_rating = sum(admin_ratings) / len(admin_ratings)
+
+            if coordinator_avg is not None and admin_rating is not None:
+                mentorship_experience_stars = round((coordinator_avg + admin_rating) / 2, 1)
+                has_mentorship_experience = True
+            elif coordinator_avg is not None:
+                mentorship_experience_stars = round(coordinator_avg, 1)
+                has_mentorship_experience = True
+            elif admin_rating is not None:
+                mentorship_experience_stars = round(admin_rating, 1)
+                has_mentorship_experience = True
+            mentorship_experience_stars = min(5, max(0, mentorship_experience_stars))
+        except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+
         # Final rating = average of only criteria that have data
-        rated_criteria = [profile_stars]  # always included
+        rated_criteria = [profile_stars]
         rated_criteria.append(goal_stars)
-        if has_mentorship_data:
-            rated_criteria.append(mentorship_stars)
         if has_task_data:
             rated_criteria.append(task_stars)
         if has_mentor_feedback:
             rated_criteria.append(feedback_stars)
+        if has_mentorship_experience:
+            rated_criteria.append(mentorship_experience_stars)
         final_rating = round(sum(rated_criteria) / len(rated_criteria), 1) if rated_criteria else 0
         final_rating = min(5, max(0, final_rating))
 
@@ -10141,16 +10174,16 @@ def api_mentee_rating_simple(mentee_id):
             "rating": {
                 "profile_complete": profile_stars,
                 "goal_clarity": goal_stars,
-                "mentorship_experience": mentorship_stars,
                 "task_completion": task_stars,
                 "mentor_feedback": feedback_stars,
+                "mentorship_experience": mentorship_experience_stars,
                 "final_rating": final_rating,
                 "completed_mentorships": completed_count,
                 "total_tasks": total_tasks,
                 "completed_tasks": completed_tasks,
-                "has_mentorship_data": has_mentorship_data,
                 "has_task_data": has_task_data,
-                "has_mentor_feedback": has_mentor_feedback
+                "has_mentor_feedback": has_mentor_feedback,
+                "has_mentorship_experience": has_mentorship_experience
             }
         })
     except Exception as e:
@@ -10201,8 +10234,8 @@ def api_set_supervisor_rating():
 
 @app.route("/rating_calculation")
 def rating_calculation_page():
-    """Page explaining how mentor ratings are calculated. Accessible to supervisors and institutions."""
-    if "email" not in session or session.get("user_type") not in ("0", "3"):
+    """Page explaining how ratings are calculated. Accessible to all user types."""
+    if "email" not in session or session.get("user_type") not in ("0", "1", "2", "3", "4"):
         flash("Access denied.", "danger")
         return redirect(url_for("signin"))
     return render_template("supervisor/rating_calculation.html")
@@ -13287,7 +13320,7 @@ def create_meeting_ajax():
                 "action": "TEMPLATE",
                 "text": title,
                 "dates": f"{start_datetime.strftime('%Y%m%dT%H%M%S')}/{end_datetime.strftime('%Y%m%dT%H%M%S')}",
-                "details": f"Meeting scheduled via Mentor Connect. Supervisor: {supervisor.email} | Participant: {requested_to.email}",
+                "details": f"Meeting scheduled via Mentor Connect. {'Admin' if supervisor.user_type == '0' else 'Coordinator' if supervisor.user_type == '3' else 'Mentor' if supervisor.user_type == '1' else 'Mentee'}: {supervisor.email} | Participant: {requested_to.email}",
                 "add": ",".join(all_emails),
                 "ctz": timezone,
             })
@@ -13329,7 +13362,7 @@ def create_meeting_ajax():
                 requester_id=supervisor.id,
                 requested_to_id=requested_to.id,
                 meeting_title=title,
-                meeting_description=f"Meeting scheduled by Supervisor {supervisor.name}.{task_context}",
+                meeting_description=f"Meeting scheduled by {'Admin' if supervisor.user_type == '0' else 'Coordinator' if supervisor.user_type == '3' else 'Mentor' if supervisor.user_type == '1' else 'Mentee'} {supervisor.name}.{task_context}",
                 meeting_date=start_datetime.date(),
                 meeting_time=start_datetime.time(),
                 meeting_duration=duration_minutes,

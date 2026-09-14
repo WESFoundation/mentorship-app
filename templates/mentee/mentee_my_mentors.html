@@ -116,7 +116,8 @@
               <div class="rb-row"><span class="rb-label">Profile Complete</span><span class="rb-value" id="mm-tip-pc-{{ mentor_user.id }}">--</span></div>
               <div class="rb-row"><span class="rb-label">Useful Skills</span><span class="rb-value" id="mm-tip-sk-{{ mentor_user.id }}">--</span></div>
               <div class="rb-row"><span class="rb-label">Mentorship Experience</span><span class="rb-value" id="mm-tip-me-{{ mentor_user.id }}">--</span></div>
-              <div class="rb-row"><span class="rb-label">Task Experience</span><span class="rb-value" id="mm-tip-te-{{ mentor_user.id }}">--</span></div>
+              <div class="rb-row"><span class="rb-label">Task Completion</span><span class="rb-value" id="mm-tip-te-{{ mentor_user.id }}">--</span></div>
+              <div class="rb-row"><span class="rb-label">Mentee Feedback</span><span class="rb-value" id="mm-tip-mf-{{ mentor_user.id }}">--</span></div>
               <div class="rb-row rb-final"><span class="rb-label font-semibold">Final Rating</span><span class="rb-value text-blue-600" id="mm-tip-fr-{{ mentor_user.id }}">--</span></div>
             </div>
           </div>
@@ -822,7 +823,8 @@ function submitMentorshipRating() {
       document.getElementById('mm-tip-pc-' + mentorId).textContent = r.profile_complete.toFixed(1) + ' / 5.0';
       document.getElementById('mm-tip-sk-' + mentorId).textContent = r.useful_skills.toFixed(1) + ' / 5.0';
       document.getElementById('mm-tip-me-' + mentorId).textContent = r.mentorship_experience.toFixed(1) + ' / 5.0';
-      document.getElementById('mm-tip-te-' + mentorId).textContent = r.mentorship_task_experience.toFixed(1) + ' / 5.0';
+      document.getElementById('mm-tip-te-' + mentorId).textContent = r.task_completion.toFixed(1) + ' / 5.0';
+      document.getElementById('mm-tip-mf-' + mentorId).textContent = r.mentee_feedback != null ? r.mentee_feedback.toFixed(1) + ' / 5.0' : '--';
       document.getElementById('mm-tip-fr-' + mentorId).textContent = r.final_rating.toFixed(1) + ' / 5.0';
     } catch(e) { console.error('Rating load error:', e); }
   }
