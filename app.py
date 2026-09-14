@@ -13028,8 +13028,12 @@ def get_tasks_for_mentorship():
         mentor_id=mentor_id
     ).all()
 
+    # Filter out DB-completed tasks first (fast path), then compute dynamic status
     task_list = []
     for t in tasks:
+        # Skip tasks already marked completed in DB
+        if not include_done and getattr(t, 'status', None) == 'completed':
+            continue
         status = compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id)
         # Filter out completed tasks unless include_done is requested
         if not include_done and status == "done":

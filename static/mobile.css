@@ -1,20 +1,177 @@
 /* ============================================================
-   MOBILE RESPONSIVE STYLES — Mentor Connect
+   MOBILE RESPONSIVE STYLES — Mentor Connect (Global)
    ============================================================ */
 
-/* ---- Base ---- */
+/* ============================================================
+   1. GLOBAL PADDING REDUCTION
+   ============================================================ */
 @media (max-width: 640px) {
-  .mobile-p-2 { padding: 0.5rem; }
-  .mobile-px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
-  .mobile-py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
-  .mobile-text-sm { font-size: 0.8125rem; line-height: 1.25rem; }
-  .mobile-text-xs { font-size: 0.6875rem; line-height: 1rem; }
-  .mobile-gap-2 { gap: 0.5rem; }
-  .mobile-gap-3 { gap: 0.75rem; }
-  .mobile-hidden { display: none; }
+  /* Reduce p-6 → p-4 on all section/card/modal containers */
+  [class*="p-6"] {
+    padding: 1rem !important;
+  }
+
+  /* Reduce px-6 → px-4 on all horizontal padding */
+  [class*="px-6"] {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  /* Reduce py-6 → py-4 */
+  [class*="py-6"] {
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+  }
+
+  /* Specific: stat cards, section cards, modal bodies */
+  .bg-white.p-6,
+  .bg-gray-50.p-6,
+  .bg-slate-50.p-6,
+  .rounded-xl.p-6,
+  .rounded-2xl.p-6,
+  .section-card.p-6,
+  [class*="bg-gradient"][class*="p-6"] {
+    padding: 1rem !important;
+  }
+
+  /* Modal headers and footers */
+  .sticky [class*="px-6"],
+  [class*="border-b"][class*="px-6"],
+  [class*="border-t"][class*="px-6"] {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
 }
 
-/* ---- Navbar ---- */
+@media (min-width: 641px) and (max-width: 768px) {
+  [class*="p-6"] {
+    padding: 1.25rem !important;
+  }
+  [class*="px-6"] {
+    padding-left: 1.25rem !important;
+    padding-right: 1.25rem !important;
+  }
+}
+
+/* ============================================================
+   2. GLOBAL GRID STACKING
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Stack all multi-column grids to single column */
+  .grid-cols-2,
+  .grid-cols-3,
+  .grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Keep grid-cols-1 as-is (already single column) */
+  .grid-cols-1 {
+    grid-template-columns: 1fr;
+  }
+
+  /* Reduce gap on grids */
+  .grid.gap-6 {
+    gap: 1rem !important;
+  }
+
+  .grid.gap-8 {
+    gap: 1.25rem !important;
+  }
+
+  .grid.gap-4 {
+    gap: 0.75rem !important;
+  }
+
+  .grid.gap-3 {
+    gap: 0.5rem !important;
+  }
+}
+
+/* ============================================================
+   3. GLOBAL TEXT SIZE REDUCTION
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Reduce large headings */
+  .text-3xl {
+    font-size: 1.5rem !important;
+    line-height: 2rem !important;
+  }
+
+  .text-2xl {
+    font-size: 1.25rem !important;
+    line-height: 1.75rem !important;
+  }
+
+  /* Reduce page titles */
+  h1.text-3xl,
+  h1.text-2xl {
+    font-size: 1.375rem !important;
+    line-height: 1.75rem !important;
+  }
+
+  h2.text-2xl,
+  h2.text-3xl {
+    font-size: 1.125rem !important;
+    line-height: 1.5rem !important;
+  }
+
+  /* Stat numbers inside grids */
+  .grid .text-3xl {
+    font-size: 1.375rem !important;
+    line-height: 1.75rem !important;
+  }
+
+  .grid .text-2xl {
+    font-size: 1.125rem !important;
+    line-height: 1.5rem !important;
+  }
+}
+
+/* ============================================================
+   4. GLOBAL FLEX LAYOUT FIXES
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Stack justify-between items on mobile */
+  .flex.justify-between.items-center,
+  .flex.items-center.justify-between {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* Stack flex with gap-4 */
+  .flex.items-center.gap-4 {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .flex.items-center.gap-3 {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* Full-width buttons in flex rows */
+  .flex.gap-3 > .btn,
+  .flex.gap-4 > .btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  /* Action button rows - stack vertically */
+  .flex.flex-wrap.gap-2.justify-end,
+  .flex.flex-wrap.gap-3.justify-end {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .flex.flex-wrap.gap-2.justify-end > *,
+  .flex.flex-wrap.gap-3.justify-end > * {
+    width: 100%;
+  }
+}
+
+/* ============================================================
+   5. NAVBAR
+   ============================================================ */
 @media (max-width: 640px) {
   .glass-nav {
     padding: 0.5rem 0.75rem !important;
@@ -30,7 +187,9 @@
   }
 }
 
-/* ---- Sidebar ---- */
+/* ============================================================
+   6. SIDEBAR
+   ============================================================ */
 @media (max-width: 768px) {
   .sidebar {
     position: fixed;
@@ -54,79 +213,49 @@
   }
 }
 
-/* ---- Main Content ---- */
+/* ============================================================
+   7. MAIN CONTENT
+   ============================================================ */
 @media (max-width: 640px) {
   main {
-    padding: 1rem !important;
-    padding-bottom: 5rem !important;
+    padding: 0.75rem !important;
+    padding-bottom: 4rem !important;
   }
 }
 
 @media (min-width: 641px) and (max-width: 768px) {
   main {
-    padding: 1.5rem !important;
-    padding-bottom: 4rem !important;
+    padding: 1rem !important;
+    padding-bottom: 3rem !important;
   }
 }
 
-/* ---- Notification Dropdown ---- */
+/* ============================================================
+   8. NOTIFICATION & PROFILE DROPDOWNS
+   ============================================================ */
 @media (max-width: 480px) {
   #notification-menu {
     position: fixed;
-    top: 60px;
+    top: 56px;
     right: 8px;
     left: 8px;
     width: auto !important;
     max-width: 100%;
     border-radius: 0.75rem;
   }
-}
 
-/* ---- Profile Dropdown ---- */
-@media (max-width: 480px) {
   #profile-menu {
     position: fixed;
-    top: 60px;
+    top: 56px;
     right: 8px;
     width: 220px;
     border-radius: 0.75rem;
   }
 }
 
-/* ---- Stats Cards ---- */
-@media (max-width: 640px) {
-  .grid > .bg-blue-50\/50,
-  .grid > .bg-emerald-50\/50,
-  .grid > .bg-sky-50\/50,
-  .grid > .bg-amber-50\/50,
-  .grid > .bg-blue-50,
-  .grid > .bg-teal-50,
-  .grid > .bg-indigo-50,
-  .grid > [class*="bg-gradient"] {
-    padding: 1rem !important;
-  }
-
-  .grid > [class*="bg-"] p.text-3xl {
-    font-size: 1.5rem !important;
-    line-height: 2rem !important;
-  }
-
-  .grid > [class*="bg-"] p.text-2xl {
-    font-size: 1.25rem !important;
-    line-height: 1.75rem !important;
-  }
-
-  .grid > [class*="bg-"] .rounded-xl {
-    padding: 0.625rem !important;
-  }
-
-  .grid > [class*="bg-"] .rounded-xl svg {
-    width: 1.125rem;
-    height: 1.125rem;
-  }
-}
-
-/* ---- Tables ---- */
+/* ============================================================
+   9. TABLES
+   ============================================================ */
 .table-responsive {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -136,13 +265,13 @@
 
 @media (max-width: 640px) {
   .table-responsive table {
-    min-width: 600px;
-    font-size: 0.8125rem;
+    min-width: 500px;
+    font-size: 0.75rem;
   }
 
   .table-responsive th,
   .table-responsive td {
-    padding: 0.5rem 0.625rem !important;
+    padding: 0.375rem 0.5rem !important;
     white-space: nowrap;
   }
 
@@ -151,39 +280,48 @@
     top: 0;
     z-index: 5;
   }
-}
 
-/* ---- Cards ---- */
-@media (max-width: 640px) {
-  .glass-card,
-  .card {
-    border-radius: 1rem;
-    padding: 1rem;
-  }
-
-  .card-header {
-    padding: 0.75rem 1rem;
-  }
-
-  .card-content {
-    padding: 0.75rem 1rem;
+  /* Reduce profile image sizes in tables */
+  .table-responsive img.w-10,
+  .table-responsive img.h-10 {
+    width: 2rem !important;
+    height: 2rem !important;
   }
 }
 
-/* ---- Modals ---- */
+/* ============================================================
+   10. MODALS
+   ============================================================ */
 @media (max-width: 640px) {
   .fixed.inset-0 > div[class*="max-w"] {
-    margin: 0.5rem;
+    margin: 0.5rem !important;
     max-height: calc(100vh - 1rem) !important;
     overflow-y: auto;
   }
 
-  .fixed.inset-0 > div[class*="max-w-md"] {
+  .fixed.inset-0 > div[class*="max-w-sm"],
+  .fixed.inset-0 > div[class*="max-w-md"],
+  .fixed.inset-0 > div[class*="max-w-lg"],
+  .fixed.inset-0 > div[class*="max-w-xl"],
+  .fixed.inset-0 > div[class*="max-w-2xl"],
+  .fixed.inset-0 > div[class*="max-w-4xl"] {
     max-width: calc(100vw - 1rem) !important;
+  }
+
+  /* Modal inner padding */
+  .fixed.inset-0 > div > div[class*="p-6"] {
+    padding: 1rem !important;
+  }
+
+  .fixed.inset-0 > div > div[class*="px-6"] {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
   }
 }
 
-/* ---- Forms ---- */
+/* ============================================================
+   11. FORMS
+   ============================================================ */
 @media (max-width: 640px) {
   input[type="text"],
   input[type="email"],
@@ -198,42 +336,91 @@
     min-height: 44px;
   }
 
-  .grid.grid-cols-1 > div:has(input),
-  .grid.grid-cols-1 > div:has(select),
-  .grid.grid-cols-2 {
-    margin-bottom: 0.75rem;
-  }
-}
-
-/* ---- Search Bars ---- */
-@media (max-width: 640px) {
+  /* Full-width form elements */
   .flex.flex-wrap.gap-3 input[type="text"],
   .flex.flex-wrap.gap-3 input[type="search"],
   .flex.flex-wrap.gap-3 select {
-    width: 100%;
+    width: 100% !important;
   }
 
   .flex.flex-wrap.gap-3 {
-    flex-direction: column;
+    flex-direction: column !important;
+  }
+
+  /* Filter sections - stack on mobile */
+  .flex.flex-wrap.gap-3.items-center {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .flex.flex-wrap.gap-3.items-center > * {
+    width: 100% !important;
   }
 }
 
-/* ---- Action Buttons Row ---- */
+/* ============================================================
+   12. CARDS
+   ============================================================ */
 @media (max-width: 640px) {
-  .flex.flex-wrap.gap-2.justify-end,
-  .flex.flex-wrap.gap-3.justify-end {
-    flex-direction: column;
-    align-items: stretch;
+  .glass-card,
+  .card {
+    border-radius: 1rem;
+    padding: 1rem !important;
   }
 
-  .flex.flex-wrap.gap-2.justify-end > *,
-  .flex.flex-wrap.gap-3.justify-end > * {
-    width: 100%;
-    justify-content: center;
+  .card-header {
+    padding: 0.75rem 1rem !important;
+  }
+
+  .card-content {
+    padding: 0.75rem 1rem !important;
+  }
+
+  .card-footer {
+    padding: 0.75rem 1rem !important;
+  }
+
+  /* Section cards with bg-white */
+  [class*="bg-white"][class*="rounded-xl"][class*="p-6"] {
+    padding: 1rem !important;
+  }
+
+  [class*="bg-white"][class*="rounded-2xl"][class*="p-6"] {
+    padding: 1rem !important;
+  }
+
+  /* Gradient cards */
+  [class*="bg-gradient"][class*="p-6"] {
+    padding: 1rem !important;
   }
 }
 
-/* ---- Page Headers ---- */
+/* ============================================================
+   13. HERO/BANNER CARDS
+   ============================================================ */
+@media (max-width: 640px) {
+  [class*="bg-gradient"][class*="rounded-2xl"][class*="p-6"] {
+    padding: 1rem !important;
+  }
+
+  [class*="bg-gradient"][class*="rounded-2xl"] h3 {
+    font-size: 1rem !important;
+  }
+
+  [class*="bg-gradient"][class*="rounded-2xl"] p {
+    font-size: 0.8125rem !important;
+  }
+
+  [class*="bg-gradient"][class*="rounded-2xl"] .flex {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem;
+  }
+}
+
+/* ============================================================
+   14. PAGE HEADERS
+   ============================================================ */
 @media (max-width: 640px) {
   h1 {
     font-size: 1.25rem !important;
@@ -249,40 +436,34 @@
     font-size: 1rem !important;
     line-height: 1.375rem !important;
   }
-}
 
-/* ---- Two-Column Grids ---- */
-@media (max-width: 768px) {
-  .grid.lg\:grid-cols-2,
-  .grid.xl\:grid-cols-3 {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ---- Flex wraps for long content ---- */
-@media (max-width: 640px) {
-  .flex.items-center.justify-between {
+  /* Page header flex rows */
+  .flex.justify-between.items-center.mb-6,
+  .flex.items-center.justify-between.mb-3 {
     flex-wrap: wrap;
     gap: 0.5rem;
   }
+}
 
-  .flex.items-center.gap-4 {
-    flex-wrap: wrap;
-    gap: 0.75rem;
+/* ============================================================
+   15. TWO-COLUMN GRID OVERRIDES
+   ============================================================ */
+@media (max-width: 768px) {
+  .grid.lg\:grid-cols-2,
+  .grid.xl\:grid-cols-3 {
+    grid-template-columns: 1fr !important;
   }
 }
 
-/* ---- Profile completion popup ---- */
-@media (max-width: 640px) {
-  #profile-complete-popup > div {
-    margin: 1rem;
-    padding: 1.5rem;
-  }
-}
-
-/* ---- Content overflow protection ---- */
+/* ============================================================
+   16. CONTENT OVERFLOW PROTECTION
+   ============================================================ */
 @media (max-width: 640px) {
   .max-w-\[90rem\] {
+    max-width: 100% !important;
+  }
+
+  .max-w-screen-2xl {
     max-width: 100% !important;
   }
 
@@ -294,9 +475,20 @@
     max-width: 100%;
     height: auto;
   }
+
+  /* Prevent text overflow */
+  .truncate,
+  [class*="truncate"] {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
-/* ---- Calendar ---- */
+/* ============================================================
+   17. CALENDAR
+   ============================================================ */
 @media (max-width: 640px) {
   .fc-toolbar {
     flex-direction: column;
@@ -321,28 +513,15 @@
     font-size: 0.625rem;
     padding: 1px 3px;
   }
-}
 
-/* ---- Hero/Banner Cards ---- */
-@media (max-width: 640px) {
-  .flex.flex-col.sm\:flex-row {
-    flex-direction: column;
-  }
-
-  [class*="bg-gradient"][class*="rounded-2xl"] {
-    padding: 1rem !important;
-  }
-
-  [class*="bg-gradient"][class*="rounded-2xl"] h3 {
-    font-size: 1rem !important;
-  }
-
-  [class*="bg-gradient"][class*="rounded-2xl"] p {
-    font-size: 0.8125rem !important;
+  .fc-daygrid-event {
+    font-size: 0.625rem;
   }
 }
 
-/* ---- Badges ---- */
+/* ============================================================
+   18. BADGES
+   ============================================================ */
 @media (max-width: 640px) {
   .badge {
     font-size: 0.625rem;
@@ -350,7 +529,9 @@
   }
 }
 
-/* ---- Buttons ---- */
+/* ============================================================
+   19. BUTTONS
+   ============================================================ */
 @media (max-width: 640px) {
   .btn {
     font-size: 0.8125rem;
@@ -362,13 +543,26 @@
     padding: 0.375rem 0.75rem;
   }
 
-  .flex.flex-wrap.gap-3 > .btn {
+  /* Full-width buttons in flex containers */
+  .flex.gap-3 > .btn,
+  .flex.gap-4 > .btn,
+  .flex.flex-wrap > .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Submit buttons full width */
+  [class*="bg-blue-600"][class*="px-6"],
+  [class*="bg-emerald-600"][class*="px-6"],
+  [class*="bg-amber-500"][class*="px-6"] {
     width: 100%;
     justify-content: center;
   }
 }
 
-/* ---- Touch targets (min 44px) ---- */
+/* ============================================================
+   20. TOUCH TARGETS (min 44px)
+   ============================================================ */
 @media (max-width: 640px) {
   button,
   a[class*="block"],
@@ -382,9 +576,37 @@
     display: flex;
     align-items: center;
   }
+
+  /* Table action buttons */
+  .table-responsive button {
+    min-height: 36px;
+    font-size: 0.75rem;
+  }
 }
 
-/* ---- Smooth scroll behavior ---- */
+/* ============================================================
+   21. PROFILE COMPLETION POPUP
+   ============================================================ */
+@media (max-width: 640px) {
+  #profile-complete-popup > div {
+    margin: 1rem !important;
+    padding: 1.25rem !important;
+  }
+}
+
+/* ============================================================
+   22. EXPORT/FULL-WIDTH CTAs
+   ============================================================ */
+@media (max-width: 640px) {
+  .flex.justify-end > a,
+  .flex.justify-end > button {
+    width: 100%;
+  }
+}
+
+/* ============================================================
+   23. SMOOTH SCROLL & TAP HIGHLIGHT
+   ============================================================ */
 @media (max-width: 768px) {
   * {
     -webkit-tap-highlight-color: transparent;
@@ -395,17 +617,242 @@
   }
 }
 
-/* ---- Leaderboard lists ---- */
+/* ============================================================
+   24. SEARCH/FILTER SECTIONS
+   ============================================================ */
 @media (max-width: 640px) {
-  .grid > [class*="rounded-2xl"] > [class*="p-4"] {
+  /* Search bars full width */
+  .relative.flex-1 {
+    min-width: 100% !important;
+  }
+
+  /* Filter selects full width */
+  select[class*="border"] {
+    width: 100% !important;
+  }
+
+  /* Filter grid stacking */
+  .grid-cols-2.md\:grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .grid-cols-1.sm\:grid-cols-2.md\:grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ============================================================
+   25. STAT CARDS IN DASHBOARDS
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Supervisor dashboard metric cards */
+  .grid.grid-cols-1.md\:grid-cols-4 > div {
+    padding: 0.875rem !important;
+  }
+
+  /* Institution dashboard stat cards */
+  .grid.grid-cols-1.md\:grid-cols-3 > div {
+    padding: 0.875rem !important;
+  }
+
+  /* Mentor dashboard stat cards */
+  .grid.grid-cols-1.md\:grid-cols-2.lg\:grid-cols-4 > div {
+    padding: 0.875rem !important;
+  }
+
+  /* Stat number text */
+  .grid [class*="text-2xl"],
+  .grid [class*="text-3xl"] {
+    font-size: 1.25rem !important;
+    line-height: 1.5rem !important;
+  }
+
+  /* Stat icon containers */
+  .grid .rounded-xl[class*="p-3"] {
+    padding: 0.5rem !important;
+  }
+
+  .grid .rounded-xl[class*="p-3"] svg {
+    width: 1rem;
+    height: 1rem;
+  }
+}
+
+/* ============================================================
+   26. LEADERBOARD & LIST ITEMS
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Leaderboard rows */
+  [class*="px-6"][class*="py-3"][class*="flex"][class*="items-center"][class*="justify-between"] {
+    padding: 0.5rem 0.75rem !important;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  /* List items */
+  [class*="flex"][class*="items-center"][class*="justify-between"][class*="mb-2"],
+  [class*="flex"][class*="items-center"][class*="justify-between"][class*="mb-3"] {
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+}
+
+/* ============================================================
+   27. PROFILE PAGES
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Profile header sections */
+  [class*="bg-gradient-to-r"][class*="rounded-2xl"][class*="p-6"] {
+    padding: 1rem !important;
+  }
+
+  /* Profile tabs */
+  [class*="bg-gray-50"][class*="border-b"][class*="px-6"] {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  /* Profile sections */
+  [class*="bg-white"][class*="rounded-xl"][class*="p-6"][class*="mb-8"] {
+    padding: 1rem !important;
+  }
+}
+
+/* ============================================================
+   28. MEETING & CALENDAR PAGES
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Calendar stat cards */
+  .grid.grid-cols-2 > div[class*="bg-white"][class*="p-6"] {
+    padding: 0.75rem !important;
+  }
+
+  /* Meeting detail sections */
+  [class*="bg-white"][class*="rounded-xl"][class*="p-6"][class*="mb-6"] {
+    padding: 0.75rem !important;
+  }
+
+  /* Form sections inside modals */
+  [class*="space-y-4"] > div > label {
+    font-size: 0.8125rem;
+    margin-bottom: 0.25rem;
+  }
+
+  /* Half-width grid selects */
+  .grid.grid-cols-1.md\:grid-cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ============================================================
+   29. TASK PAGES
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Task cards */
+  [class*="bg-white"][class*="rounded-xl"][class*="p-6"][class*="shadow-sm"] {
+    padding: 0.875rem !important;
+  }
+
+  /* Task detail modals */
+  [class*="space-y-5"] > div {
+    margin-bottom: 0.75rem;
+  }
+
+  /* Task info grids */
+  .grid.grid-cols-2.gap-3 {
+    grid-template-columns: 1fr !important;
+    gap: 0.5rem !important;
+  }
+}
+
+/* ============================================================
+   30. SUPERVISOR DASHBOARD SPECIFIC
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Metric cards grid */
+  .grid.grid-cols-1.md\:grid-cols-4 {
+    gap: 0.5rem !important;
+  }
+
+  /* Metric card internal layout */
+  .grid.grid-cols-1.md\:grid-cols-4 > div > div {
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+
+  /* Section containers */
+  [class*="bg-white"][class*="rounded-xl"][class*="border"][class*="shadow-sm"][class*="mb-8"] {
+    padding: 0.75rem !important;
+  }
+
+  /* Mentor/mentee grids */
+  .grid.grid-cols-1.md\:grid-cols-2.lg\:grid-cols-3 {
+    gap: 0.75rem !important;
+  }
+
+  .grid.grid-cols-1.md\:grid-cols-2.lg\:grid-cols-3 > div {
     padding: 0.75rem !important;
   }
 }
 
-/* ---- Export button and similar full-width CTAs ---- */
+/* ============================================================
+   31. INSTITUTION DASHBOARD SPECIFIC
+   ============================================================ */
 @media (max-width: 640px) {
-  .flex.justify-end > a,
-  .flex.justify-end > button {
-    width: 100%;
+  /* Stat card links */
+  [class*="bg-blue-50"][class*="rounded-xl"][class*="p-5"],
+  [class*="bg-teal-50"][class*="rounded-xl"][class*="p-5"],
+  [class*="bg-indigo-50"][class*="rounded-xl"][class*="p-5"] {
+    padding: 0.875rem !important;
+  }
+
+  /* Two-column card grids */
+  .grid.grid-cols-1.md\:grid-cols-2 {
+    gap: 0.75rem !important;
+  }
+}
+
+/* ============================================================
+   32. MENTEE DASHBOARD SPECIFIC
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Stat overview cards */
+  .grid.grid-cols-1.md\:grid-cols-3 > div {
+    padding: 0.875rem !important;
+  }
+
+  /* Quick action cards */
+  [class*="bg-white"][class*="rounded-2xl"][class*="p-6"][class*="shadow-sm"] {
+    padding: 0.875rem !important;
+  }
+
+  /* Session cards */
+  [class*="bg-white"][class*="rounded-xl"][class*="border"][class*="hover:shadow-lg"] {
+    padding: 0.75rem !important;
+  }
+}
+
+/* ============================================================
+   33. MENTOR DASHBOARD SPECIFIC
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Stat cards */
+  .grid.grid-cols-1.md\:grid-cols-2.lg\:grid-cols-4 > div {
+    padding: 0.875rem !important;
+  }
+
+  /* Rating card */
+  [class*="bg-gradient-to-r"][class*="from-amber-50"][class*="p-6"] {
+    padding: 0.875rem !important;
+  }
+
+  /* Premium prompt card */
+  [class*="bg-gradient-to-r"][class*="from-amber-500"][class*="p-6"] {
+    padding: 0.875rem !important;
+  }
+
+  /* Leaderboard card */
+  [class*="bg-white"][class*="rounded-2xl"][class*="border"][class*="shadow-sm"][class*="overflow-hidden"] {
+    padding: 0 !important;
   }
 }
