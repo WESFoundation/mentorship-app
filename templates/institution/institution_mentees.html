@@ -39,11 +39,20 @@
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
           <tr>
+<<<<<<< HEAD
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentee</th>
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stream</th>
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Goal</th>
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
+=======
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentee</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stream</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Goal</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentee Rating</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
+>>>>>>> 0d0f27851481bcbf93c3173864d0bbc9e43d2c88
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
@@ -68,11 +77,31 @@
                 </div>
               </div>
             </td>
+<<<<<<< HEAD
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700 mentee-stream max-w-[150px] truncate">{{ mentee.mentee_profile.stream if mentee.mentee_profile else 'Not specified' }}</td>
             <td class="px-3 sm:px-6 py-4 text-sm text-gray-600 mentee-goal min-w-[160px] max-w-[260px] break-words">{{ mentee.mentee_profile.goal if mentee.mentee_profile else 'Not specified' }}</td>
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentee-email max-w-[220px] truncate">{{ mentee.email }}</td>
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
               <button class="view-profile-btn px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-100 text-gray-700 text-xs sm:text-sm font-medium rounded-lg hover:bg-gray-200 transition"
+=======
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 mentee-stream max-w-[150px] truncate">{{ mentee.mentee_profile.stream if mentee.mentee_profile else 'Not specified' }}</td>
+            <td class="px-6 py-4 text-sm text-gray-600 mentee-goal min-w-[160px] max-w-[260px] break-words">{{ mentee.mentee_profile.goal if mentee.mentee_profile else 'Not specified' }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentee-email max-w-[220px] truncate">{{ mentee.email }}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="inline-flex items-center gap-2 cursor-pointer group"
+                   onclick="openMenteeRatingPopup({{ mentee.id }}, '{{ mentee.name|e }}')"
+                   data-mentee-uid="{{ mentee.id }}"
+                   title="Click to view rating details for {{ mentee.name|e }}">
+                <div class="flex items-center gap-0.5 text-sm inst-mentee-stars-{{ mentee.id }}" id="inst-mentee-stars-{{ mentee.id }}">
+                  <span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span>
+                </div>
+                <span class="text-sm font-bold text-gray-700 inst-mentee-num-{{ mentee.id }}" id="inst-mentee-num-{{ mentee.id }}">--</span>
+                <span class="text-xs px-2 py-0.5 bg-emerald-50 group-hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded font-medium transition">Details</span>
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right">
+              <button class="view-profile-btn px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition"
+>>>>>>> 0d0f27851481bcbf93c3173864d0bbc9e43d2c88
                 data-mentee='{{ {
                     "id": mentee.id or "",
                     "name": mentee.name or "",
@@ -709,7 +738,91 @@
     document.getElementById('menteeProfileModal').classList.add('hidden');
   }
 
+  // ---------- Mentee Rating System ----------
+  const menteeRatingCache = {};
+
+  function renderStarsHtml(rating) {
+    const full = Math.floor(rating);
+    const half = rating - full >= 0.3 && rating - full < 0.8;
+    const empty = 5 - full - (half ? 1 : 0);
+    let html = '';
+    for (let i = 0; i < full; i++) html += '<span class="text-yellow-400">&#9733;</span>';
+    if (half) html += '<span class="text-yellow-400" style="opacity:0.8">&#9733;</span>';
+    for (let i = 0; i < empty; i++) html += '<span class="text-gray-300">&#9734;</span>';
+    return html;
+  }
+
+  async function fetchMenteeRating(menteeId) {
+    if (!menteeId) return null;
+    if (menteeRatingCache[menteeId]) return menteeRatingCache[menteeId];
+    try {
+      const res = await fetch('/api/mentee_rating_simple/' + menteeId);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data && data.success && data.rating) {
+        menteeRatingCache[menteeId] = data.rating;
+        return data.rating;
+      }
+    } catch(e) {
+      console.error('Error fetching mentee rating:', e);
+    }
+    return null;
+  }
+
+  async function loadAllInstitutionMenteeRatings() {
+    const containers = document.querySelectorAll('[data-mentee-uid]');
+    const ids = [...new Set([...containers].map(c => c.getAttribute('data-mentee-uid')))].filter(Boolean);
+    for (const uid of ids) {
+      const rating = await fetchMenteeRating(uid);
+      if (!rating) continue;
+      document.querySelectorAll('.inst-mentee-stars-' + uid).forEach(el => {
+        el.innerHTML = renderStarsHtml(rating.final_rating);
+      });
+      document.querySelectorAll('.inst-mentee-num-' + uid).forEach(el => {
+        el.textContent = rating.final_rating.toFixed(1) + ' / 5.0';
+      });
+    }
+  }
+
+  async function openMenteeRatingPopup(uid, name) {
+    const popup = document.getElementById('menteeRatingPopup');
+    if (!popup) return;
+    document.getElementById('popupMenteeName').textContent = name || 'Mentee';
+    document.getElementById('popupMenteeFinalRating').textContent = '--';
+    document.getElementById('popupMenteeStars').innerHTML = '';
+    document.getElementById('popupMenteePc').textContent = '--';
+    document.getElementById('popupMenteeGc').textContent = '--';
+    document.getElementById('popupMenteeMe').textContent = '--';
+    document.getElementById('popupMenteeTc').textContent = '--';
+    document.getElementById('popupMenteeMf').textContent = '--';
+    
+    popup.classList.remove('hidden');
+    popup.classList.add('flex');
+
+    const rating = await fetchMenteeRating(uid);
+    if (!rating) {
+      document.getElementById('popupMenteeFinalRating').textContent = 'N/A';
+      return;
+    }
+
+    document.getElementById('popupMenteeFinalRating').textContent = rating.final_rating.toFixed(1);
+    document.getElementById('popupMenteeStars').innerHTML = renderStarsHtml(rating.final_rating);
+    document.getElementById('popupMenteePc').textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupMenteeGc').textContent = rating.goal_clarity != null ? rating.goal_clarity.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupMenteeMe').textContent = rating.has_mentorship_data ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'No data';
+    document.getElementById('popupMenteeTc').textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'No data';
+    document.getElementById('popupMenteeMf').textContent = rating.has_mentor_feedback ? rating.mentor_feedback.toFixed(1) + ' / 5.0' : 'No feedback yet';
+  }
+
+  function closeMenteeRatingPopup() {
+    const popup = document.getElementById('menteeRatingPopup');
+    if (!popup) return;
+    popup.classList.add('hidden');
+    popup.classList.remove('flex');
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
+    loadAllInstitutionMenteeRatings();
     document.querySelectorAll(".view-profile-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         const mentee = JSON.parse(btn.dataset.mentee);
@@ -718,5 +831,64 @@
     });
   });
 </script>
+
+<!-- Mentee Rating Breakdown Popup -->
+<div id="menteeRatingPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4" onclick="if(event.target===this)closeMenteeRatingPopup()">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+    <div class="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-5 text-white flex items-center justify-between">
+      <div>
+        <h3 class="text-lg font-bold">Mentee Rating Breakdown</h3>
+        <p class="text-emerald-100 text-sm" id="popupMenteeName">--</p>
+      </div>
+      <button onclick="closeMenteeRatingPopup()" class="text-white/80 hover:text-white transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="p-6">
+      <div class="flex items-center gap-5 mb-6 pb-6 border-b border-gray-100">
+        <div class="text-center shrink-0">
+          <div class="text-5xl font-extrabold text-emerald-600" id="popupMenteeFinalRating">--</div>
+          <div class="flex items-center justify-center gap-0.5 mt-1 text-xl text-yellow-400" id="popupMenteeStars"></div>
+          <p class="text-xs text-gray-500 font-medium mt-1">out of 5.0</p>
+        </div>
+        <div class="flex-1 space-y-2.5">
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Profile Complete</span>
+            <span class="font-bold text-gray-900" id="popupMenteePc">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Goal Clarity</span>
+            <span class="font-bold text-gray-900" id="popupMenteeGc">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Mentorship Experience</span>
+            <span class="font-bold text-gray-900" id="popupMenteeMe">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Task Completion</span>
+            <span class="font-bold text-gray-900" id="popupMenteeTc">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Mentor Feedback</span>
+            <span class="font-bold text-gray-900" id="popupMenteeMf">--</span>
+          </div>
+        </div>
+      </div>
+      <div class="bg-emerald-50 rounded-xl p-3.5 text-center border border-emerald-200">
+        <p class="text-xs text-emerald-800">
+          <strong>Final Rating</strong> is calculated as the average of all criteria with available data.
+        </p>
+      </div>
+      <div class="mt-4 text-center">
+        <a href="{{ url_for('rating_calculation_page') }}" target="_blank" class="text-sm text-emerald-600 hover:text-emerald-700 font-semibold underline inline-flex items-center gap-1">
+          <span>How is this calculated?</span>
+          <span>&rarr;</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
 
 {% endblock %}

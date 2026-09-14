@@ -97,6 +97,23 @@
             <div>
               <h3 class="text-lg font-bold text-gray-800 mentee-name">{{ mentee.user.name }}</h3>
               <p class="text-sm text-gray-600 mentee-stream">{{ mentee.stream }} at {{ mentee.school_college_name }}</p>
+              
+              <!-- Mentee Rating -->
+              <div class="mentee-rating-container mt-1.5 inline-flex items-center gap-1.5 cursor-pointer relative group" data-mentee-id="{{ mentee.user_id }}" title="Hover to view rating breakdown">
+                <div class="rating-stars flex items-center gap-0.5 text-xs text-yellow-400" id="rating-stars-{{ mentee.user_id }}">
+                  <span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span>
+                </div>
+                <span class="rating-number text-xs font-bold text-gray-700" id="rating-num-{{ mentee.user_id }}">--</span>
+                <!-- Hover Breakdown Tooltip -->
+                <div class="rating-breakdown-tooltip absolute bottom-full left-0 mb-2 hidden group-hover:block bg-white border border-gray-200 rounded-xl shadow-xl p-3 z-30 w-56 text-xs pointer-events-none">
+                  <div class="flex justify-between py-1 border-b border-gray-100"><span class="text-gray-500">Profile Complete</span><span class="font-bold text-gray-800" id="tip-pc-{{ mentee.user_id }}">--</span></div>
+                  <div class="flex justify-between py-1 border-b border-gray-100"><span class="text-gray-500">Goal Clarity</span><span class="font-bold text-gray-800" id="tip-gc-{{ mentee.user_id }}">--</span></div>
+                  <div class="flex justify-between py-1 border-b border-gray-100"><span class="text-gray-500">Mentorship Exp.</span><span class="font-bold text-gray-800" id="tip-me-{{ mentee.user_id }}">--</span></div>
+                  <div class="flex justify-between py-1 border-b border-gray-100"><span class="text-gray-500">Task Completion</span><span class="font-bold text-gray-800" id="tip-tc-{{ mentee.user_id }}">--</span></div>
+                  <div class="flex justify-between py-1 border-b border-gray-100"><span class="text-gray-500">Mentor Feedback</span><span class="font-bold text-gray-800" id="tip-mf-{{ mentee.user_id }}">--</span></div>
+                  <div class="flex justify-between pt-1.5 font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded mt-1"><span class="text-gray-700">Final Rating</span><span id="tip-fr-{{ mentee.user_id }}">--</span></div>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -126,6 +143,7 @@
 <button 
     class="view-profile-btn w-full px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition"
     data-mentee='{{ {
+        "userId": mentee.user_id or "",
         "name": mentee.user.name or "",
         "stream": mentee.stream or "",
         "school": mentee.school_college_name or "",
@@ -242,6 +260,15 @@
             <div class="flex flex-wrap gap-2 justify-center md:justify-start mb-3">
               <span id="menteeModalStream" class="bg-green-100 text-green-800 text-sm px-4 py-1.5 rounded-full font-medium"></span>
               <span id="menteeModalGoal" class="bg-blue-100 text-blue-800 text-sm px-4 py-1.5 rounded-full font-medium"></span>
+            </div>
+            <!-- Mentee Rating in Modal -->
+            <div class="flex items-center gap-2 mt-2" id="modalMenteeRatingContainer">
+              <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Rating:</span>
+              <div class="flex items-center gap-0.5 text-yellow-400 text-base" id="modalStars">
+                <span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span>
+              </div>
+              <span class="text-sm font-bold text-gray-800" id="modalFinalRating">--</span>
+              <span class="text-xs text-gray-500">/ 5.0</span>
             </div>
           </div>
         </div>
@@ -1065,20 +1092,87 @@ function openMenteeProfileModal(mentee) {
         document.getElementById('menteeModalComments').innerText = mentee.comments;
     }
 
+    // Modal Rating
+    const modalStars = document.getElementById('modalStars');
+    const modalFinalRating = document.getElementById('modalFinalRating');
+    if (modalStars) modalStars.innerHTML = '<span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span>';
+    if (modalFinalRating) modalFinalRating.textContent = '--';
+    if (mentee.userId) {
+      fetchMenteeRating(mentee.userId).then(rating => {
+        if (!rating) return;
+        if (modalStars) modalStars.innerHTML = renderStarsHtml(rating.final_rating);
+        if (modalFinalRating) modalFinalRating.textContent = rating.final_rating.toFixed(1);
+      });
+    }
+
     // Show modal
     document.getElementById('menteeProfileModal').classList.remove('hidden');
 }
-
-
-
-
 
 function closeMenteeProfileModal() {
     document.getElementById('menteeProfileModal').classList.add('hidden');
 }
 
+// ---------- Mentee Rating System ----------
+const menteeRatingCache = {};
+
+function renderStarsHtml(rating) {
+  const full = Math.floor(rating);
+  const half = rating - full >= 0.3 && rating - full < 0.8;
+  const empty = 5 - full - (half ? 1 : 0);
+  let html = '';
+  for (let i = 0; i < full; i++) html += '<span class="text-yellow-400">&#9733;</span>';
+  if (half) html += '<span class="text-yellow-400" style="opacity:0.8">&#9733;</span>';
+  for (let i = 0; i < empty; i++) html += '<span class="text-gray-300">&#9734;</span>';
+  return html;
+}
+
+async function fetchMenteeRating(menteeId) {
+  if (!menteeId) return null;
+  if (menteeRatingCache[menteeId]) return menteeRatingCache[menteeId];
+  try {
+    const res = await fetch('/api/mentee_rating_simple/' + menteeId);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && data.success && data.rating) {
+      menteeRatingCache[menteeId] = data.rating;
+      return data.rating;
+    }
+  } catch (e) {
+    console.error('Error fetching mentee rating:', e);
+  }
+  return null;
+}
+
+async function loadAllMenteeRatings() {
+  const containers = document.querySelectorAll('.mentee-rating-container[data-mentee-id]');
+  const ids = [...new Set([...containers].map(c => c.getAttribute('data-mentee-id')))].filter(Boolean);
+  for (const uid of ids) {
+    const rating = await fetchMenteeRating(uid);
+    if (!rating) continue;
+    const starsEl = document.getElementById('rating-stars-' + uid);
+    if (starsEl) starsEl.innerHTML = renderStarsHtml(rating.final_rating);
+    const numEl = document.getElementById('rating-num-' + uid);
+    if (numEl) numEl.textContent = rating.final_rating.toFixed(1);
+
+    const tipPc = document.getElementById('tip-pc-' + uid);
+    if (tipPc) tipPc.textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+    const tipGc = document.getElementById('tip-gc-' + uid);
+    if (tipGc) tipGc.textContent = rating.goal_clarity != null ? rating.goal_clarity.toFixed(1) + ' / 5.0' : 'N/A';
+    const tipMe = document.getElementById('tip-me-' + uid);
+    if (tipMe) tipMe.textContent = rating.has_mentorship_data ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'No data';
+    const tipTc = document.getElementById('tip-tc-' + uid);
+    if (tipTc) tipTc.textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'No data';
+    const tipMf = document.getElementById('tip-mf-' + uid);
+    if (tipMf) tipMf.textContent = rating.has_mentor_feedback ? rating.mentor_feedback.toFixed(1) + ' / 5.0' : 'No feedback yet';
+    const tipFr = document.getElementById('tip-fr-' + uid);
+    if (tipFr) tipFr.textContent = rating.final_rating.toFixed(1) + ' / 5.0';
+  }
+}
+
 // Attach click listener to all "View Profile" buttons
 document.addEventListener("DOMContentLoaded", function() {
+  loadAllMenteeRatings();
   document.querySelectorAll(".view-profile-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       const mentee = JSON.parse(btn.dataset.mentee);
@@ -1086,10 +1180,6 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   });
 });
-
-
-
-
 </script>
 {% endblock %}
 

@@ -65,3 +65,7 @@ instance/
 
 # Editor temp files
 .~lock.*
+
+# Meeting participants data (now stored purely in database)
+meeting_participants_data/
+

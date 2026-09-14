@@ -709,6 +709,59 @@
                     description...</p>
             </div>
 
+            <!-- Mentee's Rating & Feedback Section -->
+            <div id="mentee-rating-section" class="bg-emerald-50/60 p-5 rounded-xl border border-emerald-200 mb-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-bold text-emerald-900 text-base flex items-center gap-2">
+                        <span>📋</span> Mentee's Rating & Reflection
+                    </h4>
+                    <span id="mentee-display-date" class="text-xs text-emerald-700 font-medium"></span>
+                </div>
+                
+                <div id="mentee-no-rating-message" class="text-center text-emerald-700/80 py-3 text-sm">
+                    No rating or reflection submitted by mentee yet.
+                </div>
+                
+                <div id="mentee-rating-details" class="hidden space-y-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div class="bg-white p-3 rounded-lg border border-emerald-100 shadow-sm">
+                            <label class="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Task Satisfaction</label>
+                            <div class="flex items-center gap-2">
+                                <div id="mentee-display-stars" class="flex gap-1 text-base text-amber-400"></div>
+                                <span id="mentee-rating-score" class="font-bold text-gray-800 text-sm"></span>
+                            </div>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg border border-emerald-100 shadow-sm">
+                            <label class="text-xs font-bold text-gray-500 uppercase tracking-wide block mb-1">Mentor Support Rating</label>
+                            <div class="flex items-center gap-2">
+                                <div id="mentee-mentor-display-stars" class="flex gap-1 text-base text-blue-400"></div>
+                                <span id="mentee-mentor-score" class="font-bold text-gray-800 text-sm"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">Mentee's Reflection:</label>
+                        <p id="mentee-display-reflection" class="text-gray-700 text-sm bg-white p-3 rounded-lg border border-emerald-100 leading-relaxed"></p>
+                    </div>
+
+                    <div id="mentee-challenges-container" class="hidden">
+                        <label class="text-xs font-bold text-amber-700 uppercase tracking-wide block mb-1">Challenges Faced:</label>
+                        <p id="mentee-display-challenges" class="text-gray-700 text-sm bg-amber-50/60 p-3 rounded-lg border border-amber-200 leading-relaxed"></p>
+                    </div>
+
+                    <div id="mentee-next-container" class="hidden">
+                        <label class="text-xs font-bold text-emerald-700 uppercase tracking-wide block mb-1">Next Steps:</label>
+                        <p id="mentee-display-next" class="text-gray-700 text-sm bg-white p-3 rounded-lg border border-emerald-100 leading-relaxed"></p>
+                    </div>
+
+                    <div id="mentee-extra-container" class="hidden">
+                        <label class="text-xs font-bold text-teal-700 uppercase tracking-wide block mb-1">Additional Notes:</label>
+                        <p id="mentee-display-extra" class="text-gray-700 text-sm bg-teal-50/60 p-3 rounded-lg border border-teal-200 leading-relaxed"></p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Rating Section for Supervisor -->
             <div id="rating-section" class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
                 <h4 class="font-semibold text-yellow-800 text-lg mb-3">Mentor Rating & Feedback</h4>
@@ -1085,21 +1138,22 @@
             
             <p class="text-gray-600 mb-4 line-clamp-2">${task.description || 'No description available'}</p>
             
-            <!-- Rating Display -->
-            <div class="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                <div class="flex items-center justify-between">
-                    <span class="text-sm font-medium text-yellow-800">Mentor Rating:</span>
-                    <div id="rating-${task.id}">
-                        ${renderStars(task.rating)}
+            <!-- Dual Rating Display: Mentor Rating & Mentee Rating -->
+            <div class="mb-4 p-3 bg-slate-50 hover:bg-blue-50/40 hover:border-blue-300 rounded-xl border border-slate-200 cursor-pointer transition duration-150" onclick="viewTaskDetails('${task.id}')" title="Click to view full details, ratings & reflections">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div class="bg-white p-2.5 rounded-lg border border-slate-100 flex flex-col justify-between pointer-events-none">
+                        <span class="text-slate-500 font-medium mb-1">Mentor Rating</span>
+                        <div id="rating-${task.id}">
+                            ${renderStars(task.rating)}
+                        </div>
+                    </div>
+                    <div class="bg-white p-2.5 rounded-lg border border-slate-100 flex flex-col justify-between pointer-events-none">
+                        <span class="text-slate-500 font-medium mb-1">Mentee Rating</span>
+                        <div>
+                            ${task.menteeRating ? renderStars(task.menteeRating) : (task.hasMenteeFeedback ? '<span class="text-emerald-600 font-semibold">Submitted ✓</span>' : '<span class="text-gray-400 font-normal">Pending</span>')}
+                        </div>
                     </div>
                 </div>
-                ${task.rating ? `
-                <div class="mt-2 text-xs text-yellow-700">
-                    <button onclick="loadTaskRatingDetails('${task.id}')" class="text-blue-600 hover:text-blue-800 underline">
-                        View detailed feedback
-                    </button>
-                </div>
-                ` : ''}
             </div>
             
             <div class="flex justify-between items-center">
@@ -1546,12 +1600,107 @@
                 taskType = task.type;
             }
 
-            // Load and display rating (non-blocking)
+            // Reset mentee rating displays
+            const menteeNo = document.getElementById('mentee-no-rating-message');
+            const menteeDet = document.getElementById('mentee-rating-details');
+            if (menteeNo) menteeNo.classList.remove('hidden');
+            if (menteeDet) menteeDet.classList.add('hidden');
+
+            // Load and display ratings (non-blocking)
             try { loadAndDisplayRating(actualTaskId, taskType); } catch (e) { console.warn('Rating load failed', e); }
+            try { loadMenteeRating(actualTaskId, taskType); } catch (e) { console.warn('Mentee rating load failed', e); }
 
             const modal = document.getElementById('task-details-modal');
             if (modal) modal.classList.remove('hidden');
         }
+    }
+
+    async function loadMenteeRating(actualTaskId, taskType) {
+        const noMsg = document.getElementById('mentee-no-rating-message');
+        const details = document.getElementById('mentee-rating-details');
+        if (!noMsg || !details) return;
+
+        try {
+            const res = await fetch(`/get_mentee_feedback/${taskType}/${actualTaskId}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && data.feedback) {
+                    const fb = data.feedback;
+                    noMsg.classList.add('hidden');
+                    details.classList.remove('hidden');
+
+                    const starsEl = document.getElementById('mentee-display-stars');
+                    if (starsEl) {
+                        starsEl.innerHTML = '';
+                        const r = parseInt(fb.rating) || 0;
+                        for (let i = 1; i <= 5; i++) {
+                            const s = document.createElement('span');
+                            s.className = i <= r ? 'text-amber-400' : 'text-gray-300';
+                            s.innerHTML = '★';
+                            starsEl.appendChild(s);
+                        }
+                    }
+                    const scoreEl = document.getElementById('mentee-rating-score');
+                    if (scoreEl) scoreEl.textContent = fb.rating ? `${fb.rating}/5` : 'No rating';
+
+                    const mStarsEl = document.getElementById('mentee-mentor-display-stars');
+                    if (mStarsEl) {
+                        mStarsEl.innerHTML = '';
+                        const mr = parseInt(fb.mentor_rating) || 0;
+                        for (let i = 1; i <= 5; i++) {
+                            const s = document.createElement('span');
+                            s.className = i <= mr ? 'text-blue-400' : 'text-gray-300';
+                            s.innerHTML = '★';
+                            mStarsEl.appendChild(s);
+                        }
+                    }
+                    const mScoreEl = document.getElementById('mentee-mentor-score');
+                    if (mScoreEl) mScoreEl.textContent = fb.mentor_rating ? `${fb.mentor_rating}/5` : 'No rating';
+
+                    const dEl = document.getElementById('mentee-display-date');
+                    if (dEl && (fb.date || fb.created_at)) dEl.textContent = `Submitted: ${new Date(fb.date || fb.created_at).toLocaleDateString()}`;
+
+                    const refEl = document.getElementById('mentee-display-reflection');
+                    if (refEl) refEl.textContent = fb.text || 'No reflection provided.';
+
+                    const cCont = document.getElementById('mentee-challenges-container');
+                    if (cCont) {
+                        if (fb.challenges && fb.challenges.trim()) {
+                            document.getElementById('mentee-display-challenges').textContent = fb.challenges;
+                            cCont.classList.remove('hidden');
+                        } else {
+                            cCont.classList.add('hidden');
+                        }
+                    }
+
+                    const nCont = document.getElementById('mentee-next-container');
+                    const nextVal = fb.nextSteps || fb.next_steps;
+                    if (nCont) {
+                        if (nextVal && nextVal.trim()) {
+                            document.getElementById('mentee-display-next').textContent = nextVal;
+                            nCont.classList.remove('hidden');
+                        } else {
+                            nCont.classList.add('hidden');
+                        }
+                    }
+
+                    const eCont = document.getElementById('mentee-extra-container');
+                    if (eCont) {
+                        if (fb.extra && fb.extra.trim()) {
+                            document.getElementById('mentee-display-extra').textContent = fb.extra;
+                            eCont.classList.remove('hidden');
+                        } else {
+                            eCont.classList.add('hidden');
+                        }
+                    }
+                    return;
+                }
+            }
+        } catch (e) {
+            console.error('Error loading mentee rating:', e);
+        }
+        noMsg.classList.remove('hidden');
+        details.classList.add('hidden');
     }
 
 

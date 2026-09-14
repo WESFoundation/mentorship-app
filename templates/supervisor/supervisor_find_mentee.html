@@ -45,9 +45,17 @@
 <main class="max-w-[90rem] mx-auto px-2 sm:px-3 lg:px-3 py-2">
 
   <section id="mentees" class="hidden p-6 bg-white rounded-xl shadow-sm">
-    <div class="mb-6">
-      <h2 class="text-xl font-semibold text-gray-800 mb-2">All Mentees</h2>
-      <p class="text-gray-600">View and manage all registered mentees.</p>
+    <div class="mb-6 flex items-center justify-between">
+      <div>
+        <h2 class="text-xl font-semibold text-gray-800 mb-2">All Mentees</h2>
+        <p class="text-gray-600">View and manage all registered mentees.</p>
+      </div>
+      <a href="{{ url_for('rating_calculation_page') }}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-lg text-sm font-semibold hover:bg-emerald-100 transition">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+        </svg>
+        How Ratings Work
+      </a>
     </div>
 
     <!-- Search and Filters -->
@@ -154,8 +162,9 @@
             {% endfor %}
           </select>
 
+          <!-- Search Button -->
           <button type="submit" class="shrink-0 px-3.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-medium hover:bg-blue-700 transition">
-            Filter
+            Search
           </button>
           
           <a href="{{ url_for('supervisor_find_mentee') }}" class="shrink-0 px-3 py-1.5 rounded-lg border border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-medium transition">
@@ -170,6 +179,7 @@
       <table class="min-w-full divide-y divide-gray-200">
 <thead class="bg-gray-50">
           <tr>
+<<<<<<< HEAD
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S.No</th>
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentee</th>
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">School</th>
@@ -178,6 +188,17 @@
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
+=======
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S.No</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentee</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">School</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stream</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Goal</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Action</th>
+>>>>>>> 0d0f27851481bcbf93c3173864d0bbc9e43d2c88
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
@@ -201,12 +222,30 @@
                 </div>
               </div>
             </td>
+<<<<<<< HEAD
             <td class="px-3 sm:px-6 py-4 text-sm text-gray-700 mentee-school max-w-[200px] break-words">{{ mentee.school_college_name or 'Not specified' }}</td>
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 max-w-[150px] truncate">{{ mentee.stream or '—' }}</td>
             <td class="px-3 sm:px-6 py-4 text-sm text-gray-600 mentee-goal min-w-[160px] max-w-[260px] break-words">{{ mentee.goal or 'Not specified' }}</td>
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentee-email max-w-[220px] truncate">{{ mentee.user.email }}</td>
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ mentee.user.created_at.strftime('%d %b %Y, %I:%M %p') if mentee.user.created_at else 'N/A' }}</td>
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
+=======
+            <td class="px-6 py-4 text-sm text-gray-700 mentee-school max-w-[200px] break-words">{{ mentee.school_college_name or 'Not specified' }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 max-w-[150px] truncate">{{ mentee.stream or '—' }}</td>
+            <td class="px-6 py-4 text-sm text-gray-600 mentee-goal min-w-[160px] max-w-[260px] break-words">{{ mentee.goal or 'Not specified' }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 mentee-email max-w-[220px] truncate">{{ mentee.user.email }}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ mentee.user.created_at.strftime('%d %b %Y, %I:%M %p') if mentee.user.created_at else 'N/A' }}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="sup-mentee-rating-container inline-flex items-center gap-2 cursor-pointer group" onclick="openMenteeRatingPopup({{ mentee.user_id }}, '{{ mentee.user.name|e }}')" data-mentee-uid="{{ mentee.user_id }}" title="Click to view rating breakdown for {{ mentee.user.name|e }}">
+                <div class="flex items-center gap-0.5 text-xs text-yellow-400" id="sup-mentee-stars-{{ mentee.user_id }}">
+                  <span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span>
+                </div>
+                <span class="text-xs font-bold text-gray-700" id="sup-mentee-num-{{ mentee.user_id }}">--</span>
+                <span class="text-xs px-2 py-0.5 bg-emerald-50 group-hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded font-medium transition">Details</span>
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right">
+>>>>>>> 0d0f27851481bcbf93c3173864d0bbc9e43d2c88
               <button
                 class="view-profile-btn px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-100 text-gray-700 text-xs sm:text-sm font-medium rounded-lg hover:bg-gray-200 transition"
                 data-mentee='{{ {
@@ -908,6 +947,157 @@
   function closeMenteeProfileModal() {
     document.getElementById('menteeProfileModal').classList.add('hidden');
   }
+
+  // ---------- Mentee Rating System ----------
+  const menteeRatingCache = {};
+
+  function renderStarsHtml(rating) {
+    const full = Math.floor(rating);
+    const half = rating - full >= 0.3 && rating - full < 0.8;
+    const empty = 5 - full - (half ? 1 : 0);
+    let html = '';
+    for (let i = 0; i < full; i++) html += '<span class="text-yellow-400">&#9733;</span>';
+    if (half) html += '<span class="text-yellow-400" style="opacity:0.8">&#9733;</span>';
+    for (let i = 0; i < empty; i++) html += '<span class="text-gray-300">&#9734;</span>';
+    return html;
+  }
+
+  async function fetchMenteeRating(menteeId) {
+    if (!menteeId) return null;
+    if (menteeRatingCache[menteeId]) return menteeRatingCache[menteeId];
+    try {
+      const res = await fetch('/api/mentee_rating_simple/' + menteeId);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data && data.success && data.rating) {
+        menteeRatingCache[menteeId] = data.rating;
+        return data.rating;
+      }
+    } catch (e) {
+      console.error('Error fetching mentee rating:', e);
+    }
+    return null;
+  }
+
+  async function loadAllSupervisorMenteeRatings() {
+    const containers = document.querySelectorAll('.sup-mentee-rating-container[data-mentee-uid]');
+    const ids = [...new Set([...containers].map(c => c.getAttribute('data-mentee-uid')))].filter(Boolean);
+    for (const uid of ids) {
+      const rating = await fetchMenteeRating(uid);
+      if (!rating) continue;
+      const starsEl = document.getElementById('sup-mentee-stars-' + uid);
+      if (starsEl) starsEl.innerHTML = renderStarsHtml(rating.final_rating);
+      const numEl = document.getElementById('sup-mentee-num-' + uid);
+      if (numEl) numEl.textContent = rating.final_rating.toFixed(1);
+    }
+  }
+
+  async function openMenteeRatingPopup(uid, name) {
+    const popup = document.getElementById('menteeRatingPopup');
+    if (!popup) return;
+    document.getElementById('popupMenteeName').textContent = name || 'Mentee';
+    document.getElementById('popupMenteeFinalRating').textContent = '--';
+    document.getElementById('popupMenteeStars').innerHTML = '';
+    document.getElementById('popupMenteePc').textContent = '--';
+    document.getElementById('popupMenteeGc').textContent = '--';
+    document.getElementById('popupMenteeMe').textContent = '--';
+    document.getElementById('popupMenteeTc').textContent = '--';
+    document.getElementById('popupMenteeMf').textContent = '--';
+
+    popup.classList.remove('hidden');
+    popup.classList.add('flex');
+
+    const rating = await fetchMenteeRating(uid);
+    if (!rating) {
+      document.getElementById('popupMenteeFinalRating').textContent = 'N/A';
+      return;
+    }
+
+    document.getElementById('popupMenteeFinalRating').textContent = rating.final_rating.toFixed(1);
+    document.getElementById('popupMenteeStars').innerHTML = renderStarsHtml(rating.final_rating);
+    document.getElementById('popupMenteePc').textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupMenteeGc').textContent = rating.goal_clarity != null ? rating.goal_clarity.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupMenteeMe').textContent = rating.has_mentorship_data ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'No data';
+    document.getElementById('popupMenteeTc').textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'No data';
+    document.getElementById('popupMenteeMf').textContent = rating.has_mentor_feedback ? rating.mentor_feedback.toFixed(1) + ' / 5.0' : 'No feedback yet';
+  }
+
+  function closeMenteeRatingPopup() {
+    const popup = document.getElementById('menteeRatingPopup');
+    if (!popup) return;
+    popup.classList.add('hidden');
+    popup.classList.remove('flex');
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeMenteeProfileModal();
+      closeMenteeRatingPopup();
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', function() {
+    loadAllSupervisorMenteeRatings();
+  });
 </script>
+
+<!-- Mentee Rating Breakdown Popup -->
+<div id="menteeRatingPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4" onclick="if(event.target===this)closeMenteeRatingPopup()">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+    <div class="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-5 text-white flex items-center justify-between">
+      <div>
+        <h3 class="text-lg font-bold">Mentee Rating Breakdown</h3>
+        <p class="text-emerald-100 text-sm" id="popupMenteeName">--</p>
+      </div>
+      <button onclick="closeMenteeRatingPopup()" class="text-white/80 hover:text-white transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="p-6">
+      <div class="flex items-center gap-5 mb-6 pb-6 border-b border-gray-100">
+        <div class="text-center shrink-0">
+          <div class="text-5xl font-extrabold text-emerald-600" id="popupMenteeFinalRating">--</div>
+          <div class="flex items-center justify-center gap-0.5 mt-1 text-xl text-yellow-400" id="popupMenteeStars"></div>
+          <p class="text-xs text-gray-500 font-medium mt-1">out of 5.0</p>
+        </div>
+        <div class="flex-1 space-y-2.5">
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Profile Complete</span>
+            <span class="font-bold text-gray-900" id="popupMenteePc">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Goal Clarity</span>
+            <span class="font-bold text-gray-900" id="popupMenteeGc">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Mentorship Experience</span>
+            <span class="font-bold text-gray-900" id="popupMenteeMe">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Task Completion</span>
+            <span class="font-bold text-gray-900" id="popupMenteeTc">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Mentor Feedback</span>
+            <span class="font-bold text-gray-900" id="popupMenteeMf">--</span>
+          </div>
+        </div>
+      </div>
+      <div class="bg-emerald-50 rounded-xl p-3.5 text-center border border-emerald-200">
+        <p class="text-xs text-gray-700">
+          <strong>Final Rating</strong> is calculated as the average of all criteria with available data.
+        </p>
+      </div>
+      <div class="mt-4 text-center">
+        <a href="{{ url_for('rating_calculation_page') }}" target="_blank" class="text-sm text-emerald-600 hover:text-emerald-700 font-semibold underline inline-flex items-center gap-1">
+          <span>How is this calculated?</span>
+          <span>&rarr;</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
 
 {% endblock %}
