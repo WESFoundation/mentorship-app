@@ -634,7 +634,7 @@
                 </div>
                 <div>
                     <span class="font-medium text-gray-500">Status:</span>
-                    <span id="detail-task-status" class="ml-2 status-pending">Pending</span>
+                    <span id="detail-task-status" class="task-status status-not-started">Not Started</span>
                 </div>
                 <div>
                     <span class="font-medium text-gray-500">Task Type:</span>
@@ -1301,28 +1301,40 @@ function createTaskHTML(task, index) {
 }
 
 // Helper functions
-function getStatusClass(status) {
+function getStatusClass(status, dueDate) {
+    const s = String(status || '').trim().toLowerCase().replace(/\s+/g, '-');
+    if (dueDate && new Date(dueDate) < new Date().setHours(0,0,0,0) && s !== 'done' && s !== 'completed') {
+        return 'status-overdue';
+    }
     const classMap = {
         'not-started': 'status-not-started',
         'committed': 'status-committed',
         'in-progress': 'status-in-progress',
         'done': 'status-done',
         'pending': 'status-not-started',
-        'completed': 'status-done'
+        'completed': 'status-done',
+        'to-do': 'status-not-started',
+        'overdue': 'status-overdue'
     };
-    return classMap[status] || 'status-not-started';
+    return classMap[s] || 'status-not-started';
 }
 
-function getStatusText(status) {
+function getStatusText(status, dueDate) {
+    const s = String(status || '').trim().toLowerCase().replace(/\s+/g, '-');
+    if (dueDate && new Date(dueDate) < new Date().setHours(0,0,0,0) && s !== 'done' && s !== 'completed') {
+        return 'Overdue';
+    }
     const statusMap = {
         'not-started': 'Not Started',
         'committed': 'Committed',
         'in-progress': 'In Progress',
         'done': 'Done',
         'pending': 'Not Started',
-        'completed': 'Done'
+        'completed': 'Done',
+        'to-do': 'Not Started',
+        'overdue': 'Overdue'
     };
-    return statusMap[status] || 'Not Started';
+    return statusMap[s] || 'Not Started';
 }
 
 function formatDate(dateString) {
@@ -1463,10 +1475,12 @@ function viewTaskDetails(taskId) {
     setSafe('detail-task-title', task.title || 'Untitled');
     setSafe('detail-task-mentor', task.mentorName || 'Self-assigned');
     setSafe('detail-task-mentee', task.menteeName || 'Unknown');
-    setSafe('detail-task-status', getStatusText(task.status));
+    const stText = getStatusText(task.status, task.dueDate);
+    const stClass = getStatusClass(task.status, task.dueDate);
+    setSafe('detail-task-status', stText);
     
     const statusEl = document.getElementById('detail-task-status');
-    if (statusEl) statusEl.className = `task-status ${getStatusClass(task.status)}`;
+    if (statusEl) statusEl.className = `task-status ${stClass}`;
     
     setSafe('detail-task-type', task.type === 'master' ? 'Mentorship Task' : 'Personal Task');
     const typeEl = document.getElementById('detail-task-type');

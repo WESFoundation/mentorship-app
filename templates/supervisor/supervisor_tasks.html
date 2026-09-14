@@ -694,7 +694,7 @@
                 </div>
                 <div>
                     <span class="font-medium text-gray-500">Status:</span>
-                    <span id="detail-task-status" class="ml-2 status-pending">Pending</span>
+                    <span id="detail-task-status" class="task-status status-not-started">Not Started</span>
                 </div>
                 <div>
                     <span class="font-medium text-gray-500">Priority:</span>
@@ -1261,20 +1261,28 @@
 
 
     // Helper functions
-    function getStatusClass(status) {
+    function getStatusClass(status, dueDate) {
+        const s = String(status || '').trim().toLowerCase().replace(/\s+/g, '-');
+        if (dueDate && new Date(dueDate) < new Date().setHours(0,0,0,0) && s !== 'done' && s !== 'completed') {
+            return 'status-overdue';
+        }
         const statusClasses = {
             'not-started': 'status-not-started',
             'committed': 'status-committed',
             'pending': 'status-not-started',
             'in-progress': 'status-in-progress',
-            'completed': 'status-completed',
+            'completed': 'status-done',
             'done': 'status-done',
             'overdue': 'status-overdue'
         };
-        return statusClasses[status] || 'status-not-started';
+        return statusClasses[s] || 'status-not-started';
     }
 
-    function getStatusText(status) {
+    function getStatusText(status, dueDate) {
+        const s = String(status || '').trim().toLowerCase().replace(/\s+/g, '-');
+        if (dueDate && new Date(dueDate) < new Date().setHours(0,0,0,0) && s !== 'done' && s !== 'completed') {
+            return 'Overdue';
+        }
         const statusTexts = {
             'not-started': 'Not Started',
             'committed': 'Committed',
@@ -1284,7 +1292,7 @@
             'done': 'Done',
             'overdue': 'Overdue'
         };
-        return statusTexts[status] || 'Not Started';
+        return statusTexts[s] || 'Not Started';
     }
 
     function formatDate(dateString) {
@@ -1644,8 +1652,8 @@
 
             const statusEl = document.getElementById('detail-task-status');
             if (statusEl) {
-                statusEl.textContent = getStatusText(task.status || 'not-started');
-                statusEl.className = `task-status ${getStatusClass(task.status || 'not-started')}`;
+                statusEl.textContent = getStatusText(task.status || 'not-started', task.dueDate);
+                statusEl.className = `task-status ${getStatusClass(task.status || 'not-started', task.dueDate)}`;
             }
 
             const priorityEl = document.getElementById('detail-task-priority');

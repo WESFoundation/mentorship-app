@@ -457,8 +457,8 @@
                     <div>
                         <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Status</span>
                         <span id="detail-task-status"
-                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                            Pending
+                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                            Not Started
                         </span>
                     </div>
                     <div>
@@ -935,42 +935,59 @@
                     masterFields.style.display = 'none';
                 }
 
-                // Update status
+                // Helper to compute badge styling
+                function getMenteeStatusInfo(status, dueDate) {
+                    const s = String(status || '').trim().toLowerCase().replace(/\s+/g, '-');
+                    const isOverdue = dueDate && new Date(dueDate) < new Date().setHours(0,0,0,0) && s !== 'done' && s !== 'completed';
+                    if (isOverdue) {
+                        return {
+                            label: 'Overdue',
+                            badgeClass: 'bg-rose-100 text-rose-800 border-rose-200',
+                            progressClass: 'bg-rose-100 text-rose-700'
+                        };
+                    }
+                    if (s === 'done' || s === 'completed') {
+                        return {
+                            label: 'Done',
+                            badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                            progressClass: 'bg-emerald-100 text-emerald-700'
+                        };
+                    }
+                    if (s === 'in-progress') {
+                        return {
+                            label: 'In Progress',
+                            badgeClass: 'bg-blue-100 text-blue-800 border-blue-200',
+                            progressClass: 'bg-blue-100 text-blue-700'
+                        };
+                    }
+                    if (s === 'committed') {
+                        return {
+                            label: 'Committed',
+                            badgeClass: 'bg-amber-100 text-amber-800 border-amber-200',
+                            progressClass: 'bg-amber-100 text-amber-700'
+                        };
+                    }
+                    return {
+                        label: 'Not Started',
+                        badgeClass: 'bg-slate-100 text-slate-600 border-slate-200',
+                        progressClass: 'bg-slate-100 text-slate-600'
+                    };
+                }
+
+                const statusInfo = getMenteeStatusInfo(task.status, task.due_date);
+
+                // Update status tag
                 const statusElement = document.getElementById('detail-task-status');
                 if (statusElement) {
-                    const statusLabels = {'not-started': 'Not Started', 'committed': 'Committed', 'in-progress': 'In Progress', 'done': 'Done'};
-                    statusElement.textContent = statusLabels[task.status] || task.status;
-                    statusElement.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium';
-                    
-                    if (task.status === 'not-started') {
-                        statusElement.classList.add('bg-slate-100', 'text-slate-600');
-                    } else if (task.status === 'committed') {
-                        statusElement.classList.add('bg-amber-100', 'text-amber-800');
-                    } else if (task.status === 'in-progress') {
-                        statusElement.classList.add('bg-blue-100', 'text-blue-800');
-                    } else if (task.status === 'done') {
-                        statusElement.classList.add('bg-emerald-100', 'text-emerald-800');
-                    } else {
-                        statusElement.classList.add('bg-slate-100', 'text-slate-600');
-                    }
+                    statusElement.textContent = statusInfo.label;
+                    statusElement.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ' + statusInfo.badgeClass;
                 }
 
                 // Update status display
                 const progressText = document.getElementById('detail-progress-text');
                 if (progressText) {
-                    if (task.status === 'done') {
-                        progressText.textContent = 'Done';
-                        progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700';
-                    } else if (task.status === 'in-progress') {
-                        progressText.textContent = 'In Progress';
-                        progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-blue-100 text-blue-700';
-                    } else if (task.status === 'committed') {
-                        progressText.textContent = 'Committed';
-                        progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-700';
-                    } else {
-                        progressText.textContent = 'Not Started';
-                        progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
-                    }
+                    progressText.textContent = statusInfo.label;
+                    progressText.className = 'text-sm font-bold px-3 py-1 rounded-full ' + statusInfo.progressClass;
                 }
 
                 // Load and display rating
@@ -985,7 +1002,23 @@
             }
         } catch (error) {
             console.error('Error loading task details:', error);
-            alert('Error loading task details');
+            // Fallback from DOM card
+            const card = document.querySelector(`.task-card[data-task-id="${taskId}"][data-task-type="${taskType}"]`);
+            if (card) {
+                const cardStatus = card.dataset.taskStatus || 'not-started';
+                const statusInfo = getMenteeStatusInfo(cardStatus, null);
+                const statusElement = document.getElementById('detail-task-status');
+                if (statusElement) {
+                    statusElement.textContent = statusInfo.label;
+                    statusElement.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ' + statusInfo.badgeClass;
+                }
+                const progressText = document.getElementById('detail-progress-text');
+                if (progressText) {
+                    progressText.textContent = statusInfo.label;
+                    progressText.className = 'text-sm font-bold px-3 py-1 rounded-full ' + statusInfo.progressClass;
+                }
+                document.getElementById('task-details-modal').classList.remove('hidden');
+            }
         }
     }
 

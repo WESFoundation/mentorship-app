@@ -8684,17 +8684,87 @@ def _resolve_meeting_participants(meeting):
 # ===== 4-STAGE TASK PROGRESS (computed, no DB changes) =====
 # Stages: not-started, committed, in-progress, done
 
-def _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id, all_pdata=None):
-    """Check if any meeting stored in the database is linked to this task."""
+def _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id, all_pdata=None, meetings_map=None):
+    """Check if any active meeting stored in the database is linked to this task."""
     if all_pdata is None:
         all_pdata = _get_all_meeting_participants()
     str_task_id = str(task_id)
+    candidate_ids = {str_task_id}
+    mt = None
+    if task_type == 'master':
+        if str_task_id.isdigit():
+            mt = db.session.get(MenteeTask, int(task_id))
+        if mt:
+            candidate_ids.add(str(mt.id))
+            if mt.task_id:
+                candidate_ids.add(str(mt.task_id))
+        elif mentee_id:
+            try:
+                matching_mts = MenteeTask.query.filter_by(task_id=int(task_id), mentee_id=mentee_id).all()
+                for m_item in matching_mts:
+                    candidate_ids.add(str(m_item.id))
+                    mt = m_item
+            except Exception:
+                pass
+
+    # 1. Direct pdata check (fast path)
     for meeting_id, pdata in all_pdata.items():
-        if pdata.get("task_type") == task_type and str(pdata.get("task_id")) == str_task_id:
+        p_tid = str(pdata.get("task_id") or "")
+        p_type = pdata.get("task_type") or "master"
+        if p_type == task_type and p_tid in candidate_ids:
+            if meetings_map is not None:
+                meeting = meetings_map.get(meeting_id)
+            else:
+                meeting = db.session.get(MeetingRequest, int(meeting_id))
+            if meeting and meeting.status in ("cancelled", "rejected"):
+                continue
             return True
-        if pdata.get("mentee_id") == mentee_id and pdata.get("mentor_id") == mentor_id:
-            if pdata.get("task_type") == task_type and str(pdata.get("task_id")) == str_task_id:
+
+    # 2. Contextual match & backfill (checks title and description for linked task)
+    if task_type == 'master' and mt:
+        meeting_num = mt.meeting_number
+        purpose = (mt.master_task.purpose_of_call if mt.master_task else "").strip()
+        for meeting_id, pdata in list(all_pdata.items()):
+            p_mentee = pdata.get("mentee_id")
+            p_mentor = pdata.get("mentor_id")
+            if mentee_id and p_mentee and int(p_mentee) != int(mentee_id):
+                continue
+            if mentor_id and p_mentor and int(p_mentor) != int(mentor_id):
+                continue
+
+            if meetings_map is not None:
+                meeting = meetings_map.get(meeting_id)
+            else:
+                meeting = db.session.get(MeetingRequest, int(meeting_id))
+            if not meeting or meeting.status in ("cancelled", "rejected"):
+                continue
+
+            m_title = meeting.meeting_title or ""
+            m_desc = meeting.meeting_description or ""
+
+            matched = False
+            if meeting_num and f"[Task: {meeting_num}." in m_title:
+                matched = True
+            elif meeting_num and f"Meeting #{meeting_num}" in m_desc and "--- Task to Discuss ---" in m_desc:
+                matched = True
+            elif purpose and f"[Task: " in m_title and purpose.lower() in m_title.lower():
+                matched = True
+            elif purpose and "--- Task to Discuss ---" in m_desc and purpose.lower() in m_desc.lower():
+                matched = True
+
+            if matched:
+                pdata["task_id"] = str(mt.id)
+                pdata["task_type"] = "master"
+                if mentee_id and not pdata.get("mentee_id"):
+                    pdata["mentee_id"] = int(mentee_id)
+                if mentor_id and not pdata.get("mentor_id"):
+                    pdata["mentor_id"] = int(mentor_id)
+                try:
+                    _save_meeting_participants(meeting.id, pdata)
+                except Exception:
+                    pass
                 return True
+
     return False
 
 
@@ -8703,10 +8773,19 @@ def _meeting_is_completed(task_type, task_id, meetings_map=None, all_pdata=None)
     if all_pdata is None:
         all_pdata = _get_all_meeting_participants()
     str_task_id = str(task_id)
+    candidate_ids = {str_task_id}
+    if task_type == 'master' and str_task_id.isdigit():
+        mt = db.session.get(MenteeTask, int(task_id))
+        if mt:
+            candidate_ids.add(str(mt.id))
+            if mt.task_id:
+                candidate_ids.add(str(mt.task_id))
     from datetime import date as date_cls
     today = date_cls.today()
     for meeting_id, pdata in all_pdata.items():
-        if pdata.get("task_type") == task_type and str(pdata.get("task_id")) == str_task_id:
+        p_tid = str(pdata.get("task_id") or "")
+        p_type = pdata.get("task_type") or "master"
+        if p_type == task_type and p_tid in candidate_ids:
             if meetings_map is not None:
                 meeting = meetings_map.get(meeting_id)
             else:
@@ -8829,7 +8908,7 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
 
     all_feedback = has_mentee_fb and mentor_done and inst_done
 
-    has_meeting = _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id, all_pdata=all_pdata)
+    has_meeting = _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id, all_pdata=all_pdata, meetings_map=meetings_map)
 
     if not has_meeting and not any_feedback:
         return 'not-started'
@@ -13021,12 +13100,19 @@ def mentee_create_meeting_request(mentor_id):
         return redirect(url_for("my_mentors"))
 
     # Tasks currently being worked on in this mentorship (not completed yet),
+    # Tasks currently being worked on in this mentorship (not completed yet),
     # so the mentee can pick one to discuss during the meeting
-    running_tasks = MenteeTask.query.filter(
+    raw_tasks = MenteeTask.query.filter(
         MenteeTask.mentee_id == mentee.id,
-        MenteeTask.mentor_id == mentor.id,
-        MenteeTask.status.in_(["pending", "in-progress"])
+        MenteeTask.mentor_id == mentor.id
     ).order_by(MenteeTask.meeting_number.asc()).all()
+
+    running_tasks = []
+    for t in raw_tasks:
+        st = compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id)
+        setattr(t, 'computed_status', st)
+        if st != 'done':
+            running_tasks.append(t)
 
     # All active institutions for the institute selection dropdown
     all_institutions = Institution.query.filter_by(status="active").all()
@@ -13403,7 +13489,7 @@ def create_meeting_ajax():
                     participants_data["institution_user_names"] = [u.name for u in included_institution_users]
                 if task_id:
                     participants_data["task_id"] = task_id
-                    participants_data["task_type"] = "master"
+                    participants_data["task_type"] = data.get("task_type") or "master"
                 _save_meeting_participants(meeting.id, participants_data)
             except Exception as e:
                 app.logger.error(f"Failed to save meeting participants: {e}")
