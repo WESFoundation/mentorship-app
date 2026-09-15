@@ -888,11 +888,11 @@
                 // Update statistics
                 updateStatistics();
 
+                // Populate filters before rendering
+                populateFilters();
+
                 // Render tasks
                 renderTasks();
-
-                // Populate filters
-                populateFilters();
 
                 // Update insights
                 updatePlatformInsights();
@@ -1028,11 +1028,16 @@
         const loadMoreSection = document.getElementById('load-more-section');
         const loadMoreCount = document.getElementById('load-more-count');
 
+        // Clear previous render
+        container.innerHTML = '';
+
         // Filter tasks
         _filteredTasksCache = allTasks.filter(task => {
             const matchesFilter = currentFilter === 'all' ||
-                (currentFilter === 'critical' ? task.isCritical :
-                    (currentFilter === 'overdue' ? isTaskOverdue(task) : task.status === currentFilter));
+                (currentFilter === 'critical' ? (task.isCritical && task.status !== 'done' && task.status !== 'completed') :
+                    (currentFilter === 'overdue' ? isTaskOverdue(task) :
+                    (currentFilter === 'done' ? (task.status === 'done' || task.status === 'completed') :
+                    (currentFilter === 'not-started' ? (task.status === 'not-started' || task.status === 'pending' || task.status === 'to-do') : task.status === currentFilter))));
             const matchesSearch = currentSearch === '' ||
                 task.title.toLowerCase().includes(currentSearch.toLowerCase()) ||
                 (task.description && task.description.toLowerCase().includes(currentSearch.toLowerCase())) ||
@@ -1040,8 +1045,8 @@
                 task.menteeName.toLowerCase().includes(currentSearch.toLowerCase());
             const matchesPriority = currentPriorityFilter === 'all' || task.priority === currentPriorityFilter;
             const matchesCategory = currentCategoryFilter === 'all' || task.category === currentCategoryFilter;
-            const matchesMentor = currentMentorFilter === 'all' || task.mentorId == currentMentorFilter;
-            const matchesMentee = currentMenteeFilter === 'all' || task.menteeId == currentMenteeFilter;
+            const matchesMentor = currentMentorFilter === 'all' || String(task.mentorId) === String(currentMentorFilter);
+            const matchesMentee = currentMenteeFilter === 'all' || String(task.menteeId) === String(currentMenteeFilter);
 
             let matchesDate = true;
             if (currentDueFrom) {
@@ -1170,14 +1175,14 @@
         };
 
         return `
-        <div class="task-card p-6 ${(task.status === 'completed' || task.status === 'done') ? 'completed' : ''} ${task.isCritical || isOverdue ? 'urgent' : ''}">
+        <div class="task-card p-6 ${(task.status === 'completed' || task.status === 'done') ? 'completed' : ''} ${((task.status !== 'done' && task.status !== 'completed') && (task.isCritical || isOverdue)) ? 'urgent' : ''}">
             <div class="flex justify-between items-start mb-3">
                 <div class="flex items-center gap-3 flex-wrap">
                     <span class="task-serial inline-flex items-center justify-center min-w-[32px] h-8 px-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-base font-bold shrink-0">#${task.serial || (index !== undefined ? index + 1 : '')}</span>
                     <h3 class="text-lg font-semibold text-gray-900">${task.title || 'Untitled'}</h3>
                     <span class="task-status ${getStatusClass(task.status)}">${getStatusText(task.status)}</span>
                     <span class="badge ${task.type === 'master' ? 'badge-primary' : 'badge-secondary'}">${task.category || (task.type === 'master' ? 'Mentorship Task' : 'Personal Task')}</span>
-                    ${task.isCritical ? '<span class="badge badge-danger">Critical</span>' : ''}
+                    ${((task.status !== 'done' && task.status !== 'completed') && task.isCritical) ? '<span class="badge badge-danger">Critical</span>' : ''}
                     ${isOverdue ? '<span class="badge badge-warning">Overdue</span>' : ''}
                 </div>
                 <div class="task-actions flex gap-2">
@@ -1517,8 +1522,8 @@
             menteeFilter.innerHTML = '<option value="all">All Mentees</option>';
             const matchingMentees = new Map();
             allTasks.forEach(t => {
-                if (currentMentorFilter === 'all' || t.mentorId == currentMentorFilter) {
-                    if (t.menteeId && t.menteeName) matchingMentees.set(t.menteeId, t.menteeName);
+                if (currentMentorFilter === 'all' || String(t.mentorId) === String(currentMentorFilter)) {
+                    if (t.menteeId && t.menteeName) matchingMentees.set(String(t.menteeId), t.menteeName);
                 }
             });
             [...matchingMentees.entries()].sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, name]) => {
@@ -1538,27 +1543,6 @@
         // Mentee filter
         document.getElementById('mentee-filter').addEventListener('change', (e) => {
             currentMenteeFilter = e.target.value;
-            // Cascade: rebuild mentor dropdown based on selected mentee
-            const mentorFilter = document.getElementById('mentor-filter');
-            const prevMentor = mentorFilter.value;
-            mentorFilter.innerHTML = '<option value="all">All Mentors</option>';
-            const matchingMentors = new Map();
-            allTasks.forEach(t => {
-                if (currentMenteeFilter === 'all' || t.menteeId == currentMenteeFilter) {
-                    if (t.mentorId && t.mentorName) matchingMentors.set(t.mentorId, t.mentorName);
-                }
-            });
-            [...matchingMentors.entries()].sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, name]) => {
-                const opt = document.createElement('option');
-                opt.value = id;
-                opt.textContent = name;
-                mentorFilter.appendChild(opt);
-            });
-            if (matchingMentors.has(prevMentor)) {
-                mentorFilter.value = prevMentor;
-            } else {
-                currentMentorFilter = 'all';
-            }
             renderTasks();
         });
 

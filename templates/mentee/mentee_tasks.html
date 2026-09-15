@@ -184,8 +184,9 @@
             <!-- Mentorship Tasks -->
             {% for task in assigned_tasks %}
             <div class="task-card bg-white p-4 sm:p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden
-                {% if task.status == 'done' %}border-l-4 border-l-emerald-500 opacity-75 hover:opacity-100{% endif %} 
-                {% if task.due_date and task.due_date.date() < today and task.status != 'done' %}border-l-4 border-l-rose-500{% else %}border-l-4 border-l-blue-500{% endif %}"
+                {% if task.status == 'done' or task.status == 'completed' %}border-l-4 border-l-emerald-500 opacity-75 hover:opacity-100
+                {% elif task.due_date and task.due_date.date() < today %}border-l-4 border-l-rose-500
+                {% else %}border-l-4 border-l-blue-500{% endif %}"
                 data-task-type="master" data-task-id="{{ task.id }}" data-task-status="{{ task.status }}">
 
                 <div class="flex flex-col md:flex-row justify-between items-start gap-3 sm:gap-4 mb-3 sm:mb-4">
@@ -203,13 +204,13 @@
                             </span>
 
                             <span class="task-status px-2 sm:px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-bold border 
-                                {% if task.status == 'done' %}bg-emerald-50 text-emerald-600 border-emerald-100
-                                {% elif task.due_date and task.due_date.date() < today and task.status != 'done' %}bg-rose-50 text-rose-600 border-rose-100
+                                {% if task.status == 'done' or task.status == 'completed' %}bg-emerald-50 text-emerald-600 border-emerald-100
+                                {% elif task.due_date and task.due_date.date() < today and task.status != 'done' and task.status != 'completed' %}bg-rose-50 text-rose-600 border-rose-100
                                 {% elif task.status == 'in-progress' %}bg-blue-50 text-blue-600 border-blue-100
                                 {% elif task.status == 'committed' %}bg-amber-50 text-amber-600 border-amber-100
                                 {% else %}bg-slate-100 text-slate-500 border-slate-200{% endif %}">
-                                {% if task.status == 'done' %}Done
-                                {% elif task.due_date and task.due_date.date() < today and task.status != 'done' %}Overdue
+                                {% if task.status == 'done' or task.status == 'completed' %}Done
+                                {% elif task.due_date and task.due_date.date() < today and task.status != 'done' and task.status != 'completed' %}Overdue
                                 {% elif task.status == 'in-progress' %}In Progress
                                 {% elif task.status == 'committed' %}Committed
                                 {% else %}Not Started{% endif %}
@@ -261,11 +262,11 @@
                     </div>
 
                     <span class="text-xs font-bold px-2 py-1 rounded-lg
-                        {% if task.status == 'done' %}bg-emerald-50 text-emerald-600
+                        {% if task.status == 'done' or task.status == 'completed' %}bg-emerald-50 text-emerald-600
                         {% elif task.status == 'in-progress' %}bg-blue-50 text-blue-600
                         {% elif task.status == 'committed' %}bg-amber-50 text-amber-600
                         {% else %}bg-slate-100 text-slate-500{% endif %}">
-                        {% if task.status == 'done' %}Done{% elif task.status == 'in-progress' %}In Progress{% elif task.status == 'committed' %}Committed{% else %}Not Started{% endif %}
+                        {% if task.status == 'done' or task.status == 'completed' %}Done{% elif task.status == 'in-progress' %}In Progress{% elif task.status == 'committed' %}Committed{% else %}Not Started{% endif %}
                     </span>
                 </div>
             </div>
@@ -274,8 +275,9 @@
             <!-- Personal Tasks -->
             {% for task in personal_tasks %}
             <div class="task-card bg-white p-4 sm:p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden
-                {% if task.status == 'done' %}border-l-4 border-l-emerald-500 opacity-75 hover:opacity-100{% endif %} 
-                {% if task.due_date and task.due_date.date() < today and task.status != 'done' %}border-l-4 border-l-rose-500{% else %}border-l-4 border-l-green-500{% endif %}"
+                {% if task.status == 'done' or task.status == 'completed' %}border-l-4 border-l-emerald-500 opacity-75 hover:opacity-100
+                {% elif task.due_date and task.due_date.date() < today %}border-l-4 border-l-rose-500
+                {% else %}border-l-4 border-l-green-500{% endif %}"
                 data-task-type="personal" data-task-id="{{ task.id }}" data-task-status="{{ task.status }}">
 
                 <div class="flex flex-col md:flex-row justify-between items-start gap-4 mb-4">
@@ -322,13 +324,13 @@
 
                             <!-- Status Badge -->
                             <span class="task-status px-2.5 py-0.5 rounded-full text-xs font-bold border 
-                                {% if task.status == 'done' %}bg-emerald-50 text-emerald-600 border-emerald-100
-                                {% elif task.due_date and task.due_date.date() < today and task.status != 'done' %}bg-rose-50 text-rose-600 border-rose-100
+                                {% if task.status == 'done' or task.status == 'completed' %}bg-emerald-50 text-emerald-600 border-emerald-100
+                                {% elif task.due_date and task.due_date.date() < today and task.status != 'done' and task.status != 'completed' %}bg-rose-50 text-rose-600 border-rose-100
                                 {% elif task.status == 'in-progress' %}bg-blue-50 text-blue-600 border-blue-100
                                 {% elif task.status == 'committed' %}bg-amber-50 text-amber-600 border-amber-100
                                 {% else %}bg-slate-100 text-slate-500 border-slate-200{% endif %}">
-                                {% if task.status == 'done' %}Done
-                                {% elif task.due_date and task.due_date.date() < today and task.status != 'done' %}Overdue
+                                {% if task.status == 'done' or task.status == 'completed' %}Done
+                                {% elif task.due_date and task.due_date.date() < today and task.status != 'done' and task.status != 'completed' %}Overdue
                                 {% elif task.status == 'in-progress' %}In Progress
                                 {% elif task.status == 'committed' %}Committed
                                 {% else %}Not Started{% endif %}
@@ -387,11 +389,11 @@
                     </div>
 
                     <span class="text-xs font-bold px-2 py-1 rounded-lg
-                        {% if task.status == 'done' %}bg-emerald-50 text-emerald-600
+                        {% if task.status == 'done' or task.status == 'completed' %}bg-emerald-50 text-emerald-600
                         {% elif task.status == 'in-progress' %}bg-blue-50 text-blue-600
                         {% elif task.status == 'committed' %}bg-amber-50 text-amber-600
                         {% else %}bg-slate-100 text-slate-500{% endif %}">
-                        {% if task.status == 'done' %}Done{% elif task.status == 'in-progress' %}In Progress{% elif task.status == 'committed' %}Committed{% else %}Not Started{% endif %}
+                        {% if task.status == 'done' or task.status == 'completed' %}Done{% elif task.status == 'in-progress' %}In Progress{% elif task.status == 'committed' %}Committed{% else %}Not Started{% endif %}
                     </span>
                 </div>
             </div>
@@ -432,17 +434,32 @@
         <div
             class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 w-full max-w-2xl max-h-[92vh] overflow-y-auto shadow-2xl transform scale-100 transition-all">
             <div class="flex justify-between items-start mb-6 pb-4 border-b border-slate-100">
-                <div>
-                    <h3 id="detail-task-title" class="text-2xl font-bold text-slate-800">Task Title</h3>
-                    <p class="text-sm text-slate-500 mt-1 flex items-center gap-2">
+                <div class="flex-1 pr-4">
+                    <h3 id="detail-task-title" class="text-2xl font-bold text-slate-800 mb-2">Task Title</h3>
+                    <!-- Task Tags (Type, Priority, Status) -->
+                    <div class="flex flex-wrap items-center gap-2 mb-2">
+                        <span id="detail-task-type" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                            <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+                            </svg>
+                            <span>Mentorship Task</span>
+                        </span>
+                        <span id="detail-task-priority-badge" style="display: none;" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                            Medium Priority
+                        </span>
+                        <span id="detail-task-header-status" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                            Not Started
+                        </span>
+                    </div>
+                    <!-- Master Task Journey Info -->
+                    <div id="detail-task-master-subtitle" class="text-sm text-slate-500 flex items-center gap-2">
                         <span id="detail-journey-phase" class="font-medium text-slate-600">Journey Phase</span>
                         <span class="text-slate-300">|</span>
-                        <span id="detail-task-month"
-                            class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-bold">Month 1</span>
-                    </p>
+                        <span id="detail-task-month" class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-bold">Month 1</span>
+                    </div>
                 </div>
                 <button onclick="closeTaskDetailsModal()"
-                    class="text-slate-400 hover:text-slate-600 transition-colors p-2 hover:bg-slate-50 rounded-full">
+                    class="text-slate-400 hover:text-slate-600 transition-colors p-2 hover:bg-slate-50 rounded-full shrink-0">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
                         </path>
@@ -866,10 +883,10 @@
             const isOverdue = card.classList.contains('border-l-rose-500') || statusBadge.textContent.trim().toLowerCase() === 'overdue';
 
             const shouldShow = filter === 'all' ||
-                (filter === 'not-started' && status === 'not-started') ||
+                (filter === 'not-started' && (status === 'not-started' || status === 'pending' || status === 'to-do')) ||
                 (filter === 'committed' && status === 'committed') ||
                 (filter === 'in-progress' && status === 'in-progress') ||
-                (filter === 'done' && status === 'done') ||
+                (filter === 'done' && (status === 'done' || status === 'completed')) ||
                 (filter === 'overdue' && isOverdue) ||
                 (filter === 'critical' && isOverdue);
 
@@ -905,6 +922,53 @@
     });
 
     // Mark task as complete
+    // Helper function to update task type and priority badges in modal header
+    function updateTaskTypeBadge(taskType, priority) {
+        const typeEl = document.getElementById('detail-task-type');
+        const priorityEl = document.getElementById('detail-task-priority-badge');
+        const masterSubtitle = document.getElementById('detail-task-master-subtitle');
+
+        if (taskType === 'master') {
+            if (typeEl) {
+                typeEl.innerHTML = `
+                    <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+                    </svg>
+                    <span>Mentorship Task</span>
+                `;
+                typeEl.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200';
+                typeEl.style.display = 'inline-flex';
+            }
+            if (priorityEl) priorityEl.style.display = 'none';
+            if (masterSubtitle) masterSubtitle.style.display = 'flex';
+        } else {
+            if (typeEl) {
+                typeEl.innerHTML = `
+                    <svg class="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                    </svg>
+                    <span>Personal Task</span>
+                `;
+                typeEl.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200';
+                typeEl.style.display = 'inline-flex';
+            }
+            if (priorityEl) {
+                const p = String(priority || 'medium').toLowerCase();
+                const pLabel = p.charAt(0).toUpperCase() + p.slice(1) + ' Priority';
+                priorityEl.textContent = pLabel;
+                if (p === 'high') {
+                    priorityEl.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+                } else if (p === 'low') {
+                    priorityEl.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200';
+                } else {
+                    priorityEl.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200';
+                }
+                priorityEl.style.display = 'inline-flex';
+            }
+            if (masterSubtitle) masterSubtitle.style.display = 'none';
+        }
+    }
+
     // View task details and load rating
     async function viewTaskDetails(taskId, taskType) {
         try {
@@ -925,6 +989,9 @@
                 document.getElementById('detail-task-mentor').textContent = task.assigned_by;
                 document.getElementById('detail-task-month').textContent = task.month || 'N/A';
 
+                // Update task type tag and priority badge
+                updateTaskTypeBadge(task.type, task.priority);
+
                 // Show/hide fields based on task type
                 const masterFields = document.getElementById('master-fields');
                 if (task.type === 'master' && masterFields) {
@@ -938,7 +1005,16 @@
                 // Helper to compute badge styling
                 function getMenteeStatusInfo(status, dueDate) {
                     const s = String(status || '').trim().toLowerCase().replace(/\s+/g, '-');
-                    const isOverdue = dueDate && new Date(dueDate) < new Date().setHours(0,0,0,0) && s !== 'done' && s !== 'completed';
+                    let isOverdue = false;
+                    if (dueDate && s !== 'done' && s !== 'completed') {
+                        const parts = String(dueDate).split('T')[0].split('-');
+                        if (parts.length === 3) {
+                            const due = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 23, 59, 59);
+                            isOverdue = due < new Date();
+                        } else {
+                            isOverdue = new Date(dueDate) < new Date();
+                        }
+                    }
                     if (isOverdue) {
                         return {
                             label: 'Overdue',
@@ -976,7 +1052,14 @@
 
                 const statusInfo = getMenteeStatusInfo(task.status, task.due_date);
 
-                // Update status tag
+                // Update header status tag
+                const headerStatusEl = document.getElementById('detail-task-header-status');
+                if (headerStatusEl) {
+                    headerStatusEl.textContent = statusInfo.label;
+                    headerStatusEl.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ' + statusInfo.badgeClass;
+                }
+
+                // Update meta grid status tag
                 const statusElement = document.getElementById('detail-task-status');
                 if (statusElement) {
                     statusElement.textContent = statusInfo.label;
@@ -1007,6 +1090,12 @@
             if (card) {
                 const cardStatus = card.dataset.taskStatus || 'not-started';
                 const statusInfo = getMenteeStatusInfo(cardStatus, null);
+                updateTaskTypeBadge(taskType, null);
+                const headerStatusEl = document.getElementById('detail-task-header-status');
+                if (headerStatusEl) {
+                    headerStatusEl.textContent = statusInfo.label;
+                    headerStatusEl.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ' + statusInfo.badgeClass;
+                }
                 const statusElement = document.getElementById('detail-task-status');
                 if (statusElement) {
                     statusElement.textContent = statusInfo.label;
@@ -1105,7 +1194,12 @@
         var card = document.querySelector('.task-card[data-task-id="' + taskId + '"][data-task-type="' + taskType + '"]');
         if (!card) return;
         
+        if (state === 'completed') state = 'done';
         card.dataset.taskStatus = state;
+        if (state === 'done') {
+            card.classList.remove('border-l-rose-500', 'border-l-blue-500', 'border-l-green-500');
+            card.classList.add('border-l-emerald-500');
+        }
         var statusBadge = card.querySelector('.task-status');
         if (statusBadge) {
             if (state === 'done') {
@@ -1294,7 +1388,7 @@
             var details = document.getElementById('mentee-rating-details');
             var noMsg = document.getElementById('mentee-no-rating-message');
             var progressText = document.getElementById('detail-progress-text');
-            var isCompleted = taskStatus === 'completed';
+            var isCompleted = taskStatus === 'completed' || taskStatus === 'done';
 
             if (!raw) {
                 // Fallback: fetch from server if localStorage is empty

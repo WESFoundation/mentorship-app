@@ -898,11 +898,11 @@ async function loadInstitutionTasks() {
             // Update statistics
             updateStatistics();
             
+            // Populate filters before rendering
+            populateFilters();
+            
             // Render tasks
             renderTasks();
-            
-            // Populate filters
-            populateFilters();
             
             // Update insights
             updateInstitutionInsights(result.institutionName);
@@ -1007,7 +1007,8 @@ function updateOverviewMetrics() {
 function populateFilters() {
     // Populate mentor filter
     const mentorFilter = document.getElementById('mentor-filter');
-    allMentors.forEach(mentor => {
+    while (mentorFilter.children.length > 1) mentorFilter.removeChild(mentorFilter.lastChild);
+    [...allMentors].sort((a, b) => (a.name || '').localeCompare(b.name || '')).forEach(mentor => {
         const option = document.createElement('option');
         option.value = mentor.id;
         option.textContent = mentor.name;
@@ -1016,7 +1017,8 @@ function populateFilters() {
     
     // Populate mentee filter
     const menteeFilter = document.getElementById('mentee-filter');
-    allMentees.forEach(mentee => {
+    while (menteeFilter.children.length > 1) menteeFilter.removeChild(menteeFilter.lastChild);
+    [...allMentees].sort((a, b) => (a.name || '').localeCompare(b.name || '')).forEach(mentee => {
         const option = document.createElement('option');
         option.value = mentee.id;
         option.textContent = mentee.name;
@@ -1025,7 +1027,8 @@ function populateFilters() {
 
     // Populate category filter
     const categoryFilter = document.getElementById('category-filter');
-    const categories = new Set(allTasks.map(t => t.category).filter(c => c));
+    while (categoryFilter.children.length > 1) categoryFilter.removeChild(categoryFilter.lastChild);
+    const categories = [...new Set(allTasks.map(t => t.category).filter(c => c))].sort();
     categories.forEach(cat => {
         const option = document.createElement('option');
         option.value = cat;
@@ -1046,6 +1049,9 @@ function renderTasks() {
     const loadMoreSection = document.getElementById('load-more-section');
     const loadMoreCount = document.getElementById('load-more-count');
 
+    // Clear previous render
+    container.innerHTML = '';
+
     // Filter tasks
     _filteredTasksCache = allTasks.filter(task => {
         const matchesTaskType = currentTaskTypeFilter === 'all' ||
@@ -1053,14 +1059,16 @@ function renderTasks() {
                                (currentTaskTypeFilter === 'master' && task.type === 'master');
         const matchesFilter = currentFilter === 'all' || 
                              (currentFilter === 'overdue' ? isTaskOverdue(task) :
-                             (currentFilter === 'critical' ? task.isCritical : task.status === currentFilter));
+                             (currentFilter === 'critical' ? (task.isCritical && task.status !== 'done' && task.status !== 'completed') :
+                             (currentFilter === 'done' ? (task.status === 'done' || task.status === 'completed') :
+                             (currentFilter === 'not-started' ? (task.status === 'not-started' || task.status === 'pending' || task.status === 'to-do') : task.status === currentFilter))));
         const matchesSearch = currentSearch === '' || 
                             task.title.toLowerCase().includes(currentSearch.toLowerCase()) ||
                             (task.description && task.description.toLowerCase().includes(currentSearch.toLowerCase())) ||
                             task.mentorName.toLowerCase().includes(currentSearch.toLowerCase()) ||
                             task.menteeName.toLowerCase().includes(currentSearch.toLowerCase());
-        const matchesMentor = currentMentorFilter === 'all' || task.mentorId == currentMentorFilter;
-        const matchesMentee = currentMenteeFilter === 'all' || task.menteeId == currentMenteeFilter;
+        const matchesMentor = currentMentorFilter === 'all' || String(task.mentorId) === String(currentMentorFilter);
+        const matchesMentee = currentMenteeFilter === 'all' || String(task.menteeId) === String(currentMenteeFilter);
         const matchesPriority = currentPriorityFilter === 'all' || task.priority === currentPriorityFilter;
         const matchesCategory = currentCategoryFilter === 'all' || task.category === currentCategoryFilter;
 
@@ -1194,14 +1202,14 @@ function createTaskHTML(task, index) {
     };
 
     return `
-        <div class="task-card p-6 ${task.status === 'completed' ? 'completed' : ''} ${task.isCritical || isOverdue ? 'urgent' : ''}">
+        <div class="task-card p-6 ${(task.status === 'completed' || task.status === 'done') ? 'completed' : ''} ${((task.status !== 'done' && task.status !== 'completed') && (task.isCritical || isOverdue)) ? 'urgent' : ''}">
             <div class="flex justify-between items-start mb-3">
                 <div class="flex items-center gap-3 flex-wrap">
                     <span class="task-serial inline-flex items-center justify-center min-w-[32px] h-8 px-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-base font-bold shrink-0">${index + 1}</span>
                     <h3 class="text-lg font-semibold text-gray-900">${task.title || 'Untitled'}</h3>
                     <span class="task-status ${getStatusClass(task.status)}">${getStatusText(task.status)}</span>
                     <span class="badge ${taskTypeClass}">${task.type === 'master' ? 'Mentorship Task' : 'Personal Task'}</span>
-                    ${task.isCritical ? '<span class="badge badge-danger">Critical</span>' : ''}
+                    ${((task.status !== 'done' && task.status !== 'completed') && task.isCritical) ? '<span class="badge badge-danger">Critical</span>' : ''}
                     ${isOverdue ? '<span class="badge badge-warning">Overdue</span>' : ''}
                 </div>
                 <div class="task-actions flex gap-2">
@@ -1369,14 +1377,15 @@ function searchTasks(searchTerm) {
 
 function filterByMentor(mentorId) {
     currentMentorFilter = mentorId;
-    // Cascade: rebuild mentee dropdown based on selected mentor
+    // Cascade: rebuild mentee dropdown based on selected mentor and task type
     const menteeFilter = document.getElementById('mentee-filter');
     const prevMentee = menteeFilter.value;
     menteeFilter.innerHTML = '<option value="all">All Mentees</option>';
     const matchingMentees = new Map();
     allTasks.forEach(t => {
-        if (mentorId === 'all' || t.mentorId == mentorId) {
-            if (t.menteeId && t.menteeName) matchingMentees.set(t.menteeId, t.menteeName);
+        if (currentTaskTypeFilter !== 'all' && t.type !== currentTaskTypeFilter) return;
+        if (mentorId === 'all' || String(t.mentorId) === String(mentorId)) {
+            if (t.menteeId && t.menteeName) matchingMentees.set(String(t.menteeId), t.menteeName);
         }
     });
     [...matchingMentees.entries()].sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, name]) => {
@@ -1396,27 +1405,6 @@ function filterByMentor(mentorId) {
 
 function filterByMentee(menteeId) {
     currentMenteeFilter = menteeId;
-    // Cascade: rebuild mentor dropdown based on selected mentee
-    const mentorFilter = document.getElementById('mentor-filter');
-    const prevMentor = mentorFilter.value;
-    mentorFilter.innerHTML = '<option value="all">All Mentors</option>';
-    const matchingMentors = new Map();
-    allTasks.forEach(t => {
-        if (menteeId === 'all' || t.menteeId == menteeId) {
-            if (t.mentorId && t.mentorName) matchingMentors.set(t.mentorId, t.mentorName);
-        }
-    });
-    [...matchingMentors.entries()].sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, name]) => {
-        const opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = name;
-        mentorFilter.appendChild(opt);
-    });
-    if (matchingMentors.has(prevMentor)) {
-        mentorFilter.value = prevMentor;
-    } else {
-        currentMentorFilter = 'all';
-    }
     renderTasks();
 }
 
@@ -1444,26 +1432,11 @@ function clearAllFilters() {
     document.getElementById('due-from').value = '';
     document.getElementById('due-to').value = '';
 
-    // Rebuild full mentor/mentee dropdowns
-    const mentorFilter = document.getElementById('mentor-filter');
-    mentorFilter.innerHTML = '<option value="all">All Mentors</option>';
-    allMentors.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m.id;
-        opt.textContent = m.name;
-        mentorFilter.appendChild(opt);
-    });
-    mentorFilter.value = 'all';
-
-    const menteeFilter = document.getElementById('mentee-filter');
-    menteeFilter.innerHTML = '<option value="all">All Mentees</option>';
-    allMentees.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m.id;
-        opt.textContent = m.name;
-        menteeFilter.appendChild(opt);
-    });
-    menteeFilter.value = 'all';
+    // Rebuild full mentor/mentee/category dropdowns from allTasks
+    populateFilters();
+    document.getElementById('mentor-filter').value = 'all';
+    document.getElementById('mentee-filter').value = 'all';
+    document.getElementById('category-filter').value = 'all';
 
     renderTasks();
 }
@@ -1475,7 +1448,7 @@ function updateActiveFiltersDisplay() {
 
     if (currentTaskTypeFilter !== 'all') {
         const typeLabels = { 'personal': 'Personal Tasks', 'master': 'Mentorship Tasks' };
-        tags.push({ label: `Type: ${typeLabels[currentTaskTypeFilter] || currentTaskTypeFilter}`, clear: () => { currentTaskTypeFilter = 'all'; document.getElementById('task-type-filter').value = 'all'; renderTasks(); }});
+        tags.push({ label: `Type: ${typeLabels[currentTaskTypeFilter] || currentTaskTypeFilter}`, clear: () => { document.getElementById('task-type-filter').value = 'all'; filterByTaskType('all'); }});
     }
     if (currentFilter !== 'all') {
         const filterLabels = { 'not-started': 'Not Started', 'committed': 'Committed', 'in-progress': 'In Progress', 'done': 'Completed', 'overdue': 'Overdue', 'critical': 'Critical' };
@@ -1485,10 +1458,10 @@ function updateActiveFiltersDisplay() {
         tags.push({ label: `Search: "${currentSearch}"`, clear: () => { currentSearch = ''; document.getElementById('task-search').value = ''; renderTasks(); }});
     }
     if (currentMentorFilter !== 'all') {
-        tags.push({ label: `Mentor: ${allMentors.find(m => m.id == currentMentorFilter)?.name || currentMentorFilter}`, clear: () => { currentMentorFilter = 'all'; document.getElementById('mentor-filter').value = 'all'; renderTasks(); }});
+        tags.push({ label: `Mentor: ${allMentors.find(m => m.id == currentMentorFilter)?.name || currentMentorFilter}`, clear: () => { document.getElementById('mentor-filter').value = 'all'; filterByMentor('all'); }});
     }
     if (currentMenteeFilter !== 'all') {
-        tags.push({ label: `Mentee: ${allMentees.find(m => m.id == currentMenteeFilter)?.name || currentMenteeFilter}`, clear: () => { currentMenteeFilter = 'all'; document.getElementById('mentee-filter').value = 'all'; renderTasks(); }});
+        tags.push({ label: `Mentee: ${allMentees.find(m => m.id == currentMenteeFilter)?.name || currentMenteeFilter}`, clear: () => { document.getElementById('mentee-filter').value = 'all'; filterByMentee('all'); }});
     }
     if (currentPriorityFilter !== 'all') {
         tags.push({ label: `Priority: ${currentPriorityFilter}`, clear: () => { currentPriorityFilter = 'all'; document.getElementById('priority-filter').value = 'all'; renderTasks(); }});
