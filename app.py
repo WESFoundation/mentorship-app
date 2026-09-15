@@ -4623,8 +4623,11 @@ def institutiondashboard():
 
     institution, inst_id, institution_name, aliases = _get_institution_details(user)
     
-    # Get direct mentors and mentees who belong to this institution
-    institution_mentors, institution_mentees = _get_institution_members(user, include_paired=False)
+    # Get all mentors and mentees who belong to this institution
+    all_mentors = User.query.filter_by(user_type="1").all()
+    all_mentors.sort(key=lambda u: (u.name or "").lower())
+    institution_mentors = all_mentors
+    _, institution_mentees = _get_institution_members(user, include_paired=True)
 
     # Get mentorship requests involving institution members
     mentee_ids = [m.id for m in institution_mentees]
@@ -4661,12 +4664,13 @@ def institution_mentors():
         return redirect(url_for("signin"))
     
     user = User.query.filter_by(email=session["email"]).first()
-    institution_mentors, _ = _get_institution_members(user, include_paired=False)
+    all_mentors = User.query.filter_by(user_type="1").all()
+    all_mentors.sort(key=lambda u: (u.name or "").lower())
     
     return render_template(
         "institution/institution_mentors.html",
         show_sidebar=True,
-        mentors=institution_mentors
+        mentors=all_mentors
     )
 
 @app.route("/institution_mentees")
@@ -5023,13 +5027,11 @@ def institution_all_tasks():
 
     all_institution_tasks = []
     
-    # Get all users from the institution
-    institution_users = User.query.filter(
-        (User.institution == institution_name) | 
-        (User.institution_id == institution_id)
-    ).all()
-    
-    institution_user_ids = [user.id for user in institution_users]
+    # Get all mentors and mentees for this institution
+    all_mentors = User.query.filter_by(user_type="1").all()
+    all_mentors.sort(key=lambda u: (u.name or "").lower())
+    _, institution_mentees = _get_institution_members(user, include_paired=True)
+    institution_user_ids = list(set([m.id for m in institution_mentees] + [user.id]))
 
     all_ratings = TaskRating.query.all()
     ratings_map = {(r.task_type, r.task_id): r for r in all_ratings}
@@ -5107,8 +5109,8 @@ def institution_all_tasks():
         mentee = db.session.get(User, task.mentee_id)
         mentor = db.session.get(User, task.mentor_id)
         
-        # Check if mentor belongs to same institution
-        if mentor and (mentor.institution == institution_name or mentor.institution_id == institution_id):
+        # Include mentor tasks
+        if mentor:
             r_obj = ratings_map.get(('personal', task.id))
             has_mf, mf_rating = _resolve_task_fb('personal', task.id, task.mentee_id)
             has_ref = _resolve_task_refl('personal', task.id)
@@ -5147,7 +5149,7 @@ def institution_all_tasks():
         mentor = db.session.get(User, task.mentor_id)
         master_task = db.session.get(MasterTask, task.task_id) if task.task_id else None
         
-        if mentor and (mentor.institution == institution_name or mentor.institution_id == institution_id):
+        if mentor:
             r_obj = ratings_map.get(('master', task.id)) or (ratings_map.get(('master', task.task_id)) if task.task_id else None)
             has_mf, mf_rating = _resolve_task_fb('master', task.id, task.mentee_id, task.task_id)
             has_ref = _resolve_task_refl('master', task.id, task.task_id)
@@ -5180,22 +5182,11 @@ def institution_all_tasks():
     # Sort by due date (most urgent first)
     all_institution_tasks.sort(key=lambda x: x['due_date'] if x['due_date'] else datetime.max)
 
-    # Get mentors and mentees for filters
-    institution_mentors = User.query.filter(
-        User.id.in_(institution_user_ids),
-        User.user_type == "1"  # Mentor type
-    ).all()
-    
-    institution_mentees = User.query.filter(
-        User.id.in_(institution_user_ids),
-        User.user_type == "2"  # Mentee type
-    ).all()
-
     return render_template(
         "institution/institution_all_tasks.html",
         show_sidebar=True,
         tasks=all_institution_tasks,
-        mentors=[{"id": m.id, "name": m.name} for m in institution_mentors],
+        mentors=[{"id": m.id, "name": m.name} for m in all_mentors],
         mentees=[{"id": m.id, "name": m.name} for m in institution_mentees],
         now=datetime.now(),
         profile_complete=True
@@ -5210,13 +5201,11 @@ def get_institution_tasks_data():
     institution_id = user.institution_id
     institution_name = user.institution
 
-    # Get all users from the institution
-    institution_users = User.query.filter(
-        (User.institution == institution_name) | 
-        (User.institution_id == institution_id)
-    ).all()
-    
-    institution_user_ids = [user.id for user in institution_users]
+    # Get all mentors and institution members using richer matching (aliases, profiles)
+    all_mentors = User.query.filter_by(user_type="1").all()
+    all_mentors.sort(key=lambda u: (u.name or "").lower())
+    _, institution_mentees_full = _get_institution_members(user, include_paired=True)
+    institution_user_ids = list(set([m.id for m in institution_mentees_full] + [user.id]))
     
     # Pre-fetch all ratings in memory to avoid N+1 queries
     ratings = TaskRating.query.all()
@@ -5329,12 +5318,10 @@ def get_institution_tasks_data():
     
     # Get institution mentors and mentees for filters
     # Use _get_institution_members for richer matching (aliases, profile fields)
-    institution_mentors_full, institution_mentees_full = _get_institution_members(user, include_paired=False)
-
     return jsonify({
         "success": True,
         "tasks": tasks_data,
-        "mentors": [{"id": m.id, "name": m.name} for m in institution_mentors_full],
+        "mentors": [{"id": m.id, "name": m.name} for m in all_mentors],
         "mentees": [{"id": m.id, "name": m.name} for m in institution_mentees_full],
         "institutionName": institution_name
     })

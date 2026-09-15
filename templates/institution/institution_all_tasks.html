@@ -1008,7 +1008,22 @@ function populateFilters() {
     // Populate mentor filter
     const mentorFilter = document.getElementById('mentor-filter');
     while (mentorFilter.children.length > 1) mentorFilter.removeChild(mentorFilter.lastChild);
-    [...allMentors].sort((a, b) => (a.name || '').localeCompare(b.name || '')).forEach(mentor => {
+    
+    // Combine allMentors and any mentor found in allTasks to ensure 100% complete coverage
+    const mentorMap = new Map();
+    (allMentors || []).forEach(m => {
+        if (m && m.id) mentorMap.set(String(m.id), m.name || `Mentor #${m.id}`);
+    });
+    (allTasks || []).forEach(t => {
+        if (t && t.mentorId && t.mentorName && t.mentorName !== 'Self-assigned' && !mentorMap.has(String(t.mentorId))) {
+            mentorMap.set(String(t.mentorId), t.mentorName);
+        }
+    });
+
+    const sortedMentors = Array.from(mentorMap.entries()).map(([id, name]) => ({ id, name }));
+    sortedMentors.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    sortedMentors.forEach(mentor => {
         const option = document.createElement('option');
         option.value = mentor.id;
         option.textContent = mentor.name;
@@ -1458,7 +1473,10 @@ function updateActiveFiltersDisplay() {
         tags.push({ label: `Search: "${currentSearch}"`, clear: () => { currentSearch = ''; document.getElementById('task-search').value = ''; renderTasks(); }});
     }
     if (currentMentorFilter !== 'all') {
-        tags.push({ label: `Mentor: ${allMentors.find(m => m.id == currentMentorFilter)?.name || currentMentorFilter}`, clear: () => { document.getElementById('mentor-filter').value = 'all'; filterByMentor('all'); }});
+        const foundMentor = (allMentors || []).find(m => String(m.id) === String(currentMentorFilter))
+            || (allTasks || []).find(t => String(t.mentorId) === String(currentMentorFilter));
+        const mentorDisplayName = foundMentor ? (foundMentor.name || foundMentor.mentorName) : currentMentorFilter;
+        tags.push({ label: `Mentor: ${mentorDisplayName}`, clear: () => { document.getElementById('mentor-filter').value = 'all'; filterByMentor('all'); }});
     }
     if (currentMenteeFilter !== 'all') {
         tags.push({ label: `Mentee: ${allMentees.find(m => m.id == currentMenteeFilter)?.name || currentMenteeFilter}`, clear: () => { document.getElementById('mentee-filter').value = 'all'; filterByMentee('all'); }});
