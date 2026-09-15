@@ -196,7 +196,7 @@
           {% for suggestion in suggested_mentors %}
           {% set mentor = suggestion.mentor %}
           {% set percentage = suggestion.suggestion_percentage %}
-          <div class="mentor-card group relative bg-white rounded-lg shadow-md border border-blue-300 overflow-hidden flex flex-col h-full">
+          <div class="mentor-card group relative bg-white rounded-lg shadow-md border border-blue-300 flex flex-col h-full">
 
             <!-- Suggested Badge -->
             <div class="absolute top-3 right-3 z-20">
@@ -369,7 +369,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="mentorsContainer">
         {% for mentor in all_mentors %}
         <div
-          class="mentor-card group relative bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden flex flex-col h-full">
+          class="mentor-card group relative bg-white rounded-lg shadow-md border border-gray-200 flex flex-col h-full">
 
           <!-- Card Header / Banner -->
           <div class="h-16 bg-gray-600 relative overflow-hidden">

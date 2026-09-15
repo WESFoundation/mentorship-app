@@ -1369,11 +1369,54 @@ function searchTasks(searchTerm) {
 
 function filterByMentor(mentorId) {
     currentMentorFilter = mentorId;
+    // Cascade: rebuild mentee dropdown based on selected mentor
+    const menteeFilter = document.getElementById('mentee-filter');
+    const prevMentee = menteeFilter.value;
+    menteeFilter.innerHTML = '<option value="all">All Mentees</option>';
+    const matchingMentees = new Map();
+    allTasks.forEach(t => {
+        if (mentorId === 'all' || t.mentorId == mentorId) {
+            if (t.menteeId && t.menteeName) matchingMentees.set(t.menteeId, t.menteeName);
+        }
+    });
+    [...matchingMentees.entries()].sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, name]) => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = name;
+        menteeFilter.appendChild(opt);
+    });
+    // Keep previous selection if still valid
+    if (matchingMentees.has(prevMentee)) {
+        menteeFilter.value = prevMentee;
+    } else {
+        currentMenteeFilter = 'all';
+    }
     renderTasks();
 }
 
 function filterByMentee(menteeId) {
     currentMenteeFilter = menteeId;
+    // Cascade: rebuild mentor dropdown based on selected mentee
+    const mentorFilter = document.getElementById('mentor-filter');
+    const prevMentor = mentorFilter.value;
+    mentorFilter.innerHTML = '<option value="all">All Mentors</option>';
+    const matchingMentors = new Map();
+    allTasks.forEach(t => {
+        if (menteeId === 'all' || t.menteeId == menteeId) {
+            if (t.mentorId && t.mentorName) matchingMentors.set(t.mentorId, t.mentorName);
+        }
+    });
+    [...matchingMentors.entries()].sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, name]) => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = name;
+        mentorFilter.appendChild(opt);
+    });
+    if (matchingMentors.has(prevMentor)) {
+        mentorFilter.value = prevMentor;
+    } else {
+        currentMentorFilter = 'all';
+    }
     renderTasks();
 }
 
@@ -1396,12 +1439,31 @@ function clearAllFilters() {
     document.getElementById('task-search').value = '';
     document.getElementById('status-filter').value = 'all';
     document.getElementById('task-type-filter').value = 'all';
-    document.getElementById('mentor-filter').value = 'all';
-    document.getElementById('mentee-filter').value = 'all';
     document.getElementById('priority-filter').value = 'all';
     document.getElementById('category-filter').value = 'all';
     document.getElementById('due-from').value = '';
     document.getElementById('due-to').value = '';
+
+    // Rebuild full mentor/mentee dropdowns
+    const mentorFilter = document.getElementById('mentor-filter');
+    mentorFilter.innerHTML = '<option value="all">All Mentors</option>';
+    allMentors.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.name;
+        mentorFilter.appendChild(opt);
+    });
+    mentorFilter.value = 'all';
+
+    const menteeFilter = document.getElementById('mentee-filter');
+    menteeFilter.innerHTML = '<option value="all">All Mentees</option>';
+    allMentees.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.name;
+        menteeFilter.appendChild(opt);
+    });
+    menteeFilter.value = 'all';
 
     renderTasks();
 }

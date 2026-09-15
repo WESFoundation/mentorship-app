@@ -702,9 +702,9 @@
     document.getElementById('popupStars').innerHTML = renderStarsHtml(rating.final_rating);
     document.getElementById('popupPc').textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
     document.getElementById('popupSk').textContent = rating.useful_skills != null ? rating.useful_skills.toFixed(1) + ' / 5.0' : 'N/A';
-    document.getElementById('popupMe').textContent = rating.has_mentorship_experience ? rating.mentee_feedback.toFixed(1) + ' / 5.0' : 'No data';
-    document.getElementById('popupTe').textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'No data';
-    document.getElementById('popupSup').textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'Not rated';
+    document.getElementById('popupMe').textContent = rating.has_mentee_feedback ? rating.mentee_feedback.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupTe').textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupSup').textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
   }
 
   function closeRatingPopup() {

@@ -476,9 +476,9 @@
       // Breakdown
       document.getElementById('myTipPc').textContent = r.profile_complete != null ? r.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
       document.getElementById('myTipGc').textContent = r.goal_clarity != null ? r.goal_clarity.toFixed(1) + ' / 5.0' : 'N/A';
-      document.getElementById('myTipMe').textContent = r.has_mentorship_experience ? r.mentorship_experience.toFixed(1) + ' / 5.0' : 'No data';
-      document.getElementById('myTipTc').textContent = r.has_task_data ? r.task_completion.toFixed(1) + ' / 5.0' : 'No data';
-      document.getElementById('myTipMf').textContent = r.has_mentor_feedback ? r.mentor_feedback.toFixed(1) + ' / 5.0' : 'No feedback yet';
+      document.getElementById('myTipMe').textContent = r.has_mentorship_experience ? r.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('myTipTc').textContent = r.has_task_data ? r.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('myTipMf').textContent = r.has_mentor_feedback ? r.mentor_feedback.toFixed(1) + ' / 5.0' : 'N/A';
       document.getElementById('myTipFr').textContent = r.final_rating.toFixed(1) + ' / 5.0';
       document.getElementById('myRatingStatus').textContent = (r.completed_tasks || 0) + ' tasks done, ' + (r.completed_mentorships || 0) + ' mentorships';
     } catch(e) { console.error('Rating fetch error:', e); }

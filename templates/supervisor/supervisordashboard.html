@@ -1,5 +1,5 @@
 {% extends "base2.html" %}
-{% block title %}Supervisor Dashboard{% endblock %}
+{% block title %}Admin Dashboard{% endblock %}
 {% block user %}Admin{% endblock %}
 
 {% block profiledrop %}{% endblock %}
@@ -47,7 +47,7 @@
   <section id="dashboard" class="p-6 bg-white rounded-xl shadow-sm">
     <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
-        <h2 class="text-xl font-bold text-gray-800 mb-1">Welcome, Supervisor!</h2>
+        <h2 class="text-xl font-bold text-gray-800 mb-1">Welcome, Admin!</h2>
         <p class="text-gray-600 text-sm">Monitor cohort engagement, comparative analytics, and real-time performance leaderboards.</p>
       </div>
       <div class="flex items-center gap-2">
@@ -1025,7 +1025,7 @@
                   class="{% if request.mentor_status == 'accepted' %}text-green-600{% elif request.mentor_status == 'rejected' %}text-red-600{% else %}text-yellow-600{% endif %}">{{
                   request.mentor_status }}</span>
                 <br>
-                Supervisor: <span
+                Admin: <span
                   class="{% if request.supervisor_status == 'approved' %}text-green-600{% elif request.supervisor_status == 'rejected' %}text-red-600{% else %}text-yellow-600{% endif %}">{{
                   request.supervisor_status }}</span>
               </p>

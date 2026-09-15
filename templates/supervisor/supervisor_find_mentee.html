@@ -40,6 +40,10 @@
   .filter-bar-stacked .ss-display {
     width: auto !important;
   }
+
+  /* Dropdown menu */
+  [data-dropdown] { position: relative; }
+  [data-dropdown] > div:last-child { min-width: 160px; }
 </style>
 
 <main class="max-w-[90rem] mx-auto px-2 sm:px-3 lg:px-3 py-2">
@@ -213,7 +217,14 @@
             </td>
             <td class="px-1.5 sm:px-2.5 py-3 text-[11px] sm:text-sm text-gray-700 mentee-school max-w-[170px] truncate">{{ mentee.school_college_name or 'Not specified' }}</td>
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-600 max-w-[120px] truncate">{{ mentee.stream or '—' }}</td>
-            <td class="px-1.5 sm:px-2.5 py-3 text-[11px] sm:text-sm text-gray-600 mentee-goal max-w-[200px] truncate">{{ mentee.goal or 'Not specified' }}</td>
+            <td class="px-1.5 sm:px-2.5 py-3 text-[11px] sm:text-sm text-gray-600 mentee-goal max-w-[200px]">
+              <div class="flex items-start gap-1">
+                <span class="goal-text truncate flex-1">{{ mentee.goal or 'Not specified' }}</span>
+                {% if mentee.goal and mentee.goal|length > 40 %}
+                <button onclick="toggleGoalText(this)" class="text-blue-500 hover:text-blue-700 text-[10px] sm:text-xs font-medium shrink-0 mt-0.5">See more</button>
+                {% endif %}
+              </div>
+            </td>
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-600 mentee-email max-w-[170px] truncate">{{ mentee.user.email }}</td>
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-500">{{ mentee.user.created_at.strftime('%d %b %Y') if mentee.user.created_at else 'N/A' }}</td>
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap">
@@ -225,71 +236,80 @@
               </div>
             </td>
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-right">
-              <button
-                class="view-profile-btn px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-100 text-gray-700 text-xs sm:text-sm font-medium rounded-lg hover:bg-gray-200 transition"
-                data-mentee='{{ {
-                    "id": mentee.id or "",
-                    "userId": mentee.user_id or "",
-                    "name": mentee.user.name or "",
-                    "email": mentee.user.email or "",
-                    "stream": mentee.stream or "",
-                    "school": mentee.school_college_name or "",
-                    "goal": mentee.goal or "",
-                    "dob": mentee.dob or "",
-                    "mobileNumber": mentee.mobile_number or "",
-                    "mobileCountryCode": mentee.mobile_country_code or "",
-                    "whatsappNumber": mentee.whatsapp_number or "",
-                    "whatsappCountryCode": mentee.whatsapp_country_code or "",
-                    "parentName": mentee.parent_name or "",
-                    "parentMobile": mentee.parent_mobile or "",
-                    "parentMobileCountryCode": mentee.parent_mobile_country_code or "",
-                    "comments": mentee.comments or "",
-                    "profilePic": mentee.profile_picture or "",
-                    "classYear": mentee.class_year or "",
-                    "favouriteSubject": mentee.favourite_subject or "",
-                    "whoAmI": mentee.who_am_i or "",
-                    "fatherName": mentee.father_name or "",
-                    "addressLine1": mentee.address_line1 or "",
-                    "addressLine2": mentee.address_line2 or "",
-                    "city": mentee.city or "",
-                    "state": mentee.state or "",
-                    "postalCode": mentee.postal_code or "",
-                    "country": mentee.country or "",
-                    "govtPrivate": mentee.govt_private or "",
-                    "educationLevel": mentee.education_level or "",
-                    "institutionName": mentee.institution_name or "",
-                    "boardUniversity": mentee.board_university or "",
-                    "courseStream": mentee.course_stream or "",
-                    "schoolName": mentee.school_name or "",
-                    "schoolBoard": mentee.school_board or "",
-                    "schoolPassingYear": mentee.school_passing_year or "",
-                    "careerInterest": mentee.career_interest or "",
-                    "currentRole": mentee.current_role or "",
-                    "industry": mentee.industry or "",
-                    "yearsExperience": mentee.years_experience or "",
-                    "currentOrganization": mentee.current_organization or "",
-                    "keySkills": mentee.key_skills or "",
-                    "careerGoal": mentee.career_goal or "",
-                    "startupStage": mentee.startup_stage or "",
-                    "startupName": mentee.startup_name or "",
-                    "startupIndustry": mentee.startup_industry or "",
-                    "teamSize": mentee.team_size or "",
-                    "mainChallenge": mentee.main_challenge or "",
-                    "mentorshipType": mentee.mentorship_type or "",
-                    "freelanceSkill": mentee.freelance_skill or "",
-                    "freelanceExperience": mentee.freelance_experience or "",
-                    "freelancePlatforms": mentee.freelance_platforms or "",
-                    "freelanceChallenge": mentee.freelance_challenge or "",
-                    "lastRole": mentee.last_role or "",
-                    "careerBreakReason": mentee.career_break_reason or "",
-                    "restartField": mentee.restart_field or "",
-                    "supportExpected": mentee.support_expected or "",
-                    "mentorshipExpectations": mentee.mentorship_expectations or "",
-                    "termsAgreement": mentee.terms_agreement or "",
-                    "status": mentee.status or ""
-                }|tojson }}'>
-                View Profile
-              </button>
+              <div class="relative inline-block" data-dropdown>
+                <button onclick="toggleDropdown(this); event.stopPropagation()" class="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-500 hover:text-gray-700" title="Actions">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/>
+                  </svg>
+                </button>
+                <div class="hidden absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
+                  <button class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 view-profile-btn"
+                    data-mentee='{{ {
+                        "id": mentee.id or "",
+                        "userId": mentee.user_id or "",
+                        "name": mentee.user.name or "",
+                        "email": mentee.user.email or "",
+                        "stream": mentee.stream or "",
+                        "school": mentee.school_college_name or "",
+                        "goal": mentee.goal or "",
+                        "dob": mentee.dob or "",
+                        "mobileNumber": mentee.mobile_number or "",
+                        "mobileCountryCode": mentee.mobile_country_code or "",
+                        "whatsappNumber": mentee.whatsapp_number or "",
+                        "whatsappCountryCode": mentee.whatsapp_country_code or "",
+                        "parentName": mentee.parent_name or "",
+                        "parentMobile": mentee.parent_mobile or "",
+                        "parentMobileCountryCode": mentee.parent_mobile_country_code or "",
+                        "comments": mentee.comments or "",
+                        "profilePic": mentee.profile_picture or "",
+                        "classYear": mentee.class_year or "",
+                        "favouriteSubject": mentee.favourite_subject or "",
+                        "whoAmI": mentee.who_am_i or "",
+                        "fatherName": mentee.father_name or "",
+                        "addressLine1": mentee.address_line1 or "",
+                        "addressLine2": mentee.address_line2 or "",
+                        "city": mentee.city or "",
+                        "state": mentee.state or "",
+                        "postalCode": mentee.postal_code or "",
+                        "country": mentee.country or "",
+                        "govtPrivate": mentee.govt_private or "",
+                        "educationLevel": mentee.education_level or "",
+                        "institutionName": mentee.institution_name or "",
+                        "boardUniversity": mentee.board_university or "",
+                        "courseStream": mentee.course_stream or "",
+                        "schoolName": mentee.school_name or "",
+                        "schoolBoard": mentee.school_board or "",
+                        "schoolPassingYear": mentee.school_passing_year or "",
+                        "careerInterest": mentee.career_interest or "",
+                        "currentRole": mentee.current_role or "",
+                        "industry": mentee.industry or "",
+                        "yearsExperience": mentee.years_experience or "",
+                        "currentOrganization": mentee.current_organization or "",
+                        "keySkills": mentee.key_skills or "",
+                        "careerGoal": mentee.career_goal or "",
+                        "startupStage": mentee.startup_stage or "",
+                        "startupName": mentee.startup_name or "",
+                        "startupIndustry": mentee.startup_industry or "",
+                        "teamSize": mentee.team_size or "",
+                        "mainChallenge": mentee.main_challenge or "",
+                        "mentorshipType": mentee.mentorship_type or "",
+                        "freelanceSkill": mentee.freelance_skill or "",
+                        "freelanceExperience": mentee.freelance_experience or "",
+                        "freelancePlatforms": mentee.freelance_platforms or "",
+                        "freelanceChallenge": mentee.freelance_challenge or "",
+                        "lastRole": mentee.last_role or "",
+                        "careerBreakReason": mentee.career_break_reason or "",
+                        "restartField": mentee.restart_field or "",
+                        "supportExpected": mentee.support_expected or "",
+                        "mentorshipExpectations": mentee.mentorship_expectations or "",
+                        "termsAgreement": mentee.terms_agreement or "",
+                        "status": mentee.status or ""
+                    }|tojson }}'>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    View Profile
+                  </button>
+                </div>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -657,6 +677,30 @@
 </main>
 
 <script>
+  function toggleDropdown(btn) {
+    const dropdown = btn.closest('[data-dropdown]').querySelector('div:last-child');
+    document.querySelectorAll('[data-dropdown] > div:not(.hidden)').forEach(d => {
+      if (d !== dropdown) d.classList.add('hidden');
+    });
+    dropdown.classList.toggle('hidden');
+  }
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('[data-dropdown]')) {
+      document.querySelectorAll('[data-dropdown] > div:not(.hidden)').forEach(d => d.classList.add('hidden'));
+    }
+  });
+
+  function toggleGoalText(btn) {
+    const span = btn.previousElementSibling;
+    span.classList.toggle('truncate');
+    if (span.classList.contains('truncate')) {
+      btn.textContent = 'See more';
+    } else {
+      btn.textContent = 'See less';
+    }
+  }
+
   function showSection(id) {
     document.querySelectorAll("section").forEach(sec => sec.classList.add("hidden"));
     document.getElementById(id).classList.remove("hidden");
@@ -1006,9 +1050,9 @@
     document.getElementById('popupMenteeStars').innerHTML = renderStarsHtml(rating.final_rating);
     document.getElementById('popupMenteePc').textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
     document.getElementById('popupMenteeGc').textContent = rating.goal_clarity != null ? rating.goal_clarity.toFixed(1) + ' / 5.0' : 'N/A';
-    document.getElementById('popupMenteeMe').textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'No data';
-    document.getElementById('popupMenteeTc').textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'No data';
-    document.getElementById('popupMenteeMf').textContent = rating.has_mentor_feedback ? rating.mentor_feedback.toFixed(1) + ' / 5.0' : 'No feedback yet';
+    document.getElementById('popupMenteeMe').textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupMenteeTc').textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupMenteeMf').textContent = rating.has_mentor_feedback ? rating.mentor_feedback.toFixed(1) + ' / 5.0' : 'N/A';
   }
 
   function closeMenteeRatingPopup() {

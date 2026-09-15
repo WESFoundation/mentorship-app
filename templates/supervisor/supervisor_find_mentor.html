@@ -69,6 +69,10 @@
   .rating-popup .rb-label { color: #6b7280; font-size: 14px; }
   .rating-popup .rb-value { font-weight: 700; font-size: 16px; color: #111827; }
   .rating-popup .rb-final { background: #fef3c7; margin: -24px; margin-top: 0; padding: 16px 24px; border-top: 2px solid #fbbf24; }
+
+  /* Dropdown menu */
+  [data-dropdown] { position: relative; }
+  [data-dropdown] > div:last-child { min-width: 160px; }
 </style>
 
 <main class="max-w-[90rem] mx-auto px-2 sm:px-3 lg:px-3 py-2">
@@ -215,49 +219,59 @@
               {% endif %}
             </td>
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-right">
-              <button class="px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-100 text-gray-700 text-xs sm:text-sm font-medium rounded-lg hover:bg-gray-200 transition view-profile-btn"
-                data-mentor-id="{{ mentor.id }}"
-                data-user-id="{{ mentor.user_id }}"
-                data-name="{{ mentor.user.name }}"
-                data-email="{{ mentor.user.email }}"
-                data-profession="{{ mentor.profession }}"
-                data-organisation="{{ mentor.organisation }}"
-                data-location="{{ mentor.location }}"
-                data-experience="{{ mentor.years_of_experience }}"
-                data-profile-picture="{{ mentor.profile_picture }}"
-                data-education="{{ mentor.education }}"
-                data-language="{{ mentor.language }}"
-                data-communication="{{ mentor.preferred_communication }}"
-                data-why-mentor="{{ mentor.why_mentor }}"
-                data-role="{{ mentor.role }}"
-                data-industry="{{ mentor.industry_sector }}"
-                data-skills="{{ mentor.skills }}"
-                data-availability="{{ mentor.availability }}"
-                data-mentorship-topics="{{ mentor.mentorship_topics }}"
-                data-linkedin="{{ mentor.linkedin_link }}"
-                data-github="{{ mentor.github_link }}"
-                data-portfolio="{{ mentor.portfolio_link }}"
-                data-preferred-duration="{{ mentor.preferred_duration }}"
-                data-mentorship-type="{{ mentor.mentorship_type_preference }}"
-                data-connect-frequency="{{ mentor.connect_frequency }}"
-                data-whatsapp="{{ mentor.whatsapp }}"
-                data-country="{{ mentor.country or '' }}"
-                data-city="{{ mentor.city or '' }}"
-                data-whatsapp-code="{{ mentor.whatsapp_country_code or '' }}"
-                data-highest-qualification="{{ mentor.highest_qualification or '' }}"
-                data-degree-name="{{ mentor.degree_name or '' }}"
-                data-field-of-study="{{ mentor.field_of_study or '' }}"
-                data-university-name="{{ mentor.university_name or '' }}"
-                data-graduation-year="{{ mentor.graduation_year or '' }}"
-                data-academic-status="{{ mentor.academic_status or '' }}"
-                data-certifications="{{ mentor.certifications or '' }}"
-                data-research-work="{{ mentor.research_work or '' }}"
-                data-mentorship-philosophy="{{ mentor.mentorship_philosophy or '' }}"
-                data-mentorship-motto="{{ mentor.mentorship_motto or '' }}"
-                data-other-social="{{ mentor.other_social_link or '' }}"
-                data-criminal-certificate="{{ mentor.criminal_certificate or '' }}">
-                View Profile
-              </button>
+              <div class="relative inline-block" data-dropdown>
+                <button onclick="toggleDropdown(this); event.stopPropagation();" class="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-500 hover:text-gray-700" title="Actions">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/>
+                  </svg>
+                </button>
+                <div class="hidden absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
+                  <button class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 view-profile-btn"
+                    data-mentor-id="{{ mentor.id }}"
+                    data-user-id="{{ mentor.user_id }}"
+                    data-name="{{ mentor.user.name }}"
+                    data-email="{{ mentor.user.email }}"
+                    data-profession="{{ mentor.profession }}"
+                    data-organisation="{{ mentor.organisation }}"
+                    data-location="{{ mentor.location }}"
+                    data-experience="{{ mentor.years_of_experience }}"
+                    data-profile-picture="{{ mentor.profile_picture }}"
+                    data-education="{{ mentor.education }}"
+                    data-language="{{ mentor.language }}"
+                    data-communication="{{ mentor.preferred_communication }}"
+                    data-why-mentor="{{ mentor.why_mentor }}"
+                    data-role="{{ mentor.role }}"
+                    data-industry="{{ mentor.industry_sector }}"
+                    data-skills="{{ mentor.skills }}"
+                    data-availability="{{ mentor.availability }}"
+                    data-mentorship-topics="{{ mentor.mentorship_topics }}"
+                    data-linkedin="{{ mentor.linkedin_link }}"
+                    data-github="{{ mentor.github_link }}"
+                    data-portfolio="{{ mentor.portfolio_link }}"
+                    data-preferred-duration="{{ mentor.preferred_duration }}"
+                    data-mentorship-type="{{ mentor.mentorship_type_preference }}"
+                    data-connect-frequency="{{ mentor.connect_frequency }}"
+                    data-whatsapp="{{ mentor.whatsapp }}"
+                    data-country="{{ mentor.country or '' }}"
+                    data-city="{{ mentor.city or '' }}"
+                    data-whatsapp-code="{{ mentor.whatsapp_country_code or '' }}"
+                    data-highest-qualification="{{ mentor.highest_qualification or '' }}"
+                    data-degree-name="{{ mentor.degree_name or '' }}"
+                    data-field-of-study="{{ mentor.field_of_study or '' }}"
+                    data-university-name="{{ mentor.university_name or '' }}"
+                    data-graduation-year="{{ mentor.graduation_year or '' }}"
+                    data-academic-status="{{ mentor.academic_status or '' }}"
+                    data-certifications="{{ mentor.certifications or '' }}"
+                    data-research-work="{{ mentor.research_work or '' }}"
+                    data-mentorship-philosophy="{{ mentor.mentorship_philosophy or '' }}"
+                    data-mentorship-motto="{{ mentor.mentorship_motto or '' }}"
+                    data-other-social="{{ mentor.other_social_link or '' }}"
+                    data-criminal-certificate="{{ mentor.criminal_certificate or '' }}">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    View Profile
+                  </button>
+                </div>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -630,6 +644,20 @@
     });
   }
 
+  function toggleDropdown(btn) {
+    const dropdown = btn.closest('[data-dropdown]').querySelector('div:last-child');
+    document.querySelectorAll('[data-dropdown] > div:not(.hidden)').forEach(d => {
+      if (d !== dropdown) d.classList.add('hidden');
+    });
+    dropdown.classList.toggle('hidden');
+  }
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('[data-dropdown]')) {
+      document.querySelectorAll('[data-dropdown] > div:not(.hidden)').forEach(d => d.classList.add('hidden'));
+    }
+  });
+
   // Auto-open correct section using Jinja-injected variable
   document.addEventListener("DOMContentLoaded", function () {
     var activeSection = "{{ active_section|default('dashboard') }}";
@@ -851,7 +879,7 @@
           if (skillsStarsEl) skillsStarsEl.textContent = '0.0 / 5.0';
           if (expStarsEl) expStarsEl.textContent = '0.0 / 5.0';
           if (taskStarsEl) taskStarsEl.textContent = '0.0 / 5.0';
-          if (supStarsEl) supStarsEl.textContent = 'Not rated';
+          if (supStarsEl) supStarsEl.textContent = 'N/A';
           return;
         }
         if (finalRatingEl) finalRatingEl.textContent = rating.final_rating != null ? rating.final_rating.toFixed(1) : '0.0';
@@ -861,10 +889,10 @@
         if (expStarsEl) expStarsEl.textContent = (rating.mentorship_experience != null ? rating.mentorship_experience.toFixed(1) : '0.0') + ' / 5.0';
         if (taskStarsEl) taskStarsEl.textContent = (rating.task_completion != null ? rating.task_completion.toFixed(1) : '0.0') + ' / 5.0';
         if (supStarsEl) {
-          if (rating.has_mentorship_experience) {
+          if (rating.has_mentee_feedback) {
             supStarsEl.textContent = rating.mentee_feedback.toFixed(1) + ' / 5.0';
           } else {
-            supStarsEl.textContent = 'Not rated yet';
+            supStarsEl.textContent = 'N/A';
           }
         }
       });
@@ -986,18 +1014,9 @@
       const uid = c.getAttribute('data-mentor-uid');
       const rating = await fetchSupRating(uid);
       if (!rating) continue;
-      const hasAnyRating = rating.has_mentorship_experience || rating.has_task_data;
       const numEl = document.getElementById('sup-num-' + uid);
-      if (hasAnyRating) {
-        supRenderStars('sup-stars-' + uid, rating.final_rating);
-        if (numEl) numEl.textContent = rating.final_rating.toFixed(1);
-      } else {
-        if (numEl) {
-          numEl.textContent = 'Not yet rated';
-          numEl.style.fontSize = '10px';
-          numEl.style.color = '#9ca3af';
-        }
-      }
+      supRenderStars('sup-stars-' + uid, rating.final_rating || 0);
+      if (numEl) numEl.textContent = rating.final_rating != null ? rating.final_rating.toFixed(1) : '0.0';
     }
   }
 
@@ -1015,35 +1034,15 @@
     updateSupRateStars(0);
     fetchSupRating(uid).then(rating => {
       if (!rating) return;
-      const hasAnyRating = rating.has_mentorship_experience || rating.has_task_data;
-      if (hasAnyRating) {
-        document.getElementById('popupFinalRating').textContent = rating.final_rating.toFixed(1);
-        supRenderPopupStars('popupStars', rating.final_rating);
-      } else {
-        document.getElementById('popupFinalRating').textContent = 'N/A';
-        supRenderPopupStars('popupStars', 0);
-      }
-      document.getElementById('popupPc').textContent = rating.profile_complete.toFixed(1) + ' / 5.0';
-      document.getElementById('popupSk').textContent = rating.useful_skills.toFixed(1) + ' / 5.0';
-      if (rating.has_task_data) {
-        document.getElementById('popupMe').textContent = rating.task_completion.toFixed(1) + ' / 5.0';
-      } else {
-        document.getElementById('popupMe').textContent = 'Not yet rated';
-      }
-      if (rating.mentee_feedback != null) {
-        document.getElementById('popupTe').textContent = rating.mentee_feedback.toFixed(1) + ' / 5.0';
-      } else {
-        document.getElementById('popupTe').textContent = 'Not yet rated';
-      }
-      if (rating.has_mentorship_experience) {
-        document.getElementById('popupSup').textContent = rating.mentorship_experience.toFixed(1) + ' / 5.0';
-        currentSupRatingSelection = rating.mentorship_experience;
-        updateSupRateStars(rating.mentorship_experience);
-      } else {
-        document.getElementById('popupSup').textContent = 'Not rated yet';
-        currentSupRatingSelection = 0;
-        updateSupRateStars(0);
-      }
+      document.getElementById('popupFinalRating').textContent = rating.final_rating != null ? rating.final_rating.toFixed(1) : '0.0';
+      supRenderPopupStars('popupStars', rating.final_rating || 0);
+      document.getElementById('popupPc').textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupSk').textContent = rating.useful_skills != null ? rating.useful_skills.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupMe').textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupTe').textContent = rating.has_mentee_feedback ? rating.mentee_feedback.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupSup').textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
+      currentSupRatingSelection = rating.has_mentorship_experience ? rating.mentorship_experience : 0;
+      updateSupRateStars(currentSupRatingSelection);
     });
   }
 

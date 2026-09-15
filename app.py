@@ -7469,7 +7469,7 @@ def build_mentee_work_book(rows, file_label):
         "Mentee Name", "Mentee Email", "Mentor Name", "Task Type",
         "Work / Task", "Details", "Month", "Meeting No.",
         "Assigned Date", "Due Date (Deadline)", "Completed Date",
-        "Status", "Progress (%)", "Priority"
+        "Status", "Priority"
     ]
 
     header_fill = PatternFill(start_color="1D4ED8", end_color="1D4ED8", fill_type="solid")
@@ -7511,7 +7511,7 @@ def build_mentee_work_book(rows, file_label):
             r["mentee"], r["mentee_email"], r["mentor"], r["task_type"],
             r["title"], r["description"], r["month"], r["meeting_number"],
             fmt(r["assigned_date"]), fmt(r["due_date"]), fmt(r["completed_date"]),
-            status, r["progress"], r["priority"]
+            status, r["priority"]
         ]
         for c_idx, val in enumerate(values, start=1):
             cell = ws.cell(row=r_idx, column=c_idx, value=val)
@@ -7523,12 +7523,12 @@ def build_mentee_work_book(rows, file_label):
                 cell.font = Font(bold=True, color="DC2626")
 
     # Column widths
-    widths = [18, 24, 18, 16, 40, 50, 12, 12, 14, 14, 14, 22, 12, 12]
+    widths = [18, 24, 18, 16, 40, 50, 12, 12, 14, 14, 14, 22, 12]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
     ws.freeze_panes = "A2"
-    ws.auto_filter.ref = f"A1:N{max(len(rows) + 1, 2)}"
+    ws.auto_filter.ref = f"A1:M{max(len(rows) + 1, 2)}"
 
     buffer = BytesIO()
     wb.save(buffer)
@@ -7824,28 +7824,32 @@ def _build_institution_export(user):
     # ── Sheet 4: Tasks ──
     ws4 = make_sheet("Tasks",
         ["Mentee Name", "Mentee Email", "Task Type", "Work/Task",
-         "Details", "Month", "Meeting No.", "Due Date", "Progress (%)", "Priority"],
-        [22, 28, 12, 25, 30, 14, 12, 14, 12, 12])
+         "Details", "Month", "Meeting No.", "Due Date", "Status", "Priority"],
+        [22, 28, 12, 25, 30, 14, 12, 14, 18, 12])
     for e_user in institution_mentees:
         for t in tasks_by_mentee.get(e_user.id, []):
             if hasattr(t, "master_task") and t.master_task:
                 master = t.master_task
+                t_status = compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id)
                 ws4.append([
                     e_user.name or "", e_user.email or "",
                     "Master", master.journey_phase if master else "",
                     master.purpose_of_call if master else "",
                     t.month or "", t.meeting_number or "",
                     t.due_date.strftime("%Y-%m-%d") if t.due_date else "",
-                    t.progress or 0, t.priority or "medium"
+                    t_status.replace("in-progress", "In Progress").replace("not-started", "Not Started").replace("committed", "Committed").replace("done", "Completed"),
+                    t.priority or "medium"
                 ])
             elif hasattr(t, "title"):
+                t_status = compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id or None)
                 ws4.append([
                     e_user.name or "", e_user.email or "",
                     "Personal", t.title or "",
                     t.description or "",
                     "", "",
                     t.due_date.strftime("%Y-%m-%d") if t.due_date else "",
-                    t.progress or 0, t.priority or "medium"
+                    t_status.replace("in-progress", "In Progress").replace("not-started", "Not Started").replace("committed", "Committed").replace("done", "Completed"),
+                    t.priority or "medium"
                 ])
 
     # ── Sheet 5: Feedback & Ratings ──
@@ -8882,6 +8886,19 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
 
     Returns one of: 'not-started', 'committed', 'in-progress', 'done'
     """
+    # --- DB status shortcut: if task was already marked completed, honour it ---
+    try:
+        if task_type == 'master':
+            _mt = db.session.get(MenteeTask, task_id)
+            if _mt and getattr(_mt, 'status', None) == 'completed':
+                return 'done'
+        elif task_type == 'personal':
+            _pt = db.session.get(PersonalTask, task_id)
+            if _pt and getattr(_pt, 'status', None) == 'completed':
+                return 'done'
+    except Exception:
+        pass
+
     # Gather feedback from all personas
     has_mentee_fb = _has_mentee_feedback(task_type, task_id, mentee_id=mentee_id)
     if ratings_set is not None:
@@ -8898,13 +8915,10 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
     # Mentor required only if task has an assigned mentor
     mentor_done = mentor_submitted if mentor_id else True
 
-    # Institution reflection required only for master tasks if mentee belongs to an institution
-    inst_required = False
-    if task_type == 'master' and mentee_id:
-        mentee = db.session.get(User, mentee_id)
-        if mentee and (mentee.institution_id or mentee.institution):
-            inst_required = True
-    inst_done = has_inst_refl if inst_required else True
+    # Institution reflection is supplementary — tracked for display
+    # but NOT a hard blocker for 'done'. Primary participants (mentor + mentee)
+    # determine task completion; institution feedback is optional.
+    inst_done = True
 
     all_feedback = has_mentee_fb and mentor_done and inst_done
 
