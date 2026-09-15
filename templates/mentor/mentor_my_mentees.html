@@ -108,20 +108,20 @@
             </svg>
             <span>Email: {{ mentee.email }}</span>
           </div>
-          {% if mentee_data.rating and mentee_data.rating.final_score > 0 %}
-          <div class="flex items-center text-sm text-gray-600">
-            <div class="flex text-yellow-400 mr-2">
-              {% for i in range(5) %}
-                {% if i < mentee_data.rating.star_rating|int %}
-                  <span>&#9733;</span>
-                {% else %}
-                  <span class="text-gray-300">&#9733;</span>
-                {% endif %}
-              {% endfor %}
+          <div class="mentee-rating-container mt-1.5 inline-flex items-center gap-1.5 cursor-pointer relative group" data-mentee-id="{{ mentee.id }}" title="Hover to view rating breakdown">
+            <div class="rating-stars flex items-center gap-0.5 text-xs text-yellow-400" id="rating-stars-{{ mentee.id }}">
+              <span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span>
             </div>
-            <span class="font-medium">Mentee Rating: {{ "%.1f"|format(mentee_data.rating.star_rating) }} / 5.0</span>
+            <span class="rating-number text-xs font-bold text-gray-700" id="rating-num-{{ mentee.id }}">--</span>
+            <div class="rating-breakdown-tooltip absolute bottom-full left-0 mb-2 hidden group-hover:block bg-white border border-gray-200 rounded-xl shadow-xl p-3 z-30 w-56 text-xs pointer-events-none">
+              <div class="flex justify-between py-1 border-b border-gray-100"><span class="text-gray-500">Profile Complete</span><span class="font-bold text-gray-800" id="tip-pc-{{ mentee.id }}">--</span></div>
+              <div class="flex justify-between py-1 border-b border-gray-100"><span class="text-gray-500">Goal Clarity</span><span class="font-bold text-gray-800" id="tip-gc-{{ mentee.id }}">--</span></div>
+              <div class="flex justify-between py-1 border-b border-gray-100"><span class="text-gray-500">Task Completion</span><span class="font-bold text-gray-800" id="tip-tc-{{ mentee.id }}">--</span></div>
+              <div class="flex justify-between py-1 border-b border-gray-100"><span class="text-gray-500">Mentor Feedback</span><span class="font-bold text-gray-800" id="tip-mf-{{ mentee.id }}">--</span></div>
+              <div class="flex justify-between py-1 border-b border-gray-100"><span class="text-gray-500">Mentorship Experience</span><span class="font-bold text-gray-800" id="tip-me-{{ mentee.id }}">--</span></div>
+              <div class="flex justify-between pt-1.5 font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded mt-1"><span class="text-gray-700">Final Rating</span><span id="tip-fr-{{ mentee.id }}">--</span></div>
+            </div>
           </div>
-          {% endif %}
         </div>
         
         <div class="flex flex-wrap gap-2">
@@ -557,6 +557,29 @@
             </div>
           </div>
         </div>
+
+        <!-- Section 11: Rating Breakdown -->
+        <div class="bg-gray-50 p-4 rounded-lg">
+          <h4 class="font-semibold text-gray-800 mb-4 flex items-center">
+            <svg class="w-5 h-5 text-yellow-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+            </svg>
+            Rating Breakdown
+          </h4>
+          <div id="modalRatingSection" class="bg-white p-4 rounded border border-gray-200">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="flex items-center gap-0.5 text-yellow-400 text-lg" id="modalStars"></div>
+              <span id="modalFinalRating" class="text-lg font-bold text-gray-800">--</span>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
+              <div><p class="text-xs text-gray-500">Profile Complete</p><p id="modalTipPC" class="text-sm font-bold text-gray-800">--</p></div>
+              <div><p class="text-xs text-gray-500">Goal Clarity</p><p id="modalTipGC" class="text-sm font-bold text-gray-800">--</p></div>
+              <div><p class="text-xs text-gray-500">Task Completion</p><p id="modalTipTC" class="text-sm font-bold text-gray-800">--</p></div>
+              <div><p class="text-xs text-gray-500">Mentor Feedback</p><p id="modalTipMF" class="text-sm font-bold text-gray-800">--</p></div>
+              <div><p class="text-xs text-gray-500">Mentorship Experience</p><p id="modalTipME" class="text-sm font-bold text-gray-800">--</p></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Footer -->
@@ -768,6 +791,64 @@ function openMenteeProfileModal(mentee) {
         document.getElementById('commentsSection').style.display = 'block';
     }
 
+    // Populate rating breakdown from cached card data
+    (function() {
+        var cardEl = document.querySelector('.mentee-rating-container[data-mentee-id="' + mentee.id + '"]');
+        var starsEl = document.getElementById('modalStars');
+        var frEl = document.getElementById('modalFinalRating');
+        var pcEl = document.getElementById('modalTipPC');
+        var gcEl = document.getElementById('modalTipGC');
+        var tcEl = document.getElementById('modalTipTC');
+        var mfEl = document.getElementById('modalTipMF');
+        var meEl = document.getElementById('modalTipME');
+        if (starsEl) starsEl.innerHTML = '';
+        if (frEl) frEl.textContent = '--';
+        [pcEl, gcEl, tcEl, mfEl, meEl].forEach(function(e) { if (e) e.textContent = '--'; });
+        if (cardEl && cardEl.dataset.ratingData) {
+            var r = JSON.parse(cardEl.dataset.ratingData);
+            var fs = r.final_rating || 0;
+            if (starsEl) {
+                var full = Math.floor(fs);
+                var half = (fs - full) >= 0.5;
+                for (var i = 1; i <= 5; i++) {
+                    var s = document.createElement('span');
+                    if (i <= full || (i === full + 1 && half)) s.innerHTML = '&#9733;';
+                    else { s.innerHTML = '&#9733;'; s.classList.add('text-gray-300'); }
+                    starsEl.appendChild(s);
+                }
+            }
+            if (frEl) frEl.textContent = fs > 0 ? fs.toFixed(1) + ' / 5.0' : 'Not rated yet';
+            if (pcEl) pcEl.textContent = r.profile_complete > 0 ? r.profile_complete.toFixed(1) + ' / 5.0' : 'Not rated yet';
+            if (gcEl) gcEl.textContent = r.goal_clarity > 0 ? r.goal_clarity.toFixed(1) + ' / 5.0' : 'Not rated yet';
+            if (tcEl) tcEl.textContent = r.has_task_data ? r.task_completion.toFixed(1) + ' / 5.0' : 'Not rated yet';
+            if (mfEl) mfEl.textContent = r.has_mentor_feedback ? r.mentor_feedback.toFixed(1) + ' / 5.0' : 'Not rated yet';
+            if (meEl) meEl.textContent = r.has_mentorship_experience ? r.mentorship_experience.toFixed(1) + ' / 5.0' : 'Not rated yet';
+        } else {
+            // Fallback: fetch from API
+            fetch('/api/mentee_rating_simple/' + mentee.id).then(function(r){return r.json()}).then(function(data){
+                if (!data.success || !data.rating) return;
+                var r2 = data.rating;
+                var fs2 = r2.final_rating || 0;
+                if (starsEl) {
+                    var full2 = Math.floor(fs2);
+                    var half2 = (fs2 - full2) >= 0.5;
+                    for (var i2 = 1; i2 <= 5; i2++) {
+                        var s2 = document.createElement('span');
+                        if (i2 <= full2 || (i2 === full2 + 1 && half2)) s2.innerHTML = '&#9733;';
+                        else { s2.innerHTML = '&#9733;'; s2.classList.add('text-gray-300'); }
+                        starsEl.appendChild(s2);
+                    }
+                }
+                if (frEl) frEl.textContent = fs2 > 0 ? fs2.toFixed(1) + ' / 5.0' : 'Not rated yet';
+                if (pcEl) pcEl.textContent = r2.profile_complete > 0 ? r2.profile_complete.toFixed(1) + ' / 5.0' : 'Not rated yet';
+                if (gcEl) gcEl.textContent = r2.goal_clarity > 0 ? r2.goal_clarity.toFixed(1) + ' / 5.0' : 'Not rated yet';
+                if (tcEl) tcEl.textContent = r2.has_task_data ? r2.task_completion.toFixed(1) + ' / 5.0' : 'Not rated yet';
+                if (mfEl) mfEl.textContent = r2.has_mentor_feedback ? r2.mentor_feedback.toFixed(1) + ' / 5.0' : 'Not rated yet';
+                if (meEl) meEl.textContent = r2.has_mentorship_experience ? r2.mentorship_experience.toFixed(1) + ' / 5.0' : 'Not rated yet';
+            }).catch(function(){});
+        }
+    })();
+
     // Show modal
     document.getElementById('menteeProfileModal').classList.remove('hidden');
 }
@@ -778,6 +859,46 @@ function closeMenteeProfileModal() {
 
 // Attach click listener to all "View Profile" buttons
 document.addEventListener("DOMContentLoaded", function() {
+    // ===== LOAD MENTEE RATINGS (dynamic 5-criteria from API) =====
+    document.querySelectorAll('.mentee-rating-container').forEach(function(el) {
+        var mid = el.dataset.menteeId;
+        fetch('/api/mentee_rating_simple/' + mid).then(function(r){return r.json()}).then(function(data){
+            if (!data.success || !data.rating) return;
+            var r = data.rating;
+            var fs = r.final_rating || 0;
+            var full = Math.floor(fs);
+            var half = (fs - full) >= 0.5;
+            var starsEl = document.getElementById('rating-stars-' + mid);
+            var numEl = document.getElementById('rating-num-' + mid);
+            if (!starsEl || !numEl) return;
+            var html = '';
+            for (var i = 1; i <= 5; i++) {
+                if (i <= full) html += '<span>&#9733;</span>';
+                else if (i === full + 1 && half) html += '<span>&#9733;</span>';
+                else html += '<span class="text-gray-300">&#9733;</span>';
+            }
+            starsEl.innerHTML = html;
+            numEl.textContent = fs > 0 ? fs.toFixed(1) : '--';
+            if (fs > 0) { numEl.classList.remove('text-gray-500'); numEl.classList.add('text-yellow-600'); }
+            // Breakdown tooltips — show "Not rated yet" for 0 values
+            var pc = document.getElementById('tip-pc-' + mid);
+            var gc = document.getElementById('tip-gc-' + mid);
+            var tc = document.getElementById('tip-tc-' + mid);
+            var mf = document.getElementById('tip-mf-' + mid);
+            var me = document.getElementById('tip-me-' + mid);
+            var fr = document.getElementById('tip-fr-' + mid);
+            if (pc) pc.textContent = r.profile_complete > 0 ? r.profile_complete.toFixed(1) + ' / 5.0' : 'Not rated yet';
+            if (gc) gc.textContent = r.goal_clarity > 0 ? r.goal_clarity.toFixed(1) + ' / 5.0' : 'Not rated yet';
+            if (tc) tc.textContent = r.has_task_data ? r.task_completion.toFixed(1) + ' / 5.0' : 'Not rated yet';
+            if (mf) mf.textContent = r.has_mentor_feedback ? r.mentor_feedback.toFixed(1) + ' / 5.0' : 'Not rated yet';
+            if (me) me.textContent = r.has_mentorship_experience ? r.mentorship_experience.toFixed(1) + ' / 5.0' : 'Not rated yet';
+            if (fr) fr.textContent = fs > 0 ? fs.toFixed(1) + ' / 5.0' : 'Not rated yet';
+            // Store rating on element for modal use
+            el.dataset.ratingData = JSON.stringify(r);
+        }).catch(function(){});
+    });
+
+    // Attach click listener to all "View Profile" buttons
     document.querySelectorAll(".view-profile-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             const mentee = {

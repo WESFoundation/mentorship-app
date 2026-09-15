@@ -1439,7 +1439,7 @@
 
         // Reset state and city
         stateSelect.innerHTML = '<option value="">Select State</option>';
-        citySelect.innerHTML = '<option value="">Select City</option>';
+        citySelect.innerHTML = '<option value="">Select District / City</option>';
         cityTextInput.style.display = 'none';
         citySelect.style.display = '';
 
@@ -1513,7 +1513,7 @@
         const state = stateSelect.value;
         const countryData = locationData[getCountryDataKey(country)];
 
-        citySelect.innerHTML = '<option value="">Select City</option>';
+        citySelect.innerHTML = '<option value="">Select District / City</option>';
         cityTextInput.style.display = 'none';
         citySelect.style.display = '';
 
@@ -1797,7 +1797,7 @@ function validateForm() {
         { name: 'organisation', label: 'Organisation' },
         { name: 'years_of_experience', label: 'Years of Experience' },
         { name: 'whatsapp', label: 'WhatsApp Number' },
-        { name: 'city', label: 'City' },
+        { name: 'city', label: 'District / City' },
         { name: 'country', label: 'Country' },
         { name: 'highest_qualification', label: 'Highest Qualification' },
         { name: 'degree_name', label: 'Title Of Degree' },

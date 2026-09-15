@@ -1101,7 +1101,7 @@ function openMenteeProfileModal(mentee) {
       fetchMenteeRating(mentee.userId).then(rating => {
         if (!rating) return;
         if (modalStars) modalStars.innerHTML = renderStarsHtml(rating.final_rating);
-        if (modalFinalRating) modalFinalRating.textContent = rating.final_rating.toFixed(1);
+        if (modalFinalRating) modalFinalRating.textContent = rating.final_rating > 0 ? rating.final_rating.toFixed(1) + ' / 5.0' : 'Not rated yet';
       });
     }
 
@@ -1153,20 +1153,29 @@ async function loadAllMenteeRatings() {
     const starsEl = document.getElementById('rating-stars-' + uid);
     if (starsEl) starsEl.innerHTML = renderStarsHtml(rating.final_rating);
     const numEl = document.getElementById('rating-num-' + uid);
-    if (numEl) numEl.textContent = rating.final_rating.toFixed(1);
+    if (numEl) {
+      if (rating.final_rating > 0) {
+        numEl.textContent = rating.final_rating.toFixed(1);
+        numEl.classList.remove('text-gray-500');
+        numEl.classList.add('text-yellow-600');
+      } else {
+        numEl.textContent = '--';
+        numEl.classList.add('text-gray-500');
+      }
+    }
 
     const tipPc = document.getElementById('tip-pc-' + uid);
-    if (tipPc) tipPc.textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+    if (tipPc) tipPc.textContent = rating.profile_complete > 0 ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'Not rated yet';
     const tipGc = document.getElementById('tip-gc-' + uid);
-    if (tipGc) tipGc.textContent = rating.goal_clarity != null ? rating.goal_clarity.toFixed(1) + ' / 5.0' : 'N/A';
+    if (tipGc) tipGc.textContent = rating.goal_clarity > 0 ? rating.goal_clarity.toFixed(1) + ' / 5.0' : 'Not rated yet';
     const tipMe = document.getElementById('tip-me-' + uid);
-    if (tipMe) tipMe.textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
+    if (tipMe) tipMe.textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'Not rated yet';
     const tipTc = document.getElementById('tip-tc-' + uid);
-    if (tipTc) tipTc.textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
+    if (tipTc) tipTc.textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'Not rated yet';
     const tipMf = document.getElementById('tip-mf-' + uid);
-    if (tipMf) tipMf.textContent = rating.has_mentor_feedback ? rating.mentor_feedback.toFixed(1) + ' / 5.0' : 'N/A';
+    if (tipMf) tipMf.textContent = rating.has_mentor_feedback ? rating.mentor_feedback.toFixed(1) + ' / 5.0' : 'Not rated yet';
     const tipFr = document.getElementById('tip-fr-' + uid);
-    if (tipFr) tipFr.textContent = rating.final_rating.toFixed(1) + ' / 5.0';
+    if (tipFr) tipFr.textContent = rating.final_rating > 0 ? rating.final_rating.toFixed(1) + ' / 5.0' : 'Not rated yet';
   }
 }
 
