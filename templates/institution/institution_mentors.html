@@ -665,15 +665,19 @@
   async function loadAllInstitutionMentorRatings() {
     const containers = document.querySelectorAll('[data-mentor-uid]');
     const ids = [...new Set([...containers].map(c => c.getAttribute('data-mentor-uid')))].filter(Boolean);
-    for (const uid of ids) {
-      const rating = await fetchMentorRating(uid);
-      if (!rating) continue;
-      document.querySelectorAll('.inst-stars-' + uid).forEach(el => {
-        el.innerHTML = renderStarsHtml(rating.final_rating);
-      });
-      document.querySelectorAll('.inst-num-' + uid).forEach(el => {
-        el.textContent = rating.final_rating.toFixed(1) + ' / 5.0';
-      });
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+      const batch = ids.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(async (uid) => {
+        const rating = await fetchMentorRating(uid);
+        if (!rating) return;
+        document.querySelectorAll('.inst-stars-' + uid).forEach(el => {
+          el.innerHTML = renderStarsHtml(rating.final_rating);
+        });
+        document.querySelectorAll('.inst-num-' + uid).forEach(el => {
+          el.textContent = rating.final_rating.toFixed(1) + ' / 5.0';
+        });
+      }));
     }
   }
 

@@ -394,8 +394,8 @@
             <div class="space-y-4">
                 {% for task in mentee_tasks %}
                 <div class="task-card p-4 sm:p-6 
-                    {% if task.status == 'done' %}done-card{% endif %} 
-                    {% if task.due_date and task.due_date.date() < today and task.status != 'done' %}urgent{% endif %}"
+                    {% if task.status == 'done' or task.status == 'completed' %}done-card{% endif %} 
+                    {% if task.due_date and task.due_date.date() < today and task.status != 'done' and task.status != 'completed' %}urgent{% endif %}"
                     data-task-type="master" data-task-id="{{ task.id }}" data-task-status="{{ task.status }}" data-mentee-id="{{ task.mentee_id }}">
                     
                     <div class="flex justify-between items-start mb-3">
@@ -408,12 +408,12 @@
                                 <span class="task-badge">Mentorship Task</span>
                             </div>
                             <span class="task-status 
-                                {% if task.status == 'done' %}status-done
+                                {% if task.status == 'done' or task.status == 'completed' %}status-done
                                 {% elif task.status == 'in-progress' %}status-in-progress
                                 {% elif task.status == 'committed' %}status-committed
                                 {% else %}status-not-started{% endif %}">
                                 
-                                {% if task.status == 'done' %}Done
+                                {% if task.status == 'done' or task.status == 'completed' %}Done
                                 {% elif task.status == 'in-progress' %}In Progress
                                 {% elif task.status == 'committed' %}Committed
                                 {% else %}Not Started{% endif %}
@@ -450,7 +450,7 @@
                             <span>Meeting: #{{ task.meeting_number }}</span>
                         </div>
                         
-                        {% if task.status == 'done' %}
+                        {% if task.status == 'done' or task.status == 'completed' %}
                         <span class="text-green-600 text-sm font-medium flex items-center gap-1">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
@@ -478,8 +478,8 @@
             <div class="space-y-4">
                 {% for task in personal_tasks %}
                 <div class="task-card p-4 sm:p-6 
-                    {% if task.status == 'done' %}done-card{% endif %} 
-                    {% if task.due_date and task.due_date.date() < today and task.status != 'done' %}urgent{% endif %}"
+                    {% if task.status == 'done' or task.status == 'completed' %}done-card{% endif %} 
+                    {% if task.due_date and task.due_date.date() < today and task.status != 'done' and task.status != 'completed' %}urgent{% endif %}"
                     data-task-type="personal" data-task-id="{{ task.id }}" data-task-status="{{ task.status }}" data-mentee-id="{{ task.mentee_id }}">
                     
                     <div class="flex justify-between items-start mb-3">
@@ -499,12 +499,12 @@
                                 {% endif %}
                             </div>
                             <span class="task-status 
-                                {% if task.status == 'done' %}status-done
+                                {% if task.status == 'done' or task.status == 'completed' %}status-done
                                 {% elif task.status == 'in-progress' %}status-in-progress
                                 {% elif task.status == 'committed' %}status-committed
                                 {% else %}status-not-started{% endif %}">
                                 
-                                {% if task.status == 'done' %}Done
+                                {% if task.status == 'done' or task.status == 'completed' %}Done
                                 {% elif task.status == 'in-progress' %}In Progress
                                 {% elif task.status == 'committed' %}Committed
                                 {% else %}Not Started{% endif %}
@@ -540,7 +540,7 @@
                             </div>
                         </div>
                         
-                        {% if task.status == 'done' %}
+                        {% if task.status == 'done' or task.status == 'completed' %}
                         <span class="text-green-600 text-sm font-medium flex items-center gap-1">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
@@ -1773,7 +1773,12 @@ function updateMentorTaskCardBadge(taskId, taskType, newStatus) {
     if (!card) return;
 
     var status = typeof newStatus === 'boolean' ? (newStatus ? 'done' : 'in-progress') : (newStatus || 'in-progress');
+    if (status === 'completed') status = 'done';
     card.dataset.taskStatus = status;
+    if (status === 'done') {
+        card.classList.remove('urgent');
+        card.classList.add('done-card');
+    }
 
     var statusBadge = card.querySelector('.task-status');
     if (statusBadge) {
@@ -1845,7 +1850,7 @@ function loadMentorFeedback(taskId, taskType, taskStatus) {
         var details = document.getElementById('mentor-rating-details');
         var noMsg = document.getElementById('mentor-no-rating-message');
         var progressText = document.getElementById('detail-progress-text');
-        var isCompleted = taskStatus === 'completed';
+        var isCompleted = taskStatus === 'completed' || taskStatus === 'done';
 
         if (!raw) {
             if (details) details.classList.add('hidden');
@@ -1857,6 +1862,9 @@ function loadMentorFeedback(taskId, taskType, taskStatus) {
                 } else if (taskStatus === 'in-progress') {
                     progressText.textContent = 'In Progress';
                     progressText.className = 'text-sm font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-full';
+                } else if (taskStatus === 'committed') {
+                    progressText.textContent = 'Committed';
+                    progressText.className = 'text-sm font-medium bg-amber-100 text-amber-700 px-3 py-1 rounded-full';
                 } else {
                     progressText.textContent = 'Not Done';
                     progressText.className = 'text-sm font-medium bg-slate-100 text-slate-600 px-3 py-1 rounded-full';
@@ -1869,10 +1877,15 @@ function loadMentorFeedback(taskId, taskType, taskStatus) {
         }
         var data = JSON.parse(raw);
         if (progressText) {
-            progressText.textContent = 'Done';
-            progressText.className = 'text-sm font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full';
+            if (isCompleted) {
+                progressText.textContent = 'Done';
+                progressText.className = 'text-sm font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full';
+            } else {
+                progressText.textContent = 'In Progress';
+                progressText.className = 'text-sm font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-full';
+            }
         }
-        updateMentorTaskCardBadge(taskId, taskType, true);
+        updateMentorTaskCardBadge(taskId, taskType, isCompleted ? true : 'in-progress');
         var dateEl = document.getElementById('mentor-display-date');
         if (dateEl) dateEl.textContent = data.date ? new Date(data.date).toLocaleDateString() : '';
         var feedbackEl = document.getElementById('mentor-display-feedback');

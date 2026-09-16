@@ -2266,11 +2266,16 @@ def calculate_due_date(start_date, month_string):
 @app.context_processor
 def inject_profile_complete():
     profile_complete = True  # Default to True (no popup)
-    
-    if "email" in session and session.get("user_type") in ["1", "2"]:
-        user = User.query.filter_by(email=session["email"]).first()
-        if user:
-            profile_complete = check_profile_complete(user.id, session.get("user_type"))    
+    try:
+        if "email" in session and session.get("user_type") in ["1", "2"]:
+            user = User.query.filter_by(email=session["email"]).first()
+            if user:
+                profile_complete = check_profile_complete(user.id, session.get("user_type"))
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
     return dict(profile_complete=profile_complete)
 
 
@@ -2417,6 +2422,7 @@ def signup():
         return redirect(url_for("google_login"))
 
     return render_template("auth/signup.html")
+
 
 #--------------SIGNIN----------------
 @app.route("/signin", methods=["GET", "POST"])
@@ -4617,8 +4623,11 @@ def institutiondashboard():
 
     institution, inst_id, institution_name, aliases = _get_institution_details(user)
     
-    # Get direct mentors and mentees who belong to this institution
-    institution_mentors, institution_mentees = _get_institution_members(user, include_paired=False)
+    # Get all mentors and mentees who belong to this institution
+    all_mentors = User.query.filter_by(user_type="1").all()
+    all_mentors.sort(key=lambda u: (u.name or "").lower())
+    institution_mentors = all_mentors
+    _, institution_mentees = _get_institution_members(user, include_paired=True)
 
     # Get mentorship requests involving institution members
     mentee_ids = [m.id for m in institution_mentees]
@@ -4655,12 +4664,13 @@ def institution_mentors():
         return redirect(url_for("signin"))
     
     user = User.query.filter_by(email=session["email"]).first()
-    institution_mentors, _ = _get_institution_members(user, include_paired=False)
+    all_mentors = User.query.filter_by(user_type="1").all()
+    all_mentors.sort(key=lambda u: (u.name or "").lower())
     
     return render_template(
         "institution/institution_mentors.html",
         show_sidebar=True,
-        mentors=institution_mentors
+        mentors=all_mentors
     )
 
 @app.route("/institution_mentees")
@@ -5017,13 +5027,11 @@ def institution_all_tasks():
 
     all_institution_tasks = []
     
-    # Get all users from the institution
-    institution_users = User.query.filter(
-        (User.institution == institution_name) | 
-        (User.institution_id == institution_id)
-    ).all()
-    
-    institution_user_ids = [user.id for user in institution_users]
+    # Get all mentors and mentees for this institution
+    all_mentors = User.query.filter_by(user_type="1").all()
+    all_mentors.sort(key=lambda u: (u.name or "").lower())
+    _, institution_mentees = _get_institution_members(user, include_paired=True)
+    institution_user_ids = list(set([m.id for m in institution_mentees] + [user.id]))
 
     all_ratings = TaskRating.query.all()
     ratings_map = {(r.task_type, r.task_id): r for r in all_ratings}
@@ -5087,7 +5095,7 @@ def institution_all_tasks():
             "menteeRating": mf_rating,
             "hasMenteeFeedback": has_mf,
             "hasReflection": has_ref,
-            "isCritical": task.is_critical if hasattr(task, 'is_critical') else False,
+            "isCritical": (task.is_critical if hasattr(task, 'is_critical') else False) and task.status != 'completed',
             "comments": task.comments if hasattr(task, 'comments') else None
         })
 
@@ -5101,8 +5109,8 @@ def institution_all_tasks():
         mentee = db.session.get(User, task.mentee_id)
         mentor = db.session.get(User, task.mentor_id)
         
-        # Check if mentor belongs to same institution
-        if mentor and (mentor.institution == institution_name or mentor.institution_id == institution_id):
+        # Include mentor tasks
+        if mentor:
             r_obj = ratings_map.get(('personal', task.id))
             has_mf, mf_rating = _resolve_task_fb('personal', task.id, task.mentee_id)
             has_ref = _resolve_task_refl('personal', task.id)
@@ -5127,7 +5135,7 @@ def institution_all_tasks():
                 "menteeRating": mf_rating,
                 "hasMenteeFeedback": has_mf,
                 "hasReflection": has_ref,
-                "isCritical": task.is_critical if hasattr(task, 'is_critical') else False,
+                "isCritical": (task.is_critical if hasattr(task, 'is_critical') else False) and task.status != 'completed',
                 "comments": task.comments if hasattr(task, 'comments') else None
             })
 
@@ -5141,17 +5149,18 @@ def institution_all_tasks():
         mentor = db.session.get(User, task.mentor_id)
         master_task = db.session.get(MasterTask, task.task_id) if task.task_id else None
         
-        if mentor and (mentor.institution == institution_name or mentor.institution_id == institution_id):
+        if mentor:
             r_obj = ratings_map.get(('master', task.id)) or (ratings_map.get(('master', task.task_id)) if task.task_id else None)
             has_mf, mf_rating = _resolve_task_fb('master', task.id, task.mentee_id, task.task_id)
             has_ref = _resolve_task_refl('master', task.id, task.task_id)
+            t_status = compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id)
             all_institution_tasks.append({
                 "id": f"master_{task.id}",
                 "serial": f"M-{task.id}",
                 "title": master_task.purpose_of_call if master_task else "Mentorship Task",
                 "description": master_task.mentee_focus if master_task else "No description",
                 "due_date": task.due_date,
-                "status": compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id),
+                "status": t_status,
                 "progress": task.progress or 0,
                 "priority": "high",  # Master tasks are typically high priority
                 "category": "Mentorship Task",
@@ -5166,29 +5175,18 @@ def institution_all_tasks():
                 "menteeRating": mf_rating,
                 "hasMenteeFeedback": has_mf,
                 "hasReflection": has_ref,
-                "isCritical": True,  # Master tasks are always critical
+                "isCritical": (task.status != "completed" and t_status != "done"),
                 "comments": task.comments if hasattr(task, 'comments') else None
             })
 
     # Sort by due date (most urgent first)
     all_institution_tasks.sort(key=lambda x: x['due_date'] if x['due_date'] else datetime.max)
 
-    # Get mentors and mentees for filters
-    institution_mentors = User.query.filter(
-        User.id.in_(institution_user_ids),
-        User.user_type == "1"  # Mentor type
-    ).all()
-    
-    institution_mentees = User.query.filter(
-        User.id.in_(institution_user_ids),
-        User.user_type == "2"  # Mentee type
-    ).all()
-
     return render_template(
         "institution/institution_all_tasks.html",
         show_sidebar=True,
         tasks=all_institution_tasks,
-        mentors=[{"id": m.id, "name": m.name} for m in institution_mentors],
+        mentors=[{"id": m.id, "name": m.name} for m in all_mentors],
         mentees=[{"id": m.id, "name": m.name} for m in institution_mentees],
         now=datetime.now(),
         profile_complete=True
@@ -5203,13 +5201,11 @@ def get_institution_tasks_data():
     institution_id = user.institution_id
     institution_name = user.institution
 
-    # Get all users from the institution
-    institution_users = User.query.filter(
-        (User.institution == institution_name) | 
-        (User.institution_id == institution_id)
-    ).all()
-    
-    institution_user_ids = [user.id for user in institution_users]
+    # Get all mentors and institution members using richer matching (aliases, profiles)
+    all_mentors = User.query.filter_by(user_type="1").all()
+    all_mentors.sort(key=lambda u: (u.name or "").lower())
+    _, institution_mentees_full = _get_institution_members(user, include_paired=True)
+    institution_user_ids = list(set([m.id for m in institution_mentees_full] + [user.id]))
     
     # Pre-fetch all ratings in memory to avoid N+1 queries
     ratings = TaskRating.query.all()
@@ -5261,13 +5257,14 @@ def get_institution_tasks_data():
         has_mf, mf_rating = _resolve_api_task_fb("personal", task.id, task.mentee_id)
         has_ref = _resolve_api_task_refl("personal", task.id)
         
+        t_status = compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id or None)
         tasks_data.append({
             "id": f"personal_{task.id}",
             "serial": f"P-{task.id}",
             "title": task.title,
             "description": task.description,
             "dueDate": task.due_date.isoformat() if task.due_date else None,
-            "status": compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id or None),
+            "status": t_status,
             "progress": task.progress or 0,
             "priority": task.priority or "medium",
             "category": getattr(task, 'category', None) or "Personal",
@@ -5280,7 +5277,7 @@ def get_institution_tasks_data():
             "menteeRating": mf_rating,
             "hasMenteeFeedback": has_mf,
             "hasReflection": has_ref,
-            "isCritical": task.is_critical if hasattr(task, 'is_critical') else False
+            "isCritical": (task.is_critical if hasattr(task, 'is_critical') else False) and task.status != 'completed' and t_status != 'done'
         })
     
     # Get Mentee Tasks (Master Tasks)
@@ -5296,13 +5293,14 @@ def get_institution_tasks_data():
         has_mf, mf_rating = _resolve_api_task_fb("master", task.id, task.mentee_id, task.task_id)
         has_ref = _resolve_api_task_refl("master", task.id, task.task_id)
         
+        t_status = compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id)
         tasks_data.append({
             "id": f"master_{task.id}",
             "serial": f"M-{task.id}",
             "title": master_task.purpose_of_call if master_task else "Mentorship Task",
             "description": master_task.mentee_focus if master_task else "No description",
             "dueDate": task.due_date.isoformat() if task.due_date else None,
-            "status": compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id),
+            "status": t_status,
             "progress": task.progress or 0,
             "priority": "high",
             "category": "Mentorship Task",
@@ -5315,25 +5313,16 @@ def get_institution_tasks_data():
             "menteeRating": mf_rating,
             "hasMenteeFeedback": has_mf,
             "hasReflection": has_ref,
-            "isCritical": True
+            "isCritical": (task.status != "completed" and t_status != "done")
         })
     
     # Get institution mentors and mentees for filters
-    institution_mentors = User.query.filter(
-        User.id.in_(institution_user_ids),
-        User.user_type == "1"
-    ).all()
-    
-    institution_mentees = User.query.filter(
-        User.id.in_(institution_user_ids),
-        User.user_type == "2"
-    ).all()
-
+    # Use _get_institution_members for richer matching (aliases, profile fields)
     return jsonify({
         "success": True,
         "tasks": tasks_data,
-        "mentors": [{"id": m.id, "name": m.name} for m in institution_mentors],
-        "mentees": [{"id": m.id, "name": m.name} for m in institution_mentees],
+        "mentors": [{"id": m.id, "name": m.name} for m in all_mentors],
+        "mentees": [{"id": m.id, "name": m.name} for m in institution_mentees_full],
         "institutionName": institution_name
     })
 
@@ -7733,7 +7722,6 @@ def _build_institution_export(user):
 
     # All feedback in bulk
     all_feedback = MenteeFeedback.query.filter(MenteeFeedback.mentee_id.in_(mentee_ids)).all() if mentee_ids else []
-    all_reflections = MentorReflection.query.filter(MentorReflection.mentee_id.in_(mentee_ids)).all() if mentee_ids else []
 
     # All meetings in bulk
     all_meetings = MeetingRequest.query.filter(
@@ -7763,8 +7751,6 @@ def _build_institution_export(user):
     feedback_by_mentee = {}
     for fb in all_feedback:
         feedback_by_mentee.setdefault(fb.mentee_id, []).append(fb)
-    for ref in all_reflections:
-        feedback_by_mentee.setdefault(ref.mentee_id, []).append(ref)
 
     meetings_by_user = {}
     for mt in all_meetings:
@@ -7786,7 +7772,7 @@ def _build_institution_export(user):
             m_user.name or "", m_user.email or "",
             mp.profession if mp else "", mp.location if mp else "",
             mp.education if mp else "", mp.years_of_experience if mp else "",
-            mentor_rating, "Active" if m_user.status != "inactive" else "Inactive"
+            mentor_rating, "Active"
         ])
 
     # ── Sheet 2: Mentees ──
@@ -7815,7 +7801,7 @@ def _build_institution_export(user):
         ws3.append([
             mu.name if mu else "", mu.email if mu else "",
             eu.name if eu else "", eu.email if eu else "",
-            mr.mentorship_type or "",
+            mr.mentor_type or "",
             mr.final_status or mr.supervisor_status or "",
             mr.rating or 0,
             mr.created_at.strftime("%Y-%m-%d") if mr.created_at else ""
@@ -7856,6 +7842,18 @@ def _build_institution_export(user):
                 t_meeting = t.meeting_number or ""
                 t_due = t.due_date.strftime("%Y-%m-%d") if t.due_date else ""
                 t_status = compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id)
+<<<<<<< HEAD
+=======
+                ws4.append([
+                    e_user.name or "", e_user.email or "",
+                    "Master", master.journey_phase if master else "",
+                    master.purpose_of_call if master else "",
+                    t.month or "", t.meeting_number or "",
+                    t.due_date.strftime("%Y-%m-%d") if t.due_date else "",
+                    t_status.replace("in-progress", "In Progress").replace("not-started", "Not Started").replace("committed", "Committed").replace("done", "Completed"),
+                    ""
+                ])
+>>>>>>> 0952edd34060d0287f14c8f5c3892a923d94a11f
             elif hasattr(t, "title"):
                 t_type = "Personal"
                 t_title = t.title or ""
@@ -7901,6 +7899,33 @@ def _build_institution_export(user):
                     "", "", "", "", "", "", "", "", ""
                 ])
 
+<<<<<<< HEAD
+=======
+    # ── Sheet 5: Feedback & Ratings ──
+    ws5 = make_sheet("Feedback & Ratings",
+        ["Mentee Name", "Mentee Email", "Mentor Name", "Feedback Type",
+         "Mentor Rating (1-5)", "Detailed Criteria", "Date"],
+        [22, 28, 22, 16, 16, 40, 14])
+    for e_user in institution_mentees:
+        for fb in feedback_by_mentee.get(e_user.id, []):
+            mu = get_user(getattr(fb, "mentor_id", None))
+            detailed = ""
+            if getattr(fb, "extra", None):
+                try:
+                    d = _json.loads(fb.extra)
+                    detailed = "; ".join(f"{k}: {v}/5" for k, v in d.items() if isinstance(v, (int, float)))
+                except Exception:
+                    pass
+            ftype = fb.task_type or ""
+            ws5.append([
+                e_user.name or "", e_user.email or "",
+                mu.name if mu else "", ftype,
+                getattr(fb, "mentor_rating", "") or "",
+                detailed,
+                fb.created_at.strftime("%Y-%m-%d") if fb.created_at else ""
+            ])
+
+>>>>>>> 0952edd34060d0287f14c8f5c3892a923d94a11f
     # ── Sheet 6: Meetings ──
     ws6 = make_sheet("Meetings",
         ["Title", "Requester", "Requested To", "Date", "Time", "Duration (min)", "Status"],
@@ -7938,8 +7963,9 @@ def export_institution_data():
     try:
         wb, fname = _build_institution_export(user)
     except Exception as e:
-        app.logger.error(f"Institution export build failed: {e}")
-        return "Export failed. Please try again or contact support.", 500
+        import traceback
+        app.logger.error(f"Institution export build failed: {e}\n{traceback.format_exc()}")
+        return f"Export failed: {e}", 500
 
     from io import BytesIO
     output = BytesIO()
@@ -9169,11 +9195,11 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
     try:
         if task_type == 'master':
             _mt = db.session.get(MenteeTask, task_id)
-            if _mt and getattr(_mt, 'status', None) == 'completed':
+            if _mt and (getattr(_mt, 'status', None) == 'completed' or getattr(_mt, 'progress', None) == 100):
                 return 'done'
         elif task_type == 'personal':
             _pt = db.session.get(PersonalTask, task_id)
-            if _pt and getattr(_pt, 'status', None) == 'completed':
+            if _pt and (getattr(_pt, 'status', None) == 'completed' or getattr(_pt, 'progress', None) == 100):
                 return 'done'
     except Exception:
         pass
