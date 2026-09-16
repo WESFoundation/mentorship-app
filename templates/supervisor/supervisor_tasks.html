@@ -880,11 +880,7 @@
                 allMentees = result.mentees || [];
 
                 document.getElementById('loading-state').classList.add('hidden');
-                if (allTasks.length === 0) {
-                    document.getElementById('tasks-empty-state').classList.remove('hidden');
-                } else {
-                    document.getElementById('tasks-empty-state').classList.add('hidden');
-                }
+                document.getElementById('tasks-empty-state').classList.add('hidden');
 
                 updateStatistics();
                 populateFilters();
@@ -980,7 +976,17 @@
 
         // Populate mentor filter
         const mentorFilter = document.getElementById('mentor-filter');
-        const uniqueMentors = [...new Map(allTasks.map(t => [t.mentorId, { id: t.mentorId, name: t.mentorName }])).values()].sort((a, b) => a.name.localeCompare(b.name));
+        const mentorMap = new Map();
+        (allMentors || []).forEach(m => {
+            if (m && m.id) mentorMap.set(String(m.id), m.name || `Mentor #${m.id}`);
+        });
+        (allTasks || []).forEach(t => {
+            if (t && t.mentorId && t.mentorName && t.mentorName !== 'Self' && !mentorMap.has(String(t.mentorId))) {
+                mentorMap.set(String(t.mentorId), t.mentorName);
+            }
+        });
+        const uniqueMentors = Array.from(mentorMap.entries()).map(([id, name]) => ({ id, name }));
+        uniqueMentors.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         while (mentorFilter.children.length > 1) {
             mentorFilter.removeChild(mentorFilter.lastChild);
         }
@@ -993,7 +999,17 @@
 
         // Populate mentee filter
         const menteeFilter = document.getElementById('mentee-filter');
-        const uniqueMentees = [...new Map(allTasks.map(t => [t.menteeId, { id: t.menteeId, name: t.menteeName }])).values()].sort((a, b) => a.name.localeCompare(b.name));
+        const menteeMap = new Map();
+        (allMentees || []).forEach(m => {
+            if (m && m.id) menteeMap.set(String(m.id), m.name || `Mentee #${m.id}`);
+        });
+        (allTasks || []).forEach(t => {
+            if (t && t.menteeId && t.menteeName && !menteeMap.has(String(t.menteeId))) {
+                menteeMap.set(String(t.menteeId), t.menteeName);
+            }
+        });
+        const uniqueMentees = Array.from(menteeMap.entries()).map(([id, name]) => ({ id, name }));
+        uniqueMentees.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         while (menteeFilter.children.length > 1) {
             menteeFilter.removeChild(menteeFilter.lastChild);
         }
@@ -1028,12 +1044,14 @@
                 (currentFilter === 'critical' ? (task.isCritical && task.status !== 'done' && task.status !== 'completed') :
                     (currentFilter === 'overdue' ? isTaskOverdue(task) :
                     (currentFilter === 'done' ? (task.status === 'done' || task.status === 'completed') :
-                    (currentFilter === 'not-started' ? (task.status === 'not-started' || task.status === 'pending' || task.status === 'to-do') : task.status === currentFilter))));
+                    (currentFilter === 'not-started' ? (task.status === 'not-started' || task.status === 'pending' || task.status === 'to-do') :
+                    (currentFilter === 'in-progress' ? (task.status === 'in-progress' || task.status === 'inprogress') :
+                    task.status === currentFilter)))));
             const matchesSearch = currentSearch === '' ||
-                task.title.toLowerCase().includes(currentSearch.toLowerCase()) ||
-                (task.description && task.description.toLowerCase().includes(currentSearch.toLowerCase())) ||
-                task.mentorName.toLowerCase().includes(currentSearch.toLowerCase()) ||
-                task.menteeName.toLowerCase().includes(currentSearch.toLowerCase());
+                (task.title || '').toLowerCase().includes(currentSearch.toLowerCase()) ||
+                ((task.description || '').toLowerCase().includes(currentSearch.toLowerCase())) ||
+                ((task.mentorName || '').toLowerCase().includes(currentSearch.toLowerCase())) ||
+                ((task.menteeName || '').toLowerCase().includes(currentSearch.toLowerCase()));
             const matchesPriority = currentPriorityFilter === 'all' || task.priority === currentPriorityFilter;
             const matchesCategory = currentCategoryFilter === 'all' || task.category === currentCategoryFilter;
             const matchesMentor = currentMentorFilter === 'all' || String(task.mentorId) === String(currentMentorFilter);
@@ -1308,7 +1326,11 @@
     // Filter functions
     function filterTasks(filter) {
         currentFilter = filter;
-        loadSupervisorTasks();
+        if (allTasks && allTasks.length > 0) {
+            renderTasks();
+        } else {
+            loadSupervisorTasks();
+        }
     }
 
     function searchTasks(searchTerm) {
@@ -1318,12 +1340,20 @@
 
     function filterByPriority(priority) {
         currentPriorityFilter = priority;
-        loadSupervisorTasks();
+        if (allTasks && allTasks.length > 0) {
+            renderTasks();
+        } else {
+            loadSupervisorTasks();
+        }
     }
 
     function filterByCategory(category) {
         currentCategoryFilter = category;
-        loadSupervisorTasks();
+        if (allTasks && allTasks.length > 0) {
+            renderTasks();
+        } else {
+            loadSupervisorTasks();
+        }
     }
 
     function toggleAdvancedFilters() {
@@ -1354,7 +1384,11 @@
             btn.classList.toggle('active', btn.dataset.filter === 'all');
         });
 
-        loadSupervisorTasks();
+        if (allTasks && allTasks.length > 0) {
+            renderTasks();
+        } else {
+            loadSupervisorTasks();
+        }
     }
 
     function updateActiveFiltersDisplay() {
@@ -1488,13 +1522,21 @@
             currentMentorFilter = e.target.value;
             currentMenteeFilter = 'all';
             document.getElementById('mentee-filter').value = 'all';
-            loadSupervisorTasks();
+            if (allTasks && allTasks.length > 0) {
+                renderTasks();
+            } else {
+                loadSupervisorTasks();
+            }
         });
 
         // Mentee filter
         document.getElementById('mentee-filter').addEventListener('change', (e) => {
             currentMenteeFilter = e.target.value;
-            loadSupervisorTasks();
+            if (allTasks && allTasks.length > 0) {
+                renderTasks();
+            } else {
+                loadSupervisorTasks();
+            }
         });
 
         // Date range filters (client-side only)

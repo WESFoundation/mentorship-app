@@ -5181,7 +5181,21 @@ def get_institution_tasks_data():
     
     # Apply status, type, and category filters (after status computation)
     if f_status:
-        tasks_data = [t for t in tasks_data if t['status'] == f_status]
+        if f_status == 'done':
+            tasks_data = [t for t in tasks_data if t.get('status') in ('done', 'completed')]
+        elif f_status == 'not-started':
+            tasks_data = [t for t in tasks_data if t.get('status') in ('not-started', 'pending', 'to-do')]
+        elif f_status in ('in-progress', 'inprogress'):
+            tasks_data = [t for t in tasks_data if t.get('status') in ('in-progress', 'inprogress')]
+        elif f_status == 'committed':
+            tasks_data = [t for t in tasks_data if t.get('status') == 'committed']
+        elif f_status == 'overdue':
+            now_iso = datetime.utcnow().isoformat()
+            tasks_data = [t for t in tasks_data if t.get('dueDate') and str(t.get('dueDate')) < now_iso and t.get('status') not in ('done', 'completed')]
+        elif f_status == 'critical':
+            tasks_data = [t for t in tasks_data if t.get('isCritical') and t.get('status') not in ('done', 'completed')]
+        else:
+            tasks_data = [t for t in tasks_data if t.get('status') == f_status]
     if f_type:
         tasks_data = [t for t in tasks_data if t.get('type') == f_type]
     if f_category:
@@ -9025,12 +9039,22 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
     try:
         if task_type == 'master':
             _mt = db.session.get(MenteeTask, task_id)
-            if _mt and (getattr(_mt, 'status', None) == 'completed' or getattr(_mt, 'progress', None) == 100):
-                return 'done'
+            if _mt:
+                if getattr(_mt, 'status', None) == 'completed' or getattr(_mt, 'progress', None) == 100:
+                    return 'done'
+                if getattr(_mt, 'status', None) in ('in-progress', 'inprogress') or (getattr(_mt, 'progress', 0) or 0) > 0:
+                    return 'in-progress'
+                if getattr(_mt, 'status', None) == 'committed':
+                    return 'committed'
         elif task_type == 'personal':
             _pt = db.session.get(PersonalTask, task_id)
-            if _pt and (getattr(_pt, 'status', None) == 'completed' or getattr(_pt, 'progress', None) == 100):
-                return 'done'
+            if _pt:
+                if getattr(_pt, 'status', None) == 'completed' or getattr(_pt, 'progress', None) == 100:
+                    return 'done'
+                if getattr(_pt, 'status', None) in ('in-progress', 'inprogress') or (getattr(_pt, 'progress', 0) or 0) > 0:
+                    return 'in-progress'
+                if getattr(_pt, 'status', None) == 'committed':
+                    return 'committed'
     except Exception:
         pass
 
@@ -10628,7 +10652,20 @@ def get_supervisor_tasks_data():
 
         # Apply status and category filters (applied after status computation)
         if f_status:
-            tasks = [t for t in tasks if t['status'] == f_status]
+            if f_status == 'done':
+                tasks = [t for t in tasks if t.get('status') in ('done', 'completed')]
+            elif f_status == 'not-started':
+                tasks = [t for t in tasks if t.get('status') in ('not-started', 'pending', 'to-do')]
+            elif f_status in ('in-progress', 'inprogress'):
+                tasks = [t for t in tasks if t.get('status') in ('in-progress', 'inprogress')]
+            elif f_status == 'committed':
+                tasks = [t for t in tasks if t.get('status') == 'committed']
+            elif f_status == 'overdue':
+                tasks = [t for t in tasks if t.get('isCritical') or (t.get('dueDate') and str(t.get('dueDate')) < now_dt.isoformat() and t.get('status') not in ('done', 'completed'))]
+            elif f_status == 'critical':
+                tasks = [t for t in tasks if t.get('isCritical') and t.get('status') not in ('done', 'completed')]
+            else:
+                tasks = [t for t in tasks if t.get('status') == f_status]
         if f_category:
             cat_lower = f_category.lower()
             tasks = [t for t in tasks if t.get('category', '').lower() == cat_lower]
@@ -10640,10 +10677,10 @@ def get_supervisor_tasks_data():
             except Exception:
                 pass
 
-        mentors = [{'id': mid, 'name': mname} for mid, mname in 
-                   {t.get('mentorId'): t['mentorName'] for t in tasks if t.get('mentorId')}.items()]
-        mentees = [{'id': mid, 'name': mname} for mid, mname in 
-                   {t.get('menteeId'): t['menteeName'] for t in tasks if t.get('menteeId')}.items()]
+        all_sup_mentors = User.query.filter_by(user_type="1").order_by(User.name.asc()).all()
+        all_sup_mentees = User.query.filter_by(user_type="2").order_by(User.name.asc()).all()
+        mentors = [{'id': m.id, 'name': m.name or f"Mentor #{m.id}"} for m in all_sup_mentors]
+        mentees = [{'id': m.id, 'name': m.name or f"Mentee #{m.id}"} for m in all_sup_mentees]
 
         return jsonify({
             "success": True,

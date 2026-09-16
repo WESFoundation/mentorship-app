@@ -898,11 +898,7 @@ async function loadInstitutionTasks() {
             allMentees = result.mentees || [];
 
             document.getElementById('loading-state').classList.add('hidden');
-            if (allTasks.length === 0) {
-                document.getElementById('tasks-empty-state').classList.remove('hidden');
-            } else {
-                document.getElementById('tasks-empty-state').classList.add('hidden');
-            }
+            document.getElementById('tasks-empty-state').classList.add('hidden');
 
             updateStatistics();
             populateFilters();
@@ -919,7 +915,7 @@ async function loadInstitutionTasks() {
         showNotification('Failed to load tasks: ' + error.message, 'error');
     }
 }
-            throw new Error(result.message || 'Failed to load tasks');
+
 // Update statistics function
 function updateStatistics() {
     const total = allTasks.length;
@@ -1075,7 +1071,9 @@ function renderTasks() {
                              (currentFilter === 'overdue' ? isTaskOverdue(task) :
                              (currentFilter === 'critical' ? (task.isCritical && task.status !== 'done' && task.status !== 'completed') :
                              (currentFilter === 'done' ? (task.status === 'done' || task.status === 'completed') :
-                             (currentFilter === 'not-started' ? (task.status === 'not-started' || task.status === 'pending' || task.status === 'to-do') : task.status === currentFilter))));
+                             (currentFilter === 'not-started' ? (task.status === 'not-started' || task.status === 'pending' || task.status === 'to-do') :
+                             (currentFilter === 'in-progress' ? (task.status === 'in-progress' || task.status === 'inprogress') :
+                             task.status === currentFilter)))));
         const matchesSearch = currentSearch === '' || 
                             task.title.toLowerCase().includes(currentSearch.toLowerCase()) ||
                             (task.description && task.description.toLowerCase().includes(currentSearch.toLowerCase())) ||
@@ -1376,12 +1374,20 @@ function formatDate(dateString) {
 // Filter functions
 function filterTasks(filter) {
     currentFilter = filter;
-    loadInstitutionTasks();
+    if (allTasks && allTasks.length > 0) {
+        renderTasks();
+    } else {
+        loadInstitutionTasks();
+    }
 }
 
 function filterByTaskType(type) {
     currentTaskTypeFilter = type;
-    loadInstitutionTasks();
+    if (allTasks && allTasks.length > 0) {
+        renderTasks();
+    } else {
+        loadInstitutionTasks();
+    }
 }
 
 function searchTasks(searchTerm) {
@@ -1393,12 +1399,20 @@ function filterByMentor(mentorId) {
     currentMentorFilter = mentorId;
     currentMenteeFilter = 'all';
     document.getElementById('mentee-filter').value = 'all';
-    loadInstitutionTasks();
+    if (allTasks && allTasks.length > 0) {
+        renderTasks();
+    } else {
+        loadInstitutionTasks();
+    }
 }
 
 function filterByMentee(menteeId) {
     currentMenteeFilter = menteeId;
-    loadInstitutionTasks();
+    if (allTasks && allTasks.length > 0) {
+        renderTasks();
+    } else {
+        loadInstitutionTasks();
+    }
 }
 
 function toggleAdvancedFilters() {
@@ -1427,7 +1441,11 @@ function clearAllFilters() {
     document.getElementById('due-from').value = '';
     document.getElementById('due-to').value = '';
 
-    loadInstitutionTasks();
+    if (allTasks && allTasks.length > 0) {
+        renderTasks();
+    } else {
+        loadInstitutionTasks();
+    }
 }
 
 function updateActiveFiltersDisplay() {
@@ -1930,13 +1948,21 @@ function setupEventListeners() {
     // Priority filter
     document.getElementById('priority-filter').addEventListener('change', (e) => {
         currentPriorityFilter = e.target.value;
-        loadInstitutionTasks();
+        if (allTasks && allTasks.length > 0) {
+            renderTasks();
+        } else {
+            loadInstitutionTasks();
+        }
     });
 
     // Category filter
     document.getElementById('category-filter').addEventListener('change', (e) => {
         currentCategoryFilter = e.target.value;
-        loadInstitutionTasks();
+        if (allTasks && allTasks.length > 0) {
+            renderTasks();
+        } else {
+            loadInstitutionTasks();
+        }
     });
 
     // Date range filters
