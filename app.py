@@ -7684,9 +7684,6 @@ def _build_institution_export(user):
     for fb in all_feedback:
         key = (fb.task_id, fb.task_type)
         feedback_by_task.setdefault(key, []).append(fb)
-    for ref in all_reflections:
-        key = (ref.task_id, ref.task_type)
-        feedback_by_task.setdefault(key, []).append(ref)
 
     # ── Sheet 4: Tasks & Feedback (combined) ──
     ws4 = make_sheet("Tasks & Feedback",
@@ -7703,7 +7700,7 @@ def _build_institution_export(user):
             t_month = ""
             t_meeting = ""
             t_due = ""
-            t_priority = t.priority or "medium"
+            t_priority = getattr(t, "priority", None) or "medium"
 
             if hasattr(t, "master_task") and t.master_task:
                 master = t.master_task
@@ -7714,18 +7711,6 @@ def _build_institution_export(user):
                 t_meeting = t.meeting_number or ""
                 t_due = t.due_date.strftime("%Y-%m-%d") if t.due_date else ""
                 t_status = compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id)
-<<<<<<< HEAD
-=======
-                ws4.append([
-                    e_user.name or "", e_user.email or "",
-                    "Master", master.journey_phase if master else "",
-                    master.purpose_of_call if master else "",
-                    t.month or "", t.meeting_number or "",
-                    t.due_date.strftime("%Y-%m-%d") if t.due_date else "",
-                    t_status.replace("in-progress", "In Progress").replace("not-started", "Not Started").replace("committed", "Committed").replace("done", "Completed"),
-                    ""
-                ])
->>>>>>> 0952edd34060d0287f14c8f5c3892a923d94a11f
             elif hasattr(t, "title"):
                 t_type = "Personal"
                 t_title = t.title or ""
@@ -7771,33 +7756,6 @@ def _build_institution_export(user):
                     "", "", "", "", "", "", "", "", ""
                 ])
 
-<<<<<<< HEAD
-=======
-    # ── Sheet 5: Feedback & Ratings ──
-    ws5 = make_sheet("Feedback & Ratings",
-        ["Mentee Name", "Mentee Email", "Mentor Name", "Feedback Type",
-         "Mentor Rating (1-5)", "Detailed Criteria", "Date"],
-        [22, 28, 22, 16, 16, 40, 14])
-    for e_user in institution_mentees:
-        for fb in feedback_by_mentee.get(e_user.id, []):
-            mu = get_user(getattr(fb, "mentor_id", None))
-            detailed = ""
-            if getattr(fb, "extra", None):
-                try:
-                    d = _json.loads(fb.extra)
-                    detailed = "; ".join(f"{k}: {v}/5" for k, v in d.items() if isinstance(v, (int, float)))
-                except Exception:
-                    pass
-            ftype = fb.task_type or ""
-            ws5.append([
-                e_user.name or "", e_user.email or "",
-                mu.name if mu else "", ftype,
-                getattr(fb, "mentor_rating", "") or "",
-                detailed,
-                fb.created_at.strftime("%Y-%m-%d") if fb.created_at else ""
-            ])
-
->>>>>>> 0952edd34060d0287f14c8f5c3892a923d94a11f
     # ── Sheet 6: Meetings ──
     ws6 = make_sheet("Meetings",
         ["Title", "Requester", "Requested To", "Date", "Time", "Duration (min)", "Status"],
@@ -8046,7 +8004,7 @@ def _build_supervisor_export():
             t_month = ""
             t_meeting = ""
             t_due = ""
-            t_priority = t.priority or "medium"
+            t_priority = getattr(t, "priority", None) or "medium"
 
             if hasattr(t, "master_task") and t.master_task:
                 master = t.master_task
