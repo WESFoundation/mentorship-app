@@ -1483,7 +1483,7 @@
     }
 
     function exportData() {
-        showNotification('Data export feature coming soon!', 'info');
+        window.location.href = '{{ url_for("export_supervisor_data") }}';
     }
 
     // Setup event listeners
