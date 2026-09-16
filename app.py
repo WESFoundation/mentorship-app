@@ -5025,167 +5025,14 @@ def institution_all_tasks():
         flash("Institution not linked to your account.", "error")
         return redirect(url_for("institutiondashboard"))
 
-    all_institution_tasks = []
-    
-    # Get all mentors and mentees for this institution
-    all_mentors = User.query.filter_by(user_type="1").all()
-    all_mentors.sort(key=lambda u: (u.name or "").lower())
+    # Lightweight: only load dropdown lists, NO tasks
+    all_mentors = User.query.filter_by(user_type="1").order_by(User.name.asc()).all()
     _, institution_mentees = _get_institution_members(user, include_paired=True)
-    institution_user_ids = list(set([m.id for m in institution_mentees] + [user.id]))
-
-    all_ratings = TaskRating.query.all()
-    ratings_map = {(r.task_type, r.task_id): r for r in all_ratings}
-    all_mentee_fb = MenteeFeedback.query.all()
-    mentee_fb_map = {(f.task_type, f.task_id): f for f in all_mentee_fb}
-    mentee_fb_dual_map = {(f.task_type, f.task_id, f.mentee_id): f for f in all_mentee_fb if f.mentee_id}
-    all_inst_refl = InstitutionReflection.query.all()
-    inst_refl_set = {(r.task_type, r.task_id) for r in all_inst_refl}
-
-    def _resolve_task_fb(ttype, tid, mid=None, master_tid=None):
-        fb = mentee_fb_map.get((ttype, tid))
-        if not fb and ttype == 'master':
-            if master_tid:
-                if mid:
-                    fb = mentee_fb_dual_map.get(('master', master_tid, mid))
-                if not fb:
-                    fb = mentee_fb_map.get(('master', master_tid))
-            if not fb and mid:
-                fb = mentee_fb_dual_map.get(('master', tid, mid))
-        if not fb:
-            return False, 0
-        has_fb = bool(fb.rating or fb.mentor_rating or (fb.text or '').strip() or (fb.challenges or '').strip() or (fb.next_steps or '').strip() or (fb.extra or '').strip())
-        rating_val = fb.rating or fb.mentor_rating or 0
-        return has_fb, rating_val
-
-    def _resolve_task_refl(ttype, tid, master_tid=None):
-        if (ttype, tid) in inst_refl_set:
-            return True
-        if ttype == 'master' and master_tid and ('master', master_tid) in inst_refl_set:
-            return True
-        return False
-
-    # 1. PERSONAL TASKS (Self-assigned by mentees)
-    personal_tasks_self = PersonalTask.query.filter(
-        PersonalTask.mentee_id.in_(institution_user_ids),
-        PersonalTask.mentor_id == None
-    ).all()
-
-    for task in personal_tasks_self:
-        mentee = db.session.get(User, task.mentee_id)
-        r_obj = ratings_map.get(('personal', task.id))
-        has_mf, mf_rating = _resolve_task_fb('personal', task.id, task.mentee_id)
-        has_ref = _resolve_task_refl('personal', task.id)
-        all_institution_tasks.append({
-            "id": f"personal_{task.id}",
-            "serial": f"P-{task.id}",
-            "title": task.title,
-            "description": task.description,
-            "due_date": task.due_date,
-            "status": compute_task_progress_status("personal", task.id, task.mentee_id, None),
-            "progress": task.progress or 0,
-            "priority": task.priority or "medium",
-            "category": getattr(task, 'category', None) or "Personal",
-            "mentor_id": None,
-            "mentor_name": "Self-assigned",
-            "mentee_id": task.mentee_id,
-            "mentee_name": mentee.name if mentee else "Unknown",
-            "mentee_email": mentee.email if mentee else "",
-            "type": "personal",
-            "rating": r_obj.rating if r_obj else 0,
-            "menteeRating": mf_rating,
-            "hasMenteeFeedback": has_mf,
-            "hasReflection": has_ref,
-            "isCritical": (task.is_critical if hasattr(task, 'is_critical') else False) and task.status != 'completed',
-            "comments": task.comments if hasattr(task, 'comments') else None
-        })
-
-    # 2. PERSONAL TASKS (Assigned by mentors)
-    personal_tasks_by_mentors = PersonalTask.query.filter(
-        PersonalTask.mentee_id.in_(institution_user_ids),
-        PersonalTask.mentor_id != None
-    ).all()
-
-    for task in personal_tasks_by_mentors:
-        mentee = db.session.get(User, task.mentee_id)
-        mentor = db.session.get(User, task.mentor_id)
-        
-        # Include mentor tasks
-        if mentor:
-            r_obj = ratings_map.get(('personal', task.id))
-            has_mf, mf_rating = _resolve_task_fb('personal', task.id, task.mentee_id)
-            has_ref = _resolve_task_refl('personal', task.id)
-            all_institution_tasks.append({
-                "id": f"personal_{task.id}",
-                "serial": f"P-{task.id}",
-                "title": task.title,
-                "description": task.description,
-                "due_date": task.due_date,
-                "status": compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id),
-                "progress": task.progress or 0,
-                "priority": task.priority or "medium",
-                "category": getattr(task, 'category', None) or "Personal",
-                "mentor_id": task.mentor_id,
-                "mentor_name": mentor.name if mentor else "Unknown",
-                "mentor_email": mentor.email if mentor else "",
-                "mentee_id": task.mentee_id,
-                "mentee_name": mentee.name if mentee else "Unknown",
-                "mentee_email": mentee.email if mentee else "",
-                "type": "personal",
-                "rating": r_obj.rating if r_obj else 0,
-                "menteeRating": mf_rating,
-                "hasMenteeFeedback": has_mf,
-                "hasReflection": has_ref,
-                "isCritical": (task.is_critical if hasattr(task, 'is_critical') else False) and task.status != 'completed',
-                "comments": task.comments if hasattr(task, 'comments') else None
-            })
-
-    # 3. MENTEE TASKS (Master Tasks)
-    mentee_tasks = MenteeTask.query.filter(
-        MenteeTask.mentee_id.in_(institution_user_ids)
-    ).all()
-
-    for task in mentee_tasks:
-        mentee = db.session.get(User, task.mentee_id)
-        mentor = db.session.get(User, task.mentor_id)
-        master_task = db.session.get(MasterTask, task.task_id) if task.task_id else None
-        
-        if mentor:
-            r_obj = ratings_map.get(('master', task.id)) or (ratings_map.get(('master', task.task_id)) if task.task_id else None)
-            has_mf, mf_rating = _resolve_task_fb('master', task.id, task.mentee_id, task.task_id)
-            has_ref = _resolve_task_refl('master', task.id, task.task_id)
-            t_status = compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id)
-            all_institution_tasks.append({
-                "id": f"master_{task.id}",
-                "serial": f"M-{task.id}",
-                "title": master_task.purpose_of_call if master_task else "Mentorship Task",
-                "description": master_task.mentee_focus if master_task else "No description",
-                "due_date": task.due_date,
-                "status": t_status,
-                "progress": task.progress or 0,
-                "priority": "high",  # Master tasks are typically high priority
-                "category": "Mentorship Task",
-                "mentor_id": task.mentor_id,
-                "mentor_name": mentor.name if mentor else "Unknown",
-                "mentor_email": mentor.email if mentor else "",
-                "mentee_id": task.mentee_id,
-                "mentee_name": mentee.name if mentee else "Unknown",
-                "mentee_email": mentee.email if mentee else "",
-                "type": "master",
-                "rating": r_obj.rating if r_obj else 0,
-                "menteeRating": mf_rating,
-                "hasMenteeFeedback": has_mf,
-                "hasReflection": has_ref,
-                "isCritical": (task.status != "completed" and t_status != "done"),
-                "comments": task.comments if hasattr(task, 'comments') else None
-            })
-
-    # Sort by due date (most urgent first)
-    all_institution_tasks.sort(key=lambda x: x['due_date'] if x['due_date'] else datetime.max)
 
     return render_template(
         "institution/institution_all_tasks.html",
         show_sidebar=True,
-        tasks=all_institution_tasks,
+        tasks=[],
         mentors=[{"id": m.id, "name": m.name} for m in all_mentors],
         mentees=[{"id": m.id, "name": m.name} for m in institution_mentees],
         now=datetime.now(),
@@ -5200,6 +5047,14 @@ def get_institution_tasks_data():
     user = User.query.filter_by(email=session["email"]).first()
     institution_id = user.institution_id
     institution_name = user.institution
+
+    # Read optional filter params
+    f_status = request.args.get("status", "").strip()
+    f_mentor = request.args.get("mentor_id", "").strip()
+    f_mentee = request.args.get("mentee_id", "").strip()
+    f_priority = request.args.get("priority", "").strip()
+    f_category = request.args.get("category", "").strip()
+    f_type = request.args.get("type", "").strip()  # 'personal' or 'master'
 
     # Get all mentors and institution members using richer matching (aliases, profiles)
     all_mentors = User.query.filter_by(user_type="1").all()
@@ -5245,10 +5100,15 @@ def get_institution_tasks_data():
     
     tasks_data = []
     
-    # Get Personal Tasks
-    personal_tasks = PersonalTask.query.filter(
-        PersonalTask.mentee_id.in_(institution_user_ids)
-    ).all()
+    # Get Personal Tasks (filtered)
+    pt_query = PersonalTask.query.filter(PersonalTask.mentee_id.in_(institution_user_ids))
+    if f_mentee:
+        pt_query = pt_query.filter_by(mentee_id=int(f_mentee))
+    if f_mentor:
+        pt_query = pt_query.filter_by(mentor_id=int(f_mentor))
+    if f_priority:
+        pt_query = pt_query.filter_by(priority=f_priority)
+    personal_tasks = pt_query.all()
     
     for task in personal_tasks:
         mentee = db.session.get(User, task.mentee_id)
@@ -5280,10 +5140,13 @@ def get_institution_tasks_data():
             "isCritical": (task.is_critical if hasattr(task, 'is_critical') else False) and task.status != 'completed' and t_status != 'done'
         })
     
-    # Get Mentee Tasks (Master Tasks)
-    mentee_tasks = MenteeTask.query.filter(
-        MenteeTask.mentee_id.in_(institution_user_ids)
-    ).all()
+    # Get Mentee Tasks (Master Tasks, filtered)
+    mt_query = MenteeTask.query.filter(MenteeTask.mentee_id.in_(institution_user_ids))
+    if f_mentee:
+        mt_query = mt_query.filter_by(mentee_id=int(f_mentee))
+    if f_mentor:
+        mt_query = mt_query.filter_by(mentor_id=int(f_mentor))
+    mentee_tasks = mt_query.all()
     
     for task in mentee_tasks:
         mentee = db.session.get(User, task.mentee_id)
@@ -5316,6 +5179,15 @@ def get_institution_tasks_data():
             "isCritical": (task.status != "completed" and t_status != "done")
         })
     
+    # Apply status, type, and category filters (after status computation)
+    if f_status:
+        tasks_data = [t for t in tasks_data if t['status'] == f_status]
+    if f_type:
+        tasks_data = [t for t in tasks_data if t.get('type') == f_type]
+    if f_category:
+        cat_lower = f_category.lower()
+        tasks_data = [t for t in tasks_data if t.get('category', '').lower() == cat_lower]
+
     # Get institution mentors and mentees for filters
     # Use _get_institution_members for richer matching (aliases, profile fields)
     return jsonify({
@@ -10645,16 +10517,21 @@ def get_supervisor_tasks_data():
         return jsonify({"success": False, "message": "Unauthorized"})
     
     try:
-        # Pre-fetch all entities to avoid N+1 query storm
-        users_map = {u.id: u for u in User.query.all()}
-        master_tasks_map = {m.id: m for m in MasterTask.query.all()}
+        # Read optional filter params from query string
+        f_status = request.args.get("status", "").strip()
+        f_mentor = request.args.get("mentor_id", "").strip()
+        f_mentee = request.args.get("mentee_id", "").strip()
+        f_priority = request.args.get("priority", "").strip()
+        f_category = request.args.get("category", "").strip()
+
+        # Pre-fetch only what's needed for status computation
         all_ratings = TaskRating.query.all()
-        ratings_map = {(r.task_type, r.task_id): r for r in all_ratings}
         ratings_set = {(r.task_type, r.task_id) for r in all_ratings}
+        ratings_map = {(r.task_type, r.task_id): r for r in all_ratings}
         meetings_map = {m.id: m for m in MeetingRequest.query.all()}
         all_pdata = _get_all_meeting_participants()
 
-        # Pre-fetch all mentee feedbacks
+        # Pre-fetch mentee feedbacks
         mentee_feedbacks = MenteeFeedback.query.all()
         mentee_fb_map = {(mf.task_type, mf.task_id): mf for mf in mentee_feedbacks}
         mentee_fb_dual_map = {(mf.task_type, mf.task_id, mf.mentee_id): mf for mf in mentee_feedbacks if mf.mentee_id}
@@ -10675,8 +10552,36 @@ def get_supervisor_tasks_data():
             rating_val = fb.rating or fb.mentor_rating or 0
             return has_fb, rating_val
 
-        personal_tasks = PersonalTask.query.all()
-        mentee_tasks = MenteeTask.query.all()
+        # Build filtered query for personal tasks
+        pt_query = PersonalTask.query
+        if f_mentee:
+            pt_query = pt_query.filter_by(mentee_id=int(f_mentee))
+        if f_mentor:
+            pt_query = pt_query.filter_by(mentor_id=int(f_mentor))
+        if f_priority:
+            pt_query = pt_query.filter_by(priority=f_priority)
+        personal_tasks = pt_query.all()
+
+        # Build filtered query for mentee (master) tasks
+        mt_query = MenteeTask.query
+        if f_mentee:
+            mt_query = mt_query.filter_by(mentee_id=int(f_mentee))
+        if f_mentor:
+            mt_query = mt_query.filter_by(mentor_id=int(f_mentor))
+        mentee_tasks = mt_query.all()
+
+        # Batch-fetch users
+        all_user_ids = set()
+        for t in personal_tasks:
+            all_user_ids.add(t.mentee_id)
+            if t.mentor_id:
+                all_user_ids.add(t.mentor_id)
+        for t in mentee_tasks:
+            all_user_ids.add(t.mentee_id)
+            if t.mentor_id:
+                all_user_ids.add(t.mentor_id)
+        users_map = {u.id: u for u in User.query.filter(User.id.in_(all_user_ids)).all()} if all_user_ids else {}
+        master_tasks_map = {m.id: m for m in MasterTask.query.all()}
 
         tasks = []
         now_dt = datetime.utcnow()
@@ -10763,6 +10668,13 @@ def get_supervisor_tasks_data():
                     'meeting_number': task.meeting_number
                 })
 
+        # Apply status and category filters (applied after status computation)
+        if f_status:
+            tasks = [t for t in tasks if t['status'] == f_status]
+        if f_category:
+            cat_lower = f_category.lower()
+            tasks = [t for t in tasks if t.get('category', '').lower() == cat_lower]
+
         # Add serial numbers to tasks for frontend display
         for i, t in enumerate(tasks, start=1):
             try:
@@ -10809,112 +10721,7 @@ def supervisor_tasks():
         return redirect(url_for("signin"))
     
     try:
-        users_map = {u.id: u for u in User.query.all()}
-        all_ratings = TaskRating.query.all()
-        ratings_map = {(r.task_type, r.task_id): r for r in all_ratings}
-        ratings_set = {(r.task_type, r.task_id) for r in all_ratings}
-        meetings_map = {m.id: m for m in MeetingRequest.query.all()}
-        all_pdata = _get_all_meeting_participants()
-
-        # Pre-fetch all mentee feedbacks
-        mentee_feedbacks = MenteeFeedback.query.all()
-        mentee_fb_map = {(mf.task_type, mf.task_id): mf for mf in mentee_feedbacks}
-        mentee_fb_dual_map = {(mf.task_type, mf.task_id, mf.mentee_id): mf for mf in mentee_feedbacks if mf.mentee_id}
-
-        def _resolve_sup_mentee_fb(ttype, tid, mid=None, master_tid=None):
-            fb = mentee_fb_map.get((ttype, tid))
-            if not fb and ttype == 'master':
-                if master_tid:
-                    if mid:
-                        fb = mentee_fb_dual_map.get(('master', master_tid, mid))
-                    if not fb:
-                        fb = mentee_fb_map.get(('master', master_tid))
-                if not fb and mid:
-                    fb = mentee_fb_dual_map.get(('master', tid, mid))
-            if not fb:
-                return False, 0
-            has_fb = bool(fb.rating or fb.mentor_rating or (fb.text or '').strip() or (fb.challenges or '').strip() or (fb.next_steps or '').strip() or (fb.extra or '').strip())
-            rating_val = fb.rating or fb.mentor_rating or 0
-            return has_fb, rating_val
-
-        # Get all tasks with proper joins
-        personal_tasks = db.session.query(PersonalTask, User).join(
-            User, PersonalTask.mentee_id == User.id
-        ).all()
-        
-        mentee_tasks = db.session.query(MenteeTask, MasterTask, User).join(
-            MasterTask, MenteeTask.task_id == MasterTask.id
-        ).join(
-            User, MenteeTask.mentee_id == User.id
-        ).all()
-        
-        # Prepare tasks data
-        all_tasks = []
-        
-        # Process personal tasks
-        for task, user in personal_tasks:
-            mentor = users_map.get(task.mentor_id) if task.mentor_id else None
-            r_obj = ratings_map.get(('personal', task.id))
-            has_mf, mf_rating = _resolve_sup_mentee_fb("personal", task.id, task.mentee_id)
-            status = compute_task_progress_status(
-                "personal", task.id, task.mentee_id, task.mentor_id or None,
-                ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
-            )
-            all_tasks.append({
-                'id': f"personal_{task.id}",
-                'title': task.title,
-                'description': task.description,
-                'due_date': task.due_date,
-                'priority': task.priority,
-                'status': status,
-                'progress': task.progress,
-                'mentee_name': user.name,
-                'mentor_name': mentor.name if mentor else 'Self',
-                'category': 'Personal Task',
-                'type': 'personal',
-                'rating': r_obj.rating if r_obj else None,
-                'mentee_rating': mf_rating,
-                'menteeRating': mf_rating,
-                'has_mentee_feedback': has_mf,
-                'hasMenteeFeedback': has_mf
-            })
-        
-        # Process mentee tasks  
-        for task, master, user in mentee_tasks:
-            mentor = users_map.get(task.mentor_id)
-            r_obj = ratings_map.get(('master', task.id))
-            has_mf, mf_rating = _resolve_sup_mentee_fb("master", task.id, task.mentee_id, task.task_id)
-            status = compute_task_progress_status(
-                "master", task.id, task.mentee_id, task.mentor_id,
-                ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
-            )
-            all_tasks.append({
-                'id': f"master_{task.id}",
-                'title': f"{master.purpose_of_call} - {master.month}",
-                'description': master.mentee_focus,
-                'due_date': task.due_date,
-                'priority': 'medium',
-                'status': status,
-                'progress': task.progress,
-                'mentee_name': user.name,
-                'mentor_name': mentor.name if mentor else 'Unknown',
-                'category': 'Mentorship Task',
-                'type': 'master',
-                'rating': r_obj.rating if r_obj else None,
-                'mentee_rating': mf_rating,
-                'menteeRating': mf_rating,
-                'has_mentee_feedback': has_mf,
-                'hasMenteeFeedback': has_mf
-            })
-        
-        # Add serial numbers to all_tasks (dicts) for display
-        for i, task in enumerate(all_tasks, start=1):
-            try:
-                task['serial'] = i
-            except Exception:
-                pass
-
-        # Get all mentees and mentors for task creation dropdowns
+        # Lightweight: only load dropdown lists, NO tasks
         all_mentees = User.query.filter_by(user_type="2").order_by(User.name.asc()).all()
         mentee_list = [{'id': u.id, 'name': u.name or u.email or f"Mentee #{u.id}"} for u in all_mentees]
 
@@ -10925,7 +10732,7 @@ def supervisor_tasks():
             "supervisor/supervisor_tasks.html",
             show_sidebar=True,
             profile_complete=True,
-            all_tasks=all_tasks,
+            all_tasks=[],
             mentees_for_task=mentee_list,
             mentors_for_task=mentor_list
         )

@@ -633,9 +633,21 @@
 
     <!-- Tasks Grid -->
     <section>
-        <div id="loading-state" class="text-center py-8">
+        <div id="loading-state" class="text-center py-8 hidden">
             <div class="loading-spinner mx-auto mb-4"></div>
-            <p class="text-gray-600">Loading tasks data...</p>
+            <p class="text-gray-600">Loading tasks...</p>
+        </div>
+
+        <div id="tasks-empty-state" class="text-center py-12">
+            <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+            <h3 class="text-lg font-semibold text-gray-700 mb-2">Tasks not loaded yet</h3>
+            <p class="text-gray-500 mb-4">Click the button below to fetch tasks. You can also apply filters first to load only what you need.</p>
+            <button onclick="loadSupervisorTasks()" class="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20 transition flex items-center gap-2 mx-auto">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Load Tasks
+            </button>
         </div>
 
         <div id="tasks-container" class="space-y-4 hidden">
@@ -838,75 +850,54 @@
 
     // Initialize the page
     async function initializePage() {
-        console.log("🔄 Initializing supervisor tasks page...");
-
-        try {
-            // Load data from backend
-            await loadSupervisorTasks();
-
-            // Setup event listeners
-            setupEventListeners();
-
-            console.log("✅ Page initialization complete");
-
-        } catch (error) {
-            console.error("❌ Error initializing page:", error);
-            showNotification('Error loading page data: ' + error.message, 'error');
-        }
+        console.log("Initializing supervisor tasks page...");
+        // Setup event listeners (filters, search, etc.)
+        setupEventListeners();
+        // Do NOT auto-load tasks — user must click "Load Tasks" or apply a filter
+        document.getElementById('loading-state').classList.add('hidden');
+        document.getElementById('tasks-empty-state').classList.remove('hidden');
     }
 
-    // Load supervisor tasks from backend
+    // Load supervisor tasks from backend (called by Load Tasks button or filters)
     async function loadSupervisorTasks() {
         try {
-            console.log("🔄 Loading supervisor tasks data...");
+            document.getElementById('loading-state').classList.remove('hidden');
+            document.getElementById('tasks-empty-state').classList.add('hidden');
 
-            const response = await fetch('/get_supervisor_tasks_data');
-            console.log("📡 Response status:", response.status);
+            const params = new URLSearchParams();
+            if (currentFilter && currentFilter !== 'all') params.set('status', currentFilter);
+            if (currentMentorFilter && currentMentorFilter !== 'all') params.set('mentor_id', currentMentorFilter);
+            if (currentMenteeFilter && currentMenteeFilter !== 'all') params.set('mentee_id', currentMenteeFilter);
+            if (currentPriorityFilter && currentPriorityFilter !== 'all') params.set('priority', currentPriorityFilter);
+            if (currentCategoryFilter && currentCategoryFilter !== 'all') params.set('category', currentCategoryFilter);
 
+            const response = await fetch('/get_supervisor_tasks_data' + (params.toString() ? '?' + params.toString() : ''));
             const result = await response.json();
-            console.log("📦 Full API response:", result); // Debug the entire response
 
             if (result.success) {
-                console.log(`✅ Loaded ${result.tasks.length} tasks`);
-                console.log("📊 Tasks array:", result.tasks);
-                console.log("👥 Mentors:", result.mentors);
-                console.log("👤 Mentees:", result.mentees);
-
-                // Check if tasks have the expected structure
-                if (result.tasks.length > 0) {
-                    console.log("🔍 First task sample:", result.tasks[0]);
-                    console.log("🔍 Task keys:", Object.keys(result.tasks[0]));
-                }
-
                 allTasks = result.tasks;
                 allMentors = result.mentors || [];
                 allMentees = result.mentees || [];
 
-                // Hide loading state
                 document.getElementById('loading-state').classList.add('hidden');
+                if (allTasks.length === 0) {
+                    document.getElementById('tasks-empty-state').classList.remove('hidden');
+                } else {
+                    document.getElementById('tasks-empty-state').classList.add('hidden');
+                }
 
-                // Update statistics
                 updateStatistics();
-
-                // Populate filters before rendering
                 populateFilters();
-
-                // Render tasks
                 renderTasks();
-
-                // Update insights
                 updatePlatformInsights();
-
-                // Update overview metrics
                 updateOverviewMetrics();
-
             } else {
-                console.error("❌ Backend returned error:", result.message);
                 throw new Error(result.message || 'Failed to load tasks');
             }
         } catch (error) {
-            console.error("❌ Error loading tasks:", error);
+            console.error("Error loading tasks:", error);
             document.getElementById('loading-state').classList.add('hidden');
+            document.getElementById('tasks-empty-state').classList.remove('hidden');
             showNotification('Failed to load tasks: ' + error.message, 'error');
         }
     }
@@ -1178,7 +1169,7 @@
         <div class="task-card p-6 ${(task.status === 'completed' || task.status === 'done') ? 'completed' : ''} ${((task.status !== 'done' && task.status !== 'completed') && (task.isCritical || isOverdue)) ? 'urgent' : ''}">
             <div class="flex justify-between items-start mb-3">
                 <div class="flex items-center gap-3 flex-wrap">
-                    <span class="task-serial inline-flex items-center justify-center min-w-[32px] h-8 px-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-base font-bold shrink-0">#${task.serial || (index !== undefined ? index + 1 : '')}</span>
+                    <span class="task-serial inline-flex items-center gap-1 min-w-[32px] h-8 px-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-sm font-bold shrink-0"><span class="text-blue-500 text-xs font-semibold uppercase tracking-wide">Sr No.</span>${task.serial || (index !== undefined ? index + 1 : '')}</span>
                     <h3 class="text-lg font-semibold text-gray-900">${task.title || 'Untitled'}</h3>
                     <span class="task-status ${getStatusClass(task.status)}">${getStatusText(task.status)}</span>
                     <span class="badge ${task.type === 'master' ? 'badge-primary' : 'badge-secondary'}">${task.category || (task.type === 'master' ? 'Mentorship Task' : 'Personal Task')}</span>
@@ -1317,7 +1308,7 @@
     // Filter functions
     function filterTasks(filter) {
         currentFilter = filter;
-        renderTasks();
+        loadSupervisorTasks();
     }
 
     function searchTasks(searchTerm) {
@@ -1327,12 +1318,12 @@
 
     function filterByPriority(priority) {
         currentPriorityFilter = priority;
-        renderTasks();
+        loadSupervisorTasks();
     }
 
     function filterByCategory(category) {
         currentCategoryFilter = category;
-        renderTasks();
+        loadSupervisorTasks();
     }
 
     function toggleAdvancedFilters() {
@@ -1354,6 +1345,8 @@
         document.getElementById('task-search').value = '';
         document.getElementById('priority-filter').value = 'all';
         document.getElementById('category-filter').value = 'all';
+        document.getElementById('mentor-filter').value = 'all';
+        document.getElementById('mentee-filter').value = 'all';
         document.getElementById('due-from').value = '';
         document.getElementById('due-to').value = '';
 
@@ -1361,30 +1354,7 @@
             btn.classList.toggle('active', btn.dataset.filter === 'all');
         });
 
-        // Rebuild full mentor/mentee dropdowns
-        const mentorFilter = document.getElementById('mentor-filter');
-        mentorFilter.innerHTML = '<option value="all">All Mentors</option>';
-        const uniqueMentors = [...new Map(allTasks.map(t => [t.mentorId, { id: t.mentorId, name: t.mentorName }])).values()].sort((a, b) => a.name.localeCompare(b.name));
-        uniqueMentors.forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m.id;
-            opt.textContent = m.name;
-            mentorFilter.appendChild(opt);
-        });
-        mentorFilter.value = 'all';
-
-        const menteeFilter = document.getElementById('mentee-filter');
-        menteeFilter.innerHTML = '<option value="all">All Mentees</option>';
-        const uniqueMentees = [...new Map(allTasks.map(t => [t.menteeId, { id: t.menteeId, name: t.menteeName }])).values()].sort((a, b) => a.name.localeCompare(b.name));
-        uniqueMentees.forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m.id;
-            opt.textContent = m.name;
-            menteeFilter.appendChild(opt);
-        });
-        menteeFilter.value = 'all';
-
-        renderTasks();
+        loadSupervisorTasks();
     }
 
     function updateActiveFiltersDisplay() {
@@ -1393,22 +1363,22 @@
         const tags = [];
 
         if (currentFilter !== 'all') {
-            tags.push({ label: `Status: ${getStatusText(currentFilter)}`, clear: () => { currentFilter = 'all'; document.getElementById('status-filter').value = 'all'; document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === 'all')); renderTasks(); }});
+            tags.push({ label: `Status: ${getStatusText(currentFilter)}`, clear: () => { currentFilter = 'all'; document.getElementById('status-filter').value = 'all'; document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === 'all')); loadSupervisorTasks(); }});
         }
         if (currentSearch) {
             tags.push({ label: `Search: "${currentSearch}"`, clear: () => { currentSearch = ''; document.getElementById('task-search').value = ''; renderTasks(); }});
         }
         if (currentPriorityFilter !== 'all') {
-            tags.push({ label: `Priority: ${currentPriorityFilter}`, clear: () => { currentPriorityFilter = 'all'; document.getElementById('priority-filter').value = 'all'; renderTasks(); }});
+            tags.push({ label: `Priority: ${currentPriorityFilter}`, clear: () => { currentPriorityFilter = 'all'; document.getElementById('priority-filter').value = 'all'; loadSupervisorTasks(); }});
         }
         if (currentCategoryFilter !== 'all') {
-            tags.push({ label: `Category: ${currentCategoryFilter}`, clear: () => { currentCategoryFilter = 'all'; document.getElementById('category-filter').value = 'all'; renderTasks(); }});
+            tags.push({ label: `Category: ${currentCategoryFilter}`, clear: () => { currentCategoryFilter = 'all'; document.getElementById('category-filter').value = 'all'; loadSupervisorTasks(); }});
         }
         if (currentMentorFilter !== 'all') {
-            tags.push({ label: `Mentor: ${allTasks.find(t => t.mentorId == currentMentorFilter)?.mentorName || currentMentorFilter}`, clear: () => { currentMentorFilter = 'all'; document.getElementById('mentor-filter').value = 'all'; renderTasks(); }});
+            tags.push({ label: `Mentor: ${allTasks.find(t => t.mentorId == currentMentorFilter)?.mentorName || currentMentorFilter}`, clear: () => { currentMentorFilter = 'all'; document.getElementById('mentor-filter').value = 'all'; loadSupervisorTasks(); }});
         }
         if (currentMenteeFilter !== 'all') {
-            tags.push({ label: `Mentee: ${allTasks.find(t => t.menteeId == currentMenteeFilter)?.menteeName || currentMenteeFilter}`, clear: () => { currentMenteeFilter = 'all'; document.getElementById('mentee-filter').value = 'all'; renderTasks(); }});
+            tags.push({ label: `Mentee: ${allTasks.find(t => t.menteeId == currentMenteeFilter)?.menteeName || currentMenteeFilter}`, clear: () => { currentMenteeFilter = 'all'; document.getElementById('mentee-filter').value = 'all'; loadSupervisorTasks(); }});
         }
         if (currentDueFrom) {
             tags.push({ label: `From: ${currentDueFrom}`, clear: () => { currentDueFrom = ''; document.getElementById('due-from').value = ''; renderTasks(); }});
@@ -1516,37 +1486,18 @@
         // Mentor filter
         document.getElementById('mentor-filter').addEventListener('change', (e) => {
             currentMentorFilter = e.target.value;
-            // Cascade: rebuild mentee dropdown based on selected mentor
-            const menteeFilter = document.getElementById('mentee-filter');
-            const prevMentee = menteeFilter.value;
-            menteeFilter.innerHTML = '<option value="all">All Mentees</option>';
-            const matchingMentees = new Map();
-            allTasks.forEach(t => {
-                if (currentMentorFilter === 'all' || String(t.mentorId) === String(currentMentorFilter)) {
-                    if (t.menteeId && t.menteeName) matchingMentees.set(String(t.menteeId), t.menteeName);
-                }
-            });
-            [...matchingMentees.entries()].sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, name]) => {
-                const opt = document.createElement('option');
-                opt.value = id;
-                opt.textContent = name;
-                menteeFilter.appendChild(opt);
-            });
-            if (matchingMentees.has(prevMentee)) {
-                menteeFilter.value = prevMentee;
-            } else {
-                currentMenteeFilter = 'all';
-            }
-            renderTasks();
+            currentMenteeFilter = 'all';
+            document.getElementById('mentee-filter').value = 'all';
+            loadSupervisorTasks();
         });
 
         // Mentee filter
         document.getElementById('mentee-filter').addEventListener('change', (e) => {
             currentMenteeFilter = e.target.value;
-            renderTasks();
+            loadSupervisorTasks();
         });
 
-        // Date range filters
+        // Date range filters (client-side only)
         document.getElementById('due-from').addEventListener('change', (e) => {
             currentDueFrom = e.target.value;
             renderTasks();
