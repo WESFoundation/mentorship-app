@@ -848,11 +848,43 @@
     let currentDueFrom = '';
     let currentDueTo = '';
 
+    // Render supervisor analytics to all cards
+    function renderSupervisorAnalytics(a) {
+        if (!a) return;
+        if (document.getElementById('total-tasks')) document.getElementById('total-tasks').textContent = a.total || 0;
+        if (document.getElementById('completed-tasks')) document.getElementById('completed-tasks').textContent = a.completed || 0;
+        if (document.getElementById('pending-tasks')) document.getElementById('pending-tasks').textContent = ((a.in_progress || 0) + (a.not_started || 0));
+        if (document.getElementById('overdue-tasks')) document.getElementById('overdue-tasks').textContent = a.overdue || 0;
+
+        if (document.getElementById('tasks-by-mentors')) document.getElementById('tasks-by-mentors').textContent = a.active_mentors || 0;
+        if (document.getElementById('tasks-by-category')) document.getElementById('tasks-by-category').textContent = `${a.categories || 0} categories`;
+        if (document.getElementById('avg-completion-time')) document.getElementById('avg-completion-time').textContent = a.avg_completion_time || '7 days';
+        if (document.getElementById('active-mentors')) document.getElementById('active-mentors').textContent = a.active_mentors || 0;
+        if (document.getElementById('active-mentees')) document.getElementById('active-mentees').textContent = a.active_mentees || 0;
+        if (document.getElementById('tasks-this-month')) document.getElementById('tasks-this-month').textContent = a.tasks_this_month || a.total || 0;
+        if (document.getElementById('completion-rate')) document.getElementById('completion-rate').textContent = `${a.completion_rate || 0}%`;
+        if (document.getElementById('on-time-rate')) document.getElementById('on-time-rate').textContent = `${a.on_time_rate || 75}%`;
+        if (document.getElementById('avg-task-score')) document.getElementById('avg-task-score').textContent = a.avg_task_score || '4.2/5';
+
+        updatePlatformInsights(a);
+    }
+
     // Initialize the page
     async function initializePage() {
         console.log("Initializing supervisor tasks page...");
         setupEventListeners();
-        // Load analytics immediately
+
+        // 1. Immediately restore cached analytics from last time (instant UI)
+        try {
+            const cached = localStorage.getItem('sup_task_analytics');
+            if (cached) {
+                renderSupervisorAnalytics(JSON.parse(cached));
+            }
+        } catch (e) {
+            console.warn("Error reading cached analytics:", e);
+        }
+
+        // 2. Fetch fresh analytics without loading all tasks
         await loadSupervisorAnalytics();
         document.getElementById('loading-state').classList.add('hidden');
         document.getElementById('tasks-empty-state').classList.remove('hidden');
@@ -863,14 +895,12 @@
         try {
             const response = await fetch('/get_supervisor_task_analytics');
             const result = await response.json();
-            if (result.success) {
+            if (result.success && result.analytics) {
                 const a = result.analytics;
-                document.getElementById('total-tasks').textContent = a.total;
-                document.getElementById('completed-tasks').textContent = a.completed;
-                document.getElementById('pending-tasks').textContent = a.in_progress + a.not_started;
-                document.getElementById('overdue-tasks').textContent = a.overdue;
-                updatePlatformInsights(a);
-                updateOverviewMetrics(a);
+                renderSupervisorAnalytics(a);
+                try {
+                    localStorage.setItem('sup_task_analytics', JSON.stringify(a));
+                } catch (e) {}
             }
         } catch (e) {
             console.error('Failed to load analytics:', e);
@@ -890,20 +920,13 @@
         } else {
             insightText = `Attention needed. Completion rate is ${completionRate}%. Consider reviewing mentorship effectiveness.`;
         }
-        document.getElementById('insight-text').textContent = insightText;
+        const insightEl = document.getElementById('insight-text');
+        if (insightEl) insightEl.textContent = insightText;
     }
 
     // Update overview metrics from analytics
     function updateOverviewMetrics(a) {
-        document.getElementById('tasks-by-mentors').textContent = a.active_mentors || 0;
-        document.getElementById('tasks-by-category').textContent = `${a.categories || 0} categories`;
-        document.getElementById('avg-completion-time').textContent = '7 days';
-        document.getElementById('active-mentors').textContent = a.active_mentors || 0;
-        document.getElementById('active-mentees').textContent = a.active_mentees || 0;
-        document.getElementById('tasks-this-month').textContent = a.total || 0;
-        document.getElementById('completion-rate').textContent = `${a.completion_rate || 0}%`;
-        document.getElementById('on-time-rate').textContent = '75%';
-        document.getElementById('avg-task-score').textContent = '4.2/5';
+        renderSupervisorAnalytics(a);
     }
 
     // Load supervisor tasks from backend (called by Load Tasks button or filters)
