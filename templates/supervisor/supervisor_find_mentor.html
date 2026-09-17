@@ -194,7 +194,7 @@
                 </div>
                 {% endif %}
                 <div>
-                  <div class="text-[11px] sm:text-sm font-semibold text-gray-900 mentor-name leading-tight">{{ mentor.user.name }}</div>
+                  <div class="text-[11px] sm:text-sm font-semibold text-gray-900 mentor-name leading-tight">{{ mentor.user.name }}{% if mentor.user.premium %} <span class="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}</div>
                   <div class="text-[10px] sm:text-xs text-gray-500 truncate max-w-[180px]">{{ mentor.organisation or 'Not specified' }}</div>
                 </div>
               </div>

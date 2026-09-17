@@ -1164,6 +1164,9 @@ class User(db.Model):
     # Scholarly Mentee status
     scholarly = db.Column(db.Boolean, default=False)
 
+    # Premium Mentor status
+    premium = db.Column(db.Boolean, default=False)
+
     #connect form another table
     mentor_profile = db.relationship("MentorProfile", backref="user", uselist=False)
     mentee_profile = db.relationship("MenteeProfile", backref="user_ref", uselist=False, foreign_keys="MenteeProfile.user_id", overlaps="mentee_profile_ref,user")
@@ -2131,6 +2134,8 @@ def auto_migrate_schema():
                 ("mentorship_requests", "rated_at", "TIMESTAMP WITHOUT TIME ZONE" if db.engine.dialect.name == "postgresql" else "DATETIME"),
                 ("mentorship_requests", "rated_by", "INTEGER"),
                 ("mentor_profile", "supervisor_rating", "FLOAT"),
+                ("signup_details", "scholarly", "BOOLEAN"),
+                ("signup_details", "premium", "BOOLEAN"),
             ]
             for t_name, c_name, c_type in target_migrations:
                 try:
@@ -6696,25 +6701,28 @@ def update_scholarly_application_status(app_id):
         return jsonify({"success": False, "error": "Unauthorized"}), 401
 
     user = User.query.filter_by(email=session["email"]).first()
-    if not user or user.user_type not in ("0", "3", "4"):
+    if not user or str(user.user_type) not in ("0", "3", "4"):
         return jsonify({"success": False, "error": "Admin/Supervisor only"}), 403
 
-    app = ScholarlyApplication.query.get_or_404(req_id)
-    new_status = request.form.get("status")
+    app_record = ScholarlyApplication.query.get_or_404(app_id)
+    new_status = request.form.get("status") or (request.json.get("status") if request.is_json else None)
     if new_status not in ("approved", "rejected"):
         return jsonify({"success": False, "error": "Invalid status"}), 400
 
     try:
-        app.status = new_status
-        app.reviewed_at = datetime.utcnow()
-        app.reviewed_by = session.get("user_type", "unknown")
-        db.session.commit()
+        app_record.status = new_status
+        app_record.reviewed_at = datetime.utcnow()
+        app_record.reviewed_by = str(session.get("user_type", "unknown"))
 
         if new_status == "approved":
-            app.mentee.scholarly = True
+            if app_record.mentee:
+                app_record.mentee.scholarly = True
             db.session.commit()
             return jsonify({"success": True, "message": "Scholarly application approved!"})
         else:
+            if app_record.mentee:
+                app_record.mentee.scholarly = False
+            db.session.commit()
             return jsonify({"success": True, "message": "Scholarly application rejected."})
     except Exception as e:
         db.session.rollback()
@@ -6724,7 +6732,7 @@ def update_scholarly_application_status(app_id):
 @app.route("/supervisor/scholarly_requests")
 def supervisor_scholarly_requests():
     """Subpage showing scholarly applications submitted by mentees."""
-    if "email" not in session or session.get("user_type") not in ("0", "4"):
+    if "email" not in session or str(session.get("user_type")) not in ("0", "4"):
         return redirect(url_for("signin"))
 
     query = ScholarlyApplication.query.options(joinedload(ScholarlyApplication.mentee))
@@ -6753,7 +6761,7 @@ def supervisor_scholarly_requests():
 @app.route("/mentee/scholarly_requests")
 def mentee_scholarly_requests():
     """Mentee view of their own scholarly applications."""
-    if "email" not in session or session.get("user_type") != "2":
+    if "email" not in session or str(session.get("user_type")) != "2":
         return redirect(url_for("signin"))
 
     user = User.query.filter_by(email=session["email"]).first()
@@ -6775,7 +6783,7 @@ def mentee_scholarly_requests():
 @app.route("/api/premium_application", methods=["POST"])
 def submit_premium_application():
     """Submit a premium mentor application."""
-    if "email" not in session or session.get("user_type") != "1":
+    if "email" not in session or str(session.get("user_type")) != "1":
         return jsonify({"success": False, "error": "Unauthorized"}), 401
 
     user = User.query.filter_by(email=session["email"]).first()
@@ -6788,13 +6796,13 @@ def submit_premium_application():
         return jsonify({"success": False, "error": "Reason is required"}), 400
 
     try:
-        app = PremiumApplication(
+        app_record = PremiumApplication(
             mentor_id=user.id,
             reason=reason,
             years_experience=years_experience,
             status="pending"
         )
-        db.session.add(app)
+        db.session.add(app_record)
         db.session.commit()
         return jsonify({"success": True, "message": "Premium mentor application submitted successfully!"})
     except Exception as e:
@@ -6809,20 +6817,29 @@ def update_premium_application_status(app_id):
         return jsonify({"success": False, "error": "Unauthorized"}), 401
 
     user = User.query.filter_by(email=session["email"]).first()
-    if not user or user.user_type not in ("0", "3", "4"):
+    if not user or str(user.user_type) not in ("0", "3", "4"):
         return jsonify({"success": False, "error": "Admin/Supervisor only"}), 403
 
-    app = PremiumApplication.query.get_or_404(app_id)
-    new_status = request.form.get("status")
+    app_record = PremiumApplication.query.get_or_404(app_id)
+    new_status = request.form.get("status") or (request.json.get("status") if request.is_json else None)
     if new_status not in ("approved", "rejected"):
         return jsonify({"success": False, "error": "Invalid status"}), 400
 
     try:
-        app.status = new_status
-        app.reviewed_at = datetime.utcnow()
-        app.reviewed_by = session.get("user_type", "unknown")
-        db.session.commit()
-        return jsonify({"success": True, "message": f"Premium application {new_status}."})
+        app_record.status = new_status
+        app_record.reviewed_at = datetime.utcnow()
+        app_record.reviewed_by = str(session.get("user_type", "unknown"))
+
+        if new_status == "approved":
+            if app_record.mentor:
+                app_record.mentor.premium = True
+            db.session.commit()
+            return jsonify({"success": True, "message": "Premium application approved!"})
+        else:
+            if app_record.mentor:
+                app_record.mentor.premium = False
+            db.session.commit()
+            return jsonify({"success": True, "message": "Premium application rejected."})
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "error": str(e)}), 500

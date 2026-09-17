@@ -65,7 +65,7 @@
 
             <!-- Name & Basic Info -->
             <div class="text-center md:text-left">
-                <h2 class="text-3xl font-bold">{{ full_name }}</h2>
+                <h2 class="text-3xl font-bold flex items-center gap-2 justify-center md:justify-start flex-wrap">{{ full_name }}{% if is_premium or (user and user.premium) or (mentor and mentor.premium) or (mentor_user and mentor_user.premium) %} <span class="inline-flex items-center gap-1 text-xs font-bold text-amber-900 bg-amber-200 px-2.5 py-0.5 rounded-full border border-amber-300 shadow-sm align-middle" title="Premium Mentor"><svg class="w-3.5 h-3.5 text-amber-800" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}</h2>
                 <p class="text-blue-100 mt-1">{{ email }}</p>
                 <div class="flex flex-wrap gap-4 mt-3">
                     <div class="flex items-center bg-white/20 px-3 py-1 rounded-full">

@@ -255,7 +255,7 @@
                 <!-- Mentor -->
                 <div class="flex items-center">
                   <div class="text-right">
-                    <p class="font-semibold text-gray-800 text-sm">{{ req.mentor.name if req.mentor else 'Unknown' }}
+                    <p class="font-semibold text-gray-800 text-sm">{{ req.mentor.name if req.mentor else 'Unknown' }}{% if req.mentor and req.mentor.premium %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}
                     </p>
                     <p class="text-xs text-gray-500">Mentor</p>
                   </div>
