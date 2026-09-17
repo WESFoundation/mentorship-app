@@ -6664,7 +6664,7 @@ def submit_scholarly_application():
 
 
 @app.route("/api/scholarly_application/<int:app_id>/status", methods=["POST"])
-def update_scholarly_application_status(req_id):
+def update_scholarly_application_status(app_id):
     """Update status of a scholarly application (approve/reject)."""
     if "email" not in session:
         return jsonify({"success": False, "error": "Unauthorized"}), 401
