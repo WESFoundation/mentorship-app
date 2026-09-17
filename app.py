@@ -6748,6 +6748,7 @@ def supervisor_scholarly_requests():
 
     return render_template(
         "supervisor/supervisor_scholarly_requests.html",
+        show_sidebar=True,
         requests=requests_list,
         total_count=total_count,
         pending_count=pending_count,
@@ -6864,6 +6865,7 @@ def supervisor_premium_requests():
 
     return render_template(
         "supervisor/supervisor_premium_requests.html",
+        show_sidebar=True,
         applications=applications,
         total_count=total_count,
         pending_count=pending_count,

@@ -265,7 +265,7 @@
 
     <!-- Main Container for Sidebar and Content -->
     <div class="flex flex-1 overflow-hidden relative">
-        {% if show_sidebar %}
+        {% if show_sidebar or (show_sidebar != False and session.get('user_type')|string in ['0', '4']) %}
         <!-- Sidebar -->
         <aside id="sidebar" class="sidebar w-72 flex-shrink-0 flex flex-col transition-all duration-300 ease-in-out z-40
                           fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0

@@ -455,6 +455,16 @@
         line-height: 1;
         flex-shrink: 0;
     }
+
+    .task-type-personal {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+    
+    .task-type-master {
+        background: #f3e5f5;
+        color: #7b1fa2;
+    }
 </style>
 
 <!-- Main Content Container -->
@@ -1268,10 +1278,80 @@
         return dueDate < today;
     }
 
-    // Create individual task HTML
+    const MASTER_TASKS_DATA = {
+        1: { phase: "Getting to Know Each Other", purpose: "Ice-breaking, set comfort level" },
+        2: { phase: "Mentor Storytelling", purpose: "Inspiration through storytelling" },
+        3: { phase: "Academic Baseline", purpose: "Initial academic assessment" },
+        4: { phase: "Dream Mapping", purpose: "Map initial aspirations" },
+        5: { phase: "Dream Prioritization", purpose: "Link studies with future" },
+        6: { phase: "Goal Planning", purpose: "Goal-setting foundation" },
+        7: { phase: "Pathways & Opportunities", purpose: "Introduce scholarships & exams" },
+        8: { phase: "English & Confidence", purpose: "Start soft skills journey" },
+        9: { phase: "Study Habits", purpose: "Productivity session" },
+        10: { phase: "First Progress Review", purpose: "Check growth since last calls" },
+        11: { phase: "New Skills", purpose: "Skill exposure session" },
+        12: { phase: "Career Deep Dive", purpose: "Build advanced clarity" },
+        13: { phase: "Midpoint Review", purpose: "Halfway checkpoint" },
+        14: { phase: "Motivation & Resilience", purpose: "Build resilience" },
+        15: { phase: "Professional Exposure", purpose: "Exposure to real-world links" },
+        16: { phase: "Project Assignment", purpose: "Hands-on growth" },
+        17: { phase: "Project Review", purpose: "Ongoing evaluation" },
+        18: { phase: "Exam/Interview Preparation", purpose: "Exam/Interview readiness" },
+        19: { phase: "Final Review", purpose: "Document growth" },
+        20: { phase: "Graduation Call", purpose: "Closure & future commitment" }
+    };
+
+    function getTaskCardInfo(task) {
+        if (task.type === 'personal') {
+            return {
+                isPersonal: true,
+                taskNumber: null,
+                badgeHtml: `<span class="inline-flex items-center h-8 px-2.5 bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-xs font-semibold shrink-0">Personal Task</span>`,
+                titleText: task.title || 'Untitled Personal Task'
+            };
+        }
+
+        let taskNum = null;
+        if (task.taskNumber && Number(task.taskNumber) >= 1 && Number(task.taskNumber) <= 20) {
+            taskNum = Number(task.taskNumber);
+        } else if (task.meetingNumber && Number(task.meetingNumber) >= 1 && Number(task.meetingNumber) <= 20) {
+            taskNum = Number(task.meetingNumber);
+        } else {
+            const rawTitle = (task.title || '').toLowerCase();
+            const rawPhase = (task.journeyPhase || '').toLowerCase();
+            for (let i = 1; i <= 20; i++) {
+                const item = MASTER_TASKS_DATA[i];
+                if (rawTitle.includes(item.purpose.toLowerCase()) || rawTitle.includes(item.phase.toLowerCase()) || rawPhase.includes(item.phase.toLowerCase())) {
+                    taskNum = i;
+                    break;
+                }
+            }
+            if (!taskNum) {
+                const m = (task.title || '').match(/^(\d+)\./);
+                if (m) {
+                    const n = parseInt(m[1]);
+                    if (n >= 1 && n <= 20) taskNum = n;
+                }
+            }
+        }
+
+        const masterInfo = taskNum ? MASTER_TASKS_DATA[taskNum] : null;
+        const titleText = masterInfo ? `${masterInfo.phase} _ ${masterInfo.purpose}` : (task.title || 'Mentorship Task');
+
+        return {
+            isPersonal: false,
+            taskNumber: taskNum,
+            badgeHtml: taskNum
+                ? `<span class="inline-flex items-center gap-1 min-w-[32px] h-8 px-2.5 bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-sm font-bold shrink-0"><span class="text-indigo-500 text-xs font-semibold uppercase tracking-wide">Task</span>${taskNum}</span>`
+                : `<span class="badge task-type-master">Mentorship Task</span>`,
+            titleText: titleText
+        };
+    }
+
     // Create individual task HTML with rating display
     function createTaskHTML(task, index) {
         const isOverdue = isTaskOverdue(task);
+        const taskInfo = getTaskCardInfo(task);
 
         // Generate stars HTML based on rating
         const renderStars = (rating) => {
@@ -1292,10 +1372,10 @@
         <div class="task-card p-6 ${(task.status === 'completed' || task.status === 'done') ? 'completed' : ''} ${((task.status !== 'done' && task.status !== 'completed') && (task.isCritical || isOverdue)) ? 'urgent' : ''}">
             <div class="flex justify-between items-start mb-3">
                 <div class="flex items-center gap-3 flex-wrap">
-                    <span class="task-serial inline-flex items-center gap-1 min-w-[32px] h-8 px-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-sm font-bold shrink-0"><span class="text-blue-500 text-xs font-semibold uppercase tracking-wide">No.</span>${task.serial || (index !== undefined ? index + 1 : '')}</span>
-                    <h3 class="text-lg font-semibold text-gray-900">${task.serial || (index !== undefined ? index + 1 : '')}. ${task.title || 'Untitled'}</h3>
+                    <span class="task-serial inline-flex items-center gap-1 min-w-[32px] h-8 px-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-sm font-bold shrink-0"><span class="text-blue-500 text-xs font-semibold uppercase tracking-wide">No.</span>${index + 1}</span>
+                    ${taskInfo.badgeHtml}
+                    <h3 class="text-lg font-semibold text-gray-900">${taskInfo.titleText}</h3>
                     <span class="task-status ${getStatusClass(task.status)}">${getStatusText(task.status)}</span>
-                    <span class="badge ${task.type === 'master' ? 'badge-primary' : 'badge-secondary'}">${task.category || (task.type === 'master' ? 'Mentorship Task' : 'Personal Task')}</span>
                     ${((task.status !== 'done' && task.status !== 'completed') && task.isCritical) ? '<span class="badge badge-danger">Critical</span>' : ''}
                     ${isOverdue ? '<span class="badge badge-warning">Overdue</span>' : ''}
                 </div>
