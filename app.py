@@ -5177,6 +5177,9 @@ def get_institution_tasks_data():
         tasks_data.append({
             "id": f"personal_{task.id}",
             "serial": f"P-{task.id}",
+            "taskNumber": None,
+            "meetingNumber": None,
+            "journeyPhase": None,
             "title": task.title,
             "description": task.description,
             "dueDate": task.due_date.isoformat() if task.due_date else None,
@@ -5213,9 +5216,13 @@ def get_institution_tasks_data():
         has_ref = _resolve_api_task_refl("master", task.id, task.task_id)
         
         t_status = compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id)
+        task_num = getattr(task, 'meeting_number', None) or (master_task.meeting_number if master_task else None)
         tasks_data.append({
             "id": f"master_{task.id}",
             "serial": f"M-{task.id}",
+            "taskNumber": task_num,
+            "meetingNumber": task_num,
+            "journeyPhase": master_task.journey_phase if master_task else None,
             "title": master_task.purpose_of_call if master_task else "Mentorship Task",
             "description": master_task.mentee_focus if master_task else "No description",
             "dueDate": task.due_date.isoformat() if task.due_date else None,
@@ -5258,6 +5265,24 @@ def get_institution_tasks_data():
         cat_lower = f_category.lower()
         tasks_data = [t for t in tasks_data if t.get('category', '').lower() == cat_lower]
 
+    # Compute active mentorship mentor-to-mentees mapping
+    active_mrs = MentorshipRequest.query.filter(
+        MentorshipRequest.final_status == "approved"
+    ).all()
+    mentor_to_mentees_map = {}
+    for mr in active_mrs:
+        mentor_to_mentees_map.setdefault(str(mr.mentor_id), []).append(str(mr.mentee_id))
+
+    # Also augment with tasks data
+    for t in tasks_data:
+        if t.get('mentorId') and t.get('menteeId'):
+            m_str = str(t['mentorId'])
+            me_str = str(t['menteeId'])
+            if m_str not in mentor_to_mentees_map:
+                mentor_to_mentees_map[m_str] = []
+            if me_str not in mentor_to_mentees_map[m_str]:
+                mentor_to_mentees_map[m_str].append(me_str)
+
     # Get institution mentors and mentees for filters
     # Use _get_institution_members for richer matching (aliases, profile fields)
     return jsonify({
@@ -5265,6 +5290,7 @@ def get_institution_tasks_data():
         "tasks": tasks_data,
         "mentors": [{"id": m.id, "name": m.name} for m in all_mentors],
         "mentees": [{"id": m.id, "name": m.name} for m in institution_mentees_full],
+        "mentor_to_mentees": mentor_to_mentees_map,
         "institutionName": institution_name
     })
 
@@ -10934,6 +10960,23 @@ def get_supervisor_tasks_data():
             except Exception:
                 pass
 
+        # Compute active mentorship mentor-to-mentees mapping
+        active_mrs = MentorshipRequest.query.filter(
+            MentorshipRequest.final_status == "approved"
+        ).all()
+        mentor_to_mentees_map = {}
+        for mr in active_mrs:
+            mentor_to_mentees_map.setdefault(str(mr.mentor_id), []).append(str(mr.mentee_id))
+
+        for t in tasks:
+            if t.get('mentorId') and t.get('menteeId'):
+                m_str = str(t['mentorId'])
+                me_str = str(t['menteeId'])
+                if m_str not in mentor_to_mentees_map:
+                    mentor_to_mentees_map[m_str] = []
+                if me_str not in mentor_to_mentees_map[m_str]:
+                    mentor_to_mentees_map[m_str].append(me_str)
+
         all_sup_mentors = User.query.filter_by(user_type="1").order_by(User.name.asc()).all()
         all_sup_mentees = User.query.filter_by(user_type="2").order_by(User.name.asc()).all()
         mentors = [{'id': m.id, 'name': m.name or f"Mentor #{m.id}"} for m in all_sup_mentors]
@@ -10943,7 +10986,8 @@ def get_supervisor_tasks_data():
             "success": True,
             "tasks": tasks,
             "mentors": mentors,
-            "mentees": mentees
+            "mentees": mentees,
+            "mentor_to_mentees": mentor_to_mentees_map
         })
         
     except Exception as e:
@@ -12690,59 +12734,89 @@ def my_certificate():
     else:
         registration_date = "Registration date not available"
     
-    user_type = session.get("user_type")
+    user_type = str(user.user_type or session.get("user_type") or "")
     
     # Build selectable data lists
     connections_list = []
     sessions_list = []
     tasks_list = []
     
+    def _normalize_task_status(st):
+        if st in ["done", "completed"]:
+            return "completed"
+        elif st in ["in_progress", "in-progress", "committed"]:
+            return "in-progress"
+        return "pending"
+
     if user_type == "1":  # Mentor
         # Active mentees
-        active_mentorships = MentorshipRequest.query.filter_by(
-            mentor_id=user.id, final_status="approved"
+        active_mentorships = MentorshipRequest.query.filter(
+            MentorshipRequest.mentor_id == user.id,
+            MentorshipRequest.final_status.in_(["approved", "completed", "active"])
         ).all()
+        seen_mentee_ids = set()
         for mr in active_mentorships:
             mentee = User.query.get(mr.mentee_id)
-            if mentee:
+            if mentee and mentee.id not in seen_mentee_ids:
+                seen_mentee_ids.add(mentee.id)
                 connections_list.append({
                     "id": mr.id,
                     "name": mentee.name,
                     "type": "mentee"
                 })
+
+        # Also include mentees linked via MenteeTask if not already in list
+        mentee_tasks = MenteeTask.query.filter_by(mentor_id=user.id).all()
+        for t in mentee_tasks:
+            if t.mentee_id and t.mentee_id not in seen_mentee_ids:
+                mentee = User.query.get(t.mentee_id)
+                if mentee:
+                    seen_mentee_ids.add(t.mentee_id)
+                    connections_list.append({
+                        "id": f"t_{t.id}",
+                        "name": mentee.name,
+                        "type": "mentee"
+                    })
         
         # Sessions
-        sessions = MeetingRequest.query.filter_by(
-            requested_to_id=user.id, status="approved"
-        ).all()
+        sessions = MeetingRequest.query.filter(
+            db.or_(
+                MeetingRequest.requested_to_id == user.id,
+                MeetingRequest.requester_id == user.id
+            ),
+            MeetingRequest.status != "rejected"
+        ).order_by(MeetingRequest.meeting_date.desc()).all()
         for s in sessions:
-            requester = User.query.get(s.requester_id)
-            session_date = s.date.strftime("%b %d, %Y") if s.date else "TBD"
+            other_id = s.requester_id if s.requested_to_id == user.id else s.requested_to_id
+            other_user = User.query.get(other_id)
+            m_date = getattr(s, "meeting_date", None)
+            session_date = m_date.strftime("%b %d, %Y") if m_date else "TBD"
             sessions_list.append({
                 "id": s.id,
-                "title": s.title or "Meeting",
+                "title": getattr(s, "meeting_title", None) or "Meeting",
                 "date": session_date,
-                "with": requester.name if requester else "Unknown"
+                "with": other_user.name if other_user else "Unknown"
             })
         
         # Tasks
-        mentee_tasks = MenteeTask.query.filter_by(mentor_id=user.id).all()
         for t in mentee_tasks:
             mentee = User.query.get(t.mentee_id)
             task_name = t.master_task.purpose_of_call if t.master_task else f"Task #{t.meeting_number}"
+            raw_st = compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id)
             tasks_list.append({
                 "id": t.id,
                 "title": task_name,
-                "status": compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id),
+                "status": _normalize_task_status(raw_st),
                 "with": mentee.name if mentee else "Unknown"
             })
         
         personal_tasks = PersonalTask.query.filter_by(mentor_id=user.id).all()
         for t in personal_tasks:
+            raw_st = compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id or None)
             tasks_list.append({
                 "id": f"p{t.id}",
                 "title": t.title,
-                "status": compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id or None),
+                "status": _normalize_task_status(raw_st),
                 "with": "Personal"
             })
         
@@ -12751,50 +12825,73 @@ def my_certificate():
         
     elif user_type == "2":  # Mentee
         # Active mentors
-        active_mentorships = MentorshipRequest.query.filter_by(
-            mentee_id=user.id, final_status="approved"
+        active_mentorships = MentorshipRequest.query.filter(
+            MentorshipRequest.mentee_id == user.id,
+            MentorshipRequest.final_status.in_(["approved", "completed", "active"])
         ).all()
+        seen_mentor_ids = set()
         for mr in active_mentorships:
             mentor = User.query.get(mr.mentor_id)
-            if mentor:
+            if mentor and mentor.id not in seen_mentor_ids:
+                seen_mentor_ids.add(mentor.id)
                 connections_list.append({
                     "id": mr.id,
                     "name": mentor.name,
                     "type": "mentor"
                 })
+
+        # Also include mentors linked via MenteeTask if not already in list
+        mentee_tasks = MenteeTask.query.filter_by(mentee_id=user.id).all()
+        for t in mentee_tasks:
+            if t.mentor_id and t.mentor_id not in seen_mentor_ids:
+                mentor = User.query.get(t.mentor_id)
+                if mentor:
+                    seen_mentor_ids.add(t.mentor_id)
+                    connections_list.append({
+                        "id": f"t_{t.id}",
+                        "name": mentor.name,
+                        "type": "mentor"
+                    })
         
         # Sessions
-        sessions = MeetingRequest.query.filter_by(
-            requester_id=user.id, status="approved"
-        ).all()
+        sessions = MeetingRequest.query.filter(
+            db.or_(
+                MeetingRequest.requester_id == user.id,
+                MeetingRequest.requested_to_id == user.id
+            ),
+            MeetingRequest.status != "rejected"
+        ).order_by(MeetingRequest.meeting_date.desc()).all()
         for s in sessions:
-            target = User.query.get(s.requested_to_id)
-            session_date = s.date.strftime("%b %d, %Y") if s.date else "TBD"
+            other_id = s.requested_to_id if s.requester_id == user.id else s.requester_id
+            other_user = User.query.get(other_id)
+            m_date = getattr(s, "meeting_date", None)
+            session_date = m_date.strftime("%b %d, %Y") if m_date else "TBD"
             sessions_list.append({
                 "id": s.id,
-                "title": s.title or "Meeting",
+                "title": getattr(s, "meeting_title", None) or "Meeting",
                 "date": session_date,
-                "with": target.name if target else "Unknown"
+                "with": other_user.name if other_user else "Unknown"
             })
         
         # Tasks
-        mentee_tasks = MenteeTask.query.filter_by(mentee_id=user.id).all()
         for t in mentee_tasks:
             mentor = User.query.get(t.mentor_id)
             task_name = t.master_task.purpose_of_call if t.master_task else f"Task #{t.meeting_number}"
+            raw_st = compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id)
             tasks_list.append({
                 "id": t.id,
                 "title": task_name,
-                "status": compute_task_progress_status("master", t.id, t.mentee_id, t.mentor_id),
+                "status": _normalize_task_status(raw_st),
                 "with": mentor.name if mentor else "Unknown"
             })
         
         personal_tasks = PersonalTask.query.filter_by(mentee_id=user.id).all()
         for t in personal_tasks:
+            raw_st = compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id or None)
             tasks_list.append({
                 "id": f"p{t.id}",
                 "title": t.title,
-                "status": compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id or None),
+                "status": _normalize_task_status(raw_st),
                 "with": "Personal"
             })
         

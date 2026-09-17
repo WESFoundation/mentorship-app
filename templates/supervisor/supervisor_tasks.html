@@ -926,6 +926,7 @@
                 allTasks = result.tasks;
                 allMentors = result.mentors || [];
                 allMentees = result.mentees || [];
+                mentorToMenteesMap = result.mentor_to_mentees || {};
 
                 document.getElementById('loading-state').classList.add('hidden');
                 document.getElementById('tasks-empty-state').classList.add('hidden');
@@ -1005,6 +1006,47 @@
         document.getElementById('avg-task-score').textContent = '4.2/5';
     }
 
+    let mentorToMenteesMap = {};
+    let allMenteesMaster = [];
+
+    // Helper to update mentee filter dropdown based on selected mentor
+    function updateMenteeDropdownForMentor(selectedMentorId) {
+        const menteeFilter = document.getElementById('mentee-filter');
+        if (!menteeFilter) return;
+
+        const prevMenteeValue = currentMenteeFilter;
+        while (menteeFilter.children.length > 1) menteeFilter.removeChild(menteeFilter.lastChild);
+
+        let filteredMentees = allMenteesMaster;
+        if (selectedMentorId && selectedMentorId !== 'all') {
+            const connectedMenteeIds = new Set((mentorToMenteesMap[String(selectedMentorId)] || []).map(String));
+            filteredMentees = allMenteesMaster.filter(m => connectedMenteeIds.has(String(m.id)));
+        }
+
+        filteredMentees.forEach(mentee => {
+            const option = document.createElement('option');
+            option.value = mentee.id;
+            option.textContent = mentee.name;
+            menteeFilter.appendChild(option);
+        });
+
+        if (selectedMentorId && selectedMentorId !== 'all' && filteredMentees.length === 0) {
+            const emptyOption = document.createElement('option');
+            emptyOption.value = 'none';
+            emptyOption.disabled = true;
+            emptyOption.textContent = 'No active mentees';
+            menteeFilter.appendChild(emptyOption);
+        }
+
+        if (prevMenteeValue !== 'all' && filteredMentees.some(m => String(m.id) === String(prevMenteeValue))) {
+            menteeFilter.value = prevMenteeValue;
+            currentMenteeFilter = prevMenteeValue;
+        } else {
+            menteeFilter.value = 'all';
+            currentMenteeFilter = 'all';
+        }
+    }
+
     // Populate filters
     function populateFilters() {
         // Populate category filter
@@ -1042,9 +1084,9 @@
             option.textContent = m.name;
             mentorFilter.appendChild(option);
         });
+        mentorFilter.value = currentMentorFilter || 'all';
 
-        // Populate mentee filter
-        const menteeFilter = document.getElementById('mentee-filter');
+        // Master mentee list
         const menteeMap = new Map();
         (allMentees || []).forEach(m => {
             if (m && m.id) menteeMap.set(String(m.id), m.name || `Mentee #${m.id}`);
@@ -1054,19 +1096,13 @@
                 menteeMap.set(String(t.menteeId), t.menteeName);
             }
         });
-        const uniqueMentees = Array.from(menteeMap.entries()).map(([id, name]) => ({ id, name }));
-        uniqueMentees.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-        while (menteeFilter.children.length > 1) {
-            menteeFilter.removeChild(menteeFilter.lastChild);
-        }
-        uniqueMentees.forEach(m => {
-            const option = document.createElement('option');
-            option.value = m.id;
-            option.textContent = m.name;
-            menteeFilter.appendChild(option);
-        });
+        allMenteesMaster = Array.from(menteeMap.entries()).map(([id, name]) => ({ id, name }));
+        allMenteesMaster.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-        console.log(`🎯 Populated ${categories.length} categories, ${uniqueMentors.length} mentors, ${uniqueMentees.length} mentees`);
+        // Populate mentee filter with respect to selected mentor
+        updateMenteeDropdownForMentor(currentMentorFilter);
+
+        console.log(`🎯 Populated ${categories.length} categories, ${uniqueMentors.length} mentors, ${allMenteesMaster.length} mentees`);
     }
 
     // Render tasks based on filters
@@ -1423,6 +1459,7 @@
         document.getElementById('category-filter').value = 'all';
         document.getElementById('mentor-filter').value = 'all';
         document.getElementById('mentee-filter').value = 'all';
+        updateMenteeDropdownForMentor('all');
         document.getElementById('due-from').value = '';
         document.getElementById('due-to').value = '';
 
@@ -1455,7 +1492,7 @@
             tags.push({ label: `Category: ${currentCategoryFilter}`, clear: () => { currentCategoryFilter = 'all'; document.getElementById('category-filter').value = 'all'; loadSupervisorTasks(); }});
         }
         if (currentMentorFilter !== 'all') {
-            tags.push({ label: `Mentor: ${allTasks.find(t => t.mentorId == currentMentorFilter)?.mentorName || currentMentorFilter}`, clear: () => { currentMentorFilter = 'all'; document.getElementById('mentor-filter').value = 'all'; loadSupervisorTasks(); }});
+            tags.push({ label: `Mentor: ${allTasks.find(t => t.mentorId == currentMentorFilter)?.mentorName || currentMentorFilter}`, clear: () => { currentMentorFilter = 'all'; document.getElementById('mentor-filter').value = 'all'; updateMenteeDropdownForMentor('all'); loadSupervisorTasks(); }});
         }
         if (currentMenteeFilter !== 'all') {
             tags.push({ label: `Mentee: ${allTasks.find(t => t.menteeId == currentMenteeFilter)?.menteeName || currentMenteeFilter}`, clear: () => { currentMenteeFilter = 'all'; document.getElementById('mentee-filter').value = 'all'; loadSupervisorTasks(); }});
@@ -1567,7 +1604,7 @@
         document.getElementById('mentor-filter').addEventListener('change', (e) => {
             currentMentorFilter = e.target.value;
             currentMenteeFilter = 'all';
-            document.getElementById('mentee-filter').value = 'all';
+            updateMenteeDropdownForMentor(currentMentorFilter);
             if (allTasks && allTasks.length > 0) {
                 renderTasks();
             } else {

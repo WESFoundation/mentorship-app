@@ -926,6 +926,34 @@ function updateOverviewMetrics(a) {
     document.getElementById('avg-task-score').textContent = '4.2/5';
 }
 
+// Update statistics from loaded tasks
+function updateStatistics() {
+    if (!allTasks) return;
+    const total = allTasks.length;
+    const completed = allTasks.filter(t => t.status === 'completed' || t.status === 'done').length;
+    const inProgress = allTasks.filter(t => t.status === 'in-progress' || t.status === 'inprogress').length;
+    const notStarted = allTasks.filter(t => t.status === 'not-started' || t.status === 'pending' || t.status === 'to-do').length;
+    const committed = allTasks.filter(t => t.status === 'committed').length;
+    const overdue = allTasks.filter(t => t.isCritical || isTaskOverdue(t)).length;
+
+    const elTotal = document.getElementById('total-tasks');
+    const elCompleted = document.getElementById('completed-tasks');
+    const elPending = document.getElementById('pending-tasks');
+    const elOverdue = document.getElementById('overdue-tasks');
+
+    if (elTotal) elTotal.textContent = total;
+    if (elCompleted) elCompleted.textContent = completed;
+    if (elPending) elPending.textContent = notStarted + committed + inProgress;
+    if (elOverdue) elOverdue.textContent = overdue;
+
+    const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const elRate = document.getElementById('completion-rate');
+    if (elRate) elRate.textContent = `${completionRate}%`;
+
+    const elMonth = document.getElementById('tasks-this-month');
+    if (elMonth) elMonth.textContent = total;
+}
+
 // Load institution tasks from backend (called by Load Tasks button or filters)
 async function loadInstitutionTasks() {
     try {
@@ -947,6 +975,7 @@ async function loadInstitutionTasks() {
             allTasks = result.tasks;
             allMentors = result.mentors || [];
             allMentees = result.mentees || [];
+            mentorToMenteesMap = result.mentor_to_mentees || {};
 
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('tasks-empty-state').classList.add('hidden');
@@ -962,6 +991,47 @@ async function loadInstitutionTasks() {
         document.getElementById('loading-state').classList.add('hidden');
         document.getElementById('tasks-empty-state').classList.remove('hidden');
         showNotification('Failed to load tasks: ' + error.message, 'error');
+    }
+}
+
+let mentorToMenteesMap = {};
+let allMenteesMaster = [];
+
+// Helper to update mentee filter dropdown based on selected mentor
+function updateMenteeDropdownForMentor(selectedMentorId) {
+    const menteeFilter = document.getElementById('mentee-filter');
+    if (!menteeFilter) return;
+
+    const prevMenteeValue = currentMenteeFilter;
+    while (menteeFilter.children.length > 1) menteeFilter.removeChild(menteeFilter.lastChild);
+
+    let filteredMentees = allMenteesMaster;
+    if (selectedMentorId && selectedMentorId !== 'all') {
+        const connectedMenteeIds = new Set((mentorToMenteesMap[String(selectedMentorId)] || []).map(String));
+        filteredMentees = allMenteesMaster.filter(m => connectedMenteeIds.has(String(m.id)));
+    }
+
+    filteredMentees.forEach(mentee => {
+        const option = document.createElement('option');
+        option.value = mentee.id;
+        option.textContent = mentee.name;
+        menteeFilter.appendChild(option);
+    });
+
+    if (selectedMentorId && selectedMentorId !== 'all' && filteredMentees.length === 0) {
+        const emptyOption = document.createElement('option');
+        emptyOption.value = 'none';
+        emptyOption.disabled = true;
+        emptyOption.textContent = 'No active mentees';
+        menteeFilter.appendChild(emptyOption);
+    }
+
+    if (prevMenteeValue !== 'all' && filteredMentees.some(m => String(m.id) === String(prevMenteeValue))) {
+        menteeFilter.value = prevMenteeValue;
+        currentMenteeFilter = prevMenteeValue;
+    } else {
+        menteeFilter.value = 'all';
+        currentMenteeFilter = 'all';
     }
 }
 
@@ -991,16 +1061,23 @@ function populateFilters() {
         option.textContent = mentor.name;
         mentorFilter.appendChild(option);
     });
+    mentorFilter.value = currentMentorFilter || 'all';
     
-    // Populate mentee filter
-    const menteeFilter = document.getElementById('mentee-filter');
-    while (menteeFilter.children.length > 1) menteeFilter.removeChild(menteeFilter.lastChild);
-    [...allMentees].sort((a, b) => (a.name || '').localeCompare(b.name || '')).forEach(mentee => {
-        const option = document.createElement('option');
-        option.value = mentee.id;
-        option.textContent = mentee.name;
-        menteeFilter.appendChild(option);
+    // Master mentee list
+    const menteeMap = new Map();
+    (allMentees || []).forEach(m => {
+        if (m && m.id) menteeMap.set(String(m.id), m.name || `Mentee #${m.id}`);
     });
+    (allTasks || []).forEach(t => {
+        if (t && t.menteeId && t.menteeName && !menteeMap.has(String(t.menteeId))) {
+            menteeMap.set(String(t.menteeId), t.menteeName);
+        }
+    });
+    allMenteesMaster = Array.from(menteeMap.entries()).map(([id, name]) => ({ id, name }));
+    allMenteesMaster.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    // Populate mentee filter with respect to selected mentor
+    updateMenteeDropdownForMentor(currentMentorFilter);
 
     // Populate category filter
     const categoryFilter = document.getElementById('category-filter');
@@ -1160,10 +1237,80 @@ function isTaskOverdue(task) {
     return dueDate < today;
 }
 
+const MASTER_TASKS_DATA = {
+    1: { phase: "Getting to Know Each Other", purpose: "Ice-breaking, set comfort level" },
+    2: { phase: "Mentor Storytelling", purpose: "Inspiration through storytelling" },
+    3: { phase: "Academic Baseline", purpose: "Initial academic assessment" },
+    4: { phase: "Dream Mapping", purpose: "Map initial aspirations" },
+    5: { phase: "Dream Prioritization", purpose: "Link studies with future" },
+    6: { phase: "Goal Planning", purpose: "Goal-setting foundation" },
+    7: { phase: "Pathways & Opportunities", purpose: "Introduce scholarships & exams" },
+    8: { phase: "English & Confidence", purpose: "Start soft skills journey" },
+    9: { phase: "Study Habits", purpose: "Productivity session" },
+    10: { phase: "First Progress Review", purpose: "Check growth since last calls" },
+    11: { phase: "New Skills", purpose: "Skill exposure session" },
+    12: { phase: "Career Deep Dive", purpose: "Build advanced clarity" },
+    13: { phase: "Midpoint Review", purpose: "Halfway checkpoint" },
+    14: { phase: "Motivation & Resilience", purpose: "Build resilience" },
+    15: { phase: "Professional Exposure", purpose: "Exposure to real-world links" },
+    16: { phase: "Project Assignment", purpose: "Hands-on growth" },
+    17: { phase: "Project Review", purpose: "Ongoing evaluation" },
+    18: { phase: "Exam/Interview Preparation", purpose: "Exam/Interview readiness" },
+    19: { phase: "Final Review", purpose: "Document growth" },
+    20: { phase: "Graduation Call", purpose: "Closure & future commitment" }
+};
+
+function getTaskCardInfo(task) {
+    if (task.type === 'personal') {
+        return {
+            isPersonal: true,
+            taskNumber: null,
+            badgeHtml: `<span class="inline-flex items-center h-8 px-2.5 bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-xs font-semibold shrink-0">Personal Task</span>`,
+            titleText: task.title || 'Untitled Personal Task'
+        };
+    }
+
+    let taskNum = null;
+    if (task.taskNumber && Number(task.taskNumber) >= 1 && Number(task.taskNumber) <= 20) {
+        taskNum = Number(task.taskNumber);
+    } else if (task.meetingNumber && Number(task.meetingNumber) >= 1 && Number(task.meetingNumber) <= 20) {
+        taskNum = Number(task.meetingNumber);
+    } else {
+        const rawTitle = (task.title || '').toLowerCase();
+        const rawPhase = (task.journeyPhase || '').toLowerCase();
+        for (let i = 1; i <= 20; i++) {
+            const item = MASTER_TASKS_DATA[i];
+            if (rawTitle.includes(item.purpose.toLowerCase()) || rawTitle.includes(item.phase.toLowerCase()) || rawPhase.includes(item.phase.toLowerCase())) {
+                taskNum = i;
+                break;
+            }
+        }
+        if (!taskNum) {
+            const m = (task.title || '').match(/^(\d+)\./);
+            if (m) {
+                const n = parseInt(m[1]);
+                if (n >= 1 && n <= 20) taskNum = n;
+            }
+        }
+    }
+
+    const masterInfo = taskNum ? MASTER_TASKS_DATA[taskNum] : null;
+    const titleText = masterInfo ? `${masterInfo.phase} _ ${masterInfo.purpose}` : (task.title || 'Mentorship Task');
+
+    return {
+        isPersonal: false,
+        taskNumber: taskNum,
+        badgeHtml: taskNum
+            ? `<span class="inline-flex items-center gap-1 min-w-[32px] h-8 px-2.5 bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-sm font-bold shrink-0"><span class="text-indigo-500 text-xs font-semibold uppercase tracking-wide">Task</span>${taskNum}</span>`
+            : `<span class="badge task-type-master">Mentorship Task</span>`,
+        titleText: titleText
+    };
+}
+
 // Create individual task HTML
 function createTaskHTML(task, index) {
     const isOverdue = isTaskOverdue(task);
-    const taskTypeClass = task.type === 'master' ? 'task-type-master' : 'task-type-personal';
+    const taskInfo = getTaskCardInfo(task);
     
     // Generate stars HTML based on rating
     const renderStars = (rating) => {
@@ -1185,9 +1332,9 @@ function createTaskHTML(task, index) {
             <div class="flex justify-between items-start mb-3">
                 <div class="flex items-center gap-3 flex-wrap">
                     <span class="task-serial inline-flex items-center gap-1 min-w-[32px] h-8 px-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-sm font-bold shrink-0"><span class="text-blue-500 text-xs font-semibold uppercase tracking-wide">No.</span>${index + 1}</span>
-                    <h3 class="text-lg font-semibold text-gray-900">${index + 1}. ${task.title || 'Untitled'}</h3>
+                    ${taskInfo.badgeHtml}
+                    <h3 class="text-lg font-semibold text-gray-900">${taskInfo.titleText}</h3>
                     <span class="task-status ${getStatusClass(task.status)}">${getStatusText(task.status)}</span>
-                    <span class="badge ${taskTypeClass}">${task.type === 'master' ? 'Mentorship Task' : 'Personal Task'}</span>
                     ${((task.status !== 'done' && task.status !== 'completed') && task.isCritical) ? '<span class="badge badge-danger">Critical</span>' : ''}
                     ${isOverdue ? '<span class="badge badge-warning">Overdue</span>' : ''}
                 </div>
@@ -1365,7 +1512,7 @@ function searchTasks(searchTerm) {
 function filterByMentor(mentorId) {
     currentMentorFilter = mentorId;
     currentMenteeFilter = 'all';
-    document.getElementById('mentee-filter').value = 'all';
+    updateMenteeDropdownForMentor(mentorId);
     if (allTasks && allTasks.length > 0) {
         renderTasks();
     } else {
@@ -1405,6 +1552,7 @@ function clearAllFilters() {
     document.getElementById('category-filter').value = 'all';
     document.getElementById('mentor-filter').value = 'all';
     document.getElementById('mentee-filter').value = 'all';
+    updateMenteeDropdownForMentor('all');
     document.getElementById('due-from').value = '';
     document.getElementById('due-to').value = '';
 
@@ -1484,7 +1632,8 @@ function viewTaskDetails(taskId) {
         if (el) el.textContent = val !== undefined && val !== null ? val : '';
     };
 
-    setSafe('detail-task-title', task.title || 'Untitled');
+    const taskInfo = getTaskCardInfo(task);
+    setSafe('detail-task-title', taskInfo.titleText || task.title || 'Untitled');
     setSafe('detail-task-mentor', task.mentorName || 'Self-assigned');
     setSafe('detail-task-mentee', task.menteeName || 'Unknown');
     const stText = getStatusText(task.status, task.dueDate);
