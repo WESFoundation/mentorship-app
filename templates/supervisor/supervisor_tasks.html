@@ -851,11 +851,60 @@
     // Initialize the page
     async function initializePage() {
         console.log("Initializing supervisor tasks page...");
-        // Setup event listeners (filters, search, etc.)
         setupEventListeners();
-        // Do NOT auto-load tasks — user must click "Load Tasks" or apply a filter
+        // Load analytics immediately
+        await loadSupervisorAnalytics();
         document.getElementById('loading-state').classList.add('hidden');
         document.getElementById('tasks-empty-state').classList.remove('hidden');
+    }
+
+    // Load analytics immediately on page load (does NOT load tasks)
+    async function loadSupervisorAnalytics() {
+        try {
+            const response = await fetch('/get_supervisor_task_analytics');
+            const result = await response.json();
+            if (result.success) {
+                const a = result.analytics;
+                document.getElementById('total-tasks').textContent = a.total;
+                document.getElementById('completed-tasks').textContent = a.completed;
+                document.getElementById('pending-tasks').textContent = a.in_progress + a.not_started;
+                document.getElementById('overdue-tasks').textContent = a.overdue;
+                updatePlatformInsights(a);
+                updateOverviewMetrics(a);
+            }
+        } catch (e) {
+            console.error('Failed to load analytics:', e);
+        }
+    }
+
+    // Update platform insights from analytics
+    function updatePlatformInsights(a) {
+        const completionRate = a.completion_rate || 0;
+        const criticalTasks = a.critical || 0;
+        const activeMentors = a.active_mentors || 0;
+        let insightText = '';
+        if (completionRate >= 80) {
+            insightText = `Excellent! Platform completion rate is ${completionRate}%. ${criticalTasks} critical tasks need attention.`;
+        } else if (completionRate >= 60) {
+            insightText = `Good progress. Completion rate is ${completionRate}%. ${activeMentors} active mentors are engaged.`;
+        } else {
+            insightText = `Attention needed. Completion rate is ${completionRate}%. Consider reviewing mentorship effectiveness.`;
+        }
+        document.getElementById('insight-text').textContent = insightText;
+    }
+
+    // Update overview metrics from analytics
+    function updateOverviewMetrics(a) {
+        document.getElementById('tasks-by-mentors').textContent = a.active_mentors || 0;
+        document.getElementById('tasks-by-category').textContent = `${a.categories || 0} categories`;
+        document.getElementById('avg-completion-time').textContent = '7 days';
+        document.getElementById('active-mentors').textContent = a.active_mentors || 0;
+        document.getElementById('active-mentees').textContent = a.active_mentees || 0;
+        document.getElementById('tasks-this-month').textContent = a.total || 0;
+        document.getElementById('completion-rate').textContent = `${a.completion_rate || 0}%`;
+        document.getElementById('on-time-rate').textContent = '75%';
+        document.getElementById('avg-task-score').textContent = '4.2/5';
+        document.getElementById('on-time-rate').textContent = '75%';
     }
 
     // Load supervisor tasks from backend (called by Load Tasks button or filters)
@@ -885,8 +934,6 @@
                 updateStatistics();
                 populateFilters();
                 renderTasks();
-                updatePlatformInsights();
-                updateOverviewMetrics();
             } else {
                 throw new Error(result.message || 'Failed to load tasks');
             }
@@ -1187,8 +1234,8 @@
         <div class="task-card p-6 ${(task.status === 'completed' || task.status === 'done') ? 'completed' : ''} ${((task.status !== 'done' && task.status !== 'completed') && (task.isCritical || isOverdue)) ? 'urgent' : ''}">
             <div class="flex justify-between items-start mb-3">
                 <div class="flex items-center gap-3 flex-wrap">
-                    <span class="task-serial inline-flex items-center gap-1 min-w-[32px] h-8 px-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-sm font-bold shrink-0"><span class="text-blue-500 text-xs font-semibold uppercase tracking-wide">Sr No.</span>${task.serial || (index !== undefined ? index + 1 : '')}</span>
-                    <h3 class="text-lg font-semibold text-gray-900">${task.title || 'Untitled'}</h3>
+                    <span class="task-serial inline-flex items-center gap-1 min-w-[32px] h-8 px-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-sm font-bold shrink-0"><span class="text-blue-500 text-xs font-semibold uppercase tracking-wide">No.</span>${task.serial || (index !== undefined ? index + 1 : '')}</span>
+                    <h3 class="text-lg font-semibold text-gray-900">${task.serial || (index !== undefined ? index + 1 : '')}. ${task.title || 'Untitled'}</h3>
                     <span class="task-status ${getStatusClass(task.status)}">${getStatusText(task.status)}</span>
                     <span class="badge ${task.type === 'master' ? 'badge-primary' : 'badge-secondary'}">${task.category || (task.type === 'master' ? 'Mentorship Task' : 'Personal Task')}</span>
                     ${((task.status !== 'done' && task.status !== 'completed') && task.isCritical) ? '<span class="badge badge-danger">Critical</span>' : ''}

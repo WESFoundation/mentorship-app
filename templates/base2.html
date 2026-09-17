@@ -136,9 +136,7 @@
             <!-- Premium Mentor Button (Mentors only) -->
             {% if session.get('user_type') == '1' %}
             <button onclick="openPremiumModal()" class="group flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-300 hover:from-amber-100 hover:to-yellow-100 hover:border-amber-400 transition-all duration-200 shadow-sm hover:shadow" title="Premium Mentor">
-                <svg class="w-4 h-4 text-amber-500 group-hover:text-amber-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                </svg>
+                <svg class="w-4 h-4 text-amber-500 group-hover:text-amber-600" fill="currentColor" viewBox="0 0 20 20"><path d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h8.974c.576 0 1.059.435 1.119 1.007zM9 10.5a.75.75 0 01.75-.75h3a.75.75 0 010 1.5H9.75A.75.75 0 019 10.5z"/></svg>
                 <span class="text-xs font-bold text-amber-700 group-hover:text-amber-800 hidden sm:block">Premium</span>
             </button>
             {% endif %}
@@ -343,6 +341,15 @@
                             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                     Sourcing Requests
+                </a>
+
+                <a href="{{ url_for('supervisor_scholarly_requests')}}"
+                    class="sidebar-nav-item {% if request.endpoint == 'supervisor_scholarly_requests' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" />
+                    </svg>
+                    Scholarly Requests
                 </a>
 
                 <a href="{{ url_for('supervisor_meeting_details')}}"
@@ -1261,19 +1268,106 @@
         _ssObserver.observe(document.body, { childList: true, subtree: true });
     })();
 
+    // Notification function (global)
+    window.showNotification = function(message, type) {
+        const colors = { success: '#10b981', error: '#ef4444', warning: '#f59e0b', info: '#3b82f6' };
+        const toast = document.createElement('div');
+        toast.className = 'fixed top-4 right-4 p-4 rounded-lg text-white shadow-lg z-[99999]';
+        toast.style.backgroundColor = colors[type] || colors.info;
+        toast.innerHTML = `<div class="flex items-center gap-2"><span>${message}</span><button onclick="this.parentElement.remove()" class="ml-2 text-white hover:text-gray-200"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button></div>`;
+        document.body.appendChild(toast);
+        setTimeout(() => { if (toast.parentElement) toast.parentElement.removeChild(toast); }, 4000);
+    };
+
     // ---------- Premium Mentor Modal ----------
-    function openPremiumModal() {
+    window.openPremiumModal = function() {
         document.getElementById('premiumModal').classList.remove('hidden');
     }
-    function closePremiumModal() {
+    window.closePremiumModal = function() {
         document.getElementById('premiumModal').classList.add('hidden');
     }
+    window.showPremiumApplyForm = function() {
+        document.getElementById('premiumCta').classList.add('hidden');
+        document.getElementById('premiumApplyForm').classList.remove('hidden');
+        document.getElementById('premiumSuccessMsg').classList.add('hidden');
+    }
+    window.hidePremiumApplyForm = function() {
+        document.getElementById('premiumApplyForm').classList.add('hidden');
+        document.getElementById('premiumCta').classList.remove('hidden');
+        document.getElementById('premiumSuccessMsg').classList.add('hidden');
+    }
+    window.submitPremiumApplication = function() {
+        const reason = document.getElementById('premiumApplyReason').value;
+        const btn = document.getElementById('submitPremiumBtn');
+
+        if (!reason.trim()) {
+            showNotification('Please tell us why you want to join the Premium Mentor Program.', 'warning');
+            return;
+        }
+
+        btn.textContent = 'Submitting...';
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+
+        setTimeout(() => {
+            document.getElementById('premiumCta').classList.add('hidden');
+            document.getElementById('premiumApplyForm').classList.add('hidden');
+            document.getElementById('premiumSuccessMsg').classList.remove('hidden');
+            showNotification('Your premium mentor application has been submitted!', 'success');
+        }, 1500);
+    }
     // ---------- Scholarly Mentee Modal ----------
-    function openScholarlyModal() {
+    window.openScholarlyModal = function() {
         document.getElementById('scholarlyModal').classList.remove('hidden');
     }
-    function closeScholarlyModal() {
+    window.closeScholarlyModal = function() {
         document.getElementById('scholarlyModal').classList.add('hidden');
+    }
+    window.showScholarlyApplyForm = function() {
+        document.getElementById('scholarlyCta').classList.add('hidden');
+        document.getElementById('scholarlyApplyForm').classList.remove('hidden');
+        document.getElementById('scholarlyReason').value = '';
+        document.getElementById('scholarlyApplyError').classList.add('hidden');
+        document.getElementById('scholarlyApplySuccess').classList.add('hidden');
+        document.getElementById('scholarlySubmitBtn').disabled = false;
+        document.getElementById('scholarlySubmitBtn').innerHTML = 'Submit Application';
+    }
+    window.hideScholarlyApplyForm = function() {
+        document.getElementById('scholarlyApplyForm').classList.add('hidden');
+        document.getElementById('scholarlyCta').classList.remove('hidden');
+    }
+    window.submitScholarlyApplication = async function() {
+        const reason = document.getElementById('scholarlyReason').value.trim();
+        const errorEl = document.getElementById('scholarlyApplyError');
+        const btn = document.getElementById('scholarlySubmitBtn');
+        if (!reason) {
+            errorEl.textContent = 'Please explain why you should be a Scholarly Mentee.';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="animate-spin h-4 w-4 inline mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Submitting...';
+        try {
+            const formData = new FormData();
+            formData.append('reason', reason);
+            const res = await fetch('/api/scholarly_application', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('scholarlyApplyForm').classList.add('hidden');
+                document.getElementById('scholarlyApplySuccess').classList.remove('hidden');
+                setTimeout(() => { hideScholarlyApplyForm(); closeScholarlyModal(); }, 2000);
+            } else {
+                errorEl.textContent = data.error || 'Failed to submit application.';
+                errorEl.classList.remove('hidden');
+                btn.disabled = false;
+                btn.innerHTML = 'Submit Application';
+            }
+        } catch (e) {
+            errorEl.textContent = 'An error occurred. Please try again.';
+            errorEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.innerHTML = 'Submit Application';
+        }
     }
     </script>
 
@@ -1289,9 +1383,7 @@
       <div class="relative flex items-center justify-between">
         <div class="flex items-center gap-4">
           <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/30">
-            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-            </svg>
+             <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h8.974c.576 0 1.059.435 1.119 1.007zM9 10.5a.75.75 0 01.75-.75h3a.75.75 0 010 1.5H9.75A.75.75 0 019 10.5z"/></svg>
           </div>
           <div>
             <h2 class="text-2xl font-bold">Premium Mentorship Program</h2>
@@ -1407,13 +1499,61 @@
         </div>
       </div>
 
-      <!-- CTA -->
-      <div class="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-300 rounded-xl p-6 text-center">
-        <p class="text-gray-700 mb-4">Ready to earn an honorarium for your mentoring expertise?</p>
-        <button onclick="closePremiumModal()" class="px-8 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-white font-bold rounded-xl shadow-lg shadow-amber-500/30 hover:from-amber-600 hover:to-yellow-600 hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-          Get Started &rarr;
-        </button>
-        <p class="text-xs text-gray-500 mt-3">Contact your supervisor to learn more about the Premium Mentorship program.</p>
+      <!-- CTA / Apply Form -->
+      <div class="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-300 rounded-xl p-6">
+        <div id="premiumCta">
+          <p class="text-gray-700 mb-4">Ready to earn an honorarium for your mentoring expertise?</p>
+          <button onclick="showPremiumApplyForm()" class="px-8 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-white font-bold rounded-xl shadow-lg shadow-amber-500/30 hover:from-amber-600 hover:to-yellow-600 hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+            Apply Now &rarr;
+          </button>
+          <p class="text-xs text-gray-500 mt-3">Contact your supervisor to learn more about the Premium Mentorship program.</p>
+        </div>
+
+        <div id="premiumApplyForm" class="hidden">
+          <h3 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+            Apply to the Premium Mentor Program
+          </h3>
+          <p class="text-sm text-gray-600 mb-4">Tell us why you'd like to join the premium mentor program.</p>
+          <div class="mb-3">
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Your Name</label>
+            <input type="text" id="premiumApplyName" value="{{ session.get('email', 'Mentor') }}" readonly
+              class="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-not-allowed">
+          </div>
+          <div class="mb-3">
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Years of Mentoring Experience</label>
+            <select id="premiumApplyExp" class="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="">Select experience level</option>
+              <option value="1">Less than 1 year</option>
+              <option value="2">1-3 years</option>
+              <option value="3">3-5 years</option>
+              <option value="4">5-10 years</option>
+              <option value="5">10+ years</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Why would you like to join the Premium Mentor Program?</label>
+            <textarea id="premiumApplyReason" rows="3" placeholder="e.g., I enjoy mentoring and would love to be matched with sponsored mentees..."
+              class="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"></textarea>
+          </div>
+          <div class="flex gap-3">
+            <button onclick="submitPremiumApplication()" id="submitPremiumBtn" class="flex-1 px-6 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-white font-bold rounded-xl shadow-lg shadow-amber-500/30 hover:from-amber-600 hover:to-yellow-600 hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+              Submit Application
+            </button>
+            <button onclick="hidePremiumApplyForm()" class="px-4 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition">
+              Cancel
+            </button>
+          </div>
+        </div>
+
+        <div id="premiumSuccessMsg" class="hidden text-center py-4">
+          <div class="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <h3 class="text-lg font-bold text-gray-900 mb-1">Application Submitted!</h3>
+          <p class="text-sm text-gray-600 mb-3">Your premium mentor application has been received. We'll review it and get back to you soon.</p>
+          <button onclick="closePremiumModal()" class="px-6 py-2 bg-amber-500 text-white font-bold rounded-lg hover:bg-amber-600 transition">Close</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1549,13 +1689,35 @@
         </div>
       </div>
 
-      <!-- CTA -->
+      <!-- CTA / Apply Form -->
       <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-300 rounded-xl p-6 text-center">
-        <p class="text-gray-700 mb-4">Ready to stand out and get matched with the best mentors?</p>
-        <button onclick="closeScholarlyModal()" class="px-8 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 hover:from-blue-600 hover:to-indigo-600 hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-          Get Started &rarr;
-        </button>
-        <p class="text-xs text-gray-500 mt-3">Keep completing tasks and engaging with your mentors to improve your rating.</p>
+        <div id="scholarlyCta">
+          <p class="text-gray-700 mb-4">Ready to stand out and get matched with the best mentors?</p>
+          <button onclick="showScholarlyApplyForm()" class="px-8 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 hover:from-blue-600 hover:to-indigo-600 hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+            Apply for Scholarly Mentee
+          </button>
+          <p class="text-xs text-gray-500 mt-3">Complete tasks and engage with your mentors to improve your rating, then apply to become a certified Scholarly Mentee.</p>
+        </div>
+
+        <div id="scholarlyApplyForm" class="hidden">
+          <h3 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+            Why should you be considered a Scholarly Mentee?
+          </h3>
+          <p class="text-sm text-gray-500 mb-3">Tell us why you deserve the Scholarly Mentee badge. This request will be reviewed by your supervisor.</p>
+          <textarea id="scholarlyReason" rows="4" class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none" placeholder="Explain why you should be a Scholarly Mentee... e.g., your mentorship experience, task completion record, feedback from mentors, goals achieved..."></textarea>
+          <div id="scholarlyApplyError" class="hidden text-red-600 text-sm mt-1"></div>
+          <div id="scholarlyApplySuccess" class="hidden text-green-600 text-sm mt-1">
+            <svg class="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+            Application submitted! Your supervisor will review it.
+          </div>
+          <div class="flex gap-3 mt-3">
+            <button onclick="submitScholarlyApplication()" id="scholarlySubmitBtn" class="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 hover:from-blue-600 hover:to-indigo-600 transition-all duration-300 transform hover:scale-105">
+              Submit Application
+            </button>
+            <button onclick="hideScholarlyApplyForm()" class="px-6 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-all">Cancel</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

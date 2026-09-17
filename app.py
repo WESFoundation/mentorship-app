@@ -144,6 +144,14 @@ def is_under_18(dob_string):
         print(f"Error calculating age: {e}")
         return False
 
+def needs_parent_consent(dob_string, country):
+    """Check if mentee needs parental consent: under 18 AND from Luxembourg"""
+    if not dob_string or not country:
+        return False
+    if country != 'Luxembourg':
+        return False
+    return is_under_18(dob_string)
+
 def generate_consent_token():
     """Generate a unique token for parent consent link"""
     import secrets
@@ -1152,6 +1160,9 @@ class User(db.Model):
     
     # Registration timestamp
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Scholarly Mentee status
+    scholarly = db.Column(db.Boolean, default=False)
 
     #connect form another table
     mentor_profile = db.relationship("MentorProfile", backref="user", uselist=False)
@@ -1975,6 +1986,27 @@ class MentorSourcingRequest(db.Model):
 
     def __repr__(self):
         return f"<MentorSourcingRequest {self.id}: {self.target_role} - {self.target_industry}>"
+
+
+class ScholarlyApplication(db.Model):
+    """
+    Application submitted by a mentee to become a certified Scholarly Mentee.
+    Requires supervisor review and admin approval.
+    """
+    __tablename__ = "scholarly_applications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    mentee_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+    reason = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(50), default="pending")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    reviewed_by = db.Column(db.String(50), nullable=True)
+
+    mentee = db.relationship("User", foreign_keys=[mentee_id], backref="scholarly_applications")
+
+    def __repr__(self):
+        return f"<ScholarlyApplication {self.id}: mentee={self.mentee_id} status={self.status}>"
 
 
 # ============================================================
@@ -3511,6 +3543,7 @@ def menteedashboard():
         career_goal = mentee_profile.goal if mentee_profile else None
         parent_consent_status = mentee_profile.parent_consent_status if mentee_profile else None
         parent_email = mentee_profile.parent_email if mentee_profile else None
+        mentee_country = mentee_profile.country if mentee_profile else None
 
         # Fetch the mentee's connected mentors (fully approved requests)
         connected_requests = MentorshipRequest.query.options(
@@ -3595,6 +3628,7 @@ def menteedashboard():
             career_goal=career_goal,
             parent_consent_status=parent_consent_status,
             parent_email=parent_email,
+            mentee_country=mentee_country,
             spotlight_tasks=spotlight_tasks,
             today_date=today,
             mentee_rating=mentee_rating
@@ -6577,6 +6611,121 @@ def api_search_mentors():
 
     return jsonify({"success": True, "mentors": results[:30]})
 
+
+# ============ Scholarly Application Routes ============
+@app.route("/api/scholarly_application", methods=["POST"])
+def submit_scholarly_application():
+    """Submit a scholarly mentee application."""
+    if "email" not in session or session.get("user_type") != "2":
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return jsonify({"success": False, "error": "User not found"}), 404
+
+    reason = request.form.get("reason", "").strip()
+    if not reason:
+        return jsonify({"success": False, "error": "Reason is required"}), 400
+
+    try:
+        app = ScholarlyApplication(
+            mentee_id=user.id,
+            reason=reason,
+            status="pending"
+        )
+        db.session.add(app)
+        db.session.commit()
+        return jsonify({"success": True, "message": "Scholarly application submitted successfully!"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/scholarly_application/<int:app_id>/status", methods=["POST"])
+def update_scholarly_application_status(req_id):
+    """Update status of a scholarly application (approve/reject)."""
+    if "email" not in session:
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user or user.user_type not in ("0", "3", "4"):
+        return jsonify({"success": False, "error": "Admin/Supervisor only"}), 403
+
+    app = ScholarlyApplication.query.get_or_404(req_id)
+    new_status = request.form.get("status")
+    if new_status not in ("approved", "rejected"):
+        return jsonify({"success": False, "error": "Invalid status"}), 400
+
+    try:
+        app.status = new_status
+        app.reviewed_at = datetime.utcnow()
+        app.reviewed_by = session.get("user_type", "unknown")
+        db.session.commit()
+
+        if new_status == "approved":
+            app.mentee.scholarly = True
+            db.session.commit()
+            return jsonify({"success": True, "message": "Scholarly application approved!"})
+        else:
+            return jsonify({"success": True, "message": "Scholarly application rejected."})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/supervisor/scholarly_requests")
+def supervisor_scholarly_requests():
+    """Subpage showing scholarly applications submitted by mentees."""
+    if "email" not in session or session.get("user_type") not in ("0", "4"):
+        return redirect(url_for("signin"))
+
+    query = ScholarlyApplication.query.options(joinedload(ScholarlyApplication.mentee))
+    status_filter = request.args.get("status", "all")
+    if status_filter != "all":
+        query = query.filter_by(status=status_filter)
+
+    requests_list = query.order_by(ScholarlyApplication.created_at.desc()).all()
+    total_count = ScholarlyApplication.query.count()
+    pending_count = ScholarlyApplication.query.filter_by(status="pending").count()
+    approved_count = ScholarlyApplication.query.filter_by(status="approved").count()
+    rejected_count = ScholarlyApplication.query.filter_by(status="rejected").count()
+
+    return render_template(
+        "supervisor/supervisor_scholarly_requests.html",
+        requests=requests_list,
+        total_count=total_count,
+        pending_count=pending_count,
+        approved_count=approved_count,
+        rejected_count=rejected_count,
+        status_filter=status_filter,
+        active_section="scholarly_requests"
+    )
+
+
+@app.route("/mentee/scholarly_requests")
+def mentee_scholarly_requests():
+    """Mentee view of their own scholarly applications."""
+    if "email" not in session or session.get("user_type") != "2":
+        return redirect(url_for("signin"))
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return redirect(url_for("signin"))
+
+    requests_list = ScholarlyApplication.query.filter_by(mentee_id=user.id).order_by(
+        ScholarlyApplication.created_at.desc()
+    ).all()
+
+    return render_template(
+        "mentee/mentee_scholarly_requests.html",
+        requests=requests_list,
+        active_section="scholarly_requests"
+    )
+
+
+# ============================================================
+# AUTOMATIC SCHEMA MIGRATION / SELF-HEALING
+# ============================================================
 
 @app.route("/mentee/sourcing_requests")
 def mentee_sourcing_requests():
@@ -11327,6 +11476,99 @@ def supervisor_meeting_details():
         meetings=meeting_data
     )
 
+# ============ Task Analytics Endpoints ============
+@app.route("/get_supervisor_task_analytics")
+def get_supervisor_task_analytics():
+    """Lightweight analytics for supervisor tasks overview — loads immediately."""
+    if "email" not in session or session.get("user_type") != "0":
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    try:
+        today = datetime.utcnow().date()
+        personal_tasks = PersonalTask.query.all()
+        mentorships = MentorshipRequest.query.filter_by(final_status="approved").all()
+
+        total = personal_tasks.count() + mentorships.count()
+        completed = sum(1 for t in personal_tasks if t.status in ('completed', 'done')) + \
+                    sum(1 for m in mentorships if m.status in ('completed', 'done'))
+        in_progress = sum(1 for t in personal_tasks if t.status == 'in-progress') + \
+                      sum(1 for m in mentorships if m.status == 'in-progress')
+        not_started = sum(1 for t in personal_tasks if t.status in ('not-started', 'pending')) + \
+                      sum(1 for m in mentorships if m.status in ('not-started', 'pending'))
+        overdue = sum(1 for t in personal_tasks if t.due_date and t.status not in ('completed', 'done') and t.due_date.date() < today) + \
+                  sum(1 for m in mentorships if m.due_date and m.status not in ('completed', 'done') and m.due_date.date() < today)
+
+        active_mentor_ids = set(t.mentor_id for t in personal_tasks) | set(m.mentor_id for m in mentorships)
+        active_mentee_ids = set(t.mentee_id for t in personal_tasks) | set(m.mentee_id for m in mentorships)
+        categories = set(t.priority for t in personal_tasks) | set(m.category for m in mentorships if m.category)
+
+        mentors = User.query.filter(User.id.in_(active_mentor_ids)).all()
+        mentees = User.query.filter(User.id.in_(active_mentee_ids)).all()
+        completion_rate = round((completed / total) * 100) if total > 0 else 0
+
+        return jsonify({
+            "success": True,
+            "analytics": {
+                "total": total,
+                "completed": completed,
+                "in_progress": in_progress,
+                "not_started": not_started,
+                "overdue": overdue,
+                "completion_rate": completion_rate,
+                "active_mentors": len(mentors),
+                "active_mentees": len(mentees),
+                "categories": len(categories),
+                "critical": 0,
+            }
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/get_institution_task_analytics")
+def get_institution_task_analytics():
+    """Lightweight analytics for institution tasks overview — loads immediately."""
+    if "email" not in session or session.get("user_type") != "3":
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    try:
+        user = User.query.filter_by(email=session["email"]).first()
+        institution_id = user.institution_id
+        today = datetime.utcnow().date()
+
+        # Get all mentee IDs belonging to this institution
+        institution_mentee_ids = [u.id for u in User.query.filter_by(institution_id=institution_id).all()]
+        if not institution_mentee_ids:
+            institution_mentee_ids = [0]  # Empty result set
+
+        personal_tasks = PersonalTask.query.filter(PersonalTask.mentee_id.in_(institution_mentee_ids)).all()
+        total = personal_tasks.count()
+        completed = sum(1 for t in personal_tasks if t.status in ('completed', 'done'))
+        in_progress = sum(1 for t in personal_tasks if t.status == 'in-progress')
+        not_started = sum(1 for t in personal_tasks if t.status in ('not-started', 'pending'))
+        overdue = sum(1 for t in personal_tasks if t.due_date and t.status not in ('completed', 'done') and t.due_date.date() < today)
+        categories = set(t.priority for t in personal_tasks)
+
+        completion_rate = round((completed / total) * 100) if total > 0 else 0
+
+        return jsonify({
+            "success": True,
+            "analytics": {
+                "total": total,
+                "completed": completed,
+                "in_progress": in_progress,
+                "not_started": not_started,
+                "overdue": overdue,
+                "completion_rate": completion_rate,
+                "categories": len(categories),
+                "active_mentors": len(set(t.mentor_id for t in personal_tasks)),
+                "active_mentees": len(set(t.mentee_id for t in personal_tasks)),
+            }
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # ------------------- HANDLE MENTORSHIP REQUEST ------------------
 @app.route("/request_mentorship", methods=["POST"])
 def request_mentorship(): 
@@ -11339,9 +11581,9 @@ def request_mentorship():
         if not mentee:
             return jsonify({"success": False, "message": "User not found"}), 404
         
-        # Check parent consent status ONLY for under-18 mentees
+        # Check parent consent ONLY for under-18 mentees from Luxembourg
         mentee_profile = MenteeProfile.query.filter_by(user_id=mentee.id).first()
-        if mentee_profile and mentee_profile.dob and is_under_18(mentee_profile.dob):
+        if mentee_profile and needs_parent_consent(mentee_profile.dob, mentee_profile.country):
             if mentee_profile.parent_consent_status == "pending":
                 return jsonify({
                     "success": False, 
@@ -12008,9 +12250,10 @@ def editmenteeprofile():
         profile.who_am_i = who_am_i
         profile.dob = request.form.get("dob")
         
-        # Check if mentee is under 18 and handle parent consent
+        # Check if parent consent is needed (under 18 AND from Luxembourg)
+        country = request.form.get("country", "")
         parent_email = request.form.get("parent_email", "").strip()
-        if profile.dob and is_under_18(profile.dob):
+        if profile.dob and needs_parent_consent(profile.dob, country):
             # Mentee is under 18, parent consent required
             if parent_email:
                 profile.parent_email = parent_email
@@ -12134,7 +12377,7 @@ def editmenteeprofile():
         
         # Check if parent consent email was sent
         parent_consent_sent = False
-        if profile.dob and is_under_18(profile.dob) and profile.parent_consent_status == "pending":
+        if profile.dob and needs_parent_consent(profile.dob, profile.country) and profile.parent_consent_status == "pending":
             parent_consent_sent = True
         
         # Return JSON response for AJAX requests
@@ -12220,6 +12463,7 @@ def editmenteeprofile():
         mentorship_expectations=profile.mentorship_expectations if profile else "",
         linkedin_link=profile.linkedin_link if profile else "",
         terms_agreement=profile.terms_agreement if profile else "",
+        parent_consent_status=profile.parent_consent_status if profile else None,
         profile_picture=profile.profile_picture if profile else None
     )
 

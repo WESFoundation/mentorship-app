@@ -326,22 +326,18 @@
       </div>
       <div class="relative flex flex-col sm:flex-row items-center justify-between gap-4">
         <div class="flex items-center gap-4">
-          <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/30 shrink-0">
-            <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-            </svg>
-          </div>
-          <div>
-            <h3 class="text-lg font-bold">Become a Premium Mentor</h3>
-            <p class="text-amber-100 text-sm mt-0.5">Get the chance to earn an honorarium while mentoring sponsored mentees from corporations and government programs.</p>
-          </div>
-        </div>
-        <button onclick="openPremiumModal()" class="shrink-0 px-6 py-3 bg-white text-amber-700 font-bold rounded-xl shadow-lg hover:bg-amber-50 hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center gap-2">
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-          </svg>
-          Learn More
-        </button>
+           <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/30 shrink-0">
+             <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 20 20"><path d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h8.974c.576 0 1.059.435 1.119 1.007zM9 10.5a.75.75 0 01.75-.75h3a.75.75 0 010 1.5H9.75A.75.75 0 019 10.5z"/></svg>
+           </div>
+           <div>
+             <h3 class="text-lg font-bold">Become a Premium Mentor</h3>
+             <p class="text-amber-100 text-sm mt-0.5">Get the chance to earn an honorarium while mentoring sponsored mentees from corporations and government programs.</p>
+           </div>
+         </div>
+         <button onclick="openPremiumModal()" class="shrink-0 px-6 py-3 bg-white text-amber-700 font-bold rounded-xl shadow-lg hover:bg-amber-50 hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center gap-2">
+           <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h8.974c.576 0 1.059.435 1.119 1.007zM9 10.5a.75.75 0 01.75-.75h3a.75.75 0 010 1.5H9.75A.75.75 0 019 10.5z"/></svg>
+           Learn More
+         </button>
       </div>
     </div>
 
@@ -415,7 +411,7 @@
                 </div>
                 {% endif %}
                 <div class="min-w-0">
-                  <p class="font-bold text-slate-800 truncate">{{ request.mentee.name }}</p>
+                  <p class="font-bold text-slate-800 truncate">{{ request.mentee.name }}{% if request.mentee.scholarly %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-200" title="Scholarly Mentee"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3.001zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/></svg> Scholarly</span>{% endif %}</p>
                   <p class="text-xs text-slate-500 truncate">{{ request.purpose if request.purpose else 'Mentorship
                     request' }}</p>
                 </div>
