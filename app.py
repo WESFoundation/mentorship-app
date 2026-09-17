@@ -2009,6 +2009,28 @@ class ScholarlyApplication(db.Model):
         return f"<ScholarlyApplication {self.id}: mentee={self.mentee_id} status={self.status}>"
 
 
+class PremiumApplication(db.Model):
+    """
+    Application submitted by a mentor to join the Premium Mentor Program.
+    Requires supervisor/admin approval.
+    """
+    __tablename__ = "premium_applications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    mentor_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+    reason = db.Column(db.Text, nullable=False)
+    years_experience = db.Column(db.Integer, nullable=True)
+    status = db.Column(db.String(50), default="pending")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    reviewed_by = db.Column(db.String(50), nullable=True)
+
+    mentor = db.relationship("User", foreign_keys=[mentor_id], backref="premium_applications")
+
+    def __repr__(self):
+        return f"<PremiumApplication {self.id}: mentor={self.mentor_id} status={self.status}>"
+
+
 # ============================================================
 # AUTOMATIC SCHEMA MIGRATION / SELF-HEALING
 # ============================================================
@@ -6720,6 +6742,92 @@ def mentee_scholarly_requests():
         "mentee/mentee_scholarly_requests.html",
         requests=requests_list,
         active_section="scholarly_requests"
+    )
+
+
+# ============ Premium Application Routes ============
+@app.route("/api/premium_application", methods=["POST"])
+def submit_premium_application():
+    """Submit a premium mentor application."""
+    if "email" not in session or session.get("user_type") != "1":
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return jsonify({"success": False, "error": "User not found"}), 404
+
+    reason = request.form.get("reason", "").strip()
+    years_experience = request.form.get("years_experience", type=int)
+    if not reason:
+        return jsonify({"success": False, "error": "Reason is required"}), 400
+
+    try:
+        app = PremiumApplication(
+            mentor_id=user.id,
+            reason=reason,
+            years_experience=years_experience,
+            status="pending"
+        )
+        db.session.add(app)
+        db.session.commit()
+        return jsonify({"success": True, "message": "Premium mentor application submitted successfully!"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/premium_application/<int:app_id>/status", methods=["POST"])
+def update_premium_application_status(app_id):
+    """Update status of a premium application (approve/reject)."""
+    if "email" not in session:
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user or user.user_type not in ("0", "3", "4"):
+        return jsonify({"success": False, "error": "Admin/Supervisor only"}), 403
+
+    app = PremiumApplication.query.get_or_404(app_id)
+    new_status = request.form.get("status")
+    if new_status not in ("approved", "rejected"):
+        return jsonify({"success": False, "error": "Invalid status"}), 400
+
+    try:
+        app.status = new_status
+        app.reviewed_at = datetime.utcnow()
+        app.reviewed_by = session.get("user_type", "unknown")
+        db.session.commit()
+        return jsonify({"success": True, "message": f"Premium application {new_status}."})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/supervisor/premium_requests")
+def supervisor_premium_requests():
+    """Subpage showing premium mentor applications submitted by mentors."""
+    if "email" not in session or session.get("user_type") not in ("0", "4"):
+        return redirect(url_for("signin"))
+
+    status_filter = request.args.get("status", "all")
+    query = PremiumApplication.query.options(joinedload(PremiumApplication.mentor))
+    if status_filter != "all":
+        query = query.filter_by(status=status_filter)
+
+    applications = query.order_by(PremiumApplication.created_at.desc()).all()
+    total_count = PremiumApplication.query.count()
+    pending_count = PremiumApplication.query.filter_by(status="pending").count()
+    approved_count = PremiumApplication.query.filter_by(status="approved").count()
+    rejected_count = PremiumApplication.query.filter_by(status="rejected").count()
+
+    return render_template(
+        "supervisor/supervisor_premium_requests.html",
+        applications=applications,
+        total_count=total_count,
+        pending_count=pending_count,
+        approved_count=approved_count,
+        rejected_count=rejected_count,
+        status_filter=status_filter,
+        active_section="premium_requests"
     )
 
 
