@@ -16352,26 +16352,27 @@ def delete_note(note_id):
     return jsonify({"success": True, "message": "Note deleted successfully."})
 
 
-@app.route("/api/generate_qr/<path:url>")
-def generate_qr(url):
-    """Generate a QR code PNG image for the given URL."""
+@app.route("/api/generate_qr")
+def generate_qr():
+    """Generate a QR code PNG image for the given URL. Use ?url=<full_url> parameter."""
     try:
         import qrcode
         from io import BytesIO
         
-        # Build full URL from path
-        full_url = request.host_url.rstrip('/') + '/' + url.lstrip('/')
+        # Get full URL from query param, default to programs page
+        target_url = request.args.get('url', request.host_url.rstrip('/') + '/programs')
         
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_M,
             box_size=10,
-            border=2,
+            border=4,
         )
-        qr.add_data(full_url)
+        qr.add_data(target_url)
         qr.make(fit=True)
         
-        img = qr.make_image(fill_color="1e40af", back_color="ffffff")
+        # Use proper hex color with # prefix
+        img = qr.make_image(fill_color="#1e40af", back_color="#ffffff")
         
         buf = BytesIO()
         img.save(buf, format='PNG')
@@ -16379,11 +16380,12 @@ def generate_qr(url):
         
         from flask import send_file
         response = send_file(buf, mimetype='image/png')
-        # Add cache headers for reliable loading in certificate
         response.headers['Cache-Control'] = 'public, max-age=3600'
         response.headers['Content-Disposition'] = 'inline'
         return response
     except Exception as e:
+        print(f"QR generation error: {e}")
+        return jsonify({"error": "Failed to generate QR"}), 500
         print(f"QR generation error: {e}")
         return jsonify({"error": "Failed to generate QR"}), 500
 
