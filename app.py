@@ -16351,6 +16351,35 @@ def delete_note(note_id):
     return jsonify({"success": True, "message": "Note deleted successfully."})
 
 
+@app.route("/api/generate_qr/<path:url>")
+def generate_qr(url):
+    """Generate a QR code PNG image for the given URL."""
+    try:
+        import qrcode
+        from io import BytesIO
+        
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=2,
+        )
+        qr.add_data(url)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="1e40af", back_color="ffffff")
+        
+        buf = BytesIO()
+        img.save(buf, format='PNG')
+        buf.seek(0)
+        
+        from flask import send_file
+        return send_file(buf, mimetype='image/png')
+    except Exception as e:
+        print(f"QR generation error: {e}")
+        return jsonify({"error": "Failed to generate QR"}), 500
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()

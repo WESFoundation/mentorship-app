@@ -7,7 +7,6 @@
     <title>Certificate - {{ user_name }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/logo.jpg') }}">
 
     <style>
@@ -1397,7 +1396,7 @@
                 <div style="margin-top: 1rem; display: flex; justify-content: center; align-items: center; gap: 0.75rem;">
                     <span style="font-size: 0.65rem; color: #9ca3af; font-weight: 500;">Scan for program details:</span>
                     <div style="width: 60px; height: 60px; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 4px; background: white; display: inline-flex; align-items: center; justify-content: center;">
-                        <canvas id="qrCanvas" width="52" height="52"></canvas>
+                        <img src="{{ url_for('generate_qr', url='programs') }}" alt="QR Code" style="width: 52px; height: 52px;">
                     </div>
                 </div>
             </div>
@@ -1851,23 +1850,6 @@
                 if (window.innerWidth >= 1200) {
                     toggleCustomizePanel();
                 }
-            }
-            // Generate QR code pointing to programs page
-            try {
-                var qrCanvas = document.getElementById('qrCanvas');
-                if (qrCanvas) {
-                    var qrUrl = window.location.origin + '/programs';
-                    new QRCode(qrCanvas, {
-                        text: qrUrl,
-                        width: 52,
-                        height: 52,
-                        colorDark: '#1e40af',
-                        colorLight: '#ffffff',
-                        correctLevel: QRCode.CorrectLevel.M
-                    });
-                }
-            } catch(e) {
-                console.log('QR code generation skipped:', e);
             }
         });
     </script>
