@@ -16417,56 +16417,36 @@ def delete_note(note_id):
     return jsonify({"success": True, "message": "Note deleted successfully."})
 
 
-@app.route("/api/generate_qr")
-def generate_qr():
-    """Generate a QR code PNG image for the given URL. Use ?url=<full_url> parameter."""
+@app.route("/api/generate_qr", defaults={"url": None})
+@app.route("/api/generate_qr/<path:url>")
+def generate_qr(url=None):
+    """Generate a QR code PNG image for the given URL. Supports query param or path param."""
     try:
         from flask import Response
         from qr_code_lib import QRCode
         
-<<<<<<< HEAD
-        # Get full URL from query param, default to programs page
-        target_url = request.args.get('url', request.host_url.rstrip('/') + '/programs')
-        
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=10,
-            border=4,
-        )
-        qr.add_data(target_url)
-        qr.make(fit=True)
-        
-        # Use proper hex color with # prefix
-        img = qr.make_image(fill_color="#1e40af", back_color="#ffffff")
-        
-        buf = BytesIO()
-        img.save(buf, format='PNG')
-        buf.seek(0)
-        
-        from flask import send_file
-        response = send_file(buf, mimetype='image/png')
-=======
-        full_url = request.host_url.rstrip('/') + '/' + url.lstrip('/')
+        target_url = url or request.args.get("url") or "programs"
+        if target_url.startswith("http://") or target_url.startswith("https://"):
+            full_url = target_url
+        else:
+            full_url = request.host_url.rstrip('/') + '/' + target_url.lstrip('/')
+            
         qr = QRCode(full_url, error_correction='M')
         png_data = qr.to_png(box_size=6, border=2, color=(30, 64, 175))
         
         response = Response(png_data, mimetype='image/png')
->>>>>>> ccb4953a79b8548477ca08d6b7b662ef5899a3d4
         response.headers['Cache-Control'] = 'public, max-age=3600'
         response.headers['Content-Disposition'] = 'inline'
         return response
     except Exception as e:
         print(f"QR generation error: {e}")
-<<<<<<< HEAD
-        return jsonify({"error": "Failed to generate QR"}), 500
-        print(f"QR generation error: {e}")
-        return jsonify({"error": "Failed to generate QR"}), 500
-=======
         try:
-            # Fallback to SVG
             from qr_code_lib import QRCode
-            full_url = request.host_url.rstrip('/') + '/' + url.lstrip('/')
+            target_url = url or request.args.get("url") or "programs"
+            if target_url.startswith("http://") or target_url.startswith("https://"):
+                full_url = target_url
+            else:
+                full_url = request.host_url.rstrip('/') + '/' + target_url.lstrip('/')
             qr = QRCode(full_url, error_correction='M')
             svg_data = qr.to_svg(box_size=6, border=2, color="#1e40af")
             response = Response(svg_data, mimetype='image/svg+xml')
@@ -16476,7 +16456,6 @@ def generate_qr():
         except Exception as e2:
             print(f"QR SVG fallback error: {e2}")
             return jsonify({"error": "Failed to generate QR"}), 500
->>>>>>> ccb4953a79b8548477ca08d6b7b662ef5899a3d4
 
 
 if __name__ == '__main__':
