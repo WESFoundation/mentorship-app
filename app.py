@@ -160,13 +160,21 @@ def generate_consent_token():
 
 def check_corporate_email(user_email, institution):
     """Check if user's email domain matches their institution's email_domain."""
-    if not user_email or not institution or not institution.email_domain:
+    if not user_email or not institution:
+        return False
+    inst_domain = getattr(institution, 'email_domain', None)
+    if not inst_domain:
         return False
     if '@' not in user_email:
         return False
     user_domain = user_email.split('@')[1].lower().strip()
-    inst_domain = institution.email_domain.lower().strip()
-    return user_domain == inst_domain
+    inst_domain = str(inst_domain).lower().strip()
+    if '@' in inst_domain:
+        inst_domain = inst_domain.split('@')[1].strip()
+    inst_domain = inst_domain.lstrip('@').strip()
+    if not inst_domain:
+        return False
+    return user_domain == inst_domain or user_domain.endswith('.' + inst_domain)
 
 
 def update_corporate_status(user_email, institution_id):
@@ -180,7 +188,10 @@ def update_corporate_status(user_email, institution_id):
     user = User.query.filter_by(email=user_email).first()
     if user:
         user.is_corporate = is_corp
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
     return is_corp
 
 
@@ -190,19 +201,39 @@ def refresh_user_corporate_status(user):
         return False
     
     institution = None
-    if user.institution_id:
+    if getattr(user, 'institution_id', None):
         institution = Institution.query.filter_by(id=user.institution_id).first()
-    elif user.institution:
-        # Fallback: look up by institution name string
+    if not institution and getattr(user, 'institution', None):
         institution = Institution.get_by_name(user.institution)
     
+    is_corp = False
     if institution and institution.email_domain:
-        user.is_corporate = check_corporate_email(user.email, institution)
+        is_corp = check_corporate_email(user.email, institution)
     else:
-        user.is_corporate = False
+        user_domain = user.email.lower().split('@')[-1] if '@' in user.email else ''
+        known_domains = {
+            'microsoft.com': ['microsoft', 'microsoft india'],
+            'kpmg.lu': ['kpmg', 'kpmg luxembourg'],
+            'kpmg.com': ['kpmg', 'kpmg luxembourg'],
+            'ey.com': ['ey', 'ey luxembourg', 'ernst & young'],
+            'lu.ey.com': ['ey', 'ey luxembourg', 'ernst & young'],
+            'pwc.com': ['pwc', 'pwc luxembourg', 'pricewaterhousecoopers'],
+            'nvidia.com': ['nvidia', 'nvidia india'],
+            'wazireducationsociety.org': ['wes', 'wazir education society']
+        }
+        inst_str = (getattr(user, 'institution', '') or (institution.name if institution else '')).lower().strip()
+        for dom, inst_keys in known_domains.items():
+            if user_domain == dom or user_domain.endswith('.' + dom):
+                if not inst_str or any(k in inst_str for k in inst_keys):
+                    is_corp = True
+                    break
     
-    db.session.commit()
-    return user.is_corporate
+    user.is_corporate = is_corp
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+    return bool(user.is_corporate)
 
 
 def has_active_application(user):
@@ -1263,6 +1294,16 @@ class User(db.Model):
     mentor_profile = db.relationship("MentorProfile", backref="user", uselist=False)
     mentee_profile = db.relationship("MenteeProfile", backref="user_ref", uselist=False, foreign_keys="MenteeProfile.user_id", overlaps="mentee_profile_ref,user")
     institution_ref = db.relationship("Institution", backref="users", foreign_keys="User.institution_id")
+
+    @property
+    def affiliated_institution(self):
+        if self.institution_id:
+            inst = Institution.query.filter_by(id=self.institution_id).first()
+            if inst:
+                return inst
+        if self.institution:
+            return Institution.get_by_name(self.institution)
+        return None
 
     def __repr__(self):
         return f"<user {self.name}>"
@@ -2420,6 +2461,22 @@ def calculate_due_date(start_date, month_string):
         traceback.print_exc()
         # Fallback: 30 days from start
         return start_date + timedelta(days=30)
+
+@app.context_processor
+def inject_current_user():
+    user = None
+    try:
+        if "email" in session:
+            user = User.query.filter_by(email=session["email"]).first()
+            if user:
+                refresh_user_corporate_status(user)
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+    return dict(current_user=user)
+
 
 # Context processor to make profile_complete available in all templates
 @app.context_processor
@@ -4865,6 +4922,8 @@ def institution_mentors():
     
     user = User.query.filter_by(email=session["email"]).first()
     all_mentors = User.query.filter_by(user_type="1").all()
+    for m in all_mentors:
+        refresh_user_corporate_status(m)
     all_mentors.sort(key=lambda u: (u.name or "").lower())
     
     return render_template(
@@ -5333,7 +5392,7 @@ def get_institution_tasks_data():
             "category": getattr(task, 'category', None) or "Personal",
             "mentorId": task.mentor_id,
             "mentorName": mentor.name if mentor else "Self-assigned",
-            "mentorIsCorporate": mentor.is_corporate if mentor else False,
+            "mentorIsCorporate": bool(mentor.is_corporate or refresh_user_corporate_status(mentor)) if mentor else False,
             "menteeId": task.mentee_id,
             "menteeName": mentee.name if mentee else "Unknown",
             "type": "personal",
@@ -5377,7 +5436,7 @@ def get_institution_tasks_data():
             "category": "Mentorship Task",
             "mentorId": task.mentor_id,
             "mentorName": mentor.name if mentor else "Unknown",
-            "mentorIsCorporate": mentor.is_corporate if mentor else False,
+            "mentorIsCorporate": bool(mentor.is_corporate or refresh_user_corporate_status(mentor)) if mentor else False,
             "menteeId": task.mentee_id,
             "menteeName": mentee.name if mentee else "Unknown",
             "type": "master",
@@ -5706,6 +5765,10 @@ def find_mentor():
         
         # Create enriched object with user data as fallback
         mentor = type('MentorData', (), {})()
+        mentor.name = user.name
+        mentor.email = user.email
+        mentor.is_corporate = refresh_user_corporate_status(user)
+        mentor.premium = bool(getattr(user, 'premium', False))
         
         if mentor_profile:
             # Use profile data if available
@@ -6277,6 +6340,7 @@ def supervisor_find_mentor():
                 'id': profile.id,
                 'user_id': user.id,
                 'user': user,
+                'is_corporate': refresh_user_corporate_status(user),
                 'profession': profile.profession,
                 'organisation': profile.organisation,
                 'location': profile.location,
@@ -6318,6 +6382,7 @@ def supervisor_find_mentor():
                 'id': user.id,
                 'user_id': user.id,
                 'user': user,
+                'is_corporate': refresh_user_corporate_status(user),
                 'profession': None,
                 'organisation': None,
                 'location': None,
@@ -11085,7 +11150,7 @@ def get_supervisor_tasks_data():
                 'progress': task.progress or 0,
                 'mentorId': task.mentor_id,
                 'mentorName': mentor.name if mentor else 'Self',
-                'mentorIsCorporate': mentor.is_corporate if mentor else False,
+                'mentorIsCorporate': bool(mentor.is_corporate or refresh_user_corporate_status(mentor)) if mentor else False,
                 'menteeId': task.mentee_id,
                 'menteeName': mentee.name if mentee else 'Unknown',
                 'category': 'Personal Task',
@@ -11128,7 +11193,7 @@ def get_supervisor_tasks_data():
                     'progress': task.progress or 0,
                     'mentorId': task.mentor_id,
                     'mentorName': mentor.name,
-                    'mentorIsCorporate': mentor.is_corporate if mentor else False,
+                    'mentorIsCorporate': bool(mentor.is_corporate or refresh_user_corporate_status(mentor)) if mentor else False,
                     'menteeId': task.mentee_id,
                     'menteeName': mentee.name,
                     'category': 'Mentorship Task',
@@ -16356,36 +16421,32 @@ def delete_note(note_id):
 def generate_qr(url):
     """Generate a QR code PNG image for the given URL."""
     try:
-        import qrcode
-        from io import BytesIO
+        from flask import Response
+        from qr_code_lib import QRCode
         
-        # Build full URL from path
         full_url = request.host_url.rstrip('/') + '/' + url.lstrip('/')
+        qr = QRCode(full_url, error_correction='M')
+        png_data = qr.to_png(box_size=6, border=2, color=(30, 64, 175))
         
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=10,
-            border=2,
-        )
-        qr.add_data(full_url)
-        qr.make(fit=True)
-        
-        img = qr.make_image(fill_color="1e40af", back_color="ffffff")
-        
-        buf = BytesIO()
-        img.save(buf, format='PNG')
-        buf.seek(0)
-        
-        from flask import send_file
-        response = send_file(buf, mimetype='image/png')
-        # Add cache headers for reliable loading in certificate
+        response = Response(png_data, mimetype='image/png')
         response.headers['Cache-Control'] = 'public, max-age=3600'
         response.headers['Content-Disposition'] = 'inline'
         return response
     except Exception as e:
         print(f"QR generation error: {e}")
-        return jsonify({"error": "Failed to generate QR"}), 500
+        try:
+            # Fallback to SVG
+            from qr_code_lib import QRCode
+            full_url = request.host_url.rstrip('/') + '/' + url.lstrip('/')
+            qr = QRCode(full_url, error_correction='M')
+            svg_data = qr.to_svg(box_size=6, border=2, color="#1e40af")
+            response = Response(svg_data, mimetype='image/svg+xml')
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            response.headers['Content-Disposition'] = 'inline'
+            return response
+        except Exception as e2:
+            print(f"QR SVG fallback error: {e2}")
+            return jsonify({"error": "Failed to generate QR"}), 500
 
 
 if __name__ == '__main__':

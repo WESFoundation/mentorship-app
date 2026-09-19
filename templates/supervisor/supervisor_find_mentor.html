@@ -194,7 +194,19 @@
                 </div>
                 {% endif %}
                 <div>
-                  <div class="text-[11px] sm:text-sm font-semibold text-gray-900 mentor-name leading-tight">{{ mentor.user.name }}{% if mentor.user.premium %} <span class="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}</div>
+                  <div class="text-[11px] sm:text-sm font-semibold text-gray-900 mentor-name leading-tight flex items-center flex-wrap gap-1">
+                    <span>{{ mentor.user.name }}</span>
+                    {% if (mentor.is_corporate or (mentor.user and mentor.user.is_corporate)) %}
+                    <span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-300" title="Corporate Mentor">
+                      <i class="fas fa-building text-emerald-600"></i> Corporate
+                    </span>
+                    {% endif %}
+                    {% if mentor.user.premium %}
+                    <span class="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" title="Premium Mentor">
+                      <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium
+                    </span>
+                    {% endif %}
+                  </div>
                   <div class="text-[10px] sm:text-xs text-gray-500 truncate max-w-[180px]">{{ mentor.organisation or 'Not specified' }}</div>
                 </div>
               </div>
@@ -266,7 +278,8 @@
                     data-mentorship-philosophy="{{ mentor.mentorship_philosophy or '' }}"
                     data-mentorship-motto="{{ mentor.mentorship_motto or '' }}"
                     data-other-social="{{ mentor.other_social_link or '' }}"
-                    data-criminal-certificate="{{ mentor.criminal_certificate or '' }}">
+                    data-criminal-certificate="{{ mentor.criminal_certificate or '' }}"
+                    data-is-corporate="{{ '1' if (mentor.is_corporate or (mentor.user and mentor.user.is_corporate)) else '0' }}">
                     <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                     View Profile
                   </button>
@@ -708,7 +721,8 @@
           mentorship_philosophy: this.getAttribute('data-mentorship-philosophy'),
           mentorship_motto: this.getAttribute('data-mentorship-motto'),
           other_social_link: this.getAttribute('data-other-social'),
-          criminal_certificate: this.getAttribute('data-criminal-certificate')
+          criminal_certificate: this.getAttribute('data-criminal-certificate'),
+          is_corporate: this.getAttribute('data-is-corporate') === '1'
         };
         
         openProfileModal(mentor);
@@ -737,7 +751,13 @@
 
   function openProfileModal(mentor) {
     // ===== BASIC INFORMATION =====
-    document.getElementById('modalName').innerText = mentor.user?.name || "Not specified";
+    const nameEl = document.getElementById('modalName');
+    if (nameEl) {
+      const corporateBadge = (mentor.is_corporate || mentor.user?.is_corporate)
+        ? ' <span class="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-300 align-middle ml-2"><i class="fas fa-building text-emerald-600"></i> Corporate</span>'
+        : '';
+      nameEl.innerHTML = (mentor.user?.name || "Not specified") + corporateBadge;
+    }
     document.getElementById('modalEmail').innerText = mentor.user?.email || "Not specified";
     document.getElementById('modalProfession').innerText = mentor.profession || "Not specified";
     document.getElementById('modalOrganisation').innerText = mentor.organisation || "Not specified";

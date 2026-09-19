@@ -131,7 +131,8 @@
                 data-mentorship-philosophy="{{ mentor.mentor_profile.mentorship_philosophy if mentor.mentor_profile else '' }}"
                 data-mentorship-motto="{{ mentor.mentor_profile.mentorship_motto if mentor.mentor_profile else '' }}"
                 data-other-social="{{ mentor.mentor_profile.other_social_link if mentor.mentor_profile else '' }}"
-                data-criminal-certificate="{{ mentor.mentor_profile.criminal_certificate if mentor.mentor_profile else '' }}">
+                data-criminal-certificate="{{ mentor.mentor_profile.criminal_certificate if mentor.mentor_profile else '' }}"
+                data-is-corporate="{{ '1' if mentor.is_corporate else '0' }}">
                 View Profile
               </button>
             </td>
@@ -508,7 +509,13 @@
 
   function openProfileModal(mentor) {
     // ===== BASIC INFORMATION =====
-    document.getElementById('modalName').innerText = mentor.name || "Not specified";
+    const nameEl = document.getElementById('modalName');
+    if (nameEl) {
+      const corporateBadge = (mentor.is_corporate === true || mentor.is_corporate === '1')
+        ? ' <span class="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-300 align-middle ml-2"><i class="fas fa-building text-emerald-600"></i> Corporate</span>'
+        : '';
+      nameEl.innerHTML = (mentor.name || "Not specified") + corporateBadge;
+    }
     document.getElementById('modalEmail').innerText = mentor.email || "Not specified";
     document.getElementById('modalProfession').innerText = mentor.profession || "Not specified";
     document.getElementById('modalOrganisation').innerText = mentor.organisation || "Not specified";
@@ -767,7 +774,8 @@
           mentorship_philosophy: this.getAttribute('data-mentorship-philosophy'),
           mentorship_motto: this.getAttribute('data-mentorship-motto'),
           other_social_link: this.getAttribute('data-other-social'),
-          criminal_certificate: this.getAttribute('data-criminal-certificate')
+          criminal_certificate: this.getAttribute('data-criminal-certificate'),
+          is_corporate: this.getAttribute('data-is-corporate') === '1'
         };
         
         currentModalMentorId = mentor.id;

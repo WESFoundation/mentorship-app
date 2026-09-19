@@ -238,7 +238,7 @@
 
               <!-- Info -->
               <div class="mb-4">
-                <h3 class="text-lg font-bold text-gray-900 mentor-name">{{ mentor.user.name }}{% if mentor.user.premium %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}</h3>
+                <h3 class="text-lg font-bold text-gray-900 mentor-name">{{ mentor.user.name }}{% if mentor.user.premium %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}{% if mentor.is_corporate or (mentor.user and mentor.user.is_corporate) %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200" title="Corporate Verified"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg> Corporate</span>{% endif %}</h3>
                 <p class="text-xs font-medium text-blue-600 mb-1 mentor-profession tracking-wide uppercase">{{ mentor.profession }}</p>
                 <p class="text-xs text-gray-500 flex items-center gap-1.5 mb-2">
                   <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -342,7 +342,8 @@
                 data-research-work="{{ mentor.research_work or '' }}"
                 data-mentorship-philosophy="{{ mentor.mentorship_philosophy or '' }}"
                 data-mentorship-motto="{{ mentor.mentorship_motto or '' }}"
-                data-other-social="{{ mentor.other_social_link or '' }}">
+                data-other-social="{{ mentor.other_social_link or '' }}"
+                data-is-corporate="{{ '1' if (mentor.is_corporate or (mentor.user and mentor.user.is_corporate)) else '0' }}">
                 View Profile
               </button>
             </div>
@@ -394,7 +395,7 @@
 
             <!-- Info -->
             <div class="mb-4">
-              <h3 class="text-lg font-bold text-gray-900 mentor-name">{{ mentor.user.name }}{% if mentor.user.premium %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}</h3>
+              <h3 class="text-lg font-bold text-gray-900 mentor-name">{{ mentor.user.name }}{% if mentor.user.premium %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}{% if mentor.is_corporate or (mentor.user and mentor.user.is_corporate) %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200" title="Corporate Verified"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg> Corporate</span>{% endif %}</h3>
               <p class="text-xs font-medium text-blue-600 mb-1 mentor-profession tracking-wide uppercase">{{
                 mentor.profession }}</p>
               <p class="text-xs text-gray-500 flex items-center gap-1.5 mb-2">
@@ -489,7 +490,8 @@
               data-research-work="{{ mentor.research_work }}"
               data-mentorship-philosophy="{{ mentor.mentorship_philosophy }}"
               data-mentorship-motto="{{ mentor.mentorship_motto }}"
-              data-other-social="{{ mentor.other_social_link }}">
+              data-other-social="{{ mentor.other_social_link }}"
+              data-is-corporate="{{ '1' if (mentor.is_corporate or (mentor.user and mentor.user.is_corporate)) else '0' }}">
               View Profile
             </button>
           </div>
@@ -1169,7 +1171,8 @@
           research_work: this.getAttribute('data-research-work'),
           mentorship_philosophy: this.getAttribute('data-mentorship-philosophy'),
           mentorship_motto: this.getAttribute('data-mentorship-motto'),
-          other_social: this.getAttribute('data-other-social')
+          other_social: this.getAttribute('data-other-social'),
+          is_corporate: this.getAttribute('data-is-corporate') === '1'
         };
         openProfileModal(mentor);
       });
@@ -1205,7 +1208,12 @@
     };
 
     // ===== BASIC INFORMATION =====
-    setSafeText('modalName', mentor.user?.name);
+    const nameEl = document.getElementById('modalName');
+    if (nameEl) {
+      const isCorp = mentor.is_corporate || (mentor.user && mentor.user.is_corporate);
+      const corpBadge = isCorp ? ` <span class="inline-flex items-center gap-0.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200 ml-1.5 align-middle" title="Corporate Verified"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg> Corporate</span>` : '';
+      nameEl.innerHTML = (mentor.user?.name || mentor.name || 'Not specified') + corpBadge;
+    }
 
     // ===== PROFESSIONAL INFORMATION =====
     setSafeText('modalProfession', mentor.profession);
