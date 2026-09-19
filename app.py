@@ -1458,6 +1458,14 @@ class Institution(db.Model):
         """Institution name comes from linked User.name"""
         return self.user.name if self.user else None
     
+    @classmethod
+    def get_by_name(cls, name):
+        """Look up an Institution by its name (derived from User.name)."""
+        inst_user = User.query.filter_by(name=name, user_type="3").first()
+        if inst_user:
+            return cls.query.filter_by(user_id=inst_user.id).first()
+        return None
+    
     @property
     def contact_email(self):
         """Institution email comes from linked User.email"""
@@ -3159,7 +3167,7 @@ def select_user_type():
                     db.session.flush()
 
                     if user_type == "3":
-                        institution = Institution.query.filter_by(name=institution_name).first()
+                        institution = Institution.get_by_name(institution_name)
                         if not institution:
                             institution = Institution(
                                 user_id=new_user.id,
@@ -4456,7 +4464,10 @@ def create_account():
             # Look up institution if provided
             institution_obj = None
             if institution_name and user_type != "3":
-                institution_obj = Institution.query.filter_by(name=institution_name).first()
+                # Institution.name is a @property from User.name, so we need to join
+                institution_user = User.query.filter_by(name=institution_name, user_type="3").first()
+                if institution_user:
+                    institution_obj = Institution.query.filter_by(user_id=institution_user.id).first()
             
             # Create new user
             new_user = User(
@@ -4872,7 +4883,7 @@ def institution_mentorships():
     if user.institution_id:
         institution = Institution.query.filter_by(id=user.institution_id).first()
     if not institution:
-        institution = Institution.query.filter_by(name=user.institution).first()
+        institution = Institution.get_by_name(user.institution)
     institution_name = institution.name if institution else user.institution
 
     # Get ALL mentorship requests where either the mentee OR the mentor
@@ -4958,7 +4969,7 @@ def institution_requests():
     if user.institution_id:
         institution = Institution.query.filter_by(id=user.institution_id).first()
     if not institution:
-        institution = Institution.query.filter_by(name=user.institution).first()
+        institution = Institution.get_by_name(user.institution)
     institution_name = institution.name if institution else user.institution
 
     # Mentorship requests where either the mentee OR the mentor belongs to this institution,
@@ -5017,7 +5028,7 @@ def institution_all_meetings():
     if user.institution_id:
         institution = Institution.query.filter_by(id=user.institution_id).first()
     if not institution:
-        institution = Institution.query.filter_by(name=user.institution).first()
+        institution = Institution.get_by_name(user.institution)
     institution_name = institution.name if institution else user.institution
 
     # All meetings involving the institution's mentors or mentees (by ID or by name)
@@ -5084,7 +5095,7 @@ def institution_response():
     if user.institution_id:
         institution = Institution.query.filter_by(id=user.institution_id).first()
     if not institution:
-        institution = Institution.query.filter_by(name=user.institution).first()
+        institution = Institution.get_by_name(user.institution)
     institution_name = institution.name if institution else user.institution
 
     request_id = request.form.get("request_id")
@@ -5431,7 +5442,7 @@ def institutionprofile_old():
     if not institution_details and user.institution_id:
         institution_details = Institution.query.filter_by(id=user.institution_id).first()
     if not institution_details:
-        institution_details = Institution.query.filter_by(name=user.institution).first()
+        institution_details = Institution.get_by_name(user.institution)
     
     # If institution not found, create default data
     if not institution_details:
@@ -5503,7 +5514,7 @@ def editinstitutionprofile():
     if not institution_details and user.institution_id:
         institution_details = Institution.query.filter_by(id=user.institution_id).first()
     if not institution_details:
-        institution_details = Institution.query.filter_by(name=user.institution).first()
+        institution_details = Institution.get_by_name(user.institution)
 
     if request.method == "POST":
         try:
@@ -5533,7 +5544,7 @@ def editinstitutionprofile():
             if not institution_details:
                 institution_details = Institution(
                     user_id=user.id,  # Link to admin user
-                    name=request.form.get("name", user.institution)
+                    status="active"
                 )
                 db.session.add(institution_details)
                 db.session.flush()
@@ -5583,8 +5594,13 @@ def editinstitutionprofile():
                 institution_users = User.query.filter_by(institution_id=institution_details.id).all()
                 for u in institution_users:
                     u.is_corporate = check_corporate_email(u.email, institution_details)
-            
-            db.session.commit()
+                db.session.commit()
+            else:
+                # Clear corporate status if no email domain set
+                institution_users = User.query.filter_by(institution_id=institution_details.id).all()
+                for u in institution_users:
+                    u.is_corporate = False
+                db.session.commit()
             flash("Institution profile updated successfully!", "success")
             return redirect(url_for("institutionprofile"))
             
@@ -12446,11 +12462,18 @@ def editmentorprofile():
                 else:
                     user.is_corporate = False
             elif user.institution:
-                institution = Institution.query.filter_by(name=user.institution).first()
-                if institution and institution.email_domain:
-                    user.is_corporate = check_corporate_email(user.email, institution)
+                # Institution.name is a @property from User.name — look up via User table
+                inst_user = User.query.filter_by(name=user.institution, user_type="3").first()
+                if inst_user:
+                    institution = Institution.query.filter_by(user_id=inst_user.id).first()
+                    if institution and institution.email_domain:
+                        user.is_corporate = check_corporate_email(user.email, institution)
+                    else:
+                        user.is_corporate = False
                 else:
                     user.is_corporate = False
+            else:
+                user.is_corporate = False
 
             db.session.commit()
             # Clear any saved form data from session on successful save
@@ -13302,7 +13325,7 @@ def mentorprofile():
         if user.institution_id:
             institution_details = Institution.query.filter_by(id=user.institution_id).first()
         elif user.institution:
-            institution_details = Institution.query.filter_by(name=user.institution).first()
+            institution_details = Institution.get_by_name(user.institution)
         
         institution_profile_picture = institution_details.profile_picture if institution_details else None
 
@@ -13377,7 +13400,7 @@ def menteeprofile():
         if user.institution_id:
             institution_details = Institution.query.filter_by(id=user.institution_id).first()
         elif user.institution:
-            institution_details = Institution.query.filter_by(name=user.institution).first()
+            institution_details = Institution.get_by_name(user.institution)
         
         institution_profile_picture = institution_details.profile_picture if institution_details else None
 
@@ -13544,7 +13567,7 @@ def view_mentee_profile(mentee_id):
     if user.institution_id:
         institution_details = Institution.query.filter_by(id=user.institution_id).first()
     elif user.institution:
-        institution_details = Institution.query.filter_by(name=user.institution).first()
+        institution_details = Institution.get_by_name(user.institution)
 
     institution_profile_picture = institution_details.profile_picture if institution_details else None
     
@@ -14628,7 +14651,7 @@ def create_sample_institutions():
     ]
     
     for inst_data in institutions:
-        existing = Institution.query.filter_by(name=inst_data["name"]).first()
+        existing = Institution.get_by_name(inst_data["name"])
         if not existing:
             institution = Institution(
                 name=inst_data["name"],
