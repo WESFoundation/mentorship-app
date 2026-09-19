@@ -157,6 +157,57 @@ def generate_consent_token():
     import secrets
     return secrets.token_urlsafe(32)
 
+
+def check_corporate_email(user_email, institution):
+    """Check if user's email domain matches their institution's email_domain."""
+    if not user_email or not institution or not institution.email_domain:
+        return False
+    if '@' not in user_email:
+        return False
+    user_domain = user_email.split('@')[1].lower().strip()
+    inst_domain = institution.email_domain.lower().strip()
+    return user_domain == inst_domain
+
+
+def update_corporate_status(user_email, institution_id):
+    """Update a user's is_corporate flag based on their email and institution."""
+    if not user_email or not institution_id:
+        return False
+    institution = Institution.query.filter_by(id=institution_id).first()
+    if not institution:
+        return False
+    is_corp = check_corporate_email(user_email, institution)
+    user = User.query.filter_by(email=user_email).first()
+    if user:
+        user.is_corporate = is_corp
+        db.session.commit()
+    return is_corp
+
+
+_institution_logo_cache = {}
+
+def get_institution_logo_url(institution):
+    """Get the institution's logo URL. Returns profile picture if set, otherwise tries to fetch favicon from website."""
+    if not institution:
+        return None
+    if institution.profile_picture:
+        return url_for('static', filename='img/institutions/' + institution.profile_picture)
+    if institution.website:
+        try:
+            if institution.id in _institution_logo_cache:
+                return _institution_logo_cache[institution.id]
+            parsed = requests.urlparse(institution.website)
+            base_url = f"{parsed.scheme}://{parsed.netloc}"
+            favicon_url = f"{base_url}/favicon.ico"
+            response = http_requests.head(favicon_url, timeout=3)
+            if response.status_code == 200:
+                _institution_logo_cache[institution.id] = favicon_url
+                return favicon_url
+        except Exception:
+            pass
+    return None
+
+
 def send_parent_consent_email(parent_email, parent_name, mentee_name, consent_token):
     """Send parent consent email with approval link"""
     try:
@@ -1163,6 +1214,9 @@ class User(db.Model):
     
     # Scholarly Mentee status
     scholarly = db.Column(db.Boolean, default=False)
+
+    # Corporate email affiliation (email domain matches institution domain)
+    is_corporate = db.Column(db.Boolean, default=False)
 
     # Premium Mentor status
     premium = db.Column(db.Boolean, default=False)
@@ -5194,6 +5248,7 @@ def get_institution_tasks_data():
             "category": getattr(task, 'category', None) or "Personal",
             "mentorId": task.mentor_id,
             "mentorName": mentor.name if mentor else "Self-assigned",
+            "mentorIsCorporate": mentor.is_corporate if mentor else False,
             "menteeId": task.mentee_id,
             "menteeName": mentee.name if mentee else "Unknown",
             "type": "personal",
@@ -5237,6 +5292,7 @@ def get_institution_tasks_data():
             "category": "Mentorship Task",
             "mentorId": task.mentor_id,
             "mentorName": mentor.name if mentor else "Unknown",
+            "mentorIsCorporate": mentor.is_corporate if mentor else False,
             "menteeId": task.mentee_id,
             "menteeName": mentee.name if mentee else "Unknown",
             "type": "master",
@@ -5462,6 +5518,12 @@ def editinstitutionprofile():
             if hasattr(user, 'phone'):
                 user.phone = request.form.get("official_phone", "")
             
+            # Update corporate status for all users under this institution
+            if institution_details.email_domain:
+                institution_users = User.query.filter_by(institution_id=institution_details.id).all()
+                for u in institution_users:
+                    u.is_corporate = check_corporate_email(u.email, institution_details)
+            
             db.session.commit()
             flash("Institution profile updated successfully!", "success")
             return redirect(url_for("institutionprofile"))
@@ -5486,6 +5548,44 @@ def editinstitutionprofile():
     )
 
 #-------- find function------------
+@app.route("/api/check_corporate_email", methods=["POST"])
+def check_corporate_email_api():
+    """Check if the user's email matches their institution's domain."""
+    if "email" not in session:
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user or not user.institution_id:
+        return jsonify({"success": False, "is_corporate": False, "reason": "No institution linked"}), 400
+
+    institution = Institution.query.filter_by(id=user.institution_id).first()
+    if not institution or not institution.email_domain:
+        return jsonify({"success": False, "is_corporate": False, "reason": "No email domain set"}), 400
+
+    is_corp = check_corporate_email(user.email, institution)
+
+    # Update the user's is_corporate flag
+    user.is_corporate = is_corp
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "is_corporate": is_corp,
+        "email_domain": institution.email_domain,
+        "user_domain": user.email.split('@')[1] if '@' in user.email else ''
+    })
+
+
+@app.route("/api/institution_logo/<int:institution_id>")
+def api_institution_logo(institution_id):
+    """Get the institution's logo URL."""
+    institution = Institution.query.filter_by(id=institution_id).first()
+    if not institution:
+        return jsonify({"success": False, "error": "Institution not found"}), 404
+    logo_url = get_institution_logo_url(institution)
+    return jsonify({"success": True, "logo_url": logo_url, "name": institution.name})
+
+
 @app.route("/find_mentor", methods=["GET"])
 @cache.cached(timeout=60, query_string=True)
 def find_mentor():
@@ -10895,6 +10995,7 @@ def get_supervisor_tasks_data():
                 'progress': task.progress or 0,
                 'mentorId': task.mentor_id,
                 'mentorName': mentor.name if mentor else 'Self',
+                'mentorIsCorporate': mentor.is_corporate if mentor else False,
                 'menteeId': task.mentee_id,
                 'menteeName': mentee.name if mentee else 'Unknown',
                 'category': 'Personal Task',
@@ -10937,6 +11038,7 @@ def get_supervisor_tasks_data():
                     'progress': task.progress or 0,
                     'mentorId': task.mentor_id,
                     'mentorName': mentor.name,
+                    'mentorIsCorporate': mentor.is_corporate if mentor else False,
                     'menteeId': task.mentee_id,
                     'menteeName': mentee.name,
                     'category': 'Mentorship Task',
@@ -12276,6 +12378,20 @@ def editmentorprofile():
                 return redirect(url_for("editmentorprofile"))
 
         try:
+            # Update corporate affiliation status if user has an institution
+            if user.institution_id:
+                institution = Institution.query.filter_by(id=user.institution_id).first()
+                if institution and institution.email_domain:
+                    user.is_corporate = check_corporate_email(user.email, institution)
+                else:
+                    user.is_corporate = False
+            elif user.institution:
+                institution = Institution.query.filter_by(name=user.institution).first()
+                if institution and institution.email_domain:
+                    user.is_corporate = check_corporate_email(user.email, institution)
+                else:
+                    user.is_corporate = False
+
             db.session.commit()
             # Clear any saved form data from session on successful save
             session.pop('mentor_form_data', None)
