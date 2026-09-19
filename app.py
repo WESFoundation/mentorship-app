@@ -184,6 +184,27 @@ def update_corporate_status(user_email, institution_id):
     return is_corp
 
 
+def refresh_user_corporate_status(user):
+    """Check and update user's is_corporate flag using institution_id OR institution name string."""
+    if not user or not user.email:
+        return False
+    
+    institution = None
+    if user.institution_id:
+        institution = Institution.query.filter_by(id=user.institution_id).first()
+    elif user.institution:
+        # Fallback: look up by institution name string
+        institution = Institution.get_by_name(user.institution)
+    
+    if institution and institution.email_domain:
+        user.is_corporate = check_corporate_email(user.email, institution)
+    else:
+        user.is_corporate = False
+    
+    db.session.commit()
+    return user.is_corporate
+
+
 def has_active_application(user):
     """Check if user already has a pending or approved premium/scholarly application."""
     if not user:
@@ -2936,6 +2957,9 @@ def callback():
                 db.session.commit()
                 print(f"   ✅ Updated user record")
             
+            # Auto-check corporate affiliation after email normalization
+            refresh_user_corporate_status(user)
+            
             print(f"\n📍 Step 8: Setting session for existing user")
             session.permanent = True
             session["email"] = user.email
@@ -3389,11 +3413,7 @@ def mentordashboard():
     profile_complete = check_profile_complete(user.id, "1")
     
     # Auto-check corporate affiliation if linked to institution
-    if user.institution_id and not user.is_corporate:
-        institution = Institution.query.filter_by(id=user.institution_id).first()
-        if institution and institution.email_domain:
-            user.is_corporate = check_corporate_email(user.email, institution)
-            db.session.commit()
+    refresh_user_corporate_status(user)
     
     # Calculate profile completion percentage and missing fields
     profile_stats = calculate_mentor_profile_completion(user.id)
@@ -3654,11 +3674,7 @@ def menteedashboard():
         profile_complete = check_profile_complete(user.id, "2", profile_obj=mentee_profile) if user else False
         
         # Auto-check corporate affiliation if linked to institution
-        if user.institution_id and not user.is_corporate:
-            institution = Institution.query.filter_by(id=user.institution_id).first()
-            if institution and institution.email_domain:
-                user.is_corporate = check_corporate_email(user.email, institution)
-                db.session.commit()
+        refresh_user_corporate_status(user)
 
         all_mentors = MentorProfile.query.options(joinedload(MentorProfile.user)).all()
 
@@ -4586,6 +4602,8 @@ def edit_user(user_id):
             user.institution = institution
             db.session.commit()
             
+            refresh_user_corporate_status(user)
+            
             flash(f"✅ User details updated successfully for {name}", "success")
             return redirect(url_for("manage_created_accounts"))
         except Exception as e:
@@ -4801,11 +4819,7 @@ def institutiondashboard():
     profile_complete = check_profile_complete(user.id, "3")
     
     # Auto-check corporate affiliation if linked to institution
-    if user.institution_id and not user.is_corporate:
-        institution = Institution.query.filter_by(id=user.institution_id).first()
-        if institution and institution.email_domain:
-            user.is_corporate = check_corporate_email(user.email, institution)
-            db.session.commit()
+    refresh_user_corporate_status(user)
     
     institution, inst_id, institution_name, aliases = _get_institution_details(user)
     
@@ -12454,27 +12468,9 @@ def editmentorprofile():
                 return redirect(url_for("editmentorprofile"))
 
         try:
-            # Update corporate affiliation status if user has an institution
-            if user.institution_id:
-                institution = Institution.query.filter_by(id=user.institution_id).first()
-                if institution and institution.email_domain:
-                    user.is_corporate = check_corporate_email(user.email, institution)
-                else:
-                    user.is_corporate = False
-            elif user.institution:
-                # Institution.name is a @property from User.name — look up via User table
-                inst_user = User.query.filter_by(name=user.institution, user_type="3").first()
-                if inst_user:
-                    institution = Institution.query.filter_by(user_id=inst_user.id).first()
-                    if institution and institution.email_domain:
-                        user.is_corporate = check_corporate_email(user.email, institution)
-                    else:
-                        user.is_corporate = False
-                else:
-                    user.is_corporate = False
-            else:
-                user.is_corporate = False
-
+# Update corporate affiliation status if user has an institution
+            refresh_user_corporate_status(user)
+            
             db.session.commit()
             # Clear any saved form data from session on successful save
             session.pop('mentor_form_data', None)
@@ -12795,6 +12791,8 @@ def editmenteeprofile():
 
         db.session.commit()
         
+        refresh_user_corporate_status(user)
+        
         # Check if parent consent email was sent
         parent_consent_sent = False
         if profile.dob and needs_parent_consent(profile.dob, profile.country) and profile.parent_consent_status == "pending":
@@ -12943,6 +12941,9 @@ def editsupervisorprofile():
             
         db.session.add(profile)
         db.session.commit()
+        
+        refresh_user_corporate_status(user)
+        
         flash("Profile updated successfully!", "success")
         return redirect(url_for("supervisorprofile"))
 
@@ -16358,13 +16359,16 @@ def generate_qr(url):
         import qrcode
         from io import BytesIO
         
+        # Build full URL from path
+        full_url = request.host_url.rstrip('/') + '/' + url.lstrip('/')
+        
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_M,
             box_size=10,
             border=2,
         )
-        qr.add_data(url)
+        qr.add_data(full_url)
         qr.make(fit=True)
         
         img = qr.make_image(fill_color="1e40af", back_color="ffffff")
@@ -16374,7 +16378,11 @@ def generate_qr(url):
         buf.seek(0)
         
         from flask import send_file
-        return send_file(buf, mimetype='image/png')
+        response = send_file(buf, mimetype='image/png')
+        # Add cache headers for reliable loading in certificate
+        response.headers['Cache-Control'] = 'public, max-age=3600'
+        response.headers['Content-Disposition'] = 'inline'
+        return response
     except Exception as e:
         print(f"QR generation error: {e}")
         return jsonify({"error": "Failed to generate QR"}), 500
