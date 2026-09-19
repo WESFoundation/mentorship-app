@@ -2527,6 +2527,13 @@ def home():
     # Redirect to signin as the direct entry point
     return redirect(url_for("signin"))
 
+
+@app.route("/programs")
+def programs():
+    """Page explaining all mentorship and mentee programs."""
+    return render_template("programs.html")
+
+
 #--------------SIGNUP----------------
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
