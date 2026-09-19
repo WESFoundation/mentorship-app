@@ -1396,7 +1396,11 @@
                 <div style="margin-top: 1rem; display: flex; justify-content: center; align-items: center; gap: 0.75rem;">
                     <span style="font-size: 0.65rem; color: #9ca3af; font-weight: 500;">Scan for program details:</span>
                     <div style="width: 60px; height: 60px; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 4px; background: white; display: inline-flex; align-items: center; justify-content: center;">
+<<<<<<< HEAD
                         <img src="{{ url_for('generate_qr', url=request.host_url.rstrip('/') + '/programs') }}" alt="QR Code" style="width: 52px; height: 52px;">
+=======
+                        <img src="{{ url_for('generate_qr', url='programs') }}" alt="QR Code" crossorigin="anonymous" style="width: 52px; height: 52px; display: block;">
+>>>>>>> ccb4953a79b8548477ca08d6b7b662ef5899a3d4
                     </div>
                 </div>
             </div>
@@ -1811,13 +1815,15 @@
             html2canvas(certificate, {
                 scale: 2,
                 backgroundColor: '#ffffff',
-                logging: false
+                logging: false,
+                useCORS: true
             }).then(function(canvas1) {
                 if (page2) {
                     html2canvas(page2, {
                         scale: 2,
                         backgroundColor: '#ffffff',
-                        logging: false
+                        logging: false,
+                        useCORS: true
                     }).then(function(canvas2) {
                         var combined = document.createElement('canvas');
                         var totalHeight = canvas1.height + canvas2.height;
