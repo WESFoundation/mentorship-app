@@ -184,6 +184,23 @@ def update_corporate_status(user_email, institution_id):
     return is_corp
 
 
+def has_active_application(user):
+    """Check if user already has a pending or approved premium/scholarly application."""
+    if not user:
+        return {"premium": False, "scholarly": False}
+    premium_active = PremiumApplication.query.filter_by(
+        mentor_id=user.id, status="pending"
+    ).first() is not None or PremiumApplication.query.filter_by(
+        mentor_id=user.id, status="approved"
+    ).first() is not None
+    scholarly_active = ScholarlyApplication.query.filter_by(
+        mentee_id=user.id, status="pending"
+    ).first() is not None or ScholarlyApplication.query.filter_by(
+        mentee_id=user.id, status="approved"
+    ).first() is not None
+    return {"premium": premium_active, "scholarly": scholarly_active}
+
+
 _institution_logo_cache = {}
 
 def get_institution_logo_url(institution):
@@ -3363,6 +3380,13 @@ def mentordashboard():
     user = User.query.filter_by(email=session["email"]).first()
     profile_complete = check_profile_complete(user.id, "1")
     
+    # Auto-check corporate affiliation if linked to institution
+    if user.institution_id and not user.is_corporate:
+        institution = Institution.query.filter_by(id=user.institution_id).first()
+        if institution and institution.email_domain:
+            user.is_corporate = check_corporate_email(user.email, institution)
+            db.session.commit()
+    
     # Calculate profile completion percentage and missing fields
     profile_stats = calculate_mentor_profile_completion(user.id)
 
@@ -3533,7 +3557,8 @@ def mentordashboard():
         accepted_requests=accepted_requests,
         upcoming_meetings=upcoming_meetings,
         completed_meetings=completed_meetings,
-        mentee_leaderboard=mentee_leaderboard
+        mentee_leaderboard=mentee_leaderboard,
+        has_active_app=has_active_application(user)
     )
 
 @app.route("/mentor_mentorship_request", methods=["GET", "POST"])
@@ -3619,6 +3644,13 @@ def menteedashboard():
         user = User.query.options(joinedload(User.mentee_profile)).filter_by(email=session["email"]).first()
         mentee_profile = user.mentee_profile if user else None
         profile_complete = check_profile_complete(user.id, "2", profile_obj=mentee_profile) if user else False
+        
+        # Auto-check corporate affiliation if linked to institution
+        if user.institution_id and not user.is_corporate:
+            institution = Institution.query.filter_by(id=user.institution_id).first()
+            if institution and institution.email_domain:
+                user.is_corporate = check_corporate_email(user.email, institution)
+                db.session.commit()
 
         all_mentors = MentorProfile.query.options(joinedload(MentorProfile.user)).all()
 
@@ -4421,14 +4453,25 @@ def create_account():
             # Hash password
             hashed_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=8)
             
+            # Look up institution if provided
+            institution_obj = None
+            if institution_name and user_type != "3":
+                institution_obj = Institution.query.filter_by(name=institution_name).first()
+            
             # Create new user
             new_user = User(
                 name=name,
                 email=email,
                 password=hashed_password,
                 user_type=user_type,
-                institution=institution_name if user_type != "3" else None  # Don't store institution for institution admins
+                institution=institution_name if user_type != "3" else None,
+                institution_id=institution_obj.id if institution_obj else None
             )
+            
+            # Check corporate email affiliation
+            if institution_obj and email:
+                new_user.is_corporate = check_corporate_email(email, institution_obj)
+            
             db.session.add(new_user)
             db.session.flush()  # Get user ID
             
@@ -4442,8 +4485,11 @@ def create_account():
                 db.session.flush()
                 
                 new_user.institution_id = institution.id
-            
-            db.session.commit()
+                db.session.commit()
+            elif institution_obj:
+                db.session.commit()
+            else:
+                db.session.commit()
             
             flash(f"✅ Account created successfully for {name} ({email})", "success")
             return redirect(url_for("manage_created_accounts"))
@@ -4742,7 +4788,14 @@ def institutiondashboard():
 
     user = User.query.filter_by(email=session["email"]).first()
     profile_complete = check_profile_complete(user.id, "3")
-
+    
+    # Auto-check corporate affiliation if linked to institution
+    if user.institution_id and not user.is_corporate:
+        institution = Institution.query.filter_by(id=user.institution_id).first()
+        if institution and institution.email_domain:
+            user.is_corporate = check_corporate_email(user.email, institution)
+            db.session.commit()
+    
     institution, inst_id, institution_name, aliases = _get_institution_details(user)
     
     # Get all mentors and mentees who belong to this institution

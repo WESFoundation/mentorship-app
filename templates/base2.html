@@ -167,7 +167,7 @@
 
         <div class="flex items-center gap-3">
             <!-- Premium Mentor Button (Mentors only) -->
-            {% if session.get('user_type') == '1' %}
+            {% if session.get('user_type') == '1' and not current_user.premium_applications|selectattr('status', 'equalto', 'pending')|list|length and not current_user.premium_applications|selectattr('status', 'equalto', 'approved')|list|length %}
             <button onclick="openPremiumModal()" class="group flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-300 hover:from-amber-100 hover:to-yellow-100 hover:border-amber-400 transition-all duration-200 shadow-sm hover:shadow" title="Premium Mentor">
                 <svg class="w-4 h-4 text-amber-500 group-hover:text-amber-600" fill="currentColor" viewBox="0 0 20 20"><path d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h8.974c.576 0 1.059.435 1.119 1.007zM9 10.5a.75.75 0 01.75-.75h3a.75.75 0 010 1.5H9.75A.75.75 0 019 10.5z"/></svg>
                 <span class="text-xs font-bold text-amber-700 group-hover:text-amber-800 hidden sm:block">Premium</span>
@@ -200,8 +200,9 @@
             {% endif %}
             {% endif %}
 
-            <!-- Scholarly Mentee Button (Mentees only) -->
-            {% if session.get('user_type') == '2' %}
+            <!-- Scholarly Mentee Button (Mentees only) - hidden if already applied -->
+            {% set scholarly_applied = current_user.scholarly_applications|selectattr('status', 'equalto', 'pending')|list|length > 0 or current_user.scholarly_applications|selectattr('status', 'equalto', 'approved')|list|length > 0 %}
+            {% if session.get('user_type') == '2' and not scholarly_applied %}
             <button onclick="openScholarlyModal()" class="group flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-300 hover:from-blue-100 hover:to-indigo-100 hover:border-blue-400 transition-all duration-200 shadow-sm hover:shadow" title="Scholarly Mentee">
                 <svg class="w-4 h-4 text-blue-500 group-hover:text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3.001zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/>
