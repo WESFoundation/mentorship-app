@@ -16449,17 +16449,9 @@ def delete_note(note_id):
 def generate_qr(url=None):
     """Generate a QR code PNG image for the given URL. Supports query param or path param."""
     try:
-<<<<<<< HEAD
-        import qrcode
-        from io import BytesIO
-        
-        # Get full URL from query param, default to programs page
-        target_url = request.args.get('url', request.host_url.rstrip('/') + '/programs')
-=======
         import io
         import qrcode
         from flask import Response
->>>>>>> 9dc36333bc3eddc243f929d3f8b731c6ad0ebae3
         
         target_url = url or request.args.get("url") or "programs"
         if target_url.startswith("http://") or target_url.startswith("https://"):
@@ -16480,24 +16472,11 @@ def generate_qr(url=None):
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         
-<<<<<<< HEAD
-        buf = BytesIO()
-        img.save(buf, format='PNG')
-        buf.seek(0)
-        
-        from flask import send_file
-        response = send_file(buf, mimetype='image/png')
-=======
         response = Response(buf.getvalue(), mimetype='image/png')
->>>>>>> 9dc36333bc3eddc243f929d3f8b731c6ad0ebae3
         response.headers['Cache-Control'] = 'public, max-age=3600'
         response.headers['Content-Disposition'] = 'inline'
         return response
     except Exception as e:
-<<<<<<< HEAD
-        print(f"QR generation error: {e}")
-        return jsonify({"error": "Failed to generate QR"}), 500
-=======
         print(f"QR generation error with qrcode lib: {e}")
         try:
             from flask import Response
@@ -16516,7 +16495,6 @@ def generate_qr(url=None):
         except Exception as e2:
             print(f"QR fallback error: {e2}")
             return jsonify({"error": "Failed to generate QR"}), 500
->>>>>>> 9dc36333bc3eddc243f929d3f8b731c6ad0ebae3
 
 
 if __name__ == '__main__':
