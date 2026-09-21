@@ -1394,13 +1394,9 @@
                 <div class="footer-text">WES Foundation | Mentorship Program</div>
                 <div class="footer-contact">mentorship.weslux.lu | info@wazireducationsociety.com</div>
                 <div style="margin-top: 1rem; display: flex; justify-content: center; align-items: center; gap: 0.75rem;">
-                    <span style="font-size: 0.65rem; color: #9ca3af; font-weight: 500;">Scan for program details:</span>
-                    <div style="width: 60px; height: 60px; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 4px; background: white; display: inline-flex; align-items: center; justify-content: center;">
-<<<<<<< HEAD
-                        <img src="{{ url_for('generate_qr', url=request.host_url.rstrip('/') + '/programs') }}" alt="QR Code" style="width: 52px; height: 52px;">
-=======
-                        <img src="{{ url_for('generate_qr', url='programs') }}" alt="QR Code" crossorigin="anonymous" style="width: 52px; height: 52px; display: block;">
->>>>>>> ccb4953a79b8548477ca08d6b7b662ef5899a3d4
+                    <span style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">Scan for program details:</span>
+                    <div style="width: 88px; height: 88px; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 4px; background: white; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                        <img src="{{ url_for('generate_qr', url='programs') }}" alt="QR Code" crossorigin="anonymous" style="width: 80px; height: 80px; display: block; image-rendering: pixelated;">
                     </div>
                 </div>
             </div>

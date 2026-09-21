@@ -268,14 +268,14 @@ class QRCode:
         for idx, (px, py) in enumerate(seq1):
             matrix[py][px] = fmt_bits[idx]
 
-        # Bottom-left & top-right
-        seq2 = [(size - 1 - i, 8) for i in range(7)] + [(8, size - 8 + i) for i in range(8)]
+        # Bottom-left (bits 0-6) & top-right (bits 7-14)
+        seq2 = [(8, size - 1 - i) for i in range(7)] + [(size - 8 + i, 8) for i in range(8)]
         for idx, (px, py) in enumerate(seq2):
             matrix[py][px] = fmt_bits[idx]
 
         return chosen_version, matrix
 
-    def to_svg(self, box_size=8, border=2, color="#1e40af"):
+    def to_svg(self, box_size=8, border=4, color="#1e40af"):
         size = len(self.matrix)
         total_size = (size + border * 2) * box_size
         rects = []
@@ -293,7 +293,7 @@ class QRCode:
             '\n</svg>'
         )
 
-    def to_png(self, box_size=6, border=2, color=(30, 64, 175)):
+    def to_png(self, box_size=8, border=4, color=(30, 64, 175)):
         matrix_size = len(self.matrix)
         img_size = (matrix_size + border * 2) * box_size
         
