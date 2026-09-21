@@ -1292,10 +1292,13 @@ function loadMoreTasks(count) {
     params.set('offset', currentTaskOffset);
     params.set('limit', count);
 
-    // Use native fetch API for the request
-    fetch('/get_institution_tasks_data?' + params.toString())
-        .then(response => response.json())
-        .then(result => {
+    // Use jQuery AJAX for the request
+    $.ajax({
+        url: '/get_institution_tasks_data',
+        method: 'GET',
+        data: params,
+        dataType: 'json',
+        success: function(result) {
             if (result.success) {
                 const newTasks = result.tasks;
                 const hasMore = result.has_more;
@@ -1338,19 +1341,20 @@ function loadMoreTasks(count) {
             } else {
                 showNotification('Failed to load more tasks: ' + (result.message || 'Unknown error'), 'error');
             }
-        })
-        .catch(error => {
+        },
+        error: function(xhr, status, error) {
             console.error("Error loading more tasks:", error);
             showNotification('Failed to load more tasks: ' + error, 'error');
-        })
-        .finally(() => {
+        },
+        complete: function() {
             // Re-enable button
             const load50Btn = document.getElementById('load-50-btn');
             if (load50Btn) {
                 load50Btn.disabled = false;
                 load50Btn.innerHTML = '<i class="fas fa-download mr-2"></i>Load 50 More';
             }
-        });
+        }
+    });
 }
 
 function loadAllTasks() {
