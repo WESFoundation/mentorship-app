@@ -6558,8 +6558,8 @@ def view_requests():
     if "email" not in session or session.get("user_type") != "0":
         return redirect(url_for("signin"))
 
-    # Get status filter from query params (default: pending)
-    status_filter = request.args.get("status", "pending")
+    # Get status filter from query params (default: all so all requests are fetched and displayed)
+    status_filter = request.args.get("status", "all")
 
     # Fetch mentorship requests with proper eager loading of profile relationships
     from sqlalchemy.orm import joinedload
@@ -6583,8 +6583,16 @@ def view_requests():
         )
     # "all" shows everything (no additional filter)
 
-    all_mentorship_requests = mentorship_query.order_by(MentorshipRequest.created_at.desc()).all()
+    all_mentorship_requests = mentorship_query.order_by(
+        (MentorshipRequest.supervisor_status == "pending").desc(),
+        MentorshipRequest.created_at.desc()
+    ).all()
     
+    total_count = MentorshipRequest.query.count()
+    pending_count = MentorshipRequest.query.filter(MentorshipRequest.supervisor_status == "pending").count()
+    approved_count = MentorshipRequest.query.filter(MentorshipRequest.final_status == "approved").count()
+    rejected_count = MentorshipRequest.query.filter(MentorshipRequest.final_status == "rejected").count()
+
     mentor_requests = MentorProfile.query.filter_by(status="pending").all()
     mentee_requests = MenteeProfile.query.filter_by(status="pending").all()
     sourcing_requests_count = MentorSourcingRequest.query.count()
@@ -6592,6 +6600,10 @@ def view_requests():
     return render_template(
         "supervisor/supervisor_request.html",
         all_requests=all_mentorship_requests,
+        total_count=total_count,
+        pending_count=pending_count,
+        approved_count=approved_count,
+        rejected_count=rejected_count,
         mentor_requests=mentor_requests,
         mentee_requests=mentee_requests,
         sourcing_requests_count=sourcing_requests_count,
