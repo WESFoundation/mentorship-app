@@ -2313,154 +2313,158 @@ def ensure_schema_on_request():
         auto_migrate_schema()
 
 
-def assign_master_tasks_to_mentorship(mentorship_request):
-    print("🔧 assign_master_tasks_to_mentorship function called")
-    
+def is_anchor_mentorship(req):
+    """Check if a mentorship request is for anchor meetings/mentorship."""
+    if not req:
+        return False
+    mtype = (getattr(req, "mentor_type", "") or "").strip().lower()
+    if "anchor" in mtype:
+        return True
+    mentor = getattr(req, "mentor", None)
+    if mentor and getattr(mentor, "mentor_profile", None):
+        pref = (getattr(mentor.mentor_profile, "mentorship_type_preference", "") or "").lower()
+        if "anchor" in pref:
+            return True
+    return False
+
+
+def calculate_due_date(start_date, month_val, meeting_number=None):
+    """
+    Calculate task/meeting due date from start_date and month value.
+    Safely handles month strings ('Month 1', '1'), integers, None.
+    """
     try:
-        # Check mentorship request data
-        print(f"📋 Mentorship Details:")
-        print(f"   - Mentee ID: {mentorship_request.mentee_id}")
-        print(f"   - Mentor ID: {mentorship_request.mentor_id}") 
-        print(f"   - Duration: {mentorship_request.duration_months} months")
-        
-        # ✅ Use current time since created_at doesn't exist or is None
-        start_date = datetime.utcnow()
-        print(f"   - Start Date (Current Time): {start_date}")
-        
-        # Get master tasks
-        master_tasks = MasterTask.query\
-            .order_by(MasterTask.meeting_number)\
-            .limit(20)\
-            .all()
-        
-        print(f"📁 Top {len(master_tasks)} master tasks found (limited to 20)")
-        
+        if start_date is None:
+            start_date = datetime.utcnow()
+        elif isinstance(start_date, str):
+            try:
+                start_date = datetime.fromisoformat(start_date)
+            except Exception:
+                start_date = datetime.utcnow()
+
+        month_str = str(month_val or '1')
+        if "Month" in month_str:
+            month_num = int(month_str.split(" ")[1])
+        else:
+            import re
+            numbers = re.findall(r'\d+', month_str)
+            month_num = int(numbers[0]) if numbers else 1
+
+        days_to_add = 30 * month_num
+        if meeting_number and isinstance(meeting_number, int) and (meeting_number % 2 == 1):
+            days_to_add = max(15, days_to_add - 15)
+
+        return start_date + timedelta(days=days_to_add)
+    except Exception as e:
+        print(f"❌ Error in calculate_due_date: {str(e)}")
+        base_date = start_date if isinstance(start_date, datetime) else datetime.utcnow()
+        return base_date + timedelta(days=30)
+
+
+def assign_master_tasks_to_mentorship(mentorship_request):
+    """
+    Assign all 20 MasterTask anchor meetings/tasks to the mentee for this mentorship.
+    Idempotent: will not duplicate tasks if already assigned.
+    """
+    print("🔧 assign_master_tasks_to_mentorship function called")
+    if not mentorship_request:
+        return []
+
+    try:
+        mentee_id = mentorship_request.mentee_id
+        mentor_id = mentorship_request.mentor_id
+        print(f"📋 Mentorship Details: Mentee ID={mentee_id}, Mentor ID={mentor_id}")
+
+        start_date = getattr(mentorship_request, 'created_at', None) or datetime.utcnow()
+
+        master_tasks = MasterTask.query.order_by(MasterTask.meeting_number).all()
         if not master_tasks:
             print("❌ NO MASTER TASKS IN DATABASE!")
             return []
-        
-        assigned_tasks = []
-        start_date = datetime.utcnow()
 
-        
-        for i, master_task in enumerate(master_tasks):
-            print(f"\n🎯 Processing Task {i+1}:")
-            print(f"   Month: {master_task.month}")
-            print(f"   Meeting Number: {master_task.meeting_number}")
-            print(f"   Purpose: {master_task.purpose_of_call[:50]}...")  # ✅ Use existing field
-            
-            due_date = calculate_due_date(start_date, master_task.month)
-            print(f"   Final Due Date: {due_date}")
-            
-            # Create mentee task
+        # Check existing tasks for this mentee-mentor pair to prevent duplicates
+        existing_tasks = MenteeTask.query.filter_by(
+            mentee_id=mentee_id,
+            mentor_id=mentor_id
+        ).all()
+        existing_task_ids = {t.task_id for t in existing_tasks}
+        existing_meeting_nums = {t.meeting_number for t in existing_tasks}
+
+        assigned_tasks = list(existing_tasks)
+        newly_added = []
+
+        for master_task in master_tasks:
+            # Skip if task already exists for this meeting/task
+            if master_task.id in existing_task_ids or master_task.meeting_number in existing_meeting_nums:
+                continue
+
+            due_date = calculate_due_date(start_date, master_task.month, master_task.meeting_number)
+
             mentee_task = MenteeTask(
-                mentee_id=mentorship_request.mentee_id,
-                mentor_id=mentorship_request.mentor_id,
+                mentee_id=mentee_id,
+                mentor_id=mentor_id,
                 task_id=master_task.id,
                 meeting_number=master_task.meeting_number,
-                month=master_task.month,
+                month=str(master_task.month),
+                status="pending",
+                progress=0,
+                assigned_date=datetime.utcnow(),
                 due_date=due_date
             )
-            
             db.session.add(mentee_task)
+            newly_added.append(mentee_task)
             assigned_tasks.append(mentee_task)
-        
-        # Flush se pehle - let outer function handle commit
-        print(f"\n💾 Flushing {len(assigned_tasks)} tasks to database...")
-        db.session.flush()
-        print("✅ Database flush successful!")
-        
+
+        if newly_added:
+            print(f"💾 Flushing {len(newly_added)} new tasks to database...")
+            db.session.flush()
+            print("✅ Database flush successful!")
+        else:
+            print(f"ℹ️ All {len(existing_tasks)} tasks already assigned for this mentorship.")
+
         return assigned_tasks
-        
+
     except Exception as e:
         print(f"❌ ERROR in task assignment: {str(e)}")
         import traceback
         traceback.print_exc()
-        db.session.rollback()
         return []
 
-def calculate_due_date(start_date, month_string):
-    """
-    Month string (e.g., "Month 1", "Month 2") ko due date mein convert kare
-    """
-    try:
-        print(f"📅 CALCULATION STARTED:")
-        print(f"   Start Date: {start_date}")
-        print(f"   Month String: {month_string}")
-        
-        # ✅ Ensure start_date is not None
-        if start_date is None:
-            start_date = datetime.utcnow()
-            print(f"   ⚠️  Start date was None, using current time: {start_date}")
-        
-        # Month string se number nikalne ka logic
-        if "Month" in month_string:
-            month_num = int(month_string.split(" ")[1])
-        else:
-            # Try to extract any number from string
-            import re
-            numbers = re.findall(r'\d+', month_string)
-            month_num = int(numbers[0]) if numbers else 1
-        
-        print(f"   Extracted month number: {month_num}")
-        
-        # Start date se days add karo (30 days per month)
-        days_to_add = 30 * month_num
-        print(f"   Days to add: {days_to_add}")
-        
-        due_date = start_date + timedelta(days=days_to_add)
-        
-        print(f"   Calculated due date: {due_date}")
-        print("📅 CALCULATION COMPLETED\n")
-        
-        return due_date
-        
-    except Exception as e:
-        print(f"❌ Error in calculate_due_date: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        # Fallback: 30 days from current time
-        return datetime.utcnow() + timedelta(days=30)
 
-def calculate_due_date(start_date, month_string):
+def ensure_anchor_tasks_assigned(mentee_id=None, mentor_id=None):
     """
-    Month string (e.g., "Month 1", "Month 2") ko due date mein convert kare
+    Ensure all confirmed anchor mentorships have their 20 MasterTasks assigned.
+    Can be called for a specific mentee, mentor, or both.
+    Auto-commits if new tasks are created.
     """
     try:
-        print(f"📅 CALCULATION STARTED:")
-        print(f"   Start Date: {start_date}")
-        print(f"   Month String: {month_string}")
-        print(f"   Start Date Type: {type(start_date)}")
-        
-        # Month string se number nikalne ka logic
-        if "Month" in month_string:
-            month_num = int(month_string.split(" ")[1])
-        else:
-            # Try to extract any number from string
-            import re
-            numbers = re.findall(r'\d+', month_string)
-            month_num = int(numbers[0]) if numbers else 1
-        
-        print(f"   Extracted month number: {month_num}")
-        
-        # Start date se days add karo (30 days per month)
-        days_to_add = 30 * month_num
-        print(f"   Days to add: {days_to_add}")
-        
-        due_date = start_date + timedelta(days=days_to_add)
-        
-        print(f"   Calculated due date: {due_date}")
-        print(f"   Due Date Type: {type(due_date)}")
-        print("📅 CALCULATION COMPLETED\n")
-        
-        return due_date
-        
+        query = MentorshipRequest.query.filter(
+            MentorshipRequest.supervisor_status == "approved",
+            MentorshipRequest.final_status == "approved"
+        )
+        if mentee_id:
+            query = query.filter(MentorshipRequest.mentee_id == mentee_id)
+        if mentor_id:
+            query = query.filter(MentorshipRequest.mentor_id == mentor_id)
+
+        requests = query.all()
+        any_added = False
+        for req in requests:
+            if is_anchor_mentorship(req):
+                task_count = MenteeTask.query.filter_by(
+                    mentee_id=req.mentee_id,
+                    mentor_id=req.mentor_id
+                ).count()
+                if task_count < 20:
+                    new_tasks = assign_master_tasks_to_mentorship(req)
+                    if new_tasks:
+                        any_added = True
+        if any_added:
+            db.session.commit()
     except Exception as e:
-        print(f"❌ Error in calculate_due_date: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        # Fallback: 30 days from start
-        return start_date + timedelta(days=30)
+        db.session.rollback()
+        print(f"Error in ensure_anchor_tasks_assigned: {e}")
+
 
 @app.context_processor
 def inject_current_user():
@@ -3759,6 +3763,9 @@ def menteedashboard():
         for req in connected_requests:
             if req.mentor and req.mentor.mentor_profile:
                 my_mentors.append(req.mentor.mentor_profile)
+
+        # Ensure confirmed anchor mentorships have their tasks assigned
+        ensure_anchor_tasks_assigned(mentee_id=user.id)
 
         spotlight_tasks = []
         master_active = MenteeTask.query.filter(
@@ -5215,11 +5222,16 @@ def institution_response():
         return redirect(redirect_target)
 
     # Update status based on action
-    if action == "approve":
-        flash("Mentorship request approved!", "success")
-        # Assign tasks for ALL anchor mentorships (not just 12-month)
+    action_clean = (action or "").strip().lower()
+    if action_clean in ("approve", "approved", "accept", "accepted"):
+        mentorship_request.supervisor_status = "approved"
+        mentorship_request.final_status = "approved"
+        if mentorship_request.mentor_status == "pending":
+            mentorship_request.mentor_status = "accepted"
+
+        # Assign tasks for ALL anchor mentorships
         assigned_tasks = []
-        if mentorship_request.mentor_type == "anchor":
+        if is_anchor_mentorship(mentorship_request):
             try:
                 assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
                 if assigned_tasks:
@@ -5232,11 +5244,7 @@ def institution_response():
         else:
             flash("Mentorship request approved!", "success")
 
-        # Re-set status AFTER task assignment (assign function may rollback session)
-        mentorship_request.supervisor_status = "approved"
-        mentorship_request.final_status = "approved"
-
-    elif action == "reject":
+    elif action_clean in ("reject", "rejected"):
         mentorship_request.supervisor_status = "rejected"
         mentorship_request.final_status = "rejected"
         flash("Mentorship request rejected!", "success")
@@ -5331,9 +5339,20 @@ def get_institution_tasks_data():
     _, institution_mentees_full = _get_institution_members(user, include_paired=True)
     institution_user_ids = list(set([m.id for m in institution_mentees_full] + [user.id]))
     
-    # Pre-fetch all ratings in memory to avoid N+1 queries
+    # Pre-fetch all ratings and meeting data in memory to avoid N+1 queries
     ratings = TaskRating.query.all()
     ratings_map = {(r.task_type, r.task_id): r.rating for r in ratings}
+    ratings_set = {(r.task_type, r.task_id) for r in ratings}
+    meetings_map = {m.id: m for m in MeetingRequest.query.all()}
+    all_pdata = _get_all_meeting_participants()
+
+    mentor_corp_cache = {}
+    def _is_mentor_corp(mentor_obj):
+        if not mentor_obj:
+            return False
+        if mentor_obj.id not in mentor_corp_cache:
+            mentor_corp_cache[mentor_obj.id] = bool(mentor_obj.is_corporate or refresh_user_corporate_status(mentor_obj))
+        return mentor_corp_cache[mentor_obj.id]
 
     inst_id_val = institution_id or user.id
 
@@ -5386,7 +5405,10 @@ def get_institution_tasks_data():
         has_mf, mf_rating = _resolve_api_task_fb("personal", task.id, task.mentee_id)
         has_ref = _resolve_api_task_refl("personal", task.id)
         
-        t_status = compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id or None)
+        t_status = compute_task_progress_status(
+            "personal", task.id, task.mentee_id, task.mentor_id or None,
+            ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
+        )
         tasks_data.append({
             "id": f"personal_{task.id}",
             "serial": f"P-{task.id}",
@@ -5402,7 +5424,7 @@ def get_institution_tasks_data():
             "category": getattr(task, 'category', None) or "Personal",
             "mentorId": task.mentor_id,
             "mentorName": mentor.name if mentor else "Self-assigned",
-            "mentorIsCorporate": bool(mentor.is_corporate or refresh_user_corporate_status(mentor)) if mentor else False,
+            "mentorIsCorporate": _is_mentor_corp(mentor),
             "menteeId": task.mentee_id,
             "menteeName": mentee.name if mentee else "Unknown",
             "type": "personal",
@@ -5429,7 +5451,10 @@ def get_institution_tasks_data():
         has_mf, mf_rating = _resolve_api_task_fb("master", task.id, task.mentee_id, task.task_id)
         has_ref = _resolve_api_task_refl("master", task.id, task.task_id)
         
-        t_status = compute_task_progress_status("master", task.id, task.mentee_id, task.mentor_id)
+        t_status = compute_task_progress_status(
+            "master", task.id, task.mentee_id, task.mentor_id,
+            ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
+        )
         task_num = getattr(task, 'meeting_number', None) or (master_task.meeting_number if master_task else None)
         tasks_data.append({
             "id": f"master_{task.id}",
@@ -5446,7 +5471,7 @@ def get_institution_tasks_data():
             "category": "Mentorship Task",
             "mentorId": task.mentor_id,
             "mentorName": mentor.name if mentor else "Unknown",
-            "mentorIsCorporate": bool(mentor.is_corporate or refresh_user_corporate_status(mentor)) if mentor else False,
+            "mentorIsCorporate": _is_mentor_corp(mentor),
             "menteeId": task.mentee_id,
             "menteeName": mentee.name if mentee else "Unknown",
             "type": "master",
@@ -7499,6 +7524,9 @@ def mentee_tasks():
     
     mentors_list = [{"id": req.mentor.id, "name": req.mentor.name} for req in approved_mentors]
     
+    # Ensure confirmed anchor mentorships have their tasks assigned
+    ensure_anchor_tasks_assigned(mentee_id=mentee.id)
+
     # Fetch tasks
     assigned_tasks = MenteeTask.query\
         .filter_by(mentee_id=mentee.id)\
@@ -7851,6 +7879,9 @@ def mentor_tasks():
     # Get personal tasks assigned by this mentor
     personal_tasks = PersonalTask.query.filter_by(mentor_id=mentor.id).all()
     
+    # Ensure confirmed anchor mentorships have their tasks assigned
+    ensure_anchor_tasks_assigned(mentor_id=mentor.id)
+
     # Get master tasks for mentees
     all_mentee_tasks = []
     for mentee_data in my_mentees_data:
@@ -11105,6 +11136,14 @@ def get_supervisor_tasks_data():
         mentee_fb_map = {(mf.task_type, mf.task_id): mf for mf in mentee_feedbacks}
         mentee_fb_dual_map = {(mf.task_type, mf.task_id, mf.mentee_id): mf for mf in mentee_feedbacks if mf.mentee_id}
 
+        mentor_corp_cache = {}
+        def _is_mentor_corp(mentor_obj):
+            if not mentor_obj:
+                return False
+            if mentor_obj.id not in mentor_corp_cache:
+                mentor_corp_cache[mentor_obj.id] = bool(mentor_obj.is_corporate or refresh_user_corporate_status(mentor_obj))
+            return mentor_corp_cache[mentor_obj.id]
+
         def _resolve_task_mentee_fb(ttype, tid, mid=None, master_tid=None):
             fb = mentee_fb_map.get((ttype, tid))
             if not fb and ttype == 'master':
@@ -11180,7 +11219,7 @@ def get_supervisor_tasks_data():
                 'progress': task.progress or 0,
                 'mentorId': task.mentor_id,
                 'mentorName': mentor.name if mentor else 'Self',
-                'mentorIsCorporate': bool(mentor.is_corporate or refresh_user_corporate_status(mentor)) if mentor else False,
+                'mentorIsCorporate': _is_mentor_corp(mentor),
                 'menteeId': task.mentee_id,
                 'menteeName': mentee.name if mentee else 'Unknown',
                 'category': 'Personal Task',
@@ -11223,7 +11262,7 @@ def get_supervisor_tasks_data():
                     'progress': task.progress or 0,
                     'mentorId': task.mentor_id,
                     'mentorName': mentor.name,
-                    'mentorIsCorporate': bool(mentor.is_corporate or refresh_user_corporate_status(mentor)) if mentor else False,
+                    'mentorIsCorporate': _is_mentor_corp(mentor),
                     'menteeId': task.mentee_id,
                     'menteeName': mentee.name,
                     'category': 'Mentorship Task',
@@ -11283,6 +11322,13 @@ def get_supervisor_tasks_data():
                 if me_str not in mentor_to_mentees_map[m_str]:
                     mentor_to_mentees_map[m_str].append(me_str)
 
+        # Pagination parameters
+        offset = int(request.args.get("offset", 0))
+        limit = int(request.args.get("limit", 50))
+
+        total_count = len(tasks)
+        paginated_tasks = tasks[offset:offset + limit]
+
         all_sup_mentors = User.query.filter_by(user_type="1").order_by(User.name.asc()).all()
         all_sup_mentees = User.query.filter_by(user_type="2").order_by(User.name.asc()).all()
         mentors = [{'id': m.id, 'name': m.name or f"Mentor #{m.id}"} for m in all_sup_mentors]
@@ -11290,7 +11336,11 @@ def get_supervisor_tasks_data():
 
         return jsonify({
             "success": True,
-            "tasks": tasks,
+            "tasks": paginated_tasks,
+            "total": total_count,
+            "offset": offset,
+            "limit": limit,
+            "has_more": (offset + limit) < total_count,
             "mentors": mentors,
             "mentees": mentees,
             "mentor_to_mentees": mentor_to_mentees_map
@@ -12280,14 +12330,16 @@ def mentor_response():
         return redirect(url_for("mentordashboard"))
 
     # Update status
-    mentorship_request.mentor_status = "accepted" if action == "accept" else "rejected"
+    action_clean = (action or "").strip().lower()
+    action_is_accept = action_clean in ("accept", "accepted", "approve", "approved")
+    mentorship_request.mentor_status = "accepted" if action_is_accept else "rejected"
 
     # For anchor mentors: auto-approve and assign tasks when mentor accepts
     assigned_tasks = []
-    if action == "accept" and mentorship_request.mentor_type == "anchor":
+    if action_is_accept and is_anchor_mentorship(mentorship_request):
         mentorship_request.supervisor_status = "approved"
         mentorship_request.final_status = "approved"
-        # Assign tasks for ALL anchor mentorships (not just 12-month)
+        # Assign tasks for ALL anchor mentorships
         try:
             assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
         except Exception as e:
@@ -12305,7 +12357,7 @@ def mentor_response():
 
     # Notify the mentee about the mentor's response
     if mentorship_request.mentee:
-        if action == "accept":
+        if action_is_accept:
             if assigned_tasks:
                 create_notification(
                     mentorship_request.mentee.id,
@@ -12331,9 +12383,15 @@ def mentor_response():
     flash(f"Request {action}ed successfully!", "success")
 
     # For anchor mentorships, also send connection notifications and emails
-    if action == "accept" and mentorship_request.mentor_type == "anchor":
-        notify_mentorship_connection(mentorship_request)
-        send_mentorship_connected_email(mentorship_request)
+    if action_is_accept and is_anchor_mentorship(mentorship_request):
+        try:
+            notify_mentorship_connection(mentorship_request)
+        except Exception as e:
+            print("notify_mentorship_connection error:", e)
+        try:
+            send_mentorship_connected_email(mentorship_request)
+        except Exception as e:
+            print("send_mentorship_connected_email error:", e)
 
     return redirect(url_for("mentor_mentorship_request"))
 
@@ -13712,12 +13770,16 @@ def supervisor_response():
         return redirect(url_for("view_requests"))
     
     # Update status based on action
-    if action == "approve":
-        flash("Mentorship request approved!", "success")
-        
-        # Assign tasks for ALL anchor mentorships (not just 12-month)
+    action_clean = (action or "").strip().lower()
+    if action_clean in ("approve", "approved", "accept", "accepted"):
+        mentorship_request.supervisor_status = "approved"
+        mentorship_request.final_status = "approved"
+        if mentorship_request.mentor_status == "pending":
+            mentorship_request.mentor_status = "accepted"
+
+        # Assign tasks for ALL anchor mentorships
         assigned_tasks = []
-        if mentorship_request.mentor_type == "anchor":
+        if is_anchor_mentorship(mentorship_request):
             try:
                 assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
                 if assigned_tasks:
@@ -13730,11 +13792,7 @@ def supervisor_response():
         else:
             flash("Mentorship request approved!", "success")
 
-        # Re-set status AFTER task assignment (assign function may rollback session)
-        mentorship_request.supervisor_status = "approved"
-        mentorship_request.final_status = "approved"
-
-    elif action == "reject":
+    elif action_clean in ("reject", "rejected"):
         mentorship_request.supervisor_status = "rejected"
         mentorship_request.final_status = "rejected"
         flash("Mentorship request rejected!", "success")
@@ -16464,9 +16522,12 @@ def generate_qr(url=None):
         import qrcode
         from io import BytesIO
         
-        # Get full URL from query param, default to programs page
-        target_url = request.args.get('url', request.host_url.rstrip('/') + '/programs')
-        
+        target_url = url or request.args.get("url")
+        if not target_url:
+            target_url = request.host_url.rstrip('/') + '/programs'
+        elif not (target_url.startswith("http://") or target_url.startswith("https://")):
+            target_url = request.host_url.rstrip('/') + '/' + target_url.lstrip('/')
+            
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_M,

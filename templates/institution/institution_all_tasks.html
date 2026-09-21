@@ -1002,39 +1002,39 @@ async function loadInstitutionTasks(reset = true) {
         params.set('limit', TASK_PAGE_SIZE);
 
         const response = await fetch('/get_institution_tasks_data?' + params.toString());
-        const result = await response.json();
+        const responseText = await response.text();
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch (e) {
+            console.error("Non-JSON response received:", responseText);
+            if (responseText && responseText.includes("no available server")) {
+                throw new Error("Server is currently busy or unavailable. Please try again shortly.");
+            }
+            throw new Error("Server returned an invalid response. Please refresh or try again.");
+        }
+        if (!response.ok) {
+            throw new Error(result.message || `Server error (${response.status})`);
+        }
 
         if (result.success) {
-            const newTasks = result.tasks;
+            const newTasks = result.tasks || [];
             const hasMore = result.has_more;
             const total = result.total;
+            window._lastInstitutionTotal = total;
 
             if (reset) {
                 allLoadedTasks = newTasks;
+                currentTaskOffset = newTasks.length;
             } else {
                 allLoadedTasks = allLoadedTasks.concat(newTasks);
+                currentTaskOffset += newTasks.length;
             }
 
             allTasks = allLoadedTasks; // Update global allTasks for filtering
 
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('tasks-empty-state').classList.add('hidden');
-
-            // Update load more button visibility
-            const loadMoreSection = document.getElementById('load-more-section');
-            const loadMoreCount = document.getElementById('load-more-count');
-            const load50Btn = document.getElementById('load-50-btn');
-
-            if (hasMore) {
-                loadMoreSection.classList.remove('hidden');
-                if (loadMoreCount) {
-                    loadMoreCount.textContent = `${total - allLoadedTasks.length} task${total - allLoadedTasks.length !== 1 ? 's' : ''} remaining`;
-                }
-                if (load50Btn) load50Btn.style.display = 'inline-flex';
-            } else {
-                if (load50Btn) load50Btn.style.display = 'none';
-                loadMoreSection.classList.add('hidden');
-            }
 
             if (reset) {
                 allMentors = result.mentors || [];
@@ -1255,116 +1255,223 @@ function _renderBatch(container, count) {
 
 function _updateLoadMoreUI(loadMoreSection, loadMoreCount, resultsCount) {
     if (!loadMoreSection) return;
-    const remaining = _filteredTasksCache.length - _renderedCount;
-    if (remaining > 0) {
+    const serverTotal = (window._lastInstitutionTotal !== undefined && window._lastInstitutionTotal !== null) ? window._lastInstitutionTotal : allLoadedTasks.length;
+    const remainingOnServer = Math.max(0, serverTotal - allLoadedTasks.length);
+    const unrenderedInCache = Math.max(0, _filteredTasksCache.length - _renderedCount);
+    const totalRemaining = remainingOnServer + unrenderedInCache;
+
+    const load50Btn = document.getElementById('load-50-btn');
+    const loadAllBtn = document.getElementById('load-all-btn');
+
+    if (totalRemaining > 0) {
         loadMoreSection.classList.remove('hidden');
-        document.getElementById('load-50-btn').style.display = remaining <= 50 ? 'none' : '';
-        if (loadMoreCount) loadMoreCount.textContent = `${remaining} task${remaining !== 1 ? 's' : ''} remaining`;
+        loadMoreSection.style.display = 'flex';
+        if (load50Btn) {
+            load50Btn.style.display = 'inline-flex';
+            load50Btn.disabled = false;
+        }
+        if (loadAllBtn) {
+            loadAllBtn.style.display = 'inline-flex';
+            loadAllBtn.disabled = false;
+        }
+        if (loadMoreCount) {
+            loadMoreCount.textContent = `${totalRemaining} task${totalRemaining !== 1 ? 's' : ''} remaining`;
+        }
     } else {
         loadMoreSection.classList.add('hidden');
+        loadMoreSection.style.display = 'none';
     }
+
     if (resultsCount) {
-        resultsCount.textContent = `Showing ${_renderedCount} of ${_filteredTasksCache.length} tasks`;
+        resultsCount.textContent = `Showing ${_renderedCount} of ${serverTotal} tasks`;
     }
 }
 
-function loadMoreTasks(count) {
+function loadMoreTasks(count = 50) {
     const container = document.getElementById('tasks-container');
     const loadMoreSection = document.getElementById('load-more-section');
     const loadMoreCount = document.getElementById('load-more-count');
     const load50Btn = document.getElementById('load-50-btn');
+    const loadAllBtn = document.getElementById('load-all-btn');
     const resultsCount = document.getElementById('results-count');
 
-    // Disable button and show loading state
-    if (load50Btn) {
-        load50Btn.disabled = true;
-        load50Btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Loading...';
-    }
+    const serverTotal = (window._lastInstitutionTotal !== undefined && window._lastInstitutionTotal !== null) ? window._lastInstitutionTotal : allLoadedTasks.length;
+    const remainingOnServer = Math.max(0, serverTotal - allLoadedTasks.length);
 
-    // Build params with current filters and next offset
-    const params = new URLSearchParams();
-    if (currentFilter && currentFilter !== 'all') params.set('status', currentFilter);
-    if (currentMentorFilter && currentMentorFilter !== 'all') params.set('mentor_id', currentMentorFilter);
-    if (currentMenteeFilter && currentMenteeFilter !== 'all') params.set('mentee_id', currentMenteeFilter);
-    if (currentPriorityFilter && currentPriorityFilter !== 'all') params.set('priority', currentPriorityFilter);
-    if (currentCategoryFilter && currentCategoryFilter !== 'all') params.set('category', currentCategoryFilter);
-    if (currentTaskTypeFilter && currentTaskTypeFilter !== 'all') params.set('type', currentTaskTypeFilter);
-    params.set('offset', currentTaskOffset);
-    params.set('limit', count);
-
-    // Use jQuery AJAX for the request
-    $.ajax({
-        url: '/get_institution_tasks_data',
-        method: 'GET',
-        data: params,
-        dataType: 'json',
-        success: function(result) {
-            if (result.success) {
-                const newTasks = result.tasks;
-                const hasMore = result.has_more;
-                const total = result.total;
-
-                // Append new tasks to loaded tasks
-                allLoadedTasks = allLoadedTasks.concat(newTasks);
-                allTasks = allLoadedTasks;
-
-                // Render new tasks
-                const startIndex = _renderedCount;
-                const batch = newTasks;
-                const html = batch.map((task, i) => createTaskHTML(task, startIndex + i)).join('');
-                document.getElementById('tasks-container').insertAdjacentHTML('beforeend', html);
-                _renderedCount += batch.length;
-
-                // Update offset for next load
-                currentTaskOffset += count;
-
-                // Update load more button visibility
-                const loadMoreSection = document.getElementById('load-more-section');
-                const loadMoreCount = document.getElementById('load-more-count');
-                const load50Btn = document.getElementById('load-50-btn');
-
-                if (result.has_more) {
-                    if (loadMoreSection) loadMoreSection.classList.remove('hidden');
-                    if (loadMoreCount) {
-                        loadMoreCount.textContent = `${total - allLoadedTasks.length} task${total - allLoadedTasks.length !== 1 ? 's' : ''} remaining`;
-                    }
-                    if (load50Btn) load50Btn.style.display = 'inline-flex';
-                } else {
-                    if (load50Btn) load50Btn.style.display = 'none';
-                    if (loadMoreSection) loadMoreSection.classList.add('hidden');
-                }
-
-                // Update results count
-                if (resultsCount) {
-                    resultsCount.textContent = `Showing ${_renderedCount} of ${total} tasks`;
-                }
-            } else {
-                showNotification('Failed to load more tasks: ' + (result.message || 'Unknown error'), 'error');
-            }
-        },
-        error: function(xhr, status, error) {
-            console.error("Error loading more tasks:", error);
-            showNotification('Failed to load more tasks: ' + error, 'error');
-        },
-        complete: function() {
-            // Re-enable button
-            const load50Btn = document.getElementById('load-50-btn');
-            if (load50Btn) {
-                load50Btn.disabled = false;
-                load50Btn.innerHTML = '<i class="fas fa-download mr-2"></i>Load 50 More';
-            }
+    if (remainingOnServer > 0) {
+        // Disable buttons and show loading state
+        if (load50Btn) {
+            load50Btn.disabled = true;
+            load50Btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Loading...';
         }
-    });
+        if (loadAllBtn) loadAllBtn.disabled = true;
+
+        // Build params with current filters and next offset
+        const params = new URLSearchParams();
+        if (currentFilter && currentFilter !== 'all') params.set('status', currentFilter);
+        if (currentMentorFilter && currentMentorFilter !== 'all') params.set('mentor_id', currentMentorFilter);
+        if (currentMenteeFilter && currentMenteeFilter !== 'all') params.set('mentee_id', currentMenteeFilter);
+        if (currentPriorityFilter && currentPriorityFilter !== 'all') params.set('priority', currentPriorityFilter);
+        if (currentCategoryFilter && currentCategoryFilter !== 'all') params.set('category', currentCategoryFilter);
+        if (currentTaskTypeFilter && currentTaskTypeFilter !== 'all') params.set('type', currentTaskTypeFilter);
+        params.set('offset', currentTaskOffset);
+        params.set('limit', count);
+
+        $.ajax({
+            url: '/get_institution_tasks_data',
+            method: 'GET',
+            data: params.toString(),
+            dataType: 'text',
+            success: function(responseText) {
+                let result;
+                try {
+                    result = JSON.parse(responseText);
+                } catch (e) {
+                    console.error("Non-JSON response received:", responseText);
+                    if (responseText && responseText.includes("no available server")) {
+                        showNotification("Server is currently busy or unavailable. Please try again shortly.", "error");
+                        return;
+                    }
+                    showNotification("Server returned an invalid response. Please refresh or try again.", "error");
+                    return;
+                }
+                if (result.success) {
+                    const newTasks = result.tasks || [];
+                    const hasMore = result.has_more;
+                    const total = result.total !== undefined ? result.total : (allLoadedTasks.length + newTasks.length);
+                    window._lastInstitutionTotal = total;
+
+                    // Append new tasks to loaded tasks
+                    allLoadedTasks = allLoadedTasks.concat(newTasks);
+                    allTasks = allLoadedTasks;
+                    currentTaskOffset += newTasks.length;
+
+                    // Render new tasks
+                    const startIndex = _renderedCount;
+                    const batch = newTasks;
+                    const html = batch.map((task, i) => createTaskHTML(task, startIndex + i)).join('');
+                    document.getElementById('tasks-container').insertAdjacentHTML('beforeend', html);
+                    _renderedCount += batch.length;
+
+                    _updateLoadMoreUI(loadMoreSection, loadMoreCount, resultsCount);
+                    updateStatistics();
+                } else {
+                    showNotification('Failed to load more tasks: ' + (result.message || 'Unknown error'), 'error');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading more tasks:", error);
+                showNotification('Failed to load more tasks: ' + error, 'error');
+            },
+            complete: function() {
+                // Re-enable button
+                if (load50Btn) {
+                    load50Btn.disabled = false;
+                    load50Btn.innerHTML = `
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        Load 50 More
+                    `;
+                }
+                if (loadAllBtn) loadAllBtn.disabled = false;
+            }
+        });
+    } else {
+        const remaining = _filteredTasksCache.length - _renderedCount;
+        if (remaining > 0) {
+            _renderBatch(container, Math.min(count, remaining));
+        }
+        _updateLoadMoreUI(loadMoreSection, loadMoreCount, resultsCount);
+    }
 }
 
 function loadAllTasks() {
     const container = document.getElementById('tasks-container');
     const loadMoreSection = document.getElementById('load-more-section');
     const loadMoreCount = document.getElementById('load-more-count');
+    const load50Btn = document.getElementById('load-50-btn');
+    const loadAllBtn = document.getElementById('load-all-btn');
     const resultsCount = document.getElementById('results-count');
-    const remaining = _filteredTasksCache.length - _renderedCount;
-    _renderBatch(container, remaining);
-    _updateLoadMoreUI(loadMoreSection, loadMoreCount, resultsCount);
+
+    const serverTotal = (window._lastInstitutionTotal !== undefined && window._lastInstitutionTotal !== null) ? window._lastInstitutionTotal : allLoadedTasks.length;
+    const remainingOnServer = Math.max(0, serverTotal - allLoadedTasks.length);
+
+    if (remainingOnServer > 0) {
+        if (loadAllBtn) {
+            loadAllBtn.disabled = true;
+            loadAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Loading All...';
+        }
+        if (load50Btn) load50Btn.disabled = true;
+
+        const params = new URLSearchParams();
+        if (currentFilter && currentFilter !== 'all') params.set('status', currentFilter);
+        if (currentMentorFilter && currentMentorFilter !== 'all') params.set('mentor_id', currentMentorFilter);
+        if (currentMenteeFilter && currentMenteeFilter !== 'all') params.set('mentee_id', currentMenteeFilter);
+        if (currentPriorityFilter && currentPriorityFilter !== 'all') params.set('priority', currentPriorityFilter);
+        if (currentCategoryFilter && currentCategoryFilter !== 'all') params.set('category', currentCategoryFilter);
+        if (currentTaskTypeFilter && currentTaskTypeFilter !== 'all') params.set('type', currentTaskTypeFilter);
+        params.set('offset', currentTaskOffset);
+        params.set('limit', remainingOnServer);
+
+        fetch('/get_institution_tasks_data?' + params.toString())
+            .then(async response => {
+                const text = await response.text();
+                let result;
+                try {
+                    result = JSON.parse(text);
+                } catch (e) {
+                    console.error("Non-JSON response received:", text);
+                    if (text && text.includes("no available server")) {
+                        throw new Error("Server is currently busy or unavailable. Please try again shortly.");
+                    }
+                    throw new Error("Server returned an invalid response. Please refresh or try again.");
+                }
+                if (!response.ok) {
+                    throw new Error(result.message || `Server error (${response.status})`);
+                }
+                return result;
+            })
+            .then(result => {
+                if (result.success) {
+                    const newTasks = result.tasks || [];
+                    allLoadedTasks = allLoadedTasks.concat(newTasks);
+                    allTasks = allLoadedTasks;
+                    currentTaskOffset += newTasks.length;
+                    window._lastInstitutionTotal = result.total || allLoadedTasks.length;
+
+                    // Render new tasks
+                    const startIndex = _renderedCount;
+                    const batch = newTasks;
+                    const html = batch.map((task, i) => createTaskHTML(task, startIndex + i)).join('');
+                    document.getElementById('tasks-container').insertAdjacentHTML('beforeend', html);
+                    _renderedCount += batch.length;
+
+                    _updateLoadMoreUI(loadMoreSection, loadMoreCount, resultsCount);
+                    updateStatistics();
+                } else {
+                    showNotification('Failed to load all tasks: ' + (result.message || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error("Error loading all tasks:", error);
+                showNotification('Failed to load all tasks: ' + error.message, 'error');
+            })
+            .finally(() => {
+                if (loadAllBtn) {
+                    loadAllBtn.disabled = false;
+                    loadAllBtn.innerHTML = `
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                        Load All Remaining
+                    `;
+                }
+                if (load50Btn) load50Btn.disabled = false;
+            });
+    } else {
+        const remaining = _filteredTasksCache.length - _renderedCount;
+        if (remaining > 0) {
+            _renderBatch(container, remaining);
+        }
+        _updateLoadMoreUI(loadMoreSection, loadMoreCount, resultsCount);
+    }
 }
 
 // Check if task is overdue
