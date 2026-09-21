@@ -288,6 +288,11 @@
       <div class="stat-label">Frequency</div>
       <div class="stat-number">{{ settings.frequency_hours }}h</div>
     </div>
+    
+    <div class="stat-box">
+      <div class="stat-label">Max Reminders/User</div>
+      <div class="stat-number">{{ settings.max_reminders_per_user }}</div>
+    </div>
   </div>
 
   <!-- Main Settings Card -->
@@ -340,6 +345,16 @@
                  min="0" max="99" value="{{ settings.min_completion_for_reminder }}" required>
           <small>
             Users below this completion % won't receive reminders (0% = everyone gets reminders)
+          </small>
+        </div>
+
+        <!-- Max Reminders Per User -->
+        <div class="form-group">
+          <label for="max_reminders_per_user">Max Reminders Per User</label>
+          <input type="number" id="max_reminders_per_user" name="max_reminders_per_user" 
+                 min="1" max="50" value="{{ settings.max_reminders_per_user }}" required>
+          <small>
+            Maximum number of reminders to send before stopping (default: 7)
           </small>
         </div>
 

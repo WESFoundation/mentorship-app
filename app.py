@@ -5217,12 +5217,18 @@ def institution_response():
     # Update status based on action
     if action == "approve":
         flash("Mentorship request approved!", "success")
-        if mentorship_request.duration_months == 12:
-            assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
-            if assigned_tasks:
-                flash(f"Mentorship approved! {len(assigned_tasks)} tasks assigned.", "success")
-            else:
-                flash("Mentorship approved! But no tasks were assigned.", "warning")
+        # Assign tasks for ALL anchor mentorships (not just 12-month)
+        assigned_tasks = []
+        if mentorship_request.mentor_type == "anchor":
+            try:
+                assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
+                if assigned_tasks:
+                    flash(f"Mentorship approved! {len(assigned_tasks)} tasks assigned.", "success")
+                else:
+                    flash("Mentorship approved! But no tasks were assigned.", "warning")
+            except Exception as e:
+                flash(f"Mentorship approved but task assignment failed: {str(e)}", "warning")
+                print("Task assignment error:", e)
         else:
             flash("Mentorship request approved!", "success")
 
@@ -5314,6 +5320,10 @@ def get_institution_tasks_data():
     f_priority = request.args.get("priority", "").strip()
     f_category = request.args.get("category", "").strip()
     f_type = request.args.get("type", "").strip()  # 'personal' or 'master'
+
+    # Pagination parameters
+    offset = int(request.args.get("offset", 0))
+    limit = int(request.args.get("limit", 50))
 
     # Get all mentors and institution members using richer matching (aliases, profiles)
     all_mentors = User.query.filter_by(user_type="1").all()
@@ -5488,11 +5498,19 @@ def get_institution_tasks_data():
             if me_str not in mentor_to_mentees_map[m_str]:
                 mentor_to_mentees_map[m_str].append(me_str)
 
+    # Apply pagination after all filtering
+    total_count = len(tasks_data)
+    paginated_tasks = tasks_data[offset:offset + limit]
+
     # Get institution mentors and mentees for filters
     # Use _get_institution_members for richer matching (aliases, profile fields)
     return jsonify({
         "success": True,
-        "tasks": tasks_data,
+        "tasks": paginated_tasks,
+        "total": total_count,
+        "offset": offset,
+        "limit": limit,
+        "has_more": (offset + limit) < total_count,
         "mentors": [{"id": m.id, "name": m.name} for m in all_mentors],
         "mentees": [{"id": m.id, "name": m.name} for m in institution_mentees_full],
         "mentor_to_mentees": mentor_to_mentees_map,
@@ -11764,24 +11782,27 @@ def reschedule_meeting(meeting_id):
         if meeting.gcal_event_id:
             try:
                 service = get_calendar_service()
-                
-                # Calculate new start and end times
-                new_start_datetime = datetime.combine(new_meeting_date, new_meeting_time)
-                new_end_datetime = new_start_datetime + timedelta(minutes=meeting.meeting_duration)
-                
-                event_update = {
-                    "start": {"dateTime": new_start_datetime.isoformat(), "timeZone": MEETING_TIMEZONE},
-                    "end": {"dateTime": new_end_datetime.isoformat(), "timeZone": MEETING_TIMEZONE},
-                }
-                
-                service.events().patch(
-                    calendarId=CALENDAR_ID,
-                    eventId=meeting.gcal_event_id,
-                    body=event_update,
-                    sendUpdates="all"
-                ).execute()
+                if service:
+                    # Calculate new start and end times
+                    new_start_datetime = datetime.combine(new_meeting_date, new_meeting_time)
+                    new_end_datetime = new_start_datetime + timedelta(minutes=meeting.meeting_duration)
+                    
+                    event_update = {
+                        "start": {"dateTime": new_start_datetime.isoformat(), "timeZone": MEETING_TIMEZONE},
+                        "end": {"dateTime": new_end_datetime.isoformat(), "timeZone": MEETING_TIMEZONE},
+                    }
+                    
+                    service.events().patch(
+                        calendarId=CALENDAR_ID,
+                        eventId=meeting.gcal_event_id,
+                        body=event_update,
+                        sendUpdates="all"
+                    ).execute()
+                    print(f"Google Calendar event updated for meeting {meeting_id}")
+                else:
+                    print(f"Google Calendar service unavailable for meeting {meeting_id} - skipping calendar update")
             except Exception as e:
-                print(f"Error updating Google Calendar: {str(e)}")
+                print(f"Error updating Google Calendar for meeting {meeting_id}: {str(e)}")
                 # Continue even if calendar update fails
 
         db.session.commit()
@@ -12254,11 +12275,11 @@ def mentor_response():
     if action == "accept" and mentorship_request.mentor_type == "anchor":
         mentorship_request.supervisor_status = "approved"
         mentorship_request.final_status = "approved"
-        if mentorship_request.duration_months == 12:
-            try:
-                assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
-            except Exception as e:
-                print(f"Task assignment error for anchor mentor: {e}")
+        # Assign tasks for ALL anchor mentorships (not just 12-month)
+        try:
+            assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
+        except Exception as e:
+            print(f"Task assignment error for anchor mentor: {e}")
 
     try:
         db.session.commit()
@@ -13682,9 +13703,9 @@ def supervisor_response():
     if action == "approve":
         flash("Mentorship request approved!", "success")
         
-        # Assign tasks if 12-month duration
+        # Assign tasks for ALL anchor mentorships (not just 12-month)
         assigned_tasks = []
-        if mentorship_request.duration_months == 12:
+        if mentorship_request.mentor_type == "anchor":
             try:
                 assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
                 if assigned_tasks:
@@ -13933,16 +13954,21 @@ def get_ms_graph_token():
     return None
 
 def create_teams_online_meeting(title, start_utc, end_utc, attendee_emails):
-    """Create a Microsoft Teams online meeting via Graph API and return the join URL."""
+    """Create a Microsoft Teams online meeting via Graph API and return the join URL.
+    Includes attendees so they receive calendar invitations."""
     token = get_ms_graph_token()
     if not token:
         return None
     try:
         url = f"https://graph.microsoft.com/v1.0/users/{MS_USER_EMAIL}/onlineMeetings"
+        attendees = [{"identity": {"user": {"id": email}}, "role": "presenter"} for email in attendee_emails]
         body = {
             "subject": title,
             "startDateTime": start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "endDateTime": end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "participants": {
+                "attendees": attendees
+            },
             "lobbyBypassSettings": {
                 "enabled": True,
                 "scope": "everyone"
@@ -15931,6 +15957,7 @@ def admin_reminder_settings():
             settings.is_enabled = request.form.get("is_enabled") == "on"
             settings.frequency_hours = int(request.form.get("frequency_hours", 24))
             settings.min_completion_for_reminder = int(request.form.get("min_completion_for_reminder", 0))
+            settings.max_reminders_per_user = int(request.form.get("max_reminders_per_user", 7))
             db.session.commit()
             
             # Reinitialize scheduler with new frequency
@@ -16421,10 +16448,9 @@ def delete_note(note_id):
 def generate_qr():
     """Generate a QR code PNG image for the given URL. Use ?url=<full_url> parameter."""
     try:
-        from flask import Response
-        from qr_code_lib import QRCode
+        import qrcode
+        from io import BytesIO
         
-<<<<<<< HEAD
         # Get full URL from query param, default to programs page
         target_url = request.args.get('url', request.host_url.rstrip('/') + '/programs')
         
@@ -16446,37 +16472,12 @@ def generate_qr():
         
         from flask import send_file
         response = send_file(buf, mimetype='image/png')
-=======
-        full_url = request.host_url.rstrip('/') + '/' + url.lstrip('/')
-        qr = QRCode(full_url, error_correction='M')
-        png_data = qr.to_png(box_size=6, border=2, color=(30, 64, 175))
-        
-        response = Response(png_data, mimetype='image/png')
->>>>>>> ccb4953a79b8548477ca08d6b7b662ef5899a3d4
         response.headers['Cache-Control'] = 'public, max-age=3600'
         response.headers['Content-Disposition'] = 'inline'
         return response
     except Exception as e:
         print(f"QR generation error: {e}")
-<<<<<<< HEAD
         return jsonify({"error": "Failed to generate QR"}), 500
-        print(f"QR generation error: {e}")
-        return jsonify({"error": "Failed to generate QR"}), 500
-=======
-        try:
-            # Fallback to SVG
-            from qr_code_lib import QRCode
-            full_url = request.host_url.rstrip('/') + '/' + url.lstrip('/')
-            qr = QRCode(full_url, error_correction='M')
-            svg_data = qr.to_svg(box_size=6, border=2, color="#1e40af")
-            response = Response(svg_data, mimetype='image/svg+xml')
-            response.headers['Cache-Control'] = 'public, max-age=3600'
-            response.headers['Content-Disposition'] = 'inline'
-            return response
-        except Exception as e2:
-            print(f"QR SVG fallback error: {e2}")
-            return jsonify({"error": "Failed to generate QR"}), 500
->>>>>>> ccb4953a79b8548477ca08d6b7b662ef5899a3d4
 
 
 if __name__ == '__main__':

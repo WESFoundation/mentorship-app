@@ -976,10 +976,20 @@ function updateStatistics() {
 }
 
 // Load institution tasks from backend (called by Load Tasks button or filters)
-async function loadInstitutionTasks() {
+let currentTaskOffset = 0;
+const TASK_PAGE_SIZE = 50;
+let allLoadedTasks = [];
+
+async function loadInstitutionTasks(reset = true) {
     try {
         document.getElementById('loading-state').classList.remove('hidden');
         document.getElementById('tasks-empty-state').classList.add('hidden');
+        document.getElementById('load-more-section').classList.add('hidden');
+
+        if (reset) {
+            currentTaskOffset = 0;
+            allLoadedTasks = [];
+        }
 
         const params = new URLSearchParams();
         if (currentFilter && currentFilter !== 'all') params.set('status', currentFilter);
@@ -988,21 +998,52 @@ async function loadInstitutionTasks() {
         if (currentPriorityFilter && currentPriorityFilter !== 'all') params.set('priority', currentPriorityFilter);
         if (currentCategoryFilter && currentCategoryFilter !== 'all') params.set('category', currentCategoryFilter);
         if (currentTaskTypeFilter && currentTaskTypeFilter !== 'all') params.set('type', currentTaskTypeFilter);
+        params.set('offset', currentTaskOffset);
+        params.set('limit', TASK_PAGE_SIZE);
 
-        const response = await fetch('/get_institution_tasks_data' + (params.toString() ? '?' + params.toString() : ''));
+        const response = await fetch('/get_institution_tasks_data?' + params.toString());
         const result = await response.json();
 
         if (result.success) {
-            allTasks = result.tasks;
-            allMentors = result.mentors || [];
-            allMentees = result.mentees || [];
-            mentorToMenteesMap = result.mentor_to_mentees || {};
+            const newTasks = result.tasks;
+            const hasMore = result.has_more;
+            const total = result.total;
+
+            if (reset) {
+                allLoadedTasks = newTasks;
+            } else {
+                allLoadedTasks = allLoadedTasks.concat(newTasks);
+            }
+
+            allTasks = allLoadedTasks; // Update global allTasks for filtering
 
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('tasks-empty-state').classList.add('hidden');
 
+            // Update load more button visibility
+            const loadMoreSection = document.getElementById('load-more-section');
+            const loadMoreCount = document.getElementById('load-more-count');
+            const load50Btn = document.getElementById('load-50-btn');
+
+            if (hasMore) {
+                loadMoreSection.classList.remove('hidden');
+                if (loadMoreCount) {
+                    loadMoreCount.textContent = `${total - allLoadedTasks.length} task${total - allLoadedTasks.length !== 1 ? 's' : ''} remaining`;
+                }
+                if (load50Btn) load50Btn.style.display = 'inline-flex';
+            } else {
+                if (load50Btn) load50Btn.style.display = 'none';
+                loadMoreSection.classList.add('hidden');
+            }
+
+            if (reset) {
+                allMentors = result.mentors || [];
+                allMentees = result.mentees || [];
+                mentorToMenteesMap = result.mentor_to_mentees || {};
+                populateFilters();
+            }
+
             updateStatistics();
-            populateFilters();
             renderTasks();
         } else {
             throw new Error(result.message || 'Failed to load tasks');
@@ -1231,9 +1272,85 @@ function loadMoreTasks(count) {
     const container = document.getElementById('tasks-container');
     const loadMoreSection = document.getElementById('load-more-section');
     const loadMoreCount = document.getElementById('load-more-count');
+    const load50Btn = document.getElementById('load-50-btn');
     const resultsCount = document.getElementById('results-count');
-    _renderBatch(container, count);
-    _updateLoadMoreUI(loadMoreSection, loadMoreCount, resultsCount);
+
+    // Disable button and show loading state
+    if (load50Btn) {
+        load50Btn.disabled = true;
+        load50Btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Loading...';
+    }
+
+    // Build params with current filters and next offset
+    const params = new URLSearchParams();
+    if (currentFilter && currentFilter !== 'all') params.set('status', currentFilter);
+    if (currentMentorFilter && currentMentorFilter !== 'all') params.set('mentor_id', currentMentorFilter);
+    if (currentMenteeFilter && currentMenteeFilter !== 'all') params.set('mentee_id', currentMenteeFilter);
+    if (currentPriorityFilter && currentPriorityFilter !== 'all') params.set('priority', currentPriorityFilter);
+    if (currentCategoryFilter && currentCategoryFilter !== 'all') params.set('category', currentCategoryFilter);
+    if (currentTaskTypeFilter && currentTaskTypeFilter !== 'all') params.set('type', currentTaskTypeFilter);
+    params.set('offset', currentTaskOffset);
+    params.set('limit', count);
+
+    // Use native fetch API for the request
+    fetch('/get_institution_tasks_data?' + params.toString())
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                const newTasks = result.tasks;
+                const hasMore = result.has_more;
+                const total = result.total;
+
+                // Append new tasks to loaded tasks
+                allLoadedTasks = allLoadedTasks.concat(newTasks);
+                allTasks = allLoadedTasks;
+
+                // Render new tasks
+                const startIndex = _renderedCount;
+                const batch = newTasks;
+                const html = batch.map((task, i) => createTaskHTML(task, startIndex + i)).join('');
+                document.getElementById('tasks-container').insertAdjacentHTML('beforeend', html);
+                _renderedCount += batch.length;
+
+                // Update offset for next load
+                currentTaskOffset += count;
+
+                // Update load more button visibility
+                const loadMoreSection = document.getElementById('load-more-section');
+                const loadMoreCount = document.getElementById('load-more-count');
+                const load50Btn = document.getElementById('load-50-btn');
+
+                if (result.has_more) {
+                    if (loadMoreSection) loadMoreSection.classList.remove('hidden');
+                    if (loadMoreCount) {
+                        loadMoreCount.textContent = `${total - allLoadedTasks.length} task${total - allLoadedTasks.length !== 1 ? 's' : ''} remaining`;
+                    }
+                    if (load50Btn) load50Btn.style.display = 'inline-flex';
+                } else {
+                    if (load50Btn) load50Btn.style.display = 'none';
+                    if (loadMoreSection) loadMoreSection.classList.add('hidden');
+                }
+
+                // Update results count
+                if (resultsCount) {
+                    resultsCount.textContent = `Showing ${_renderedCount} of ${total} tasks`;
+                }
+            } else {
+                showNotification('Failed to load more tasks: ' + (result.message || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error("Error loading more tasks:", error);
+            showNotification('Failed to load more tasks: ' + error, 'error');
+        })
+        .finally(() => {
+            // Re-enable button
+            const load50Btn = document.getElementById('load-50-btn');
+            if (load50Btn) {
+                load50Btn.disabled = false;
+                load50Btn.innerHTML = '<i class="fas fa-download mr-2"></i>Load 50 More';
+            }
+        });
 }
 
 function loadAllTasks() {

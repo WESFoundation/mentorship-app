@@ -106,8 +106,8 @@
                         <td class="border p-3">{{ mentor.institution or 'N/A' }}</td>
                         <td class="border p-3 text-center">
                             <div class="relative inline-block text-left">
-                                <button type="button" class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 transition-all duration-150 text-xs font-medium shadow-sm" onclick="toggleDropdown('actions-{{ mentor.id }}', event)" aria-haspopup="true" aria-expanded="false" aria-label="Actions for {{ mentor.name }}" title="Actions">
-                                    <i class="fas fa-cog text-[11px]" aria-hidden="true"></i> Actions <i class="fas fa-chevron-down text-[8px] transition-transform duration-150" id="chevron-{{ mentor.id }}"></i>
+                                <button type="button" class="inline-flex items-center justify-center p-1.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 transition-all duration-150" onclick="toggleDropdown('actions-{{ mentor.id }}', event)" aria-haspopup="true" aria-expanded="false" aria-label="Actions for {{ mentor.name }}" title="More options">
+                                    <i class="fas fa-ellipsis-v text-[14px]" aria-hidden="true"></i>
                                 </button>
                                 <div id="actions-{{ mentor.id }}" class="hidden absolute right-0 z-10 mt-1 w-36 origin-top-right rounded-xl bg-white border border-slate-200 shadow-lg py-1 ring-1 ring-black/5 focus:outline-none" role="menu">
                                     <a href="{{ url_for('edit_user', user_id=mentor.id) }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-blue-700 hover:bg-blue-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-{{ mentor.id }}')"><i class="fas fa-edit text-[10px] text-blue-500" aria-hidden="true"></i> Edit</a>
@@ -158,8 +158,8 @@
                         <td class="border p-3">{{ mentee.institution or 'N/A' }}</td>
                         <td class="border p-3 text-center">
                             <div class="relative inline-block text-left">
-                                <button type="button" class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 transition-all duration-150 text-xs font-medium shadow-sm" onclick="toggleDropdown('actions-{{ mentee.id }}', event)" aria-haspopup="true" aria-expanded="false" aria-label="Actions for {{ mentee.name }}" title="Actions">
-                                    <i class="fas fa-cog text-[11px]" aria-hidden="true"></i> Actions <i class="fas fa-chevron-down text-[8px] transition-transform duration-150" id="chevron-{{ mentee.id }}"></i>
+                                <button type="button" class="inline-flex items-center justify-center p-1.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 transition-all duration-150" onclick="toggleDropdown('actions-{{ mentee.id }}', event)" aria-haspopup="true" aria-expanded="false" aria-label="Actions for {{ mentee.name }}" title="More options">
+                                    <i class="fas fa-ellipsis-v text-[14px]" aria-hidden="true"></i>
                                 </button>
                                 <div id="actions-{{ mentee.id }}" class="hidden absolute right-0 z-10 mt-1 w-36 origin-top-right rounded-xl bg-white border border-slate-200 shadow-lg py-1 ring-1 ring-black/5 focus:outline-none" role="menu">
                                     <a href="{{ url_for('edit_user', user_id=mentee.id) }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-blue-700 hover:bg-blue-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-{{ mentee.id }}')"><i class="fas fa-edit text-[10px] text-blue-500" aria-hidden="true"></i> Edit</a>
@@ -210,8 +210,8 @@
                         <td class="border p-3">{{ institution.institution or 'N/A' }}</td>
                         <td class="border p-3 text-center">
                             <div class="relative inline-block text-left">
-                                <button type="button" class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 transition-all duration-150 text-xs font-medium shadow-sm" onclick="toggleDropdown('actions-{{ institution.id }}', event)" aria-haspopup="true" aria-expanded="false" aria-label="Actions for {{ institution.name }}" title="Actions">
-                                    <i class="fas fa-cog text-[11px]" aria-hidden="true"></i> Actions <i class="fas fa-chevron-down text-[8px] transition-transform duration-150" id="chevron-{{ institution.id }}"></i>
+                                <button type="button" class="inline-flex items-center justify-center p-1.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 transition-all duration-150" onclick="toggleDropdown('actions-{{ institution.id }}', event)" aria-haspopup="true" aria-expanded="false" aria-label="Actions for {{ institution.name }}" title="More options">
+                                    <i class="fas fa-ellipsis-v text-[14px]" aria-hidden="true"></i>
                                 </button>
                                 <div id="actions-{{ institution.id }}" class="hidden absolute right-0 z-10 mt-1 w-36 origin-top-right rounded-xl bg-white border border-slate-200 shadow-lg py-1 ring-1 ring-black/5 focus:outline-none" role="menu">
                                     <a href="{{ url_for('edit_user', user_id=institution.id) }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-blue-700 hover:bg-blue-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-{{ institution.id }}')"><i class="fas fa-edit text-[10px] text-blue-500" aria-hidden="true"></i> Edit</a>
