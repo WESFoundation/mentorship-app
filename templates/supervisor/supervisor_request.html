@@ -126,19 +126,56 @@
   </div>
 
   <!-- Stats Overview -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-    <div class="section-card p-6">
-      <div class="flex items-center">
-        <div class="p-3 bg-blue-100 rounded-lg mr-4">
-          <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        </div>
-        <div>
-          <p class="text-sm font-medium text-gray-600">Total Requests</p>
-          <p class="text-2xl font-bold text-gray-900">{{ all_requests|length if all_requests else 0 }}</p>
-        </div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="section-card p-5 bg-white rounded-xl border border-gray-200 shadow-sm flex items-center">
+      <div class="p-3 bg-blue-50 text-blue-600 rounded-xl mr-4 border border-blue-100">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+      </div>
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Total Requests</p>
+        <p class="text-2xl font-bold text-gray-900">{{ total_count|default(all_requests|length) }}</p>
+      </div>
+    </div>
+
+    <div class="section-card p-5 bg-white rounded-xl border border-gray-200 shadow-sm flex items-center">
+      <div class="p-3 bg-amber-50 text-amber-600 rounded-xl mr-4 border border-amber-100">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Pending Review</p>
+        <p class="text-2xl font-bold text-amber-600">{{ pending_count|default(0) }}</p>
+      </div>
+    </div>
+
+    <div class="section-card p-5 bg-white rounded-xl border border-gray-200 shadow-sm flex items-center">
+      <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl mr-4 border border-emerald-100">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Approved</p>
+        <p class="text-2xl font-bold text-emerald-600">{{ approved_count|default(0) }}</p>
+      </div>
+    </div>
+
+    <div class="section-card p-5 bg-white rounded-xl border border-gray-200 shadow-sm flex items-center">
+      <div class="p-3 bg-rose-50 text-rose-600 rounded-xl mr-4 border border-rose-100">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Rejected</p>
+        <p class="text-2xl font-bold text-rose-600">{{ rejected_count|default(0) }}</p>
       </div>
     </div>
   </div>
@@ -158,10 +195,10 @@
     <div class="filter-bar-stacked flex flex-wrap items-center gap-2">
       <select id="statusFilter" data-no-search
         class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white font-medium text-gray-700 cursor-pointer transition" onchange="filterRequests()">
-        <option value="" {% if status_filter == 'all' %}selected{% endif %}>All Status</option>
-        <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
-        <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Approved</option>
-        <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
+        <option value="" {% if status_filter == 'all' or not status_filter %}selected{% endif %}>All Status ({{ total_count|default(all_requests|length) }})</option>
+        <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending ({{ pending_count|default(0) }})</option>
+        <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Approved ({{ approved_count|default(0) }})</option>
+        <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected ({{ rejected_count|default(0) }})</option>
       </select>
       <select id="mentorTypeFilter" data-no-search
         class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm bg-white text-gray-700 cursor-pointer transition" onchange="filterRequests()">
@@ -186,7 +223,7 @@
       </select>
     </div>
     <div class="flex flex-wrap gap-2 mt-3">
-      <span class="results-count" id="requestResultsCount"></span>
+      <span class="results-count text-xs text-gray-500" id="requestResultsCount"></span>
     </div>
   </div>
 
@@ -195,11 +232,11 @@
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
       <div>
         <h2 class="text-xl font-semibold text-gray-800">Mentorship Requests</h2>
-        <p class="text-gray-600 mt-1">Review and approve mentorship connections</p>
+        <p class="text-gray-600 mt-1">Review and manage all mentorship connections</p>
       </div>
       <span
-        class="status-badge {% if status_filter == 'pending' %}status-pending{% elif status_filter == 'approved' %}status-approved{% elif status_filter == 'rejected' %}status-rejected{% else %}status-pending{% endif %} mt-2 sm:mt-0">
-        {{ all_requests|length if all_requests else 0 }} {{ status_filter|title }}
+        class="status-badge status-pending mt-2 sm:mt-0">
+        {{ total_count|default(all_requests|length) }} Total Requests
       </span>
     </div>
 
@@ -288,119 +325,120 @@
               </span>
             </td>
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
-
-              {% if req.supervisor_status == 'pending' %}
               <div class="flex gap-2 justify-end mb-2">
                 <button
-                  class="view-mentee-profile-btn px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-100 text-blue-700 text-xs sm:text-sm font-medium rounded-lg hover:bg-blue-200 transition duration-200"
+                  type="button"
+                  class="view-mentee-profile-btn px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 text-xs sm:text-sm font-medium rounded-lg transition duration-200 shadow-2xs"
                   data-mentee-id="{{ req.mentee.id if req.mentee else '' }}"
                   data-mentee-name="{{ req.mentee.name if req.mentee else '' }}"
-                  data-mentee-email="{{ req.mentee.email if req.mentee else '' }}" {% if req.mentee and
-                  req.mentee.mentee_profile %} data-who-am-i="{{ req.mentee.mentee_profile.who_am_i or '' }}"
-                  data-education-level="{{ req.mentee.mentee_profile.education_level or '' }}"
-                  data-institution-name="{{ req.mentee.mentee_profile.institution_name or '' }}"
-                  data-board-university="{{ req.mentee.mentee_profile.board_university or '' }}"
-                  data-course-stream="{{ req.mentee.mentee_profile.course_stream or '' }}"
-                  data-school-name="{{ req.mentee.mentee_profile.school_name or '' }}"
-                  data-school-board="{{ req.mentee.mentee_profile.school_board or '' }}"
-                  data-school-passing-year="{{ req.mentee.mentee_profile.school_passing_year or '' }}"
-                  data-career-interest="{{ req.mentee.mentee_profile.career_interest or '' }}"
-                  data-current-role="{{ req.mentee.mentee_profile.current_role or '' }}"
-                  data-industry="{{ req.mentee.mentee_profile.industry or '' }}"
-                  data-years-experience="{{ req.mentee.mentee_profile.years_experience or '' }}"
-                  data-current-organization="{{ req.mentee.mentee_profile.current_organization or '' }}"
-                  data-key-skills="{{ req.mentee.mentee_profile.key_skills or '' }}"
-                  data-career-goal="{{ req.mentee.mentee_profile.career_goal or '' }}"
-                  data-startup-stage="{{ req.mentee.mentee_profile.startup_stage or '' }}"
-                  data-startup-name="{{ req.mentee.mentee_profile.startup_name or '' }}"
-                  data-startup-industry="{{ req.mentee.mentee_profile.startup_industry or '' }}"
-                  data-team-size="{{ req.mentee.mentee_profile.team_size or '' }}"
-                  data-main-challenge="{{ req.mentee.mentee_profile.main_challenge or '' }}"
-                  data-mentorship-type="{{ req.mentee.mentee_profile.mentorship_type or '' }}"
-                  data-freelance-skill="{{ req.mentee.mentee_profile.freelance_skill or '' }}"
-                  data-freelance-experience="{{ req.mentee.mentee_profile.freelance_experience or '' }}"
-                  data-freelance-platforms="{{ req.mentee.mentee_profile.freelance_platforms or '' }}"
-                  data-freelance-challenge="{{ req.mentee.mentee_profile.freelance_challenge or '' }}"
-                  data-last-role="{{ req.mentee.mentee_profile.last_role or '' }}"
-                  data-career-break-reason="{{ req.mentee.mentee_profile.career_break_reason or '' }}"
-                  data-restart-field="{{ req.mentee.mentee_profile.restart_field or '' }}"
-                  data-support-expected="{{ req.mentee.mentee_profile.support_expected or '' }}"
-                  data-dob="{{ req.mentee.mentee_profile.dob or '' }}"
-                  data-father-name="{{ req.mentee.mentee_profile.father_name or '' }}"
-                  data-address-line1="{{ req.mentee.mentee_profile.address_line1 or '' }}"
-                  data-address-line2="{{ req.mentee.mentee_profile.address_line2 or '' }}"
-                  data-city="{{ req.mentee.mentee_profile.city or '' }}"
-                  data-state="{{ req.mentee.mentee_profile.state or '' }}"
-                  data-postal-code="{{ req.mentee.mentee_profile.postal_code or '' }}"
-                  data-country="{{ req.mentee.mentee_profile.country or '' }}"
-                  data-institution="{{ req.mentee.mentee_profile.institution or '' }}"
-                  data-institution-other="{{ req.mentee.mentee_profile.institution_other or '' }}"
-                  data-school="{{ req.mentee.mentee_profile.school_college_name or '' }}"
-                  data-mobile="{{ req.mentee.mentee_profile.mobile_number or '' }}"
-                  data-mobile-country-code="{{ req.mentee.mentee_profile.mobile_country_code or '+91' }}"
-                  data-whatsapp="{{ req.mentee.mentee_profile.whatsapp_number or '' }}"
-                  data-whatsapp-country-code="{{ req.mentee.mentee_profile.whatsapp_country_code or '+91' }}"
-                  data-govt-private="{{ req.mentee.mentee_profile.govt_private or '' }}"
-                  data-stream="{{ req.mentee.mentee_profile.stream or '' }}"
-                  data-class="{{ req.mentee.mentee_profile.class_year or '' }}"
-                  data-favourite-subject="{{ req.mentee.mentee_profile.favourite_subject or '' }}"
-                  data-goal="{{ req.mentee.mentee_profile.goal or '' }}"
-                  data-parent-name="{{ req.mentee.mentee_profile.parent_name or '' }}"
-                  data-parent-mobile="{{ req.mentee.mentee_profile.parent_mobile or '' }}"
-                  data-parent-mobile-country-code="{{ req.mentee.mentee_profile.parent_mobile_country_code or '+91' }}"
-                  data-comments="{{ req.mentee.mentee_profile.comments or '' }}"
-                  data-mentorship-expectations="{{ req.mentee.mentee_profile.mentorship_expectations or '' }}"
-                  data-picture="{{ req.mentee.mentee_profile.profile_picture or '' }}" {% else %}
-                  data-debug-no-profile="true" {% endif %}>
+                  data-mentee-email="{{ req.mentee.email if req.mentee else '' }}"
+                  data-who-am-i="{{ (req.mentee.mentee_profile.who_am_i if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-education-level="{{ (req.mentee.mentee_profile.education_level if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-institution-name="{{ (req.mentee.mentee_profile.institution_name if req.mentee and req.mentee.mentee_profile else (req.mentee.institution if req.mentee else '')) or '' }}"
+                  data-board-university="{{ (req.mentee.mentee_profile.board_university if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-course-stream="{{ (req.mentee.mentee_profile.course_stream if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-school-name="{{ (req.mentee.mentee_profile.school_name if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-school-board="{{ (req.mentee.mentee_profile.school_board if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-school-passing-year="{{ (req.mentee.mentee_profile.school_passing_year if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-career-interest="{{ (req.mentee.mentee_profile.career_interest if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-current-role="{{ (req.mentee.mentee_profile.current_role if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-industry="{{ (req.mentee.mentee_profile.industry if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-years-experience="{{ (req.mentee.mentee_profile.years_experience if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-current-organization="{{ (req.mentee.mentee_profile.current_organization if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-key-skills="{{ (req.mentee.mentee_profile.key_skills if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-career-goal="{{ (req.mentee.mentee_profile.career_goal if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-startup-stage="{{ (req.mentee.mentee_profile.startup_stage if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-startup-name="{{ (req.mentee.mentee_profile.startup_name if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-startup-industry="{{ (req.mentee.mentee_profile.startup_industry if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-team-size="{{ (req.mentee.mentee_profile.team_size if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-main-challenge="{{ (req.mentee.mentee_profile.main_challenge if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-mentorship-type="{{ (req.mentee.mentee_profile.mentorship_type if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-freelance-skill="{{ (req.mentee.mentee_profile.freelance_skill if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-freelance-experience="{{ (req.mentee.mentee_profile.freelance_experience if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-freelance-platforms="{{ (req.mentee.mentee_profile.freelance_platforms if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-freelance-challenge="{{ (req.mentee.mentee_profile.freelance_challenge if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-last-role="{{ (req.mentee.mentee_profile.last_role if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-career-break-reason="{{ (req.mentee.mentee_profile.career_break_reason if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-restart-field="{{ (req.mentee.mentee_profile.restart_field if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-support-expected="{{ (req.mentee.mentee_profile.support_expected if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-dob="{{ (req.mentee.mentee_profile.dob if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-father-name="{{ (req.mentee.mentee_profile.father_name if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-address-line1="{{ (req.mentee.mentee_profile.address_line1 if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-address-line2="{{ (req.mentee.mentee_profile.address_line2 if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-city="{{ (req.mentee.mentee_profile.city if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-state="{{ (req.mentee.mentee_profile.state if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-postal-code="{{ (req.mentee.mentee_profile.postal_code if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-country="{{ (req.mentee.mentee_profile.country if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-institution="{{ (req.mentee.mentee_profile.institution if req.mentee and req.mentee.mentee_profile else (req.mentee.institution if req.mentee else '')) or '' }}"
+                  data-institution-other="{{ (req.mentee.mentee_profile.institution_other if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-school="{{ (req.mentee.mentee_profile.school_college_name if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-mobile="{{ (req.mentee.mentee_profile.mobile_number if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-mobile-country-code="{{ (req.mentee.mentee_profile.mobile_country_code if req.mentee and req.mentee.mentee_profile else '+91') or '+91' }}"
+                  data-whatsapp="{{ (req.mentee.mentee_profile.whatsapp_number if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-whatsapp-country-code="{{ (req.mentee.mentee_profile.whatsapp_country_code if req.mentee and req.mentee.mentee_profile else '+91') or '+91' }}"
+                  data-govt-private="{{ (req.mentee.mentee_profile.govt_private if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-stream="{{ (req.mentee.mentee_profile.stream if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-class="{{ (req.mentee.mentee_profile.class_year if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-favourite-subject="{{ (req.mentee.mentee_profile.favourite_subject if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-goal="{{ (req.mentee.mentee_profile.goal if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-parent-name="{{ (req.mentee.mentee_profile.parent_name if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-parent-mobile="{{ (req.mentee.mentee_profile.parent_mobile if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-parent-mobile-country-code="{{ (req.mentee.mentee_profile.parent_mobile_country_code if req.mentee and req.mentee.mentee_profile else '+91') or '+91' }}"
+                  data-comments="{{ (req.mentee.mentee_profile.comments if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-mentorship-expectations="{{ (req.mentee.mentee_profile.mentorship_expectations if req.mentee and req.mentee.mentee_profile else '') or '' }}"
+                  data-picture="{{ (req.mentee.mentee_profile.profile_picture if req.mentee and req.mentee.mentee_profile else '') or '' }}">
                   View Mentee Profile
                 </button>
                 <button
-                  class="view-mentor-profile-btn px-3 py-2 bg-green-100 text-green-700 text-xs font-medium rounded-lg hover:bg-green-200 transition duration-200"
+                  type="button"
+                  class="view-mentor-profile-btn px-3 py-1.5 bg-green-100 text-green-700 hover:bg-green-200 text-xs sm:text-sm font-medium rounded-lg transition duration-200 shadow-2xs"
                   data-mentor-id="{{ req.mentor.id if req.mentor else '' }}"
                   data-mentor-name="{{ req.mentor.name if req.mentor else '' }}"
-                  data-mentor-email="{{ req.mentor.email if req.mentor else '' }}" {% if req.mentor and
-                  req.mentor.mentor_profile %} data-profession="{{ req.mentor.mentor_profile.profession or '' }}"
-                  data-organisation="{{ req.mentor.mentor_profile.organisation or '' }}"
-                  data-experience="{{ req.mentor.mentor_profile.years_of_experience or '' }}"
-                  data-location="{{ req.mentor.mentor_profile.location or '' }}"
-                  data-education="{{ req.mentor.mentor_profile.education or '' }}"
-                  data-industry="{{ req.mentor.mentor_profile.industry_sector or '' }}"
-                  data-skills="{{ req.mentor.mentor_profile.skills or '' }}"
-                  data-why-mentor="{{ req.mentor.mentor_profile.why_mentor or '' }}"
-                  data-picture="{{ req.mentor.mentor_profile.profile_picture or '' }}"
-                  data-role="{{ req.mentor.mentor_profile.role or '' }}"
-                  data-whatsapp="{{ req.mentor.mentor_profile.whatsapp or '' }}"
-                  data-language="{{ req.mentor.mentor_profile.language or '' }}"
-                  data-highest-qualification="{{ req.mentor.mentor_profile.highest_qualification or '' }}"
-                  data-degree-name="{{ req.mentor.mentor_profile.degree_name or '' }}"
-                  data-field-of-study="{{ req.mentor.mentor_profile.field_of_study or '' }}"
-                  data-university-name="{{ req.mentor.mentor_profile.university_name or '' }}"
-                  data-graduation-year="{{ req.mentor.mentor_profile.graduation_year or '' }}"
-                  data-academic-status="{{ req.mentor.mentor_profile.academic_status or '' }}"
-                  data-certifications="{{ req.mentor.mentor_profile.certifications or '' }}"
-                  data-research-work="{{ req.mentor.mentor_profile.research_work or '' }}"
-                  data-linkedin-link="{{ req.mentor.mentor_profile.linkedin_link or '' }}"
-                  data-github-link="{{ req.mentor.mentor_profile.github_link or '' }}"
-                  data-portfolio-link="{{ req.mentor.mentor_profile.portfolio_link or '' }}"
-                  data-other-social-link="{{ req.mentor.mentor_profile.other_social_link or '' }}"
-                  data-mentorship-topics="{{ req.mentor.mentor_profile.mentorship_topics or '' }}"
-                  data-mentorship-type-preference="{{ req.mentor.mentor_profile.mentorship_type_preference or '' }}"
-                  data-preferred-communication="{{ req.mentor.mentor_profile.preferred_communication or '' }}"
-                  data-availability="{{ req.mentor.mentor_profile.availability or '' }}"
-                  data-connect-frequency="{{ req.mentor.mentor_profile.connect_frequency or '' }}"
-                  data-preferred-duration="{{ req.mentor.mentor_profile.preferred_duration or '' }}"
-                  data-mentorship-philosophy="{{ req.mentor.mentor_profile.mentorship_philosophy or '' }}"
-                  data-mentorship-motto="{{ req.mentor.mentor_profile.mentorship_motto or '' }}"
-                  data-additional-info="{{ req.mentor.mentor_profile.additional_info or '' }}" {% endif %}>
+                  data-mentor-email="{{ req.mentor.email if req.mentor else '' }}"
+                  data-profession="{{ (req.mentor.mentor_profile.profession if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-organisation="{{ (req.mentor.mentor_profile.organisation if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-experience="{{ (req.mentor.mentor_profile.years_of_experience if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-location="{{ (req.mentor.mentor_profile.location if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-education="{{ (req.mentor.mentor_profile.education if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-industry="{{ (req.mentor.mentor_profile.industry_sector if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-skills="{{ (req.mentor.mentor_profile.skills if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-why-mentor="{{ (req.mentor.mentor_profile.why_mentor if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-picture="{{ (req.mentor.mentor_profile.profile_picture if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-role="{{ (req.mentor.mentor_profile.role if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-whatsapp="{{ (req.mentor.mentor_profile.whatsapp if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-language="{{ (req.mentor.mentor_profile.language if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-highest-qualification="{{ (req.mentor.mentor_profile.highest_qualification if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-degree-name="{{ (req.mentor.mentor_profile.degree_name if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-field-of-study="{{ (req.mentor.mentor_profile.field_of_study if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-university-name="{{ (req.mentor.mentor_profile.university_name if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-graduation-year="{{ (req.mentor.mentor_profile.graduation_year if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-academic-status="{{ (req.mentor.mentor_profile.academic_status if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-certifications="{{ (req.mentor.mentor_profile.certifications if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-research-work="{{ (req.mentor.mentor_profile.research_work if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-linkedin-link="{{ (req.mentor.mentor_profile.linkedin_link if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-github-link="{{ (req.mentor.mentor_profile.github_link if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-portfolio-link="{{ (req.mentor.mentor_profile.portfolio_link if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-other-social-link="{{ (req.mentor.mentor_profile.other_social_link if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-mentorship-topics="{{ (req.mentor.mentor_profile.mentorship_topics if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-mentorship-type-preference="{{ (req.mentor.mentor_profile.mentorship_type_preference if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-preferred-communication="{{ (req.mentor.mentor_profile.preferred_communication if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-availability="{{ (req.mentor.mentor_profile.availability if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-connect-frequency="{{ (req.mentor.mentor_profile.connect_frequency if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-preferred-duration="{{ (req.mentor.mentor_profile.preferred_duration if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-mentorship-philosophy="{{ (req.mentor.mentor_profile.mentorship_philosophy if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-mentorship-motto="{{ (req.mentor.mentor_profile.mentorship_motto if req.mentor and req.mentor.mentor_profile else '') or '' }}"
+                  data-additional-info="{{ (req.mentor.mentor_profile.additional_info if req.mentor and req.mentor.mentor_profile else '') or '' }}">
                   View Mentor Profile
                 </button>
               </div>
+
+              {% if req.supervisor_status == 'pending' %}
               <div class="flex gap-2 justify-end">
                 <form action="{{ url_for('supervisor_response') }}" method="POST">
                   <input type="hidden" name="request_id" value="{{ req.id }}">
                   <input type="hidden" name="action" value="approve">
                   <button type="submit"
-                    class="w-full px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition duration-200 flex items-center justify-center gap-2">
+                    class="w-full px-4 py-2 bg-green-600 text-white text-xs sm:text-sm font-medium rounded-lg hover:bg-green-700 transition duration-200 flex items-center justify-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>
@@ -412,7 +450,7 @@
                   <input type="hidden" name="request_id" value="{{ req.id }}">
                   <input type="hidden" name="action" value="reject">
                   <button type="submit"
-                    class="w-full px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition duration-200 flex items-center justify-center gap-2">
+                    class="w-full px-4 py-2 bg-red-600 text-white text-xs sm:text-sm font-medium rounded-lg hover:bg-red-700 transition duration-200 flex items-center justify-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -422,8 +460,8 @@
               </div>
               {% else %}
               <span
-                class="text-sm font-medium {% if req.supervisor_status == 'approved' %}text-green-600{% else %}text-red-600{% endif %}">
-                You have {{ req.supervisor_status }} this request
+                class="inline-block mt-1 text-xs font-semibold px-2.5 py-1 rounded-full {% if req.supervisor_status == 'approved' %}bg-green-100 text-green-800 border border-green-200{% else %}bg-red-100 text-red-800 border border-red-200{% endif %}">
+                Decision: {{ req.supervisor_status|title }}
               </span>
               {% endif %}
             </td>
@@ -1036,19 +1074,27 @@
 <script>
   // Request filtering
   function filterRequests() {
-    const searchTerm = document.getElementById('requestSearch').value.toLowerCase();
-    const mentorType = document.getElementById('mentorTypeFilter').value.toLowerCase();
-    const duration = document.getElementById('durationFilter').value;
-    const mentorStatus = document.getElementById('mentorStatusFilter').value.toLowerCase();
+    const searchInput = document.getElementById('requestSearch');
+    const searchTerm = (searchInput ? searchInput.value : '').toLowerCase().trim();
+    const statusSelect = document.getElementById('statusFilter');
+    const statusFilter = (statusSelect ? statusSelect.value : '').toLowerCase().trim();
+    const typeSelect = document.getElementById('mentorTypeFilter');
+    const mentorType = (typeSelect ? typeSelect.value : '').toLowerCase().trim();
+    const durationSelect = document.getElementById('durationFilter');
+    const duration = (durationSelect ? durationSelect.value : '').trim();
+    const mentorStatusSelect = document.getElementById('mentorStatusFilter');
+    const mentorStatus = (mentorStatusSelect ? mentorStatusSelect.value : '').toLowerCase().trim();
     const rows = document.querySelectorAll('.request-row');
     let visible = 0;
 
     rows.forEach(row => {
-      const matchSearch = !searchTerm || (row.dataset.search || '').includes(searchTerm);
-      const matchType = !mentorType || row.dataset.mentorType === mentorType;
-      const matchDuration = !duration || String(row.dataset.duration) === duration;
-      const matchMentorStatus = !mentorStatus || row.dataset.mentorStatus === mentorStatus;
-      const show = matchSearch && matchType && matchDuration && matchMentorStatus;
+      const matchSearch = !searchTerm || (row.dataset.search || '').toLowerCase().includes(searchTerm);
+      const rowStatus = (row.dataset.supervisorStatus || '').toLowerCase().trim();
+      const matchStatus = !statusFilter || statusFilter === 'all' || rowStatus === statusFilter;
+      const matchType = !mentorType || (row.dataset.mentorType || '').toLowerCase() === mentorType;
+      const matchDuration = !duration || String(row.dataset.duration || '') === duration;
+      const matchMentorStatus = !mentorStatus || (row.dataset.mentorStatus || '').toLowerCase() === mentorStatus;
+      const show = matchSearch && matchStatus && matchType && matchDuration && matchMentorStatus;
       row.style.display = show ? '' : 'none';
       if (show) visible++;
     });
@@ -1200,58 +1246,7 @@
     document.getElementById('menteeProfileModal').classList.add('hidden');
   }
 
-  // Update the event listener in your button
-  document.addEventListener("DOMContentLoaded", function () {
-    document.querySelectorAll(".view-mentee-profile-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const mentee = {
-          name: btn.dataset.menteeName,
-          email: btn.dataset.menteeEmail,
-          stream: btn.dataset.menteeStream,
-          school_college_name: btn.dataset.menteeSchool,
-          goal: btn.dataset.menteeGoal,
-          dob: btn.dataset.menteeDob,
-          mobile_number: btn.dataset.menteeMobileNumber,
-          mobile_country_code: btn.dataset.menteeMobileCountryCode,
-          whatsapp_number: btn.dataset.menteeWhatsappNumber,
-          whatsapp_country_code: btn.dataset.menteeWhatsappCountryCode,
-          parent_name: btn.dataset.menteeParentName,
-          parent_mobile: btn.dataset.menteeParentMobile,
-          parent_mobile_country_code: btn.dataset.menteeParentMobileCountryCode,
-          comments: btn.dataset.menteeComments,
-          profile_picture: btn.dataset.menteeProfilePic,
-          class_year: btn.dataset.menteeClassYear,
-          favourite_subject: btn.dataset.menteeFavouriteSubject,
-          who_am_i: btn.dataset.menteeWhoAmI,
-          father_name: btn.dataset.menteeFatherName,
-          address_line1: btn.dataset.menteeAddressLine1,
-          address_line2: btn.dataset.menteeAddressLine2,
-          city: btn.dataset.menteeCity,
-          state: btn.dataset.menteeState,
-          postal_code: btn.dataset.menteePostalCode,
-          country: btn.dataset.menteeCountry,
-          govt_private: btn.dataset.menteeGovtPrivate,
-          education_level: btn.dataset.menteeEducationLevel,
-          institution_name: btn.dataset.menteeInstitutionName,
-          board_university: btn.dataset.menteeBoardUniversity,
-          course_stream: btn.dataset.menteeCourseStream,
-          career_interest: btn.dataset.menteeCareerInterest,
-          current_role: btn.dataset.menteeCurrentRole,
-          industry: btn.dataset.menteeIndustry,
-          years_experience: btn.dataset.menteeYearsExperience,
-          current_organization: btn.dataset.menteeCurrentOrganization,
-          key_skills: btn.dataset.menteeKeySkills,
-          career_goal: btn.dataset.menteeCareerGoal,
-          mentorship_expectations: btn.dataset.menteeMentorshipExpectations
-        };
-        openMenteeProfileModal(mentee);
-      });
-    });
-  });
 
-  function closeMenteeProfileModal() {
-    document.getElementById('menteeProfileModal').classList.add('hidden');
-  }
 
   // Mentor Profile Functions
   function openMentorProfileModal(mentorData) {
@@ -1382,6 +1377,8 @@
 
   // Event Listeners
   document.addEventListener('DOMContentLoaded', function () {
+    filterRequests();
+
     document.querySelectorAll('.view-mentee-profile-btn').forEach(btn => {
       btn.addEventListener('click', function () {
         const menteeData = {
