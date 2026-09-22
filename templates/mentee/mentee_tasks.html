@@ -1440,7 +1440,15 @@
             }
             updateTaskCardBadge(taskId, taskType, isCompleted ? 'done' : 'in-progress');
             var dateEl = document.getElementById('mentee-display-date');
-            if (dateEl) dateEl.textContent = data.date ? new Date(data.date).toLocaleDateString() : '';
+            if (dateEl) {
+                const hasRating = (data.rating && data.rating > 0) || (data.mentor_rating && data.mentor_rating > 0);
+                const hasText = (data.text && data.text.trim()) || (data.challenges && data.challenges.trim()) || (data.nextSteps || data.next_steps ? (data.nextSteps || data.next_steps).trim() : false) || (data.extra && data.extra.trim());
+                if (data.date && (hasRating || hasText)) {
+                    dateEl.textContent = new Date(data.date).toLocaleDateString();
+                } else {
+                    dateEl.textContent = '';
+                }
+            }
             var feedbackEl = document.getElementById('mentee-display-feedback');
             if (feedbackEl) feedbackEl.textContent = data.text || '—';
             var extraEl = document.getElementById('mentee-display-extra');

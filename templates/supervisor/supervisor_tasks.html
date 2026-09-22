@@ -1967,7 +1967,11 @@
                     if (mScoreEl) mScoreEl.textContent = fb.mentor_rating ? `${fb.mentor_rating}/5` : 'No rating';
 
                     const dEl = document.getElementById('mentee-display-date');
-                    if (dEl && (fb.date || fb.created_at)) dEl.textContent = `Submitted: ${new Date(fb.date || fb.created_at).toLocaleDateString()}`;
+                    // Only show date if there's actual feedback content (rating > 0 or text content)
+                    const hasRating = (fb.rating && fb.rating > 0) || (fb.mentor_rating && fb.mentor_rating > 0);
+                    const hasText = (fb.text && fb.text.trim()) || (fb.challenges && fb.challenges.trim()) || (fb.next_steps && fb.next_steps.trim()) || (fb.extra && fb.extra.trim());
+                    const hasFeedback = hasRating || hasText;
+                    if (dEl && hasFeedback && (fb.date || fb.created_at)) dEl.textContent = `Submitted: ${new Date(fb.date || fb.created_at).toLocaleDateString()}`;
 
                     const refEl = document.getElementById('mentee-display-reflection');
                     if (refEl) refEl.textContent = fb.text || 'No reflection provided.';

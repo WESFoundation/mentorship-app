@@ -424,17 +424,20 @@
         <p class="mt-1 text-xs text-slate-400">Selecting a mentorship auto-fills the mentor and mentee fields.</p>
       </div>
 
-      <!-- Mentor Selection -->
+      <!-- Mentor Selection with Search -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentor <span class="text-red-500">*</span></label>
-          <select id="sm-mentor" name="mentor_id"
-            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
-            <option value="">Choose a mentor...</option>
-            {% for mentor in mentors %}
-            <option value="{{ mentor.id }}" data-name="{{ mentor.name }}" data-email="{{ mentor.email }}" data-type="Mentor" data-institution="{{ (mentor.institution or (mentor.institution_ref.name if mentor.institution_ref else '')) | trim }}" data-institution-id="{{ mentor.institution_id or '' }}">{{ mentor.name }} ({{ mentor.email }})</option>
-            {% endfor %}
-          </select>
+          <div class="relative">
+            <select id="sm-mentor" name="mentor_id"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm sm-mentor-select"
+              data-placeholder="Search for a mentor...">
+              <option value="">Choose a mentor...</option>
+              {% for mentor in mentors %}
+              <option value="{{ mentor.id }}" data-name="{{ mentor.name }}" data-email="{{ mentor.email }}" data-type="Mentor" data-institution="{{ (mentor.institution or (mentor.institution_ref.name if mentor.institution_ref else '')) | trim }}" data-institution-id="{{ mentor.institution_id or '' }}">{{ mentor.name }} ({{ mentor.email }})</option>
+              {% endfor %}
+            </select>
+          </div>
           <p id="sm-mentor-error" class="hidden text-xs text-red-600 mt-1 font-medium flex items-center gap-1">
             <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
             Mentor is required. Please select a mentor.
@@ -449,17 +452,20 @@
         </div>
       </div>
 
-      <!-- Mentee Selection -->
+      <!-- Mentee Selection with Search -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentee <span class="text-red-500">*</span></label>
-          <select id="sm-mentee" name="mentee_id"
-            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
-            <option value="">Choose a mentee...</option>
-            {% for mentee in mentees %}
-            <option value="{{ mentee.id }}" data-name="{{ mentee.name }}" data-email="{{ mentee.email }}" data-type="Mentee" data-institution="{{ (mentee.institution or (mentee.institution_ref.name if mentee.institution_ref else '')) | trim }}" data-institution-id="{{ mentee.institution_id or '' }}">{{ mentee.name }} ({{ mentee.email }})</option>
-            {% endfor %}
-          </select>
+          <div class="relative">
+            <select id="sm-mentee" name="mentee_id"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm sm-mentee-select"
+              data-placeholder="Search for a mentee...">
+              <option value="">Choose a mentee...</option>
+              {% for mentee in mentees %}
+              <option value="{{ mentee.id }}" data-name="{{ mentee.name }}" data-email="{{ mentee.email }}" data-type="Mentee" data-institution="{{ (mentee.institution or (mentee.institution_ref.name if mentee.institution_ref else '')) | trim }}" data-institution-id="{{ mentee.institution_id or '' }}">{{ mentee.name }} ({{ mentee.email }})</option>
+              {% endfor %}
+            </select>
+          </div>
           <p id="sm-mentee-error" class="hidden text-xs text-red-600 mt-1 font-medium flex items-center gap-1">
             <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
             Mentee is required. Please select a mentee.
@@ -973,10 +979,163 @@ function openScheduleMeetingModal() {
   var status = document.getElementById('sm-status');
   status.classList.add('hidden');
   status.textContent = '';
+  // Initialize searchable selects for mentor and mentee
+  initSearchableSelects();
+}
+  if (smCustomInput) smCustomInput.value = '';
+  clearAllSmErrors();
+  // Reset task section (keep visible)
+  document.getElementById('sm-task').innerHTML = '<option value="">No task selected (general meeting)</option>';
+  document.getElementById('sm-task-hint').textContent = 'Select a mentorship or mentor & mentee to load available tasks.';
+  // Auto-detect timezone
+  try {
+    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz === 'Asia/Calcutta') tz = 'Asia/Kolkata';
+    var tzSelect = document.getElementById('sm-timezone');
+    for (var i = 0; i < tzSelect.options.length; i++) {
+      if (tzSelect.options[i].value === tz) { tzSelect.selectedIndex = i; break; }
+    }
+  } catch(e) {}
+  // Hide banner
+  document.getElementById('sm-participant-banner').classList.add('hidden');
+  var status = document.getElementById('sm-status');
+  status.classList.add('hidden');
+  status.textContent = '';
 }
 
 function closeScheduleMeetingModal() {
   document.getElementById('schedule-meeting-modal').classList.add('hidden');
+}
+
+// Initialize searchable select dropdowns for mentor and mentee
+function initSearchableSelect(selectId, placeholder) {
+    var select = document.getElementById(selectId);
+    if (!select || select.dataset.initialized === 'true') return;
+    
+    var wrapper = document.createElement('div');
+    wrapper.className = 'relative w-full searchable-select-wrapper';
+    
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm searchable-select-input';
+    input.placeholder = placeholder || 'Search...';
+    input.autocomplete = 'off';
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-expanded', 'false');
+    
+    var dropdown = document.createElement('div');
+    dropdown.className = 'searchable-select-dropdown hidden absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto';
+    dropdown.setAttribute('role', 'listbox');
+    
+    // Move original select inside wrapper
+    select.parentNode.insertBefore(wrapper, select);
+    wrapper.appendChild(input);
+    wrapper.appendChild(dropdown);
+    dropdown.appendChild(select);
+    select.style.display = 'none';
+    select.dataset.initialized = 'true';
+    
+    // Populate dropdown with options
+    function populateDropdown() {
+        dropdown.innerHTML = '';
+        var options = select.querySelectorAll('option');
+        options.forEach(function(option) {
+            if (option.value === '') return; // Skip empty placeholder
+            var item = document.createElement('div');
+            item.className = 'px-4 py-2 hover:bg-blue-50 cursor-pointer transition-colors searchable-option';
+            item.textContent = option.textContent;
+            item.dataset.value = option.value;
+            item.setAttribute('role', 'option');
+            item.addEventListener('click', function() {
+                select.value = option.value;
+                input.value = option.textContent;
+                dropdown.classList.add('hidden');
+                input.setAttribute('aria-expanded', 'false');
+                var event = new Event('change', { bubbles: true });
+                select.dispatchEvent(event);
+            });
+            dropdown.appendChild(item);
+        });
+    }
+    
+    function filterOptions() {
+        var query = input.value.toLowerCase();
+        var options = dropdown.querySelectorAll('.searchable-option');
+        options.forEach(function(item) {
+            var text = item.textContent.toLowerCase();
+            if (text.indexOf(input.value.toLowerCase()) !== -1) {
+                item.classList.remove('hidden');
+            } else {
+                item.classList.add('hidden');
+            }
+        });
+    }
+    
+    function showDropdown() {
+        populateDropdown();
+        dropdown.classList.remove('hidden');
+        input.setAttribute('aria-expanded', 'true');
+    }
+    
+    function hideDropdown() {
+        dropdown.classList.add('hidden');
+        input.setAttribute('aria-expanded', 'false');
+    }
+    
+    input.addEventListener('focus', showDropdown);
+    input.addEventListener('input', filterOptions);
+    input.addEventListener('blur', function() {
+        setTimeout(hideDropdown, 200);
+    });
+    
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            var items = dropdown.querySelectorAll('.searchable-option:not(.hidden)');
+            var selected = dropdown.querySelector('.searchable-option.selected');
+            var index = -1;
+            items.forEach(function(item, i) {
+                if (item.classList.contains('selected')) index = i;
+            });
+            var nextIndex = index + 1 < items.length ? index + 1 : 0;
+            items.forEach(function(item) { item.classList.remove('selected'); });
+            items[nextIndex].classList.add('selected');
+            items[nextIndex].scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            var items = dropdown.querySelectorAll('.searchable-option:not(.hidden)');
+            var index = -1;
+            items.forEach(function(item, i) {
+                if (item.classList.contains('selected')) index = i;
+            });
+            var nextIndex = index - 1 >= 0 ? index - 1 : items.length - 1;
+            items.forEach(function(item) { item.classList.remove('selected'); });
+            items[nextIndex].classList.add('selected');
+            items[nextIndex].scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            var selected = dropdown.querySelector('.searchable-option.selected:not(.hidden)');
+            if (selected) selected.click();
+        } else if (e.key === 'Escape') {
+            hideDropdown();
+        }
+    });
+    
+    document.addEventListener('click', function(e) {
+        if (!wrapper.contains(e.target)) {
+            hideDropdown();
+        }
+    });
+    
+    input.value = select.options[select.selectedIndex] ? select.options[select.selectedIndex].textContent : '';
+    if (select.value) input.value = select.options[select.selectedIndex].textContent;
+    select.dataset.initialized = 'true';
+}
+
+function initSearchableSelects() {
+    initSearchableSelect('sm-mentor', 'Search for a mentor...');
+    initSearchableSelect('sm-mentee', 'Search for a mentee...');
 }
 
 function toggleSmCustomLink() {

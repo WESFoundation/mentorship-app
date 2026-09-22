@@ -20,15 +20,18 @@
       <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <label for="mentor_select" class="block text-sm font-medium text-gray-700 mb-1">Select Mentor</label>
-          <select id="mentor_select"
-            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
-            onchange="switchMentor(this.value)">
+          <div class="relative">
+            <select id="mentor_select"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white sm-mentor-select"
+              data-placeholder="Search for a mentor..."
+              onchange="switchMentor(this.value)">
             {% for m in all_active_mentors %}
             {% set mtype = mentor_types.get(m.id, '') %}
             <option value="{{ m.id }}" data-institution="{{ (m.institution or '') | e }}" data-institution-id="{{ m.institution_id or '' }}" {% if m.id == mentor.id %}selected{% endif %}>{{ m.name }}{% if mtype %} ({{ mtype|capitalize }} Mentor){% endif %} — {{ m.email }}</option>
             {% endfor %}
           </select>
-          <p class="text-xs text-gray-400 mt-1">Choose which mentor you want to schedule a meeting with.</p>
+        </div>
+        <p class="text-xs text-gray-400 mt-1">Choose which mentor you want to schedule a meeting with.</p>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Mentor's Institute</label>
@@ -605,6 +608,10 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
+    // Initialize searchable select for mentor dropdown
+    if (typeof initSearchableSelect === 'function') {
+        initSearchableSelect('mentor_select', 'Search for a mentor...');
+    }
 </script>
 
 {% endblock %}

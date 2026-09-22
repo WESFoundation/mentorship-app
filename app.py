@@ -5502,6 +5502,14 @@ def get_institution_tasks_data():
     total_count = len(tasks_data)
     paginated_tasks = tasks_data[offset:offset + limit]
 
+    # Calculate analytics for ALL tasks (not just paginated)
+    completed_count = len([t for t in tasks_data if t.get('status') in ('completed', 'done')])
+    in_progress_count = len([t for t in tasks_data if t.get('status') in ('in-progress', 'inprogress')])
+    not_started_count = len([t for t in tasks_data if t.get('status') in ('not-started', 'pending', 'to-do')])
+    committed_count = len([t for t in tasks_data if t.get('status') == 'committed'])
+    overdue_count = len([t for t in tasks_data if t.get('isCritical') and t.get('status') not in ('done', 'completed')])
+    completion_rate = round((completed_count / total_count) * 100) if total_count > 0 else 0
+
     # Get institution mentors and mentees for filters
     # Use _get_institution_members for richer matching (aliases, profile fields)
     return jsonify({
@@ -5511,6 +5519,16 @@ def get_institution_tasks_data():
         "offset": offset,
         "limit": limit,
         "has_more": (offset + limit) < total_count,
+        "analytics": {
+            "total": total_count,
+            "completed": completed_count,
+            "in_progress": in_progress_count,
+            "not_started": not_started_count,
+            "committed": committed_count,
+            "overdue": overdue_count,
+            "completion_rate": completion_rate,
+            "tasks_this_month": total_count  # Could be refined to actual monthly count
+        },
         "mentors": [{"id": m.id, "name": m.name} for m in all_mentors],
         "mentees": [{"id": m.id, "name": m.name} for m in institution_mentees_full],
         "mentor_to_mentees": mentor_to_mentees_map,
@@ -9555,14 +9573,12 @@ def _has_mentee_feedback(task_type, task_id, mentee_id=None):
     fb = _get_mentee_feedback_record(task_type, task_id, mentee_id=mentee_id)
     if not fb:
         return False
-    return bool(
-        fb.rating or 
-        fb.mentor_rating or 
-        (fb.text or '').strip() or 
-        (fb.challenges or '').strip() or 
-        (fb.next_steps or '').strip() or 
-        (fb.extra or '').strip()
-    )
+    # Only return true if there's actual feedback content (rating or text)
+    # Must have at least a rating > 0 or non-empty text content
+    has_rating = (fb.rating and fb.rating > 0) or (fb.mentor_rating and fb.mentor_rating > 0)
+    has_text = (fb.text and fb.text.strip()) or (fb.challenges and fb.challenges.strip()) or \
+               (fb.next_steps and fb.next_steps.strip()) or (fb.extra and fb.extra.strip())
+    return has_rating or has_text
 
 
 def _has_mentor_rating(task_type, task_id):
@@ -9572,7 +9588,8 @@ def _has_mentor_rating(task_type, task_id):
         mt = db.session.get(MenteeTask, task_id)
         if mt and mt.task_id:
             rating = TaskRating.query.filter_by(task_id=mt.task_id, task_type='master').first()
-    return rating is not None
+    # Only return true if there's an actual rating value
+    return rating is not None and rating.rating is not None
 
 
 def _has_mentor_reflection(task_type, task_id):
