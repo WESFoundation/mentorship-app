@@ -1420,12 +1420,15 @@
                     } else if (taskStatus === 'in-progress') {
                         progressText.textContent = 'In Progress';
                         progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-blue-100 text-blue-700';
+                    } else if (taskStatus === 'committed') {
+                        progressText.textContent = 'Committed';
+                        progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-700';
                     } else {
-                        progressText.textContent = 'Not Done';
+                        progressText.textContent = 'Not Started';
                         progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
                     }
                 }
-                updateTaskCardBadge(taskId, taskType, isCompleted ? 'done' : (taskStatus === 'in-progress' ? 'in-progress' : 'not-done'));
+                updateTaskCardBadge(taskId, taskType, isCompleted ? 'done' : (taskStatus || 'not-started'));
                 return;
             }
             var data = JSON.parse(raw);
@@ -1433,12 +1436,18 @@
                 if (isCompleted) {
                     progressText.textContent = 'Done';
                     progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700';
+                } else if (taskStatus === 'committed') {
+                    progressText.textContent = 'Committed';
+                    progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-700';
+                } else if (taskStatus === 'not-started' && !data.text && !data.rating && !data.mentorRating) {
+                    progressText.textContent = 'Not Started';
+                    progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600';
                 } else {
                     progressText.textContent = 'In Progress';
                     progressText.className = 'text-sm font-bold px-3 py-1 rounded-full bg-blue-100 text-blue-700';
                 }
             }
-            updateTaskCardBadge(taskId, taskType, isCompleted ? 'done' : 'in-progress');
+            updateTaskCardBadge(taskId, taskType, isCompleted ? 'done' : (taskStatus === 'committed' ? 'committed' : (taskStatus === 'not-started' && !data.text && !data.rating && !data.mentorRating ? 'not-started' : 'in-progress')));
             var dateEl = document.getElementById('mentee-display-date');
             if (dateEl) {
                 const hasRating = (data.rating && data.rating > 0) || (data.mentor_rating && data.mentor_rating > 0);
