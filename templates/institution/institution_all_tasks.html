@@ -1918,6 +1918,8 @@ function viewTaskDetails(taskId) {
     const menteeDet = document.getElementById('mentee-rating-details');
     if (menteeNo) menteeNo.classList.remove('hidden');
     if (menteeDet) menteeDet.classList.add('hidden');
+    const menteeDate = document.getElementById('mentee-display-date');
+    if (menteeDate) menteeDate.textContent = '';
 
     const mentorNo = document.getElementById('no-rating-message');
     const mentorDet = document.getElementById('rating-details');
@@ -1934,7 +1936,7 @@ function viewTaskDetails(taskId) {
     if (modal) modal.classList.remove('hidden');
     
     // Asynchronously load detailed content
-    loadMenteeRating(task.id);
+    loadMenteeRating(task.id, task.menteeId || task.mentee_id || '');
     loadMentorRating(task.id);
     loadInstituteReflection(task.id);
 }
@@ -1944,96 +1946,106 @@ function closeTaskDetailsModal() {
 }
 
 // 1. Load Mentee Rating & Feedback
-async function loadMenteeRating(taskId) {
+async function loadMenteeRating(taskId, menteeId) {
     const [taskType, actualTaskId] = taskId.split('_');
     const noMsg = document.getElementById('mentee-no-rating-message');
     const details = document.getElementById('mentee-rating-details');
+    const dEl = document.getElementById('mentee-display-date');
+    if (dEl) dEl.textContent = '';
+    if (!noMsg || !details) return;
     
     try {
-        const res = await fetch(`/get_mentee_feedback/${taskType}/${actualTaskId}`);
+        const menteeParam = menteeId ? `?mentee_id=${encodeURIComponent(menteeId)}` : '';
+        const res = await fetch(`/get_mentee_feedback/${taskType}/${actualTaskId}${menteeParam}`);
         if (res.ok) {
             const data = await res.json();
             if (data.success && data.feedback) {
                 const fb = data.feedback;
-                noMsg.classList.add('hidden');
-                details.classList.remove('hidden');
-                
-                // Task satisfaction stars
-                const starsEl = document.getElementById('mentee-display-stars');
-                if (starsEl) {
-                    starsEl.innerHTML = '';
-                    const r = parseInt(fb.rating) || 0;
-                    for (let i = 1; i <= 5; i++) {
-                        const s = document.createElement('span');
-                        s.className = i <= r ? 'text-amber-400' : 'text-gray-300';
-                        s.innerHTML = '★';
-                        starsEl.appendChild(s);
-                    }
-                }
-                const scoreEl = document.getElementById('mentee-rating-score');
-                if (scoreEl) scoreEl.textContent = fb.rating ? `${fb.rating}/5` : 'No rating';
-                
-                // Mentor support rating stars
-                const mStarsEl = document.getElementById('mentee-mentor-display-stars');
-                if (mStarsEl) {
-                    mStarsEl.innerHTML = '';
-                    const mr = parseInt(fb.mentor_rating) || 0;
-                    for (let i = 1; i <= 5; i++) {
-                        const s = document.createElement('span');
-                        s.className = i <= mr ? 'text-blue-400' : 'text-gray-300';
-                        s.innerHTML = '★';
-                        mStarsEl.appendChild(s);
-                    }
-                }
-                const mScoreEl = document.getElementById('mentee-mentor-score');
-                if (mScoreEl) mScoreEl.textContent = fb.mentor_rating ? `${fb.mentor_rating}/5` : 'No rating';
-                
-                const dEl = document.getElementById('mentee-display-date');
-                // Only show date if there's actual feedback content (rating > 0 or text content)
                 const hasRating = (fb.rating && fb.rating > 0) || (fb.mentor_rating && fb.mentor_rating > 0);
                 const hasText = (fb.text && fb.text.trim()) || (fb.challenges && fb.challenges.trim()) || (fb.next_steps && fb.next_steps.trim()) || (fb.extra && fb.extra.trim());
                 const hasFeedback = hasRating || hasText;
-                if (dEl && hasFeedback && (fb.date || fb.created_at)) dEl.textContent = `Submitted: ${new Date(fb.date || fb.created_at).toLocaleDateString()}`;
-                
-                const refEl = document.getElementById('mentee-display-reflection');
-                if (refEl) refEl.textContent = fb.text || 'No reflection provided.';
-                
-                const cCont = document.getElementById('mentee-challenges-container');
-                if (cCont) {
-                    if (fb.challenges && fb.challenges.trim()) {
-                        document.getElementById('mentee-display-challenges').textContent = fb.challenges;
-                        cCont.classList.remove('hidden');
-                    } else {
-                        cCont.classList.add('hidden');
-                    }
-                }
-                
-                const nCont = document.getElementById('mentee-next-container');
-                const nextVal = fb.nextSteps || fb.next_steps;
-                if (nCont) {
-                    if (nextVal && nextVal.trim()) {
-                        document.getElementById('mentee-display-next').textContent = nextVal;
-                        nCont.classList.remove('hidden');
-                    } else {
-                        nCont.classList.add('hidden');
-                    }
-                }
 
-                const eCont = document.getElementById('mentee-extra-container');
-                if (eCont) {
-                    if (fb.extra && fb.extra.trim()) {
-                        document.getElementById('mentee-display-extra').textContent = fb.extra;
-                        eCont.classList.remove('hidden');
-                    } else {
-                        eCont.classList.add('hidden');
+                if (hasFeedback) {
+                    noMsg.classList.add('hidden');
+                    details.classList.remove('hidden');
+                    
+                    // Task satisfaction stars
+                    const starsEl = document.getElementById('mentee-display-stars');
+                    if (starsEl) {
+                        starsEl.innerHTML = '';
+                        const r = parseInt(fb.rating) || 0;
+                        for (let i = 1; i <= 5; i++) {
+                            const s = document.createElement('span');
+                            s.className = i <= r ? 'text-amber-400' : 'text-gray-300';
+                            s.innerHTML = '★';
+                            starsEl.appendChild(s);
+                        }
                     }
+                    const scoreEl = document.getElementById('mentee-rating-score');
+                    if (scoreEl) scoreEl.textContent = fb.rating ? `${fb.rating}/5` : 'No rating';
+                    
+                    // Mentor support rating stars
+                    const mStarsEl = document.getElementById('mentee-mentor-display-stars');
+                    if (mStarsEl) {
+                        mStarsEl.innerHTML = '';
+                        const mr = parseInt(fb.mentor_rating) || 0;
+                        for (let i = 1; i <= 5; i++) {
+                            const s = document.createElement('span');
+                            s.className = i <= mr ? 'text-blue-400' : 'text-gray-300';
+                            s.innerHTML = '★';
+                            mStarsEl.appendChild(s);
+                        }
+                    }
+                    const mScoreEl = document.getElementById('mentee-mentor-score');
+                    if (mScoreEl) mScoreEl.textContent = fb.mentor_rating ? `${fb.mentor_rating}/5` : 'No rating';
+                    
+                    if (dEl && (fb.date || fb.created_at)) {
+                        dEl.textContent = `Submitted: ${new Date(fb.date || fb.created_at).toLocaleDateString()}`;
+                    } else if (dEl) {
+                        dEl.textContent = '';
+                    }
+                    
+                    const refEl = document.getElementById('mentee-display-reflection');
+                    if (refEl) refEl.textContent = fb.text || 'No reflection provided.';
+                    
+                    const cCont = document.getElementById('mentee-challenges-container');
+                    if (cCont) {
+                        if (fb.challenges && fb.challenges.trim()) {
+                            document.getElementById('mentee-display-challenges').textContent = fb.challenges;
+                            cCont.classList.remove('hidden');
+                        } else {
+                            cCont.classList.add('hidden');
+                        }
+                    }
+                    
+                    const nCont = document.getElementById('mentee-next-container');
+                    const nextVal = fb.nextSteps || fb.next_steps;
+                    if (nCont) {
+                        if (nextVal && nextVal.trim()) {
+                            document.getElementById('mentee-display-next').textContent = nextVal;
+                            nCont.classList.remove('hidden');
+                        } else {
+                            nCont.classList.add('hidden');
+                        }
+                    }
+
+                    const eCont = document.getElementById('mentee-extra-container');
+                    if (eCont) {
+                        if (fb.extra && fb.extra.trim()) {
+                            document.getElementById('mentee-display-extra').textContent = fb.extra;
+                            eCont.classList.remove('hidden');
+                        } else {
+                            eCont.classList.add('hidden');
+                        }
+                    }
+                    return;
                 }
-                return;
             }
         }
     } catch (e) {
         console.error('Error loading mentee rating:', e);
     }
+    if (dEl) dEl.textContent = '';
     noMsg.classList.remove('hidden');
     details.classList.add('hidden');
 }

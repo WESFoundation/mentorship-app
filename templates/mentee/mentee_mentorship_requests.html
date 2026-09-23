@@ -1,0 +1,216 @@
+{% extends "base2.html" %}
+{% block title %}My Mentorship Requests{% endblock %}
+{% block user %}Mentee{% endblock %}
+
+{% block content %}
+<div class="max-w-[90rem] mx-auto py-2">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900 font-poppins">My Mentorship Requests</h1>
+      <p class="text-gray-500 text-sm mt-1">Track and manage all mentorship requests you have sent to mentors.</p>
+    </div>
+    <a href="{{ url_for('find_mentor') }}"
+      class="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition shadow-sm w-full sm:w-auto">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+      Find More Mentors
+    </a>
+  </div>
+
+  <!-- Filter Tabs -->
+  {% set total_count = requests|length %}
+  {% set pending_count = requests|selectattr('final_status', 'equalto', 'pending')|list|length %}
+  {% set approved_count = requests|selectattr('final_status', 'equalto', 'approved')|list|length %}
+  {% set rejected_count = requests|selectattr('final_status', 'equalto', 'rejected')|list|length %}
+
+  <div class="flex items-center gap-2 mb-6 border-b border-gray-200 pb-3 overflow-x-auto">
+    <button type="button" onclick="filterRequests('all')" id="tab-all"
+      class="tab-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition bg-blue-50 text-blue-700 border border-blue-200">
+      All ({{ total_count }})
+    </button>
+    <button type="button" onclick="filterRequests('pending')" id="tab-pending"
+      class="tab-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition text-gray-600 hover:bg-gray-100">
+      Pending ({{ pending_count }})
+    </button>
+    <button type="button" onclick="filterRequests('approved')" id="tab-approved"
+      class="tab-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition text-gray-600 hover:bg-gray-100">
+      Approved ({{ approved_count }})
+    </button>
+    <button type="button" onclick="filterRequests('rejected')" id="tab-rejected"
+      class="tab-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition text-gray-600 hover:bg-gray-100">
+      Declined ({{ rejected_count }})
+    </button>
+  </div>
+
+  <!-- Requests Grid / List -->
+  {% if requests and requests|length > 0 %}
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="requestsGrid">
+    {% for req in requests %}
+    {% set mentor = req.mentor %}
+    {% set mp = mentor.mentor_profile if mentor else None %}
+    <div class="request-card bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all p-5 flex flex-col justify-between"
+         data-status="{{ req.final_status or 'pending' }}">
+      
+      <div>
+        <!-- Top Row: Mentor Avatar & Status -->
+        <div class="flex items-start justify-between gap-3 mb-4">
+          <div class="flex items-center gap-3">
+            {% if mp and mp.profile_picture %}
+            <img src="{{ url_for('static', filename='uploads/' ~ mp.profile_picture) }}" 
+                 alt="{{ mentor.name if mentor else 'Mentor' }}" 
+                 class="w-14 h-14 rounded-full object-cover border-2 border-blue-50 shadow-sm flex-shrink-0">
+            {% else %}
+            <div class="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-sm flex-shrink-0">
+              {{ (mentor.name[0] if mentor and mentor.name else 'M')|upper }}
+            </div>
+            {% endif %}
+            
+            <div class="min-w-0">
+              <h3 class="text-base font-bold text-gray-900 truncate">
+                {{ mentor.name if mentor else 'Unknown Mentor' }}
+              </h3>
+              <p class="text-xs text-gray-500 truncate">
+                {{ mp.profession if mp and mp.profession else (mentor.email if mentor else '') }}
+              </p>
+              {% if mp and mp.organisation %}
+              <p class="text-[11px] text-gray-400 truncate">{{ mp.organisation }}</p>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Status Badge -->
+          <div class="flex-shrink-0">
+            {% if req.final_status == 'approved' %}
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                Active Mentorship
+              </span>
+            {% elif req.final_status == 'rejected' or req.mentor_status == 'rejected' or req.supervisor_status == 'rejected' %}
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                Declined
+              </span>
+            {% elif req.mentor_status == 'accepted' and req.supervisor_status == 'pending' %}
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200" title="Accepted by mentor, awaiting supervisor review">
+                <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                Supervisor Review
+              </span>
+            {% else %}
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                Pending Mentor
+              </span>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Request Metadata Pills -->
+        <div class="flex flex-wrap gap-2 mb-3">
+          {% if req.mentor_type %}
+          <span class="px-2.5 py-0.5 rounded-md text-[11px] font-semibold {% if req.mentor_type == 'anchor' %}bg-purple-50 text-purple-700 border border-purple-200{% else %}bg-indigo-50 text-indigo-700 border border-indigo-200{% endif %}">
+            {{ req.mentor_type|title }} Mentorship
+          </span>
+          {% endif %}
+          {% if req.term %}
+          <span class="px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700">
+            {{ req.term|title }} Term ({{ req.duration_months or 6 }} mos)
+          </span>
+          {% endif %}
+          {% if req.purpose %}
+          <span class="px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 truncate max-w-[200px]" title="{{ req.purpose }}">
+            {{ req.purpose|title }}
+          </span>
+          {% endif %}
+        </div>
+
+        <!-- Statement / Notes snippet -->
+        {% if req.why_need_mentor %}
+        <div class="bg-gray-50 rounded-xl p-3 mb-4 text-xs text-gray-700">
+          <span class="font-bold text-gray-500 block mb-1 text-[10px] uppercase tracking-wider">Your Statement</span>
+          <p class="line-clamp-3 leading-relaxed italic">"{{ req.why_need_mentor }}"</p>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Footer Info & Actions -->
+      <div class="border-t border-gray-100 pt-3 mt-2 flex items-center justify-between text-xs text-gray-400">
+        <span>Sent {{ req.created_at.strftime('%b %d, %Y') if req.created_at else 'Recently' }}</span>
+
+        <div class="flex items-center gap-2">
+          {% if req.final_status == 'approved' %}
+            <a href="{{ url_for('my_mentors') }}" 
+              class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition text-xs">
+              Go to Mentorship
+            </a>
+          {% elif req.final_status == 'rejected' or req.mentor_status == 'rejected' %}
+            <a href="{{ url_for('find_mentor') }}" 
+              class="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition text-xs">
+              Find Another
+            </a>
+          {% else %}
+            <span class="text-amber-600 font-medium flex items-center gap-1">
+              <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              Awaiting Response
+            </span>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <!-- Empty State -->
+  <div class="bg-white rounded-2xl border border-gray-200 p-12 text-center shadow-sm">
+    <div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+      <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+      </svg>
+    </div>
+    <h3 class="text-lg font-bold text-gray-900 mb-1">No mentorship requests yet</h3>
+    <p class="text-sm text-gray-500 max-w-sm mx-auto mb-6">Browse our network of experienced mentors and send a mentorship request to start learning.</p>
+    <a href="{{ url_for('find_mentor') }}" 
+       class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition shadow-sm">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+      Find Mentors
+    </a>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+function filterRequests(status) {
+  // Update Tab Styling
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('bg-blue-50', 'text-blue-700', 'border', 'border-blue-200');
+    btn.classList.add('text-gray-600', 'hover:bg-gray-100');
+  });
+  const activeBtn = document.getElementById('tab-' + status);
+  if (activeBtn) {
+    activeBtn.classList.remove('text-gray-600', 'hover:bg-gray-100');
+    activeBtn.classList.add('bg-blue-50', 'text-blue-700', 'border', 'border-blue-200');
+  }
+
+  // Filter Cards
+  const cards = document.querySelectorAll('.request-card');
+  cards.forEach(card => {
+    const cardStatus = card.getAttribute('data-status');
+    if (status === 'all') {
+      card.style.display = 'flex';
+    } else if (status === 'pending') {
+      card.style.display = (cardStatus === 'pending') ? 'flex' : 'none';
+    } else if (status === 'approved') {
+      card.style.display = (cardStatus === 'approved') ? 'flex' : 'none';
+    } else if (status === 'rejected') {
+      card.style.display = (cardStatus === 'rejected') ? 'flex' : 'none';
+    }
+  });
+}
+</script>
+{% endblock %}

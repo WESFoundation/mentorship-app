@@ -1,0 +1,269 @@
+{% extends "base2.html" %}
+{% block title %}Profile Completion Reminder Settings{% endblock %}
+{% block user %}Supervisor{% endblock %}
+{% block profiledrop %}{% endblock %}
+
+{% block content %}
+<main class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <!-- Header -->
+  <div class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight flex items-center gap-3">
+        <span class="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100">
+          <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+        </span>
+        Profile Completion Reminder System
+      </h1>
+      <p class="text-sm text-slate-500 mt-1">Configure automated background reminders to nudge users toward 100% profile completeness.</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('admin_reminder_logs') }}" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-sm font-semibold shadow-sm transition">
+        <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+        </svg>
+        View Reminder Logs
+      </a>
+    </div>
+  </div>
+
+  <!-- Status Alerts -->
+  {% if get_flashed_messages() %}
+    {% for message in get_flashed_messages() %}
+      <div class="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-3 shadow-sm">
+        <svg class="w-5 h-5 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>{{ message }}</span>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <!-- Quick Metrics Grid -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+    <!-- Card 1: System Status -->
+    <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between">
+      <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">System Status</div>
+      <div class="mt-3 flex items-center justify-between">
+        {% if settings.is_enabled %}
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            ACTIVE
+          </span>
+        {% else %}
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200">
+            <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+            PAUSED
+          </span>
+        {% endif %}
+      </div>
+      <div class="text-xs text-slate-500 mt-3">Background Scheduler</div>
+    </div>
+
+    <!-- Card 2: Total Sent -->
+    <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between">
+      <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Sent</div>
+      <div class="mt-2 text-3xl font-extrabold text-slate-800">{{ total_reminders_sent }}</div>
+      <div class="text-xs text-slate-500 mt-2">All-time reminder notifications</div>
+    </div>
+
+    <!-- Card 3: Sent Today -->
+    <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between">
+      <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Sent Today</div>
+      <div class="mt-2 text-3xl font-extrabold text-indigo-600">{{ reminders_today }}</div>
+      <div class="text-xs text-slate-500 mt-2">Reminders sent last 24 hours</div>
+    </div>
+
+    <!-- Card 4: Run Frequency -->
+    <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between">
+      <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Frequency</div>
+      <div class="mt-2 text-3xl font-extrabold text-slate-800">Every {{ settings.frequency_hours }}h</div>
+      <div class="text-xs text-slate-500 mt-2">Background check interval</div>
+    </div>
+
+    <!-- Card 5: Max Cap -->
+    <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between">
+      <div class="text-xs font-semibold uppercase tracking-wider text-slate-400">Cap Per User</div>
+      <div class="mt-2 text-3xl font-extrabold text-slate-800">{{ settings.max_reminders_per_user }}</div>
+      <div class="text-xs text-slate-500 mt-2">Max emails per account</div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Main Settings Form (2 cols) -->
+    <div class="lg:col-span-2 space-y-6">
+      <div class="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-100">
+          <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Configuration Parameters
+        </h2>
+
+        <form method="POST" action="{{ url_for('admin_reminder_settings') }}" class="space-y-6">
+          <input type="hidden" name="action" value="update_settings">
+
+          <!-- Toggle Enable Switch -->
+          <div class="flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <div>
+              <label for="is_enabled" class="text-sm font-bold text-slate-800 block cursor-pointer">Enable Background Reminders</label>
+              <p class="text-xs text-slate-500 mt-0.5">When disabled, automated scanning and emails are paused entirely.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="is_enabled" name="is_enabled" class="sr-only peer" {% if settings.is_enabled %}checked{% endif %}>
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <!-- Frequency Hours -->
+            <div>
+              <label for="frequency_hours" class="block text-sm font-semibold text-slate-700 mb-1">Execution Interval (Hours)</label>
+              <div class="relative">
+                <input type="number" id="frequency_hours" name="frequency_hours" min="1" max="720" value="{{ settings.frequency_hours }}" required
+                       class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                <span class="absolute right-3.5 top-2.5 text-xs text-slate-400 font-medium">hrs</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-1">24h = Daily check, 168h = Weekly check</p>
+            </div>
+
+            <!-- Minimum Completion for Reminders -->
+            <div>
+              <label for="min_completion_for_reminder" class="block text-sm font-semibold text-slate-700 mb-1">Minimum Completion % Threshold</label>
+              <div class="relative">
+                <input type="number" id="min_completion_for_reminder" name="min_completion_for_reminder" min="0" max="99" value="{{ settings.min_completion_for_reminder }}" required
+                       class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                <span class="absolute right-3.5 top-2.5 text-xs text-slate-400 font-medium">%</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-1">Profiles below this % won't receive emails (0% = all incomplete)</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <!-- Max Reminders Per User -->
+            <div>
+              <label for="max_reminders_per_user" class="block text-sm font-semibold text-slate-700 mb-1">Max Reminders Per User</label>
+              <input type="number" id="max_reminders_per_user" name="max_reminders_per_user" min="1" max="50" value="{{ settings.max_reminders_per_user }}" required
+                     class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+              <p class="text-xs text-slate-500 mt-1">Stop sending reminders after user reaches this limit (default: 7)</p>
+            </div>
+
+            <!-- Last Run Info -->
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1">Last Successful Run</label>
+              <div class="px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-600">
+                {% if settings.last_run %}
+                  {{ settings.last_run.strftime('%b %d, %Y at %H:%M:%S UTC') }}
+                {% else %}
+                  <span class="text-slate-400 italic">No execution recorded yet</span>
+                {% endif %}
+              </div>
+              <p class="text-xs text-slate-500 mt-1">Updated automatically upon every cycle</p>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+            <button type="submit" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+              Save Configuration
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- How it Works section -->
+      <div class="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Automation Rules & Logic
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/60">
+            <div class="font-bold text-slate-800 mb-1">⏱️ Smart Interval</div>
+            <p class="text-slate-500 text-xs leading-relaxed">Runs in the background every {{ settings.frequency_hours }} hours without blocking web traffic. Each user receives at most 1 email every 24 hours.</p>
+          </div>
+          <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/60">
+            <div class="font-bold text-slate-800 mb-1">🎯 100% Exemption</div>
+            <p class="text-slate-500 text-xs leading-relaxed">Users with 100% profile completion are automatically excluded from all reminders.</p>
+          </div>
+          <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/60">
+            <div class="font-bold text-slate-800 mb-1">🛑 Reminder Cap</div>
+            <p class="text-slate-500 text-xs leading-relaxed">Once a user receives {{ settings.max_reminders_per_user }} reminders, the system ceases sending to avoid inbox fatigue.</p>
+          </div>
+          <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/60">
+            <div class="font-bold text-slate-800 mb-1">📝 Full Audit Trail</div>
+            <p class="text-slate-500 text-xs leading-relaxed">Every dispatch is saved to the database with completion percentage, missing fields, and email style.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar: Manual Trigger & Styles (1 col) -->
+    <div class="space-y-6">
+      <!-- Manual Trigger Card -->
+      <div class="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-6 border border-indigo-100 shadow-sm">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="p-2 bg-indigo-600 text-white rounded-xl">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <h3 class="text-base font-bold text-slate-800">Manual Immediate Run</h3>
+        </div>
+        <p class="text-xs text-slate-600 mb-4 leading-relaxed">
+          Trigger the reminder job right now. Eligible users with incomplete profiles who haven't reached their cap or received a reminder today will be emailed.
+        </p>
+        <form method="POST" action="{{ url_for('admin_reminder_settings') }}" onsubmit="return confirm('Trigger reminder run immediately for all eligible incomplete profiles?');">
+          <input type="hidden" name="action" value="trigger_now">
+          <button type="submit" class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Trigger Reminders Now
+          </button>
+        </form>
+      </div>
+
+      <!-- Email Themes Showcase -->
+      <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm">
+        <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+          <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+          Dynamic Email Styles
+        </h3>
+        <p class="text-xs text-slate-500 mb-4">The system rotates through 5 engaging message styles to prevent repetitive emails:</p>
+        
+        <div class="space-y-2.5">
+          <div class="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80 text-xs">
+            <span class="font-bold text-amber-900 block">🎯 Friendly</span>
+            <span class="text-amber-700 text-[11px]">Conversational and encouraging with helpful guidance.</span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-blue-50/70 border border-blue-200/80 text-xs">
+            <span class="font-bold text-blue-900 block">📊 Professional</span>
+            <span class="text-blue-700 text-[11px]">Structured with bulleted checklist and progress stats.</span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-rose-50/70 border border-rose-200/80 text-xs">
+            <span class="font-bold text-rose-900 block">💪 Motivational</span>
+            <span class="text-rose-700 text-[11px]">Goal-oriented push highlighting mentorship impact.</span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-xs">
+            <span class="font-bold text-emerald-900 block">🏆 Achievement</span>
+            <span class="text-emerald-700 text-[11px]">Gamified milestones emphasizing remaining steps.</span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-teal-50/70 border border-teal-200/80 text-xs">
+            <span class="font-bold text-teal-900 block">🤝 Community</span>
+            <span class="text-teal-700 text-[11px]">Highlights platform community connections and visibility.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

@@ -311,12 +311,20 @@
                 <div id="sched-mentee-block" class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                         <label for="sched-mentee" class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentee-label">Select Mentee</span> <span class="text-red-500">*</span></label>
-                        <select id="sched-mentee" name="mentee_id" data-no-search class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
-                            <option value="">Choose a mentee...</option>
-                            {% for mentee in mentees %}
-                            <option value="{{ mentee.id }}" data-name="{{ mentee.name | e }}" data-email="{{ mentee.email | e }}" data-institution="{{ (mentee.display_institution or mentee.institution or '') | e }}" data-institution-id="{{ mentee.display_institution_id or (mentee.institution_id or '') }}">{{ mentee.name }} ({{ mentee.email }})</option>
-                            {% endfor %}
-                        </select>
+                        <div class="relative">
+                            <div class="relative flex items-center mb-1.5">
+                                <input type="text" id="sched-mentee-search-input" placeholder="Type to search mentee..." autocomplete="off" class="w-full pl-8 pr-7 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
+                                <svg class="w-4 h-4 text-gray-400 absolute left-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                <button type="button" id="sched-mentee-clear-btn" class="hidden absolute right-2.5 text-gray-400 hover:text-gray-600 text-sm font-bold" onclick="clearMenteeSearch()">&times;</button>
+                            </div>
+                            <div id="sched-mentee-dropdown-list" class="hidden absolute left-0 right-0 z-30 mt-1 max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl divide-y divide-gray-100 text-sm"></div>
+                            <select id="sched-mentee" name="mentee_id" data-no-search class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                <option value="">Choose a mentee...</option>
+                                {% for mentee in mentees %}
+                                <option value="{{ mentee.id }}" data-name="{{ mentee.name | e }}" data-email="{{ mentee.email | e }}" data-institution="{{ (mentee.display_institution or mentee.institution or '') | e }}" data-institution-id="{{ mentee.display_institution_id or (mentee.institution_id or '') }}">{{ mentee.name }} ({{ mentee.email }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                         <p id="sched-mentee-error" class="hidden text-xs text-red-600 mt-1 font-medium items-center gap-1">
                             <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
                             Mentee is required. Please select a mentee.
@@ -333,12 +341,20 @@
                 <div id="sched-mentor-block" class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                         <label for="sched-mentor" class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentor-label">Select Mentor</span> <span class="text-red-500">*</span></label>
-                        <select id="sched-mentor" name="mentor_id" data-no-search class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
-                            <option value="">Choose a mentor...</option>
-                            {% for mentor in mentors %}
-                            <option value="{{ mentor.id }}" data-name="{{ mentor.name | e }}" data-email="{{ mentor.email | e }}" data-institution="{{ (mentor.display_institution or mentor.institution or '') | e }}" data-institution-id="{{ mentor.display_institution_id or (mentor.institution_id or '') }}">{{ mentor.name }} ({{ mentor.email }})</option>
-                            {% endfor %}
-                        </select>
+                        <div class="relative">
+                            <div class="relative flex items-center mb-1.5">
+                                <input type="text" id="sched-mentor-search-input" placeholder="Type to search mentor..." autocomplete="off" class="w-full pl-8 pr-7 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
+                                <svg class="w-4 h-4 text-gray-400 absolute left-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                <button type="button" id="sched-mentor-clear-btn" class="hidden absolute right-2.5 text-gray-400 hover:text-gray-600 text-sm font-bold" onclick="clearMentorSearch()">&times;</button>
+                            </div>
+                            <div id="sched-mentor-dropdown-list" class="hidden absolute left-0 right-0 z-30 mt-1 max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl divide-y divide-gray-100 text-sm"></div>
+                            <select id="sched-mentor" name="mentor_id" data-no-search class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                <option value="">Choose a mentor...</option>
+                                {% for mentor in mentors %}
+                                <option value="{{ mentor.id }}" data-name="{{ mentor.name | e }}" data-email="{{ mentor.email | e }}" data-institution="{{ (mentor.display_institution or mentor.institution or '') | e }}" data-institution-id="{{ mentor.display_institution_id or (mentor.institution_id or '') }}">{{ mentor.name }} ({{ mentor.email }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                         <p id="sched-mentor-error" class="hidden text-xs text-red-600 mt-1 font-medium items-center gap-1">
                             <svg class="w-3.5 h-3.5 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
                             Mentor is required. Please select a mentor.
@@ -1672,6 +1688,7 @@ function switchScheduleView(mode) {
     updateSchedMentorInstitution();
     updateSchedMenteeInstitution();
     updateSchedTasks();
+    if (typeof syncSchedulerSearchBars === 'function') syncSchedulerSearchBars();
 }
 
 async function loadTasksForInstitutionMeeting(menteeId, mentorId) {
@@ -1823,6 +1840,7 @@ function onMentorSelectionChange() {
     }
     updateSchedBanner();
     updateSchedTasks();
+    if (typeof syncSchedulerSearchBars === 'function') syncSchedulerSearchBars();
 }
 
 document.getElementById('sched-mentor').addEventListener('change', function() {
@@ -1831,6 +1849,158 @@ document.getElementById('sched-mentor').addEventListener('change', function() {
 document.getElementById('sched-mentee').addEventListener('change', function() {
     onMenteeSelectionChange();
 });
+
+// Scheduler Search Bar & Typeahead Support for Mentee and Mentor
+function syncSchedulerSearchBars() {
+    ['mentee', 'mentor'].forEach(function(type) {
+        var sel = document.getElementById('sched-' + type);
+        var input = document.getElementById('sched-' + type + '-search-input');
+        var clearBtn = document.getElementById('sched-' + type + '-clear-btn');
+        if (sel && input) {
+            if (sel.selectedIndex >= 0 && sel.value) {
+                input.value = sel.options[sel.selectedIndex].text.trim();
+                if (clearBtn) clearBtn.classList.remove('hidden');
+            } else {
+                input.value = '';
+                if (clearBtn) clearBtn.classList.add('hidden');
+            }
+        }
+    });
+}
+
+function clearMenteeSearch() {
+    var input = document.getElementById('sched-mentee-search-input');
+    var list = document.getElementById('sched-mentee-dropdown-list');
+    var sel = document.getElementById('sched-mentee');
+    var clearBtn = document.getElementById('sched-mentee-clear-btn');
+    if (input) input.value = '';
+    if (list) list.classList.add('hidden');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    if (sel) {
+        sel.value = '';
+        sel.dispatchEvent(new Event('change'));
+    }
+}
+
+function clearMentorSearch() {
+    var input = document.getElementById('sched-mentor-search-input');
+    var list = document.getElementById('sched-mentor-dropdown-list');
+    var sel = document.getElementById('sched-mentor');
+    var clearBtn = document.getElementById('sched-mentor-clear-btn');
+    if (input) input.value = '';
+    if (list) list.classList.add('hidden');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    if (sel) {
+        sel.value = '';
+        sel.dispatchEvent(new Event('change'));
+    }
+}
+
+function setupSchedulerSearch(type) {
+    var input = document.getElementById('sched-' + type + '-search-input');
+    var list = document.getElementById('sched-' + type + '-dropdown-list');
+    var sel = document.getElementById('sched-' + type);
+    var clearBtn = document.getElementById('sched-' + type + '-clear-btn');
+    if (!input || !list || !sel) return;
+
+    function renderList(filterText) {
+        var query = (filterText || '').trim().toLowerCase();
+        list.innerHTML = '';
+        var matchCount = 0;
+        for (var i = 0; i < sel.options.length; i++) {
+            var opt = sel.options[i];
+            if (!opt.value) continue;
+            var text = opt.text || '';
+            var val = opt.value;
+            if (!query || text.toLowerCase().indexOf(query) !== -1) {
+                matchCount++;
+                var item = document.createElement('div');
+                item.className = 'px-3 py-2 hover:bg-blue-50 cursor-pointer flex items-center justify-between transition-colors ' + (sel.value === val ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-800');
+                item.textContent = text;
+                item.dataset.value = val;
+                item.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    sel.value = this.dataset.value;
+                    input.value = this.textContent;
+                    if (clearBtn) clearBtn.classList.remove('hidden');
+                    list.classList.add('hidden');
+                    sel.dispatchEvent(new Event('change'));
+                });
+                list.appendChild(item);
+            }
+        }
+        if (matchCount === 0) {
+            var empty = document.createElement('div');
+            empty.className = 'px-3 py-2.5 text-xs text-gray-500 italic text-center';
+            empty.textContent = 'No matching ' + type + 's found';
+            list.appendChild(empty);
+        }
+        list.classList.remove('hidden');
+    }
+
+    input.addEventListener('focus', function() {
+        renderList(this.value);
+    });
+
+    input.addEventListener('input', function() {
+        if (clearBtn) {
+            if (this.value) clearBtn.classList.remove('hidden');
+            else clearBtn.classList.add('hidden');
+        }
+        renderList(this.value);
+    });
+
+    input.addEventListener('blur', function() {
+        setTimeout(function() {
+            if (list) list.classList.add('hidden');
+        }, 250);
+    });
+
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            var items = list.querySelectorAll('div[data-value]');
+            if (items.length > 0) items[0].focus();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            var firstItem = list.querySelector('div[data-value]');
+            if (firstItem) {
+                sel.value = firstItem.dataset.value;
+                input.value = firstItem.textContent;
+                if (clearBtn) clearBtn.classList.remove('hidden');
+                list.classList.add('hidden');
+                sel.dispatchEvent(new Event('change'));
+            }
+        } else if (e.key === 'Escape') {
+            list.classList.add('hidden');
+        }
+    });
+
+    // Multi-character typeahead buffer for select element itself
+    var typeaheadBuffer = '';
+    var typeaheadTimeout = null;
+    sel.addEventListener('keydown', function(e) {
+        if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            clearTimeout(typeaheadTimeout);
+            typeaheadBuffer += e.key.toLowerCase();
+            typeaheadTimeout = setTimeout(function() {
+                typeaheadBuffer = '';
+            }, 1000);
+
+            for (var j = 0; j < sel.options.length; j++) {
+                if (sel.options[j].text.toLowerCase().indexOf(typeaheadBuffer) !== -1) {
+                    sel.selectedIndex = j;
+                    sel.dispatchEvent(new Event('change'));
+                    break;
+                }
+            }
+        }
+    });
+}
+
+// Initialize on page load
+setupSchedulerSearch('mentee');
+setupSchedulerSearch('mentor');
 
 document.getElementById('scheduleMeetingForm').addEventListener('submit', async function(e) {
     e.preventDefault();

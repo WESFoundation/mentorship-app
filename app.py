@@ -2480,31 +2480,9 @@ def ensure_anchor_tasks_assigned(mentee_id=None, mentor_id=None):
     Auto-commits if new tasks are created.
     """
     try:
-        query = MentorshipRequest.query.filter(
-            MentorshipRequest.supervisor_status == "approved",
-            MentorshipRequest.final_status == "approved"
-        )
-        if mentee_id:
-            query = query.filter(MentorshipRequest.mentee_id == mentee_id)
-        if mentor_id:
-            query = query.filter(MentorshipRequest.mentor_id == mentor_id)
-
-        requests = query.all()
-        any_added = False
-        for req in requests:
-            if is_anchor_mentorship(req):
-                task_count = MenteeTask.query.filter_by(
-                    mentee_id=req.mentee_id,
-                    mentor_id=req.mentor_id
-                ).count()
-                if task_count < 20:
-                    new_tasks = assign_master_tasks_to_mentorship(req)
-                    if new_tasks:
-                        any_added = True
-        if any_added:
-            db.session.commit()
+        from anchor_tasks_checker import check_and_fix_anchor_tasks
+        check_and_fix_anchor_tasks(mentee_id=mentee_id, mentor_id=mentor_id, auto_commit=True)
     except Exception as e:
-        db.session.rollback()
         print(f"Error in ensure_anchor_tasks_assigned: {e}")
 
 
@@ -7218,7 +7196,30 @@ def mentee_scholarly_requests():
     return render_template(
         "mentee/mentee_scholarly_requests.html",
         requests=requests_list,
-        active_section="scholarly_requests"
+        active_section="scholarly_requests",
+        show_sidebar=True
+    )
+
+
+@app.route("/mentee/mentorship_requests")
+def mentee_mentorship_requests():
+    """Mentee view of their outgoing mentorship requests."""
+    if "email" not in session or str(session.get("user_type")) != "2":
+        return redirect(url_for("signin"))
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return redirect(url_for("signin"))
+
+    requests_list = MentorshipRequest.query.filter_by(mentee_id=user.id).order_by(
+        MentorshipRequest.created_at.desc()
+    ).all()
+
+    return render_template(
+        "mentee/mentee_mentorship_requests.html",
+        requests=requests_list,
+        active_section="mentorship_requests",
+        show_sidebar=True
     )
 
 
@@ -9700,29 +9701,38 @@ def _meeting_is_completed(task_type, task_id, meetings_map=None, all_pdata=None)
 
 def _get_mentee_feedback_record(task_type, task_id, mentee_id=None):
     """Fetch MenteeFeedback record supporting dual-key resolution for master tasks."""
-    fb = MenteeFeedback.query.filter_by(task_type=task_type, task_id=task_id).first()
-    if fb:
-        return fb
-    if task_type == 'master':
-        # Try resolving via MenteeTask
-        mt = db.session.get(MenteeTask, task_id)
-        if mt and mt.task_id:
-            # Look up by MasterTask.id (mt.task_id)
-            query = MenteeFeedback.query.filter_by(task_type='master', task_id=mt.task_id)
-            if mt.mentee_id:
-                query = query.filter_by(mentee_id=mt.mentee_id)
-            fb = query.first()
-            if fb:
-                return fb
-        else:
-            # Maybe task_id was MasterTask.id; look for MenteeTask matching mentee_id
-            if mentee_id:
+    if not mentee_id:
+        if task_type == 'master':
+            mt = db.session.get(MenteeTask, task_id)
+            if mt:
+                mentee_id = mt.mentee_id
+        elif task_type == 'personal':
+            pt = db.session.get(PersonalTask, task_id)
+            if pt:
+                mentee_id = pt.mentee_id
+
+    if mentee_id:
+        fb = MenteeFeedback.query.filter_by(task_type=task_type, task_id=task_id, mentee_id=mentee_id).first()
+        if fb:
+            return fb
+        if task_type == 'master':
+            # Try resolving via MenteeTask
+            mt = db.session.get(MenteeTask, task_id)
+            if mt and mt.task_id:
+                # Look up by MasterTask.id (mt.task_id) with matching mentee_id
+                fb = MenteeFeedback.query.filter_by(task_type='master', task_id=mt.task_id, mentee_id=mentee_id).first()
+                if fb:
+                    return fb
+            else:
                 m_task = MenteeTask.query.filter_by(task_id=task_id, mentee_id=mentee_id).first()
                 if m_task:
-                    fb = MenteeFeedback.query.filter_by(task_type='master', task_id=m_task.id).first()
+                    fb = MenteeFeedback.query.filter_by(task_type='master', task_id=m_task.id, mentee_id=mentee_id).first()
                     if fb:
                         return fb
-    return None
+        return None
+
+    # Fallback only if mentee_id completely cannot be determined
+    return MenteeFeedback.query.filter_by(task_type=task_type, task_id=task_id).first()
 
 
 def _has_mentee_feedback(task_type, task_id, mentee_id=None):
@@ -9777,90 +9787,82 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
     """Compute the 4-stage task progress status dynamically.
 
     Stages:
-      not-started : No feedback from anyone AND no meeting scheduled for this task.
-      committed   : Task is attached to a scheduled meeting, but no feedback/ratings yet.
-      in-progress : At least one persona has submitted feedback, but not all required personas have.
-      done        : All involved personas have submitted their feedback/ratings.
+      done        : All 3 personas (mentee, mentor, and institute) have submitted feedback/ratings.
+      in-progress : Any one (or two) personas have submitted feedback, but not all three.
+      committed   : Task is attached to a scheduled meeting, but no feedback/ratings submitted yet.
+      not-started : Neither feedback from anyone NOR a meeting scheduled for this task.
 
     Returns one of: 'not-started', 'committed', 'in-progress', 'done'
     """
-    # --- DB status shortcut: if task was already marked completed, honour it ---
-    try:
-        if task_type == 'master':
-            _mt = task_obj if task_obj is not None else db.session.get(MenteeTask, task_id)
-            if _mt:
-                if getattr(_mt, 'status', None) == 'completed' or (getattr(_mt, 'progress', None) or 0) >= 100:
-                    return 'done'
-                if getattr(_mt, 'status', None) in ('in-progress', 'inprogress') or (getattr(_mt, 'progress', 0) or 0) > 0:
-                    return 'in-progress'
-                if getattr(_mt, 'status', None) == 'committed':
-                    return 'committed'
-        elif task_type == 'personal':
-            _pt = task_obj if task_obj is not None else db.session.get(PersonalTask, task_id)
-            if _pt:
-                if getattr(_pt, 'status', None) == 'completed' or (getattr(_pt, 'progress', None) or 0) >= 100:
-                    return 'done'
-                if getattr(_pt, 'status', None) in ('in-progress', 'inprogress') or (getattr(_pt, 'progress', 0) or 0) > 0:
-                    return 'in-progress'
-                if getattr(_pt, 'status', None) == 'committed':
-                    return 'committed'
-    except Exception:
-        pass
+    # Helper to resolve MenteeTask object if needed for dual-key resolution
+    _mt_obj = None
+    if task_type == 'master':
+        _mt_obj = task_obj if task_obj is not None else db.session.get(MenteeTask, task_id)
 
-    # Gather feedback from all personas
+    # 1. Mentee feedback check
     if mentee_fb_set is not None:
-        has_mentee_fb = (task_type, task_id) in mentee_fb_set
+        has_mentee_fb = (task_type, task_id, mentee_id) in mentee_fb_set or (task_type, task_id) in mentee_fb_set
+        if not has_mentee_fb and task_type == 'master' and _mt_obj and _mt_obj.task_id:
+            has_mentee_fb = ('master', _mt_obj.task_id, mentee_id) in mentee_fb_set or ('master', _mt_obj.task_id) in mentee_fb_set
     else:
         has_mentee_fb = _has_mentee_feedback(task_type, task_id, mentee_id=mentee_id)
 
+    # 2. Mentor rating check
     if ratings_set is not None:
         has_mentor_rt = (task_type, task_id) in ratings_set
+        if not has_mentor_rt and task_type == 'master' and _mt_obj and _mt_obj.task_id:
+            has_mentor_rt = ('master', _mt_obj.task_id) in ratings_set
     else:
         has_mentor_rt = _has_mentor_rating(task_type, task_id)
 
+    # 3. Mentor reflection check
     if mentor_refl_set is not None:
         has_mentor_refl = (task_type, task_id) in mentor_refl_set
+        if not has_mentor_refl and task_type == 'master' and _mt_obj and _mt_obj.task_id:
+            has_mentor_refl = ('master', _mt_obj.task_id) in mentor_refl_set
     else:
         has_mentor_refl = _has_mentor_reflection(task_type, task_id)
 
+    mentor_submitted = bool(has_mentor_rt or has_mentor_refl)
+
+    # 4. Institution reflection check
     if inst_refl_set is not None:
         has_inst_refl = (task_type, task_id) in inst_refl_set
+        if not has_inst_refl and task_type == 'master' and _mt_obj and _mt_obj.task_id:
+            has_inst_refl = ('master', _mt_obj.task_id) in inst_refl_set
     else:
         has_inst_refl = _has_institution_reflection(task_type, task_id)
 
-    mentor_submitted = has_mentor_rt or has_mentor_refl
-    any_feedback = has_mentee_fb or mentor_submitted or has_inst_refl
+    any_feedback = bool(has_mentee_fb or mentor_submitted or has_inst_refl)
 
-    # Determine which personas are required for 'done'
-    # Mentor required only if task has an assigned mentor
-    mentor_done = mentor_submitted if mentor_id else True
-
-    # Institution reflection is supplementary — tracked for display
-    # but NOT a hard blocker for 'done'. Primary participants (mentor + mentee)
-    # determine task completion; institution feedback is optional.
-    inst_done = True
-
-    all_feedback = has_mentee_fb and mentor_done and inst_done
+    # Determine which personas are required for 'done':
+    # Each task is complete ONLY when mentee, mentor, AND institute have given feedback.
+    if task_type == 'master':
+        all_feedback = bool(has_mentee_fb and mentor_submitted and has_inst_refl)
+    else:
+        mentor_req = mentor_submitted if mentor_id else True
+        all_feedback = bool(has_mentee_fb and mentor_req and has_inst_refl)
 
     has_meeting = _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id, all_pdata=all_pdata, meetings_map=meetings_map)
 
-    if not has_meeting and not any_feedback:
-        return 'not-started'
-
+    # 1. Complete/Done: Mentee, Mentor, and Institute have all given feedback
     if all_feedback:
         return 'done'
 
+    # 2. In Progress: If any one (or two) has given feedback
     if any_feedback:
         return 'in-progress'
 
+    # 3. Committed: If meeting is scheduled with that task being selected
     if has_meeting:
         return 'committed'
 
+    # 4. Not Started: If nothing mentioned above is done
     return 'not-started'
 
 
 def _sync_task_completion_status(task, new_status):
-    """If new_status is 'done', mark task as completed in DB; if in-progress, bump progress."""
+    """Sync task status in DB to match new_status."""
     if not task:
         return
     try:
@@ -9869,14 +9871,20 @@ def _sync_task_completion_status(task, new_status):
             task.progress = 100
             if hasattr(task, 'completed_date') and not task.completed_date:
                 task.completed_date = datetime.utcnow()
-            db.session.commit()
         elif new_status == 'in-progress':
-            if getattr(task, 'status', None) != 'completed':
-                task.status = 'in-progress'
-                if getattr(task, 'progress', 0) is None or task.progress < 50:
-                    task.progress = 50
-                db.session.commit()
+            task.status = 'in-progress'
+            if getattr(task, 'progress', 0) is None or task.progress < 50:
+                task.progress = 50
+        elif new_status == 'committed':
+            task.status = 'committed'
+            if getattr(task, 'progress', 0) is None or task.progress > 25:
+                task.progress = 25
+        elif new_status == 'not-started':
+            task.status = 'pending'
+            task.progress = 0
+        db.session.commit()
     except Exception as e:
+        db.session.rollback()
         app.logger.warning(f"Failed to sync task completion status: {e}")
 
 
@@ -10013,7 +10021,7 @@ def save_mentee_feedback():
         task_id = data.get('task_id')
         if not task_type or not task_id:
             return jsonify({'success': False, 'message': 'Missing task_type or task_id'})
-        feedback = MenteeFeedback.query.filter_by(task_type=task_type, task_id=task_id).first()
+        feedback = MenteeFeedback.query.filter_by(mentee_id=mentee.id, task_type=task_type, task_id=task_id).first()
         if not feedback:
             feedback = MenteeFeedback(
                 mentee_id=mentee.id,
@@ -10051,6 +10059,18 @@ def get_mentee_feedback(task_type, task_id):
     try:
         user = User.query.filter_by(email=session["email"]).first()
         mentee_id = user.id if user and str(user.user_type) == "2" else None
+        if not mentee_id:
+            param_mid = request.args.get('mentee_id')
+            if param_mid and str(param_mid).isdigit():
+                mentee_id = int(param_mid)
+            elif task_type == 'master':
+                mt = db.session.get(MenteeTask, task_id)
+                if mt:
+                    mentee_id = mt.mentee_id
+            elif task_type == 'personal':
+                pt = db.session.get(PersonalTask, task_id)
+                if pt:
+                    mentee_id = pt.mentee_id
         feedback = _get_mentee_feedback_record(task_type, task_id, mentee_id=mentee_id)
         if not feedback:
             return jsonify({'success': True, 'feedback': None})
@@ -11287,10 +11307,20 @@ def get_supervisor_tasks_data():
         meetings_map = {m.id: m for m in MeetingRequest.query.all()}
         all_pdata = _get_all_meeting_participants()
 
-        # Pre-fetch mentee feedbacks
+        # Pre-fetch mentee feedbacks and reflections in bulk
         mentee_feedbacks = MenteeFeedback.query.all()
         mentee_fb_map = {(mf.task_type, mf.task_id): mf for mf in mentee_feedbacks}
         mentee_fb_dual_map = {(mf.task_type, mf.task_id, mf.mentee_id): mf for mf in mentee_feedbacks if mf.mentee_id}
+        mentee_fb_set = set()
+        for mf in mentee_feedbacks:
+            has_content = bool((mf.rating and mf.rating > 0) or (mf.mentor_rating and mf.mentor_rating > 0) or (mf.text or '').strip() or (mf.challenges or '').strip() or (mf.next_steps or '').strip() or (mf.extra or '').strip())
+            if has_content:
+                mentee_fb_set.add((mf.task_type, mf.task_id, mf.mentee_id))
+
+        all_mentor_reflections = MentorReflection.query.all()
+        mentor_refl_set = {(mr.task_type, mr.task_id) for mr in all_mentor_reflections if bool((mr.text or '').strip() or (mr.extra or '').strip())}
+        all_inst_reflections = InstitutionReflection.query.all()
+        inst_refl_set = {(ir.task_type, ir.task_id) for ir in all_inst_reflections if bool((ir.text or '').strip() or (ir.notes or '').strip())}
 
         mentor_corp_cache = {}
         def _is_mentor_corp(mentor_obj):
@@ -11301,7 +11331,11 @@ def get_supervisor_tasks_data():
             return mentor_corp_cache[mentor_obj.id]
 
         def _resolve_task_mentee_fb(ttype, tid, mid=None, master_tid=None):
-            fb = mentee_fb_map.get((ttype, tid))
+            fb = None
+            if mid:
+                fb = mentee_fb_dual_map.get((ttype, tid, mid))
+            if not fb:
+                fb = mentee_fb_map.get((ttype, tid))
             if not fb and ttype == 'master':
                 if master_tid:
                     if mid:
@@ -11312,7 +11346,7 @@ def get_supervisor_tasks_data():
                     fb = mentee_fb_dual_map.get(('master', tid, mid))
             if not fb:
                 return False, 0
-            has_fb = bool(fb.rating or fb.mentor_rating or (fb.text or '').strip() or (fb.challenges or '').strip() or (fb.next_steps or '').strip() or (fb.extra or '').strip())
+            has_fb = bool((fb.rating and fb.rating > 0) or (fb.mentor_rating and fb.mentor_rating > 0) or (fb.text or '').strip() or (fb.challenges or '').strip() or (fb.next_steps or '').strip() or (fb.extra or '').strip())
             rating_val = fb.rating or fb.mentor_rating or 0
             return has_fb, rating_val
 
@@ -11361,7 +11395,8 @@ def get_supervisor_tasks_data():
             due_date = task.due_date or default_due
             status = compute_task_progress_status(
                 "personal", task.id, task.mentee_id, task.mentor_id or None,
-                ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
+                ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata,
+                task_obj=task, mentee_fb_set=mentee_fb_set, mentor_refl_set=mentor_refl_set, inst_refl_set=inst_refl_set
             )
             is_critical = task.priority == 'high' and status != 'done'
             
@@ -11403,7 +11438,8 @@ def get_supervisor_tasks_data():
                 due_date = task.due_date or default_due
                 status = compute_task_progress_status(
                     "master", task.id, task.mentee_id, task.mentor_id,
-                    ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
+                    ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata,
+                    task_obj=task, mentee_fb_set=mentee_fb_set, mentor_refl_set=mentor_refl_set, inst_refl_set=inst_refl_set
                 )
                 is_overdue = (due_date < now_dt) if isinstance(due_date, datetime) else False
                 is_critical = is_overdue and status != 'done'
@@ -11433,6 +11469,32 @@ def get_supervisor_tasks_data():
                     'month': master_task.month,
                     'meeting_number': task.meeting_number
                 })
+
+        # Calculate platform statistics across all tasks (before filtering)
+        _total_t = len(tasks)
+        _comp_t = sum(1 for t in tasks if t.get('status') in ('done', 'completed'))
+        _inp_t = sum(1 for t in tasks if t.get('status') in ('in-progress', 'inprogress'))
+        _ns_t = sum(1 for t in tasks if t.get('status') in ('not-started', 'pending', 'to-do'))
+        _com_t = sum(1 for t in tasks if t.get('status') == 'committed')
+        _ov_t = sum(1 for t in tasks if t.get('isCritical') or (t.get('dueDate') and str(t.get('dueDate')) < now_dt.isoformat() and t.get('status') not in ('done', 'completed')))
+        _crit_t = sum(1 for t in tasks if t.get('isCritical') and t.get('status') not in ('done', 'completed'))
+        _rate_t = round((_comp_t / _total_t) * 100) if _total_t > 0 else 0
+
+        all_tasks_stats = {
+            "total": _total_t,
+            "completed": _comp_t,
+            "in_progress": _inp_t,
+            "not_started": _ns_t,
+            "committed": _com_t,
+            "overdue": _ov_t,
+            "critical": _crit_t,
+            "completion_rate": _rate_t,
+            "total_tasks": _total_t,
+            "completed_tasks": _comp_t,
+            "in_progress_tasks": _inp_t,
+            "not_started_tasks": _ns_t,
+            "overdue_tasks": _ov_t
+        }
 
         # Apply status and category filters (applied after status computation)
         if f_status:
@@ -11493,6 +11555,7 @@ def get_supervisor_tasks_data():
         return jsonify({
             "success": True,
             "tasks": paginated_tasks,
+            "stats": all_tasks_stats,
             "total": total_count,
             "offset": offset,
             "limit": limit,
@@ -16072,95 +16135,114 @@ def send_profile_completion_reminders(force_send=False):
     Args:
         force_send (bool): If True, bypass "already sent today" check (for manual triggers)
     """
-    print("\n🔔 Starting Profile Completion Reminder Job...")
-    if force_send:
-        print("   ⚡ FORCE MODE: Sending to all eligible users (bypassing daily limit)")
-    
-    # Check if reminders are enabled
-    settings = ReminderSettings.query.first()
-    if not settings or not settings.is_enabled:
-        print("⚠️ Profile completion reminders are disabled.")
-        return
-    
-    # Get all mentors and mentees
-    mentors = User.query.filter_by(user_type="1").all()
-    mentees = User.query.filter_by(user_type="2").all()
-    
-    print(f"📊 Found {len(mentors)} mentors and {len(mentees)} mentees")
-    
-    sent_count = 0
-    skipped_count = 0
-    
-    for user_group, user_type, group_name in [(mentors, "1", "mentors"), (mentees, "2", "mentees")]:
-        print(f"\n📧 Processing {group_name}...")
+    with app.app_context(), app.test_request_context():
+        print("\n🔔 Starting Profile Completion Reminder Job...")
+        if force_send:
+            print("   ⚡ FORCE MODE: Sending to all eligible users (bypassing daily limit)")
         
-        for user in user_group:
-            try:
-                # Generate email
-                email_data = generate_profile_completion_email(user.id, user_type)
-                
-                if not email_data:
-                    # 100% complete or error, skip
-                    skipped_count += 1
-                    continue
-                
-                print(f"   📨 {user.name} ({user.email}) - {email_data['completion_percentage']}% complete")
-                
-                # Skip "already sent today" check if force_send is True
-                if not force_send:
-                    # Check if user already received reminder today
-                    today = datetime.utcnow().date()
-                    today_reminder = ProfileCompletionReminder.query.filter(
-                        ProfileCompletionReminder.user_id == user.id,
-                        ProfileCompletionReminder.user_type == user_type,
-                        db.func.date(ProfileCompletionReminder.sent_at) == today
-                    ).first()
+        # Check if reminders are enabled
+        settings = ReminderSettings.query.first()
+        if not settings or not settings.is_enabled:
+            print("⚠️ Profile completion reminders are disabled.")
+            return
+        
+        # Get all mentors and mentees
+        mentors = User.query.filter_by(user_type="1").all()
+        mentees = User.query.filter_by(user_type="2").all()
+        
+        print(f"📊 Found {len(mentors)} mentors and {len(mentees)} mentees")
+        
+        sent_count = 0
+        skipped_count = 0
+        
+        for user_group, user_type, group_name in [(mentors, "1", "mentors"), (mentees, "2", "mentees")]:
+            print(f"\n📧 Processing {group_name}...")
+            
+            for user in user_group:
+                try:
+                    # Check max reminders per user limit
+                    if settings.max_reminders_per_user:
+                        user_reminder_count = ProfileCompletionReminder.query.filter_by(
+                            user_id=user.id,
+                            user_type=user_type
+                        ).count()
+                        if user_reminder_count >= settings.max_reminders_per_user:
+                            print(f"      ⏭️  Reached max reminders limit ({settings.max_reminders_per_user}), skipping")
+                            skipped_count += 1
+                            continue
+
+                    # Generate email
+                    email_data = generate_profile_completion_email(user.id, user_type)
                     
-                    if today_reminder:
-                        print(f"      ⏭️  Already sent today, skipping")
+                    if not email_data:
+                        # 100% complete or error, skip
                         skipped_count += 1
                         continue
-                
-                # Send email
-                success = send_email_reminder(
-                    user.email,
-                    email_data['subject'],
-                    email_data['html_content']
-                )
-                
-                if success:
-                    # Save reminder log
-                    reminder = ProfileCompletionReminder(
-                        user_id=user.id,
-                        user_type=user_type,
-                        completion_percentage=email_data['completion_percentage'],
-                        completed_fields=email_data['completed_fields'],
-                        total_fields=email_data['total_fields'],
-                        missing_fields=json.dumps(email_data['missing_fields']),
-                        email_subject=email_data['subject'],
-                        email_style=email_data['email_style'],
-                        email_content=email_data['html_content'],
-                        previous_percentage=email_data['previous_percentage']
+
+                    # Check min completion percentage threshold
+                    min_comp = settings.min_completion_for_reminder or 0
+                    if email_data['completion_percentage'] < min_comp:
+                        print(f"      ⏭️  Below minimum completion threshold ({min_comp}%), skipping")
+                        skipped_count += 1
+                        continue
+                    
+                    print(f"   📨 {user.name} ({user.email}) - {email_data['completion_percentage']}% complete")
+                    
+                    # Skip "already sent today" check if force_send is True
+                    if not force_send:
+                        # Check if user already received reminder today
+                        today = datetime.utcnow().date()
+                        today_reminder = ProfileCompletionReminder.query.filter(
+                            ProfileCompletionReminder.user_id == user.id,
+                            ProfileCompletionReminder.user_type == user_type,
+                            db.func.date(ProfileCompletionReminder.sent_at) == today
+                        ).first()
+                        
+                        if today_reminder:
+                            print(f"      ⏭️  Already sent today, skipping")
+                            skipped_count += 1
+                            continue
+                    
+                    # Send email
+                    success = send_email_reminder(
+                        user.email,
+                        email_data['subject'],
+                        email_data['html_content']
                     )
-                    db.session.add(reminder)
-                    sent_count += 1
-                    print(f"      ✅ Email sent!")
-                else:
-                    print(f"      ❌ Email sending failed")
+                    
+                    if success:
+                        # Save reminder log
+                        reminder = ProfileCompletionReminder(
+                            user_id=user.id,
+                            user_type=user_type,
+                            completion_percentage=email_data['completion_percentage'],
+                            completed_fields=email_data['completed_fields'],
+                            total_fields=email_data['total_fields'],
+                            missing_fields=json.dumps(email_data['missing_fields']),
+                            email_subject=email_data['subject'],
+                            email_style=email_data['email_style'],
+                            email_content=email_data['html_content'],
+                            previous_percentage=email_data['previous_percentage']
+                        )
+                        db.session.add(reminder)
+                        sent_count += 1
+                        print(f"      ✅ Email sent!")
+                    else:
+                        print(f"      ❌ Email sending failed")
+                        skipped_count += 1
+                except Exception as e:
+                    print(f"❌ Error processing user {user.id}: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
                     skipped_count += 1
-            except Exception as e:
-                print(f"❌ Error processing user {user.id}: {str(e)}")
-                import traceback
-                traceback.print_exc()
-                skipped_count += 1
+            
+            db.session.commit()
         
+        # Update last run timestamp
+        settings.last_run = datetime.utcnow()
         db.session.commit()
-    
-    # Update last run timestamp
-    settings.last_run = datetime.utcnow()
-    db.session.commit()
-    
-    print(f"\n✅ Reminder job completed: {sent_count} sent, {skipped_count} skipped")
+        
+        print(f"\n✅ Reminder job completed: {sent_count} sent, {skipped_count} skipped")
 
 # Initialize scheduler (will be started in a background worker in production)
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -16169,27 +16251,45 @@ from apscheduler.triggers.interval import IntervalTrigger
 scheduler = BackgroundScheduler()
 
 def init_scheduler():
-    """Initialize and start the scheduler"""
-    if not scheduler.running:
-        # Get frequency from settings, default to 24 hours
-        settings = ReminderSettings.query.first()
-        frequency_hours = settings.frequency_hours if settings else 24
-        
-        scheduler.add_job(
-            send_profile_completion_reminders,
-            trigger=IntervalTrigger(hours=frequency_hours),
-            id='profile_completion_reminder',
-            name='Profile Completion Reminder',
-            replace_existing=True
-        )
-        scheduler.start()
-        print("✅ Profile Completion Reminder Scheduler initialized")
+    """Initialize and update the scheduler"""
+    try:
+        with app.app_context():
+            settings = ReminderSettings.query.first()
+            frequency_hours = settings.frequency_hours if settings and settings.frequency_hours else 24
+            is_enabled = settings.is_enabled if settings else True
+            
+            if scheduler.get_job('profile_completion_reminder'):
+                if is_enabled:
+                    scheduler.reschedule_job(
+                        'profile_completion_reminder',
+                        trigger=IntervalTrigger(hours=frequency_hours)
+                    )
+                else:
+                    try:
+                        scheduler.pause_job('profile_completion_reminder')
+                    except Exception:
+                        pass
+            else:
+                if is_enabled:
+                    scheduler.add_job(
+                        send_profile_completion_reminders,
+                        trigger=IntervalTrigger(hours=frequency_hours),
+                        id='profile_completion_reminder',
+                        name='Profile Completion Reminder',
+                        replace_existing=True
+                    )
+            if not scheduler.running:
+                scheduler.start()
+            print(f"✅ Profile Completion Reminder Scheduler updated (running={scheduler.running}, frequency={frequency_hours}h, enabled={is_enabled})")
+    except Exception as e:
+        print(f"⚠️ Scheduler update error: {e}")
 
-# Admin Routes for Reminder Management
+# Supervisor Routes for Reminder Management
 
+@app.route("/supervisor/reminder_settings", methods=["GET", "POST"])
 @app.route("/admin/reminder_settings", methods=["GET", "POST"])
 def admin_reminder_settings():
-    """Admin page to manage reminder system"""
+    """Supervisor/Admin page to manage reminder system"""
     if "email" not in session or session.get("user_type") != "0":
         return redirect(url_for("signin"))
     
@@ -16226,13 +16326,17 @@ def admin_reminder_settings():
     ).count()
     
     return render_template(
-        "admin/reminder_settings.html",
+        "supervisor/reminder_settings.html",
         show_sidebar=True,
         settings=settings,
         total_reminders_sent=total_reminders_sent,
         reminders_today=reminders_today
     )
 
+supervisor_reminder_settings = admin_reminder_settings
+
+
+@app.route("/supervisor/reminder_logs")
 @app.route("/admin/reminder_logs")
 def admin_reminder_logs():
     """View history of sent reminders"""
@@ -16245,10 +16349,12 @@ def admin_reminder_logs():
     ).paginate(page=page, per_page=20)
     
     return render_template(
-        "admin/reminder_logs.html",
+        "supervisor/reminder_logs.html",
         show_sidebar=True,
         reminders=reminders
     )
+
+supervisor_reminder_logs = admin_reminder_logs
 
 @app.route("/user/reminder_logs")
 def user_reminder_logs():

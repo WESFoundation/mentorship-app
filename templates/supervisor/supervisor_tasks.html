@@ -987,6 +987,9 @@
                 const hasMore = result.has_more;
                 const total = result.total;
                 window._lastSupervisorTotal = total;
+                if (result.stats) {
+                    window._supervisorStats = result.stats;
+                }
 
                 if (reset) {
                     allLoadedTasks = newTasks;
@@ -1006,6 +1009,8 @@
                 document.getElementById('tasks-empty-state').classList.add('hidden');
 
                 updateStatistics();
+                updateOverviewMetrics();
+                updatePlatformInsights();
                 renderTasks();
             } else {
                 throw new Error(result.message || 'Failed to load tasks');
@@ -1021,6 +1026,17 @@
 
     // Update statistics function
     function updateStatistics() {
+        if (window._supervisorStats) {
+            const s = window._supervisorStats;
+            document.getElementById('total-tasks').textContent = s.total_tasks || 0;
+            document.getElementById('completed-tasks').textContent = s.completed_tasks || 0;
+            document.getElementById('pending-tasks').textContent = (s.not_started_tasks || 0) + (s.in_progress_tasks || 0);
+            const overdue = allTasks.filter(t => t.isCritical || isTaskOverdue(t)).length;
+            document.getElementById('overdue-tasks').textContent = overdue;
+            console.log(`📊 Stats (All tasks) - Total: ${s.total_tasks}, Completed: ${s.completed_tasks}, In Progress: ${s.in_progress_tasks}, Not Started: ${s.not_started_tasks}`);
+            return;
+        }
+
         const total = allTasks.length;
         const completed = allTasks.filter(t => t.status === 'completed' || t.status === 'done').length;
         const inProgress = allTasks.filter(t => t.status === 'in-progress').length;
@@ -1038,11 +1054,12 @@
 
     // Update platform insights
     function updatePlatformInsights() {
-        const completedCount = allTasks.filter(t => t.status === 'completed' || t.status === 'done').length;
-        const completionRate = allTasks.length > 0 ?
-            Math.round((completedCount / allTasks.length) * 100) : 0;
+        const stats = window._supervisorStats;
+        const totalCount = stats ? (stats.total_tasks || allTasks.length) : allTasks.length;
+        const completedCount = stats ? (stats.completed_tasks || 0) : allTasks.filter(t => t.status === 'completed' || t.status === 'done').length;
+        const completionRate = stats && stats.completion_rate !== undefined ? stats.completion_rate : (totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0);
         const criticalTasks = allTasks.filter(t => t.isCritical).length;
-        const activeMentors = new Set(allTasks.map(t => t.mentorName)).size;
+        const activeMentors = (allMentors && allMentors.length > 0) ? allMentors.length : new Set(allTasks.map(t => t.mentorName)).size;
 
         let insightText = '';
 
@@ -1054,29 +1071,36 @@
             insightText = `Attention needed. Completion rate is ${completionRate}%. Consider reviewing mentorship effectiveness.`;
         }
 
-        document.getElementById('insight-text').textContent = insightText;
+        const insightEl = document.getElementById('insight-text');
+        if (insightEl) insightEl.textContent = insightText;
     }
 
     // Update overview metrics
     function updateOverviewMetrics() {
         const tasksByMentors = new Set(allTasks.map(t => t.mentorName)).size;
         const tasksByCategory = new Set(allTasks.map(t => t.category)).size;
-        const activeMentorsCount = allMentors.length;
-        const activeMenteesCount = allMentees.length;
+        const activeMentorsCount = (allMentors && allMentors.length > 0) ? allMentors.length : tasksByMentors;
+        const activeMenteesCount = (allMentees && allMentees.length > 0) ? allMentees.length : new Set(allTasks.map(t => t.menteeName)).size;
 
-        const completedTasks = allTasks.filter(t => t.status === 'completed' || t.status === 'done').length;
-        const completionRate = allTasks.length > 0 ?
-            Math.round((completedTasks / allTasks.length) * 100) : 0;
+        const stats = window._supervisorStats;
+        const totalCount = stats ? (stats.total_tasks || allTasks.length) : allTasks.length;
+        const completedTasks = stats ? (stats.completed_tasks || 0) : allTasks.filter(t => t.status === 'completed' || t.status === 'done').length;
+        const completionRate = stats && stats.completion_rate !== undefined ? stats.completion_rate : (totalCount > 0 ? Math.round((completedTasks / totalCount) * 100) : 0);
 
-        document.getElementById('tasks-by-mentors').textContent = tasksByMentors;
-        document.getElementById('tasks-by-category').textContent = `${tasksByCategory} categories`;
-        document.getElementById('avg-completion-time').textContent = '7 days';
-        document.getElementById('active-mentors').textContent = activeMentorsCount;
-        document.getElementById('active-mentees').textContent = activeMenteesCount;
-        document.getElementById('tasks-this-month').textContent = allTasks.length;
-        document.getElementById('completion-rate').textContent = `${completionRate}%`;
-        document.getElementById('on-time-rate').textContent = '75%';
-        document.getElementById('avg-task-score').textContent = '4.2/5';
+        const setIf = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val;
+        };
+
+        setIf('tasks-by-mentors', tasksByMentors);
+        setIf('tasks-by-category', `${tasksByCategory} categories`);
+        setIf('avg-completion-time', '7 days');
+        setIf('active-mentors', activeMentorsCount);
+        setIf('active-mentees', activeMenteesCount);
+        setIf('tasks-this-month', totalCount);
+        setIf('completion-rate', `${completionRate}%`);
+        setIf('on-time-rate', '75%');
+        setIf('avg-task-score', stats && stats.avg_rating ? `${stats.avg_rating}/5` : '4.2/5');
     }
 
     let mentorToMenteesMap = {};
@@ -1357,6 +1381,9 @@
                 })
                 .then(result => {
                     if (result.success) {
+                        if (result.stats) {
+                            window._supervisorStats = result.stats;
+                        }
                         const newTasks = result.tasks || [];
                         const hasMore = result.has_more;
                         const total = result.total !== undefined ? result.total : (allLoadedTasks.length + newTasks.length);
@@ -1378,6 +1405,8 @@
                         // Update load more UI
                         _updateLoadMoreUI(loadMoreSection, loadMoreCount, resultsCount);
                         updateStatistics();
+                        updateOverviewMetrics();
+                        updatePlatformInsights();
                     } else {
                         showNotification('Failed to load more tasks: ' + (result.message || 'Unknown error'), 'error');
                     }
@@ -1453,6 +1482,9 @@
                 })
                 .then(result => {
                     if (result.success) {
+                        if (result.stats) {
+                            window._supervisorStats = result.stats;
+                        }
                         const newTasks = result.tasks || [];
                         allLoadedTasks = allLoadedTasks.concat(newTasks);
                         allTasks = allLoadedTasks;
@@ -1469,6 +1501,8 @@
 
                         _updateLoadMoreUI(loadMoreSection, loadMoreCount, resultsCount);
                         updateStatistics();
+                        updateOverviewMetrics();
+                        updatePlatformInsights();
                     } else {
                         showNotification('Failed to load all tasks: ' + (result.message || 'Unknown error'), 'error');
                     }
@@ -1833,34 +1867,6 @@
     }
 
     // Modal functions
-    function viewTaskDetails(taskId) {
-        const task = allTasks.find(t => t.id === taskId);
-        if (task) {
-            document.getElementById('detail-task-title').textContent = task.title;
-            document.getElementById('detail-task-mentor').textContent = task.mentorName;
-            document.getElementById('detail-task-mentee').textContent = task.menteeName;
-            document.getElementById('detail-task-status').textContent = getStatusText(task.status);
-            document.getElementById('detail-task-status').className = `task-status ${getStatusClass(task.status)}`;
-            document.getElementById('detail-task-priority').textContent = task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) : 'Not set';
-            document.getElementById('detail-task-priority').className = `priority-${task.priority || 'medium'}`;
-            document.getElementById('detail-task-due-date').textContent = formatDate(task.dueDate);
-            document.getElementById('detail-task-category').textContent = task.category;
-            document.getElementById('detail-task-created').textContent = formatDate(task.createdDate || task.assigned_date);
-            document.getElementById('detail-task-updated').textContent = formatDate(task.lastUpdated || task.dueDate);
-            document.getElementById('detail-task-description').textContent = task.description || 'No description available';
-            document.getElementById('detail-task-instructions').textContent = task.instructions || "No additional instructions provided.";
-
-            // Show mentee notes if available
-            if (task.menteeNotes) {
-                document.getElementById('mentee-notes-section').classList.remove('hidden');
-                document.getElementById('detail-mentee-notes').textContent = task.menteeNotes;
-            } else {
-                document.getElementById('mentee-notes-section').classList.add('hidden');
-            }
-
-            document.getElementById('task-details-modal').classList.remove('hidden');
-        }
-    }
 
     function closeTaskDetailsModal() {
         document.getElementById('task-details-modal').classList.add('hidden');
@@ -2113,109 +2119,122 @@
                 taskType = task.type;
             }
 
-            // Reset mentee rating displays
+            // Reset mentee rating displays and dates
             const menteeNo = document.getElementById('mentee-no-rating-message');
             const menteeDet = document.getElementById('mentee-rating-details');
             if (menteeNo) menteeNo.classList.remove('hidden');
             if (menteeDet) menteeDet.classList.add('hidden');
+            const menteeDate = document.getElementById('mentee-display-date');
+            if (menteeDate) menteeDate.textContent = '';
+            const supervisorRatingDate = document.getElementById('rating-date');
+            if (supervisorRatingDate) supervisorRatingDate.textContent = '';
 
             // Load and display ratings (non-blocking)
             try { loadAndDisplayRating(actualTaskId, taskType); } catch (e) { console.warn('Rating load failed', e); }
-            try { loadMenteeRating(actualTaskId, taskType); } catch (e) { console.warn('Mentee rating load failed', e); }
+            try { loadMenteeRating(actualTaskId, taskType, task.menteeId || task.mentee_id || ''); } catch (e) { console.warn('Mentee rating load failed', e); }
 
             const modal = document.getElementById('task-details-modal');
             if (modal) modal.classList.remove('hidden');
         }
     }
 
-    async function loadMenteeRating(actualTaskId, taskType) {
+    async function loadMenteeRating(actualTaskId, taskType, menteeId) {
         const noMsg = document.getElementById('mentee-no-rating-message');
         const details = document.getElementById('mentee-rating-details');
+        const dEl = document.getElementById('mentee-display-date');
+        if (dEl) dEl.textContent = '';
         if (!noMsg || !details) return;
 
         try {
-            const res = await fetch(`/get_mentee_feedback/${taskType}/${actualTaskId}`);
+            const menteeParam = menteeId ? `?mentee_id=${encodeURIComponent(menteeId)}` : '';
+            const res = await fetch(`/get_mentee_feedback/${taskType}/${actualTaskId}${menteeParam}`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.success && data.feedback) {
                     const fb = data.feedback;
-                    noMsg.classList.add('hidden');
-                    details.classList.remove('hidden');
-
-                    const starsEl = document.getElementById('mentee-display-stars');
-                    if (starsEl) {
-                        starsEl.innerHTML = '';
-                        const r = parseInt(fb.rating) || 0;
-                        for (let i = 1; i <= 5; i++) {
-                            const s = document.createElement('span');
-                            s.className = i <= r ? 'text-amber-400' : 'text-gray-300';
-                            s.innerHTML = '★';
-                            starsEl.appendChild(s);
-                        }
-                    }
-                    const scoreEl = document.getElementById('mentee-rating-score');
-                    if (scoreEl) scoreEl.textContent = fb.rating ? `${fb.rating}/5` : 'No rating';
-
-                    const mStarsEl = document.getElementById('mentee-mentor-display-stars');
-                    if (mStarsEl) {
-                        mStarsEl.innerHTML = '';
-                        const mr = parseInt(fb.mentor_rating) || 0;
-                        for (let i = 1; i <= 5; i++) {
-                            const s = document.createElement('span');
-                            s.className = i <= mr ? 'text-blue-400' : 'text-gray-300';
-                            s.innerHTML = '★';
-                            mStarsEl.appendChild(s);
-                        }
-                    }
-                    const mScoreEl = document.getElementById('mentee-mentor-score');
-                    if (mScoreEl) mScoreEl.textContent = fb.mentor_rating ? `${fb.mentor_rating}/5` : 'No rating';
-
-                    const dEl = document.getElementById('mentee-display-date');
-                    // Only show date if there's actual feedback content (rating > 0 or text content)
                     const hasRating = (fb.rating && fb.rating > 0) || (fb.mentor_rating && fb.mentor_rating > 0);
                     const hasText = (fb.text && fb.text.trim()) || (fb.challenges && fb.challenges.trim()) || (fb.next_steps && fb.next_steps.trim()) || (fb.extra && fb.extra.trim());
                     const hasFeedback = hasRating || hasText;
-                    if (dEl && hasFeedback && (fb.date || fb.created_at)) dEl.textContent = `Submitted: ${new Date(fb.date || fb.created_at).toLocaleDateString()}`;
 
-                    const refEl = document.getElementById('mentee-display-reflection');
-                    if (refEl) refEl.textContent = fb.text || 'No reflection provided.';
+                    if (hasFeedback) {
+                        noMsg.classList.add('hidden');
+                        details.classList.remove('hidden');
 
-                    const cCont = document.getElementById('mentee-challenges-container');
-                    if (cCont) {
-                        if (fb.challenges && fb.challenges.trim()) {
-                            document.getElementById('mentee-display-challenges').textContent = fb.challenges;
-                            cCont.classList.remove('hidden');
-                        } else {
-                            cCont.classList.add('hidden');
+                        const starsEl = document.getElementById('mentee-display-stars');
+                        if (starsEl) {
+                            starsEl.innerHTML = '';
+                            const r = parseInt(fb.rating) || 0;
+                            for (let i = 1; i <= 5; i++) {
+                                const s = document.createElement('span');
+                                s.className = i <= r ? 'text-amber-400' : 'text-gray-300';
+                                s.innerHTML = '★';
+                                starsEl.appendChild(s);
+                            }
                         }
-                    }
+                        const scoreEl = document.getElementById('mentee-rating-score');
+                        if (scoreEl) scoreEl.textContent = fb.rating ? `${fb.rating}/5` : 'No rating';
 
-                    const nCont = document.getElementById('mentee-next-container');
-                    const nextVal = fb.nextSteps || fb.next_steps;
-                    if (nCont) {
-                        if (nextVal && nextVal.trim()) {
-                            document.getElementById('mentee-display-next').textContent = nextVal;
-                            nCont.classList.remove('hidden');
-                        } else {
-                            nCont.classList.add('hidden');
+                        const mStarsEl = document.getElementById('mentee-mentor-display-stars');
+                        if (mStarsEl) {
+                            mStarsEl.innerHTML = '';
+                            const mr = parseInt(fb.mentor_rating) || 0;
+                            for (let i = 1; i <= 5; i++) {
+                                const s = document.createElement('span');
+                                s.className = i <= mr ? 'text-blue-400' : 'text-gray-300';
+                                s.innerHTML = '★';
+                                mStarsEl.appendChild(s);
+                            }
                         }
-                    }
+                        const mScoreEl = document.getElementById('mentee-mentor-score');
+                        if (mScoreEl) mScoreEl.textContent = fb.mentor_rating ? `${fb.mentor_rating}/5` : 'No rating';
 
-                    const eCont = document.getElementById('mentee-extra-container');
-                    if (eCont) {
-                        if (fb.extra && fb.extra.trim()) {
-                            document.getElementById('mentee-display-extra').textContent = fb.extra;
-                            eCont.classList.remove('hidden');
-                        } else {
-                            eCont.classList.add('hidden');
+                        if (dEl && (fb.date || fb.created_at)) {
+                            dEl.textContent = `Submitted: ${new Date(fb.date || fb.created_at).toLocaleDateString()}`;
+                        } else if (dEl) {
+                            dEl.textContent = '';
                         }
+
+                        const refEl = document.getElementById('mentee-display-reflection');
+                        if (refEl) refEl.textContent = fb.text || 'No reflection provided.';
+
+                        const cCont = document.getElementById('mentee-challenges-container');
+                        if (cCont) {
+                            if (fb.challenges && fb.challenges.trim()) {
+                                document.getElementById('mentee-display-challenges').textContent = fb.challenges;
+                                cCont.classList.remove('hidden');
+                            } else {
+                                cCont.classList.add('hidden');
+                            }
+                        }
+
+                        const nCont = document.getElementById('mentee-next-container');
+                        const nextVal = fb.nextSteps || fb.next_steps;
+                        if (nCont) {
+                            if (nextVal && nextVal.trim()) {
+                                document.getElementById('mentee-display-next').textContent = nextVal;
+                                nCont.classList.remove('hidden');
+                            } else {
+                                nCont.classList.add('hidden');
+                            }
+                        }
+
+                        const eCont = document.getElementById('mentee-extra-container');
+                        if (eCont) {
+                            if (fb.extra && fb.extra.trim()) {
+                                document.getElementById('mentee-display-extra').textContent = fb.extra;
+                                eCont.classList.remove('hidden');
+                            } else {
+                                eCont.classList.add('hidden');
+                            }
+                        }
+                        return;
                     }
-                    return;
                 }
             }
         } catch (e) {
             console.error('Error loading mentee rating:', e);
         }
+        if (dEl) dEl.textContent = '';
         noMsg.classList.remove('hidden');
         details.classList.add('hidden');
     }
