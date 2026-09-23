@@ -254,28 +254,28 @@
                                   placeholder="Full street address" rows="3">{{ institution_details.address if institution_details and institution_details.address else '' }}</textarea>
                     </div>
 
-                    <!-- City -->
+                    <!-- Country -->
                     <div class="form-group">
-                        <label for="city" class="form-label">City</label>
-                        <input type="text" name="city" id="city" 
-                               value="{{ institution_details.city if institution_details and institution_details.city else '' }}"
-                               class="form-input" placeholder="City">
+                        <label for="country_select" class="form-label">Country *</label>
+                        <select name="country" id="country_select" class="form-select">
+                            <option value="">Select Country</option>
+                        </select>
                     </div>
 
                     <!-- State -->
-                    <div class="form-group">
-                        <label for="state" class="form-label">State/Province</label>
-                        <input type="text" name="state" id="state" 
-                               value="{{ institution_details.state if institution_details and institution_details.state else '' }}"
-                               class="form-input" placeholder="State or province">
+                    <div class="form-group" id="state_field_container">
+                        <label for="state_select" class="form-label" id="state_label">State/Province *</label>
+                        <select name="state" id="state_select" class="form-select">
+                            <option value="">Select State</option>
+                        </select>
                     </div>
 
-                    <!-- Country -->
-                    <div class="form-group">
-                        <label for="country" class="form-label">Country</label>
-                        <input type="text" name="country" id="country" 
-                               value="{{ institution_details.country if institution_details and institution_details.country else '' }}"
-                               class="form-input" placeholder="Country">
+                    <!-- City -->
+                    <div class="form-group" id="city_field_container">
+                        <label for="city_select" class="form-label" id="city_label">District/City *</label>
+                        <select name="city" id="city_select" class="form-select">
+                            <option value="">Select District / City</option>
+                        </select>
                     </div>
                 </div>
             </div>
@@ -298,8 +298,9 @@ function validateInstitutionForm() {
     const requiredFields = [
         { name: 'contact_person', label: 'Contact Person' },
         { name: 'contact_phone', label: 'Contact Phone' },
-        { name: 'city', label: 'City' },
-        { name: 'country', label: 'Country' }
+        { name: 'country', label: 'Country' },
+        { name: 'state', label: 'State' },
+        { name: 'city', label: 'City' }
     ];
 
     let emptyFields = [];
@@ -882,4 +883,193 @@ function previewInstPhoto(input) {
     }
 }
 </style>
+
+<!-- Location Cascading Dropdowns Logic (Pure Dropdowns, No Text Fallbacks) -->
+<script>
+(function() {
+    const countrySelect = document.getElementById('country_select');
+    const stateSelect = document.getElementById('state_select');
+    const citySelect = document.getElementById('city_select');
+    const stateLabel = document.getElementById('state_label');
+    const cityLabel = document.getElementById('city_label');
+
+    const currentCountry = {{ (institution_details.country if institution_details and institution_details.country else '')|tojson }};
+    const currentState = {{ (institution_details.state if institution_details and institution_details.state else '')|tojson }};
+    const currentCity = {{ (institution_details.city if institution_details and institution_details.city else '')|tojson }};
+
+    let locationData = {};
+    let allCountriesData = [];
+    let globalStatesData = {};
+
+    const COUNTRY_KEY_MAP = {
+        'United States': 'USA',
+        'United States of America': 'USA'
+    };
+
+    function getCountryDataKey(name) {
+        return COUNTRY_KEY_MAP[name] || name;
+    }
+
+    Promise.all([
+        fetch('/api/location_data').then(r => r.json()).catch(() => ({})),
+        fetch('/api/all_countries').then(r => r.json()).catch(() => ({ success: false, countries: [] })),
+        fetch('/static/data/global_states.json').then(r => r.json()).catch(() => ({}))
+    ]).then(([locData, countryData, gStates]) => {
+        locationData = locData || {};
+        allCountriesData = (countryData && countryData.countries) ? countryData.countries : [];
+        globalStatesData = gStates || {};
+
+        populateCountries();
+
+        if (currentCountry) {
+            countrySelect.value = currentCountry;
+            onCountryChange();
+        }
+    }).catch(err => {
+        console.error('Error loading location data:', err);
+    });
+
+    function populateCountries() {
+        countrySelect.innerHTML = '<option value="">Select Country</option>';
+
+        const regions = {
+            'Asia': ['Afghanistan', 'Armenia', 'Azerbaijan', 'Bahrain', 'Bangladesh', 'Bhutan', 'Brunei', 'Cambodia', 'China', 'Cyprus', 'Georgia', 'Hong Kong', 'India', 'Indonesia', 'Iran', 'Iraq', 'Israel', 'Japan', 'Jordan', 'Kazakhstan', 'Kuwait', 'Kyrgyzstan', 'Laos', 'Lebanon', 'Macau', 'Malaysia', 'Maldives', 'Mongolia', 'Myanmar', 'Nepal', 'North Korea', 'Oman', 'Pakistan', 'Palestine', 'Philippines', 'Qatar', 'Saudi Arabia', 'Singapore', 'South Korea', 'Sri Lanka', 'Syria', 'Taiwan', 'Tajikistan', 'Thailand', 'Timor-Leste', 'Turkey', 'Turkmenistan', 'United Arab Emirates', 'Uzbekistan', 'Vietnam', 'Yemen'],
+            'Europe': ['Albania', 'Andorra', 'Austria', 'Belarus', 'Belgium', 'Bosnia and Herzegovina', 'Bulgaria', 'Croatia', 'Czech Republic', 'Denmark', 'Estonia', 'Finland', 'France', 'Germany', 'Greece', 'Hungary', 'Iceland', 'Ireland', 'Italy', 'Latvia', 'Liechtenstein', 'Lithuania', 'Luxembourg', 'Malta', 'Moldova', 'Monaco', 'Montenegro', 'Netherlands', 'North Macedonia', 'Norway', 'Poland', 'Portugal', 'Romania', 'Russia', 'San Marino', 'Serbia', 'Slovakia', 'Slovenia', 'Spain', 'Sweden', 'Switzerland', 'Ukraine', 'United Kingdom', 'Vatican City'],
+            'Americas': ['Antigua and Barbuda', 'Argentina', 'Bahamas', 'Barbados', 'Belize', 'Bolivia', 'Brazil', 'Canada', 'Chile', 'Colombia', 'Costa Rica', 'Cuba', 'Dominica', 'Dominican Republic', 'Ecuador', 'El Salvador', 'Grenada', 'Guatemala', 'Guyana', 'Haiti', 'Honduras', 'Jamaica', 'Mexico', 'Nicaragua', 'Panama', 'Paraguay', 'Peru', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Suriname', 'Trinidad and Tobago', 'United States', 'Uruguay', 'Venezuela'],
+            'Africa': ['Algeria', 'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cameroon', 'Cape Verde', 'Central African Republic', 'Chad', 'Comoros', 'Congo', 'DR Congo', "Cote d'Ivoire", 'Djibouti', 'Egypt', 'Equatorial Guinea', 'Eritrea', 'Eswatini', 'Ethiopia', 'Gabon', 'Gambia', 'Ghana', 'Guinea', 'Guinea-Bissau', 'Kenya', 'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius', 'Morocco', 'Mozambique', 'Namibia', 'Niger', 'Nigeria', 'Rwanda', 'Sao Tome and Principe', 'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 'South Africa', 'South Sudan', 'Sudan', 'Tanzania', 'Togo', 'Tunisia', 'Uganda', 'Zambia', 'Zimbabwe'],
+            'Oceania': ['Australia', 'Fiji', 'Kiribati', 'Marshall Islands', 'Micronesia', 'Nauru', 'New Zealand', 'Palau', 'Papua New Guinea', 'Samoa', 'Solomon Islands', 'Tonga', 'Tuvalu', 'Vanuatu']
+        };
+
+        const allNames = new Set(allCountriesData.map(c => c.name));
+
+        for (const [region, countries] of Object.entries(regions)) {
+            const available = countries.filter(c => allNames.has(c));
+            if (available.length > 0) {
+                const group = document.createElement('optgroup');
+                group.label = region;
+                for (const c of available.sort()) {
+                    const opt = document.createElement('option');
+                    opt.value = c;
+                    opt.textContent = c;
+                    group.appendChild(opt);
+                }
+                countrySelect.appendChild(group);
+            }
+        }
+
+        const inRegions = new Set(Object.values(regions).flat());
+        const remaining = allCountriesData.filter(c => !inRegions.has(c.name));
+        if (remaining.length > 0) {
+            const group = document.createElement('optgroup');
+            group.label = 'Other Countries';
+            for (const c of remaining.sort((a,b) => a.name.localeCompare(b.name))) {
+                const opt = document.createElement('option');
+                opt.value = c.name;
+                opt.textContent = c.name;
+                group.appendChild(opt);
+            }
+            countrySelect.appendChild(group);
+        }
+    }
+
+    function onCountryChange() {
+        const country = countrySelect.value;
+        stateSelect.innerHTML = '<option value="">Select State</option>';
+        citySelect.innerHTML = '<option value="">Select District / City</option>';
+
+        if (!country) return;
+
+        if (country === 'India') {
+            stateLabel.textContent = 'State *';
+            cityLabel.textContent = 'District *';
+        } else {
+            stateLabel.textContent = 'State / Province *';
+            cityLabel.textContent = 'District / City *';
+        }
+
+        const cData = locationData[getCountryDataKey(country)];
+        let statesList = [];
+
+        if (cData && cData.states) {
+            statesList = Object.keys(cData.states);
+        } else if (globalStatesData[country] && globalStatesData[country].length > 0) {
+            statesList = globalStatesData[country];
+        }
+
+        if (statesList.length > 0) {
+            statesList.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s;
+                opt.textContent = s;
+                stateSelect.appendChild(opt);
+            });
+        } else {
+            const opt = document.createElement('option');
+            opt.value = country;
+            opt.textContent = country + ' (National / Region)';
+            stateSelect.appendChild(opt);
+        }
+
+        if (currentState) {
+            const found = Array.from(stateSelect.options).some(o => o.value.toLowerCase() === currentState.toLowerCase());
+            if (found) {
+                stateSelect.value = currentState;
+            } else if (currentState) {
+                const savedOpt = document.createElement('option');
+                savedOpt.value = currentState;
+                savedOpt.textContent = currentState;
+                stateSelect.appendChild(savedOpt);
+                stateSelect.value = currentState;
+            }
+        }
+
+        onStateChange();
+    }
+
+    function onStateChange() {
+        const country = countrySelect.value;
+        const state = stateSelect.value;
+        citySelect.innerHTML = '<option value="">Select District / City</option>';
+
+        if (!country || !state) return;
+
+        const cData = locationData[getCountryDataKey(country)];
+        let cities = [];
+
+        if (cData && cData.states && cData.states[state]) {
+            cities = cData.states[state];
+        }
+
+        if (cities.length > 0) {
+            cities.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = c;
+                citySelect.appendChild(opt);
+            });
+        } else {
+            const opt = document.createElement('option');
+            opt.value = state;
+            opt.textContent = state + ' (Main District)';
+            citySelect.appendChild(opt);
+        }
+
+        if (currentCity) {
+            const found = Array.from(citySelect.options).some(o => o.value.toLowerCase() === currentCity.toLowerCase());
+            if (found) {
+                citySelect.value = currentCity;
+            } else if (currentCity) {
+                const savedOpt = document.createElement('option');
+                savedOpt.value = currentCity;
+                savedOpt.textContent = currentCity;
+                citySelect.appendChild(savedOpt);
+                citySelect.value = currentCity;
+            }
+        }
+    }
+
+    countrySelect.addEventListener('change', onCountryChange);
+    stateSelect.addEventListener('change', onStateChange);
+})();
+</script>
 {% endblock %}

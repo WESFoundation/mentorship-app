@@ -2215,25 +2215,39 @@ def sync_postgres_sequences(target_table=None):
                 cols_to_check = [col.name for col in t_obj.primary_key.columns] if t_obj is not None else ["id"]
                 for col_name in cols_to_check:
                     try:
-                        seq_res = conn.execute(
-                            text("SELECT pg_get_serial_sequence(:t, :c)"),
-                            {"t": t_name, "c": col_name}
-                        ).scalar()
-                        if seq_res:
-                            conn.execute(
-                                text(f"""
-                                    SELECT setval(
-                                        :seq,
-                                        COALESCE((SELECT MAX({col_name}) FROM {t_name}), 1),
-                                        true
-                                    )
-                                """),
-                                {"seq": seq_res}
-                            )
-                            conn.commit()
-                            print(f"✅ Synced Postgres sequence for {t_name}.{col_name} ({seq_res})")
+                        with conn.begin_nested():
+                            # Format table name safely (handling mixed-case table names like "MasterTask")
+                            table_ident = f'"{t_name}"' if any(c.isupper() for c in t_name) else t_name
+                            col_ident = f'"{col_name}"' if any(c.isupper() for c in col_name) else col_name
+                            
+                            seq_res = conn.execute(
+                                text("SELECT pg_get_serial_sequence(:t, :c)"),
+                                {"t": table_ident, "c": col_name}
+                            ).scalar()
+                            
+                            if not seq_res:
+                                # Try lowercase as fallback
+                                seq_res = conn.execute(
+                                    text("SELECT pg_get_serial_sequence(:t, :c)"),
+                                    {"t": t_name.lower(), "c": col_name.lower()}
+                                ).scalar()
+
+                            if seq_res:
+                                conn.execute(
+                                    text(f"""
+                                        SELECT setval(
+                                            :seq,
+                                            COALESCE((SELECT MAX({col_ident}) FROM {table_ident}), 1),
+                                            true
+                                        )
+                                    """),
+                                    {"seq": seq_res}
+                                )
+                                print(f"✅ Synced Postgres sequence for {t_name}.{col_name} ({seq_res})")
+                        conn.commit()
                     except Exception as col_err:
-                        print(f"⚠️ Sequence sync notice for {t_name}.{col_name}: {col_err}")
+                        # Transaction was rolled back by begin_nested() context manager
+                        pass
     except Exception as e:
         print(f"⚠️ sync_postgres_sequences notice: {e}")
 
