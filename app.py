@@ -178,26 +178,47 @@ def check_corporate_email(user_email, institution):
 
 
 def update_corporate_status(user_email, institution_id):
-    """Update a user's is_corporate flag based on their email and institution."""
+    """Update a user's is_corporate flag based on their email and institution. Mentors only."""
     if not user_email or not institution_id:
         return False
     institution = Institution.query.filter_by(id=institution_id).first()
     if not institution:
         return False
-    is_corp = check_corporate_email(user_email, institution)
     user = User.query.filter_by(email=user_email).first()
-    if user:
-        user.is_corporate = is_corp
-        try:
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
+    if not user:
+        return False
+    # Corporate status is strictly for mentors (user_type == "1" or 1)
+    if str(getattr(user, 'user_type', '')) != "1":
+        if getattr(user, 'is_corporate', None):
+            user.is_corporate = False
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+        return False
+
+    is_corp = check_corporate_email(user_email, institution)
+    user.is_corporate = is_corp
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
     return is_corp
 
 
 def refresh_user_corporate_status(user):
-    """Check and update user's is_corporate flag using institution_id OR institution name string."""
+    """Check and update user's is_corporate flag using institution_id OR institution name string. Mentors only."""
     if not user or not user.email:
+        return False
+
+    # Corporate status is strictly for mentors (user_type == "1" or 1), NEVER mentees
+    if str(getattr(user, 'user_type', '')) != "1":
+        if getattr(user, 'is_corporate', None):
+            user.is_corporate = False
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
         return False
     
     institution = None
@@ -4609,9 +4630,11 @@ def create_account():
                 institution_id=institution_obj.id if institution_obj else None
             )
             
-            # Check corporate email affiliation
-            if institution_obj and email:
+            # Check corporate email affiliation (Mentors only)
+            if user_type == "1" and institution_obj and email:
                 new_user.is_corporate = check_corporate_email(email, institution_obj)
+            else:
+                new_user.is_corporate = False
             
             db.session.add(new_user)
             db.session.flush()  # Get user ID
@@ -5829,11 +5852,14 @@ def editinstitutionprofile():
             if hasattr(user, 'phone'):
                 user.phone = request.form.get("official_phone", "")
             
-            # Update corporate status for all users under this institution
+            # Update corporate status for all mentors under this institution
             if institution_details.email_domain:
                 institution_users = User.query.filter_by(institution_id=institution_details.id).all()
                 for u in institution_users:
-                    u.is_corporate = check_corporate_email(u.email, institution_details)
+                    if str(getattr(u, 'user_type', '')) == "1":
+                        u.is_corporate = check_corporate_email(u.email, institution_details)
+                    else:
+                        u.is_corporate = False
                 db.session.commit()
             else:
                 # Clear corporate status if no email domain set
@@ -5873,6 +5899,12 @@ def check_corporate_email_api():
     user = User.query.filter_by(email=session["email"]).first()
     if not user or not user.institution_id:
         return jsonify({"success": False, "is_corporate": False, "reason": "No institution linked"}), 400
+
+    if str(getattr(user, 'user_type', '')) != "1":
+        if getattr(user, 'is_corporate', None):
+            user.is_corporate = False
+            db.session.commit()
+        return jsonify({"success": False, "is_corporate": False, "reason": "Corporate status is only available for mentors"}), 403
 
     institution = Institution.query.filter_by(id=user.institution_id).first()
     if not institution or not institution.email_domain:
