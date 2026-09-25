@@ -310,15 +310,21 @@
             <div id="sched-participants-container" class="space-y-3">
                 <div id="sched-mentee-block" class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                        <label for="sched-mentee" class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentee-label">Select Mentee</span> <span class="text-red-500">*</span></label>
-                        <div class="relative">
-                            <div class="relative flex items-center mb-1.5">
-                                <input type="text" id="sched-mentee-search-input" placeholder="Type to search mentee..." autocomplete="off" class="w-full pl-8 pr-7 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
-                                <svg class="w-4 h-4 text-gray-400 absolute left-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                                <button type="button" id="sched-mentee-clear-btn" class="hidden absolute right-2.5 text-gray-400 hover:text-gray-600 text-sm font-bold" onclick="clearMenteeSearch()">&times;</button>
+                        <label for="sched-mentee-search-input" class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentee-label">Select Mentee</span> <span class="text-red-500">*</span></label>
+                        <div class="relative" id="sched-mentee-combobox-wrap">
+                            <div class="relative flex items-center">
+                                <svg class="w-4 h-4 text-gray-400 absolute left-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                <input type="text" id="sched-mentee-search-input" placeholder="Search or select a mentee..." autocomplete="off" class="w-full pl-9 pr-14 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white cursor-pointer transition-all">
+                                <div class="absolute right-2.5 flex items-center gap-1">
+                                    <button type="button" id="sched-mentee-clear-btn" class="hidden text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-100" onclick="clearMenteeSearch()" title="Clear">&times;</button>
+                                    <button type="button" id="sched-mentee-toggle-btn" class="text-gray-400 hover:text-gray-600 p-0.5" tabindex="-1">
+                                        <svg class="w-4 h-4 transition-transform duration-200" id="sched-mentee-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                </div>
                             </div>
-                            <div id="sched-mentee-dropdown-list" class="hidden absolute left-0 right-0 z-30 mt-1 max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl divide-y divide-gray-100 text-sm"></div>
-                            <select id="sched-mentee" name="mentee_id" data-no-search class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <div id="sched-mentee-dropdown-list" class="hidden absolute left-0 right-0 z-50 mt-1 max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl divide-y divide-gray-100 text-sm"></div>
+                            <!-- Underlying Select (Hidden Single Source of Truth) -->
+                            <select id="sched-mentee" name="mentee_id" data-no-search class="hidden" style="display:none !important;">
                                 <option value="">Choose a mentee...</option>
                                 {% for mentee in mentees %}
                                 <option value="{{ mentee.id }}" data-name="{{ mentee.name | e }}" data-email="{{ mentee.email | e }}" data-institution="{{ (mentee.display_institution or mentee.institution or '') | e }}" data-institution-id="{{ mentee.display_institution_id or (mentee.institution_id or '') }}">{{ mentee.name }} ({{ mentee.email }})</option>
@@ -340,15 +346,21 @@
                 </div>
                 <div id="sched-mentor-block" class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                        <label for="sched-mentor" class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentor-label">Select Mentor</span> <span class="text-red-500">*</span></label>
-                        <div class="relative">
-                            <div class="relative flex items-center mb-1.5">
-                                <input type="text" id="sched-mentor-search-input" placeholder="Type to search mentor..." autocomplete="off" class="w-full pl-8 pr-7 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
-                                <svg class="w-4 h-4 text-gray-400 absolute left-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                                <button type="button" id="sched-mentor-clear-btn" class="hidden absolute right-2.5 text-gray-400 hover:text-gray-600 text-sm font-bold" onclick="clearMentorSearch()">&times;</button>
+                        <label for="sched-mentor-search-input" class="block text-sm font-medium text-gray-700 mb-1"><span id="sched-mentor-label">Select Mentor</span> <span class="text-red-500">*</span></label>
+                        <div class="relative" id="sched-mentor-combobox-wrap">
+                            <div class="relative flex items-center">
+                                <svg class="w-4 h-4 text-gray-400 absolute left-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                <input type="text" id="sched-mentor-search-input" placeholder="Search or select a mentor..." autocomplete="off" class="w-full pl-9 pr-14 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white cursor-pointer transition-all">
+                                <div class="absolute right-2.5 flex items-center gap-1">
+                                    <button type="button" id="sched-mentor-clear-btn" class="hidden text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-100" onclick="clearMentorSearch()" title="Clear">&times;</button>
+                                    <button type="button" id="sched-mentor-toggle-btn" class="text-gray-400 hover:text-gray-600 p-0.5" tabindex="-1">
+                                        <svg class="w-4 h-4 transition-transform duration-200" id="sched-mentor-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                </div>
                             </div>
-                            <div id="sched-mentor-dropdown-list" class="hidden absolute left-0 right-0 z-30 mt-1 max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl divide-y divide-gray-100 text-sm"></div>
-                            <select id="sched-mentor" name="mentor_id" data-no-search class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <div id="sched-mentor-dropdown-list" class="hidden absolute left-0 right-0 z-50 mt-1 max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl divide-y divide-gray-100 text-sm"></div>
+                            <!-- Underlying Select (Hidden Single Source of Truth) -->
+                            <select id="sched-mentor" name="mentor_id" data-no-search class="hidden" style="display:none !important;">
                                 <option value="">Choose a mentor...</option>
                                 {% for mentor in mentors %}
                                 <option value="{{ mentor.id }}" data-name="{{ mentor.name | e }}" data-email="{{ mentor.email | e }}" data-institution="{{ (mentor.display_institution or mentor.institution or '') | e }}" data-institution-id="{{ mentor.display_institution_id or (mentor.institution_id or '') }}">{{ mentor.name }} ({{ mentor.email }})</option>
@@ -1740,114 +1752,166 @@ function updateSchedTasks() {
     }
 }
 
-function onMenteeSelectionChange() {
-    updateSchedMenteeInstitution();
-    if (scheduleViewMode === 'mentee') {
+var isFilteringParticipants = false;
+
+function filterConnectedParticipants(changedSource) {
+    if (isFilteringParticipants) return;
+    isFilteringParticipants = true;
+    try {
+        initSavedOptions();
         var menteeSel = document.getElementById('sched-mentee');
         var mentorSel = document.getElementById('sched-mentor');
         var mentorLabel = document.getElementById('sched-mentor-label');
-        var selectedMenteeId = menteeSel.value;
-
-        if (!selectedMenteeId) {
-            // Restore all mentors
-            mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
-            for (var i = 0; i < savedMentorOptions.length; i++) {
-                mentorSel.appendChild(savedMentorOptions[i].cloneNode(true));
-            }
-            mentorSel.value = '';
-            if (mentorLabel) mentorLabel.textContent = 'Select Mentor';
-        } else {
-            var rawConnected = menteeToMentors[selectedMenteeId] || [];
-            var connectedMentorIds = rawConnected.map(String);
-            mentorSel.innerHTML = '';
-            var matchingOptions = [];
-            for (var k = 0; k < savedMentorOptions.length; k++) {
-                var opt = savedMentorOptions[k];
-                if (connectedMentorIds.indexOf(String(opt.value)) !== -1) {
-                    matchingOptions.push(opt.cloneNode(true));
-                }
-            }
-
-            if (matchingOptions.length === 0) {
-                mentorSel.innerHTML = '<option value="">No connected mentors found</option>';
-                mentorSel.value = '';
-                if (mentorLabel) mentorLabel.textContent = 'Mentor (none connected)';
-            } else {
-                mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
-                for (var m = 0; m < matchingOptions.length; m++) {
-                    mentorSel.appendChild(matchingOptions[m]);
-                }
-                if (matchingOptions.length === 1) {
-                    mentorSel.value = matchingOptions[0].value;
-                } else {
-                    mentorSel.value = '';
-                }
-                if (mentorLabel) mentorLabel.textContent = 'Mentor (paired with selected mentee)';
-            }
-        }
-        updateSchedMentorInstitution();
-    }
-    updateSchedBanner();
-    updateSchedTasks();
-}
-
-function onMentorSelectionChange() {
-    updateSchedMentorInstitution();
-    if (scheduleViewMode === 'mentor') {
-        var mentorSel = document.getElementById('sched-mentor');
-        var menteeSel = document.getElementById('sched-mentee');
         var menteeLabel = document.getElementById('sched-mentee-label');
-        var selectedMentorId = mentorSel.value;
+        var menteeInput = document.getElementById('sched-mentee-search-input');
+        var mentorInput = document.getElementById('sched-mentor-search-input');
 
-        if (!selectedMentorId) {
-            // Restore all mentees
-            menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
-            for (var j = 0; j < savedMenteeOptions.length; j++) {
-                menteeSel.appendChild(savedMenteeOptions[j].cloneNode(true));
-            }
-            menteeSel.value = '';
-            if (menteeLabel) menteeLabel.textContent = 'Select Mentee';
-        } else {
-            var rawConnected = mentorToMentees[selectedMentorId] || [];
-            var connectedMenteeIds = rawConnected.map(String);
-            menteeSel.innerHTML = '';
-            var matchingOptions = [];
-            for (var n = 0; n < savedMenteeOptions.length; n++) {
-                var opt = savedMenteeOptions[n];
-                if (connectedMenteeIds.indexOf(String(opt.value)) !== -1) {
-                    matchingOptions.push(opt.cloneNode(true));
-                }
-            }
+        var selectedMenteeId = menteeSel ? menteeSel.value : '';
+        var selectedMentorId = mentorSel ? mentorSel.value : '';
 
-            if (matchingOptions.length === 0) {
-                menteeSel.innerHTML = '<option value="">No connected mentees found</option>';
-                menteeSel.value = '';
-                if (menteeLabel) menteeLabel.textContent = 'Mentee (none connected)';
-            } else {
-                menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
-                for (var p = 0; p < matchingOptions.length; p++) {
-                    menteeSel.appendChild(matchingOptions[p]);
+        if (changedSource === 'mentee') {
+            if (selectedMenteeId) {
+                var connectedMentorIds = (menteeToMentors[selectedMenteeId] || []).map(String);
+                var currentMentorVal = mentorSel.value;
+                mentorSel.innerHTML = '';
+                var matchingMentorOpts = [];
+                for (var k = 0; k < savedMentorOptions.length; k++) {
+                    var optM = savedMentorOptions[k];
+                    if (connectedMentorIds.indexOf(String(optM.value)) !== -1) {
+                        matchingMentorOpts.push(optM.cloneNode(true));
+                    }
                 }
-                if (matchingOptions.length === 1) {
-                    menteeSel.value = matchingOptions[0].value;
+                if (matchingMentorOpts.length === 0) {
+                    mentorSel.innerHTML = '<option value="">No connected mentors found</option>';
+                    mentorSel.value = '';
+                    if (mentorLabel) mentorLabel.textContent = 'Mentor (none connected)';
+                    if (mentorInput) mentorInput.placeholder = 'No connected mentors for this mentee';
                 } else {
-                    menteeSel.value = '';
+                    mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+                    for (var m = 0; m < matchingMentorOpts.length; m++) {
+                        mentorSel.appendChild(matchingMentorOpts[m]);
+                    }
+                    if (matchingMentorOpts.length === 1) {
+                        mentorSel.value = matchingMentorOpts[0].value;
+                        if (mentorLabel) mentorLabel.textContent = 'Mentor (paired with selected mentee)';
+                    } else if (currentMentorVal && connectedMentorIds.indexOf(String(currentMentorVal)) !== -1) {
+                        mentorSel.value = currentMentorVal;
+                        if (mentorLabel) mentorLabel.textContent = 'Mentor (paired with selected mentee)';
+                    } else {
+                        mentorSel.value = '';
+                        if (mentorLabel) mentorLabel.textContent = 'Select Connected Mentor (' + matchingMentorOpts.length + ')';
+                    }
+                    if (mentorInput) mentorInput.placeholder = 'Search or select a mentor...';
                 }
-                if (menteeLabel) menteeLabel.textContent = 'Mentee (paired with selected mentor)';
+            } else {
+                // Mentee was cleared
+                if (mentorLabel) mentorLabel.textContent = 'Select Mentor';
+                if (mentorInput) mentorInput.placeholder = 'Search or select a mentor...';
+                if (selectedMentorId) {
+                    var connectedMenteeIds = (mentorToMentees[selectedMentorId] || []).map(String);
+                    menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
+                    for (var i = 0; i < savedMenteeOptions.length; i++) {
+                        var optE = savedMenteeOptions[i];
+                        if (connectedMenteeIds.indexOf(String(optE.value)) !== -1) {
+                            menteeSel.appendChild(optE.cloneNode(true));
+                        }
+                    }
+                    menteeSel.value = '';
+                } else {
+                    mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+                    for (var j = 0; j < savedMentorOptions.length; j++) {
+                        mentorSel.appendChild(savedMentorOptions[j].cloneNode(true));
+                    }
+                    mentorSel.value = '';
+                    menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
+                    for (var l = 0; l < savedMenteeOptions.length; l++) {
+                        menteeSel.appendChild(savedMenteeOptions[l].cloneNode(true));
+                    }
+                    menteeSel.value = '';
+                    if (menteeLabel) menteeLabel.textContent = 'Select Mentee';
+                    if (menteeInput) menteeInput.placeholder = 'Search or select a mentee...';
+                }
+            }
+        } else if (changedSource === 'mentor') {
+            if (selectedMentorId) {
+                var connectedMenteeIds2 = (mentorToMentees[selectedMentorId] || []).map(String);
+                var currentMenteeVal = menteeSel.value;
+                menteeSel.innerHTML = '';
+                var matchingMenteeOpts = [];
+                for (var n = 0; n < savedMenteeOptions.length; n++) {
+                    var optE2 = savedMenteeOptions[n];
+                    if (connectedMenteeIds2.indexOf(String(optE2.value)) !== -1) {
+                        matchingMenteeOpts.push(optE2.cloneNode(true));
+                    }
+                }
+                if (matchingMenteeOpts.length === 0) {
+                    menteeSel.innerHTML = '<option value="">No connected mentees found</option>';
+                    menteeSel.value = '';
+                    if (menteeLabel) menteeLabel.textContent = 'Mentee (none connected)';
+                    if (menteeInput) menteeInput.placeholder = 'No connected mentees for this mentor';
+                } else {
+                    menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
+                    for (var p = 0; p < matchingMenteeOpts.length; p++) {
+                        menteeSel.appendChild(matchingMenteeOpts[p]);
+                    }
+                    if (matchingMenteeOpts.length === 1) {
+                        menteeSel.value = matchingMenteeOpts[0].value;
+                        if (menteeLabel) menteeLabel.textContent = 'Mentee (paired with selected mentor)';
+                    } else if (currentMenteeVal && connectedMenteeIds2.indexOf(String(currentMenteeVal)) !== -1) {
+                        menteeSel.value = currentMenteeVal;
+                        if (menteeLabel) menteeLabel.textContent = 'Mentee (paired with selected mentor)';
+                    } else {
+                        menteeSel.value = '';
+                        if (menteeLabel) menteeLabel.textContent = 'Select Connected Mentee (' + matchingMenteeOpts.length + ')';
+                    }
+                    if (menteeInput) menteeInput.placeholder = 'Search or select a mentee...';
+                }
+            } else {
+                // Mentor was cleared
+                if (menteeLabel) menteeLabel.textContent = 'Select Mentee';
+                if (menteeInput) menteeInput.placeholder = 'Search or select a mentee...';
+                if (selectedMenteeId) {
+                    var connectedMentorIds2 = (menteeToMentors[selectedMenteeId] || []).map(String);
+                    mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+                    for (var q = 0; q < savedMentorOptions.length; q++) {
+                        var optM2 = savedMentorOptions[q];
+                        if (connectedMentorIds2.indexOf(String(optM2.value)) !== -1) {
+                            mentorSel.appendChild(optM2.cloneNode(true));
+                        }
+                    }
+                    mentorSel.value = '';
+                } else {
+                    mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+                    for (var r = 0; r < savedMentorOptions.length; r++) {
+                        mentorSel.appendChild(savedMentorOptions[r].cloneNode(true));
+                    }
+                    mentorSel.value = '';
+                    menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
+                    for (var s = 0; s < savedMenteeOptions.length; s++) {
+                        menteeSel.appendChild(savedMenteeOptions[s].cloneNode(true));
+                    }
+                    menteeSel.value = '';
+                    if (mentorLabel) mentorLabel.textContent = 'Select Mentor';
+                    if (mentorInput) mentorInput.placeholder = 'Search or select a mentor...';
+                }
             }
         }
+
+        updateSchedMentorInstitution();
         updateSchedMenteeInstitution();
+        updateSchedBanner();
+        updateSchedTasks();
+        syncSchedulerSearchBars();
+    } finally {
+        isFilteringParticipants = false;
     }
-    updateSchedBanner();
-    updateSchedTasks();
-    if (typeof syncSchedulerSearchBars === 'function') syncSchedulerSearchBars();
 }
 
 document.getElementById('sched-mentor').addEventListener('change', function() {
-    onMentorSelectionChange();
+    filterConnectedParticipants('mentor');
 });
 document.getElementById('sched-mentee').addEventListener('change', function() {
-    onMenteeSelectionChange();
+    filterConnectedParticipants('mentee');
 });
 
 // Scheduler Search Bar & Typeahead Support for Mentee and Mentor
@@ -1878,7 +1942,7 @@ function clearMenteeSearch() {
     if (clearBtn) clearBtn.classList.add('hidden');
     if (sel) {
         sel.value = '';
-        sel.dispatchEvent(new Event('change'));
+        filterConnectedParticipants('mentee');
     }
 }
 
@@ -1892,7 +1956,7 @@ function clearMentorSearch() {
     if (clearBtn) clearBtn.classList.add('hidden');
     if (sel) {
         sel.value = '';
-        sel.dispatchEvent(new Event('change'));
+        filterConnectedParticipants('mentor');
     }
 }
 
@@ -1901,6 +1965,8 @@ function setupSchedulerSearch(type) {
     var list = document.getElementById('sched-' + type + '-dropdown-list');
     var sel = document.getElementById('sched-' + type);
     var clearBtn = document.getElementById('sched-' + type + '-clear-btn');
+    var toggleBtn = document.getElementById('sched-' + type + '-toggle-btn');
+    var chevron = document.getElementById('sched-' + type + '-chevron');
     if (!input || !list || !sel) return;
 
     function renderList(filterText) {
@@ -1924,7 +1990,11 @@ function setupSchedulerSearch(type) {
                     input.value = this.textContent;
                     if (clearBtn) clearBtn.classList.remove('hidden');
                     list.classList.add('hidden');
-                    sel.dispatchEvent(new Event('change'));
+                    if (chevron) chevron.style.transform = '';
+                    input.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+                    var errEl = document.getElementById('sched-' + type + '-error');
+                    if (errEl) { errEl.classList.add('hidden'); errEl.classList.remove('flex'); }
+                    filterConnectedParticipants(type);
                 });
                 list.appendChild(item);
             }
@@ -1932,17 +2002,44 @@ function setupSchedulerSearch(type) {
         if (matchCount === 0) {
             var empty = document.createElement('div');
             empty.className = 'px-3 py-2.5 text-xs text-gray-500 italic text-center';
-            empty.textContent = 'No matching ' + type + 's found';
+            var emptyMsg = (sel.options.length === 1 && !sel.options[0].value && sel.options[0].text)
+                ? sel.options[0].text
+                : ('No matching ' + type + 's found');
+            empty.textContent = emptyMsg;
             list.appendChild(empty);
         }
         list.classList.remove('hidden');
+        if (chevron) chevron.style.transform = 'rotate(180deg)';
     }
 
     input.addEventListener('focus', function() {
-        renderList(this.value);
+        renderList('');
     });
 
+    input.addEventListener('click', function() {
+        if (list.classList.contains('hidden')) {
+            renderList('');
+        }
+    });
+
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (list.classList.contains('hidden')) {
+                input.focus();
+                renderList('');
+            } else {
+                list.classList.add('hidden');
+                if (chevron) chevron.style.transform = '';
+            }
+        });
+    }
+
     input.addEventListener('input', function() {
+        input.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+        var errEl = document.getElementById('sched-' + type + '-error');
+        if (errEl) { errEl.classList.add('hidden'); errEl.classList.remove('flex'); }
         if (clearBtn) {
             if (this.value) clearBtn.classList.remove('hidden');
             else clearBtn.classList.add('hidden');
@@ -1953,6 +2050,7 @@ function setupSchedulerSearch(type) {
     input.addEventListener('blur', function() {
         setTimeout(function() {
             if (list) list.classList.add('hidden');
+            if (chevron) chevron.style.transform = '';
         }, 250);
     });
 
@@ -1969,10 +2067,15 @@ function setupSchedulerSearch(type) {
                 input.value = firstItem.textContent;
                 if (clearBtn) clearBtn.classList.remove('hidden');
                 list.classList.add('hidden');
+                if (chevron) chevron.style.transform = '';
+                input.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+                var errEl = document.getElementById('sched-' + type + '-error');
+                if (errEl) { errEl.classList.add('hidden'); errEl.classList.remove('flex'); }
                 sel.dispatchEvent(new Event('change'));
             }
         } else if (e.key === 'Escape') {
             list.classList.add('hidden');
+            if (chevron) chevron.style.transform = '';
         }
     });
 
@@ -2038,6 +2141,20 @@ document.getElementById('scheduleMeetingForm').addEventListener('submit', async 
         if (el) {
             el.classList.add('border-red-500', 'ring-1', 'ring-red-500');
             if (!firstInvalidEl) firstInvalidEl = el;
+        }
+        if (name === 'Mentor') {
+            var mInput = document.getElementById('sched-mentor-search-input');
+            if (mInput) {
+                mInput.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+                if (!firstInvalidEl) firstInvalidEl = mInput;
+            }
+        }
+        if (name === 'Mentee') {
+            var eInput = document.getElementById('sched-mentee-search-input');
+            if (eInput) {
+                eInput.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+                if (!firstInvalidEl) firstInvalidEl = eInput;
+            }
         }
         missingFields.push(name);
     }

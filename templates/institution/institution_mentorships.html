@@ -108,24 +108,48 @@
             data-type="{{ mentorship.request.mentor_type|default('')|lower }}">
           <td class="px-3 sm:px-6 py-4">
             <div class="text-sm font-semibold text-gray-900 flex items-center flex-wrap gap-1.5">
-              <span>{{ mentorship.mentor.name if mentorship.mentor else 'Unknown Mentor' }}{% if mentorship.mentor and mentorship.mentor.premium %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}</span>
               {% if mentorship.mentor %}
+              <a href="{{ url_for('view_mentor_profile', mentor_id=mentorship.mentor.id) }}" target="_blank"
+                 class="hover:underline hover:text-blue-600 transition-colors"
+                 title="View {{ mentorship.mentor.name }}'s full profile">
+                {{ mentorship.mentor.name }}
+              </a>
+              {% if mentorship.mentor.premium %}
+              <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded-full border border-amber-200" title="Premium Mentor">
+                <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium
+              </span>
+              {% endif %}
               <button type="button" onclick="openRatingPopup({{ mentorship.mentor.id }}, '{{ mentorship.mentor.name|e }}')"
                       class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-full text-xs font-semibold text-amber-800 transition cursor-pointer"
                       title="View {{ mentorship.mentor.name }}'s rating breakdown">
                 <span class="text-amber-500">&#9733;</span>
                 <span class="inst-ms-pill-{{ mentorship.mentor.id }}" data-mentor-uid="{{ mentorship.mentor.id }}">--</span>
               </button>
+              {% else %}
+              <span class="text-gray-500">Unknown Mentor</span>
               {% endif %}
+
               <span class="text-gray-400 font-normal">→</span>
-              <span>{{ mentorship.mentee.name if mentorship.mentee else 'Unknown Mentee' }}{% if mentorship.mentee and mentorship.mentee.scholarly %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-blue-700 bg-blue-50 px-1 py-0.5 rounded-full border border-blue-200" title="Scholarly Mentee"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3.001zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/></svg> Scholarly</span>{% endif %}</span>
+
               {% if mentorship.mentee %}
+              <a href="{{ url_for('view_mentee_profile', mentee_id=mentorship.mentee.id) }}" target="_blank"
+                 class="hover:underline hover:text-blue-600 transition-colors"
+                 title="View {{ mentorship.mentee.name }}'s full profile">
+                {{ mentorship.mentee.name }}
+              </a>
+              {% if mentorship.mentee.scholarly %}
+              <span class="inline-flex items-center gap-0.5 text-xs font-bold text-blue-700 bg-blue-50 px-1 py-0.5 rounded-full border border-blue-200" title="Scholarly Mentee">
+                <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3.001zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/></svg> Scholarly
+              </span>
+              {% endif %}
               <button type="button" onclick="openMenteeRatingPopup({{ mentorship.mentee.id }}, '{{ mentorship.mentee.name|e }}')"
                       class="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-full text-xs font-semibold text-emerald-800 transition cursor-pointer"
                       title="View {{ mentorship.mentee.name }}'s rating breakdown">
                 <span class="text-emerald-500">&#9733;</span>
                 <span class="inst-ms-mentee-pill-{{ mentorship.mentee.id }}" data-mentee-uid="{{ mentorship.mentee.id }}">--</span>
               </button>
+              {% else %}
+              <span class="text-gray-500">Unknown Mentee</span>
               {% endif %}
             </div>
             <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-600">
@@ -190,10 +214,10 @@
                    onclick="openRatingPopup({{ mentorship.mentor.id }}, '{{ mentorship.mentor.name|e }}')"
                    title="Click to view rating breakdown for Mentor {{ mentorship.mentor.name|e }}">
                 <span class="text-xs font-semibold text-amber-700 w-12 shrink-0">Mentor:</span>
-                <div class="flex items-center gap-0.5 text-xs inst-ms-stars-{{ mentorship.mentor.id }}">
+                <div class="flex items-center gap-0.5 text-xs inst-ms-stars-{{ mentorship.mentor.id }}" data-mentor-uid="{{ mentorship.mentor.id }}">
                   <span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span>
                 </div>
-                <span class="text-xs font-bold text-gray-700 inst-ms-num-{{ mentorship.mentor.id }}">--</span>
+                <span class="text-xs font-bold text-gray-700 inst-ms-num-{{ mentorship.mentor.id }}" data-mentor-uid="{{ mentorship.mentor.id }}">--</span>
               </div>
               {% endif %}
               {% if mentorship.mentee %}
@@ -201,10 +225,10 @@
                    onclick="openMenteeRatingPopup({{ mentorship.mentee.id }}, '{{ mentorship.mentee.name|e }}')"
                    title="Click to view rating breakdown for Mentee {{ mentorship.mentee.name|e }}">
                 <span class="text-xs font-semibold text-emerald-700 w-12 shrink-0">Mentee:</span>
-                <div class="flex items-center gap-0.5 text-xs inst-ms-mentee-stars-{{ mentorship.mentee.id }}">
+                <div class="flex items-center gap-0.5 text-xs inst-ms-mentee-stars-{{ mentorship.mentee.id }}" data-mentee-uid="{{ mentorship.mentee.id }}">
                   <span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span><span class="text-gray-300">&#9734;</span>
                 </div>
-                <span class="text-xs font-bold text-gray-700 inst-ms-mentee-num-{{ mentorship.mentee.id }}">--</span>
+                <span class="text-xs font-bold text-gray-700 inst-ms-mentee-num-{{ mentorship.mentee.id }}" data-mentee-uid="{{ mentorship.mentee.id }}">--</span>
               </div>
               {% endif %}
               {% if not mentorship.mentor and not mentorship.mentee %}
@@ -212,46 +236,56 @@
               {% endif %}
             </div>
           </td>
-          <td class="px-3 sm:px-6 py-4 text-right">
+          <td class="px-2 sm:px-4 py-3 whitespace-nowrap text-right">
             {% if mentorship.request.final_status == 'pending' %}
-            <div class="flex flex-wrap justify-end gap-2">
-              <form method="POST" action="{{ url_for('institution_response') }}">
+            <div class="flex items-center justify-end gap-1.5">
+              <!-- Quick Approve (Tick) -->
+              <form method="POST" action="{{ url_for('institution_response') }}" class="inline m-0 p-0">
                 <input type="hidden" name="request_id" value="{{ mentorship.request.id }}">
                 <input type="hidden" name="action" value="approve">
                 <input type="hidden" name="next" value="{{ url_for('institution_mentorships') }}">
-                <button type="submit"
-                  class="px-3 sm:px-4 py-1.5 sm:py-2 bg-green-600 text-white hover:bg-green-700 rounded-lg text-xs sm:text-sm font-medium transition-colors">
-                  Approve
+                <button type="submit" title="Approve Mentorship Request" aria-label="Approve"
+                  class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-green-600 hover:bg-green-700 text-white flex items-center justify-center transition-all shadow-xs hover:scale-105 cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                  </svg>
                 </button>
               </form>
-              <form method="POST" action="{{ url_for('institution_response') }}"
+              <!-- Quick Reject (Cross) -->
+              <form method="POST" action="{{ url_for('institution_response') }}" class="inline m-0 p-0"
                 onsubmit="return confirm('Reject this mentorship request? The mentee will be notified.');">
                 <input type="hidden" name="request_id" value="{{ mentorship.request.id }}">
                 <input type="hidden" name="action" value="reject">
                 <input type="hidden" name="next" value="{{ url_for('institution_mentorships') }}">
-                <button type="submit"
-                  class="px-3 sm:px-4 py-1.5 sm:py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs sm:text-sm font-medium transition-colors">
-                  Reject
+                <button type="submit" title="Reject Mentorship Request" aria-label="Reject"
+                  class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 flex items-center justify-center transition-all shadow-xs hover:scale-105 cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
                 </button>
               </form>
               <button onclick="showMentorshipDetails({{ loop.index0 }})"
-                      class="px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-lg text-xs sm:text-sm font-medium transition-colors">
-                View Details
+                      class="px-2 sm:px-2.5 py-1.5 bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-lg text-xs font-medium transition-colors"
+                      title="View Details">
+                Details
               </button>
             </div>
             {% else %}
-            <div class="flex flex-wrap justify-end gap-2">
+            <div class="flex items-center justify-end gap-1.5">
               <a href="{{ url_for('institution_calendar') }}"
-                 class="px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs sm:text-sm font-medium transition-colors">
-                View Meetings
+                 class="px-2 sm:px-2.5 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-medium transition-colors"
+                 title="View Meetings">
+                Meetings
               </a>
               <a href="{{ url_for('institution_all_tasks') }}"
-                 class="px-3 sm:px-4 py-1.5 sm:py-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-xs sm:text-sm font-medium transition-colors">
-                View Tasks
+                 class="px-2 sm:px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 border border-green-200 rounded-lg text-xs font-medium transition-colors"
+                 title="View Tasks">
+                Tasks
               </a>
               <button onclick="showMentorshipDetails({{ loop.index0 }})"
-                      class="px-4 py-2 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors">
-                View Details
+                      class="px-2 sm:px-2.5 py-1.5 bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-lg text-xs font-medium transition-colors"
+                      title="View Details">
+                Details
               </button>
             </div>
             {% endif %}
@@ -286,6 +320,10 @@
 </main>
 
 <script>
+  // ---------- Rating Cache (declared first to prevent TDZ errors) ----------
+  var mentorRatingCache = {};
+  var menteeRatingCache = {};
+
   // Convert Python data to JavaScript
   const mentorshipsData = [
     {% for mentorship in mentorships_data %}
@@ -325,8 +363,9 @@
 
   // Search + status filter for mentorship rows
   function filterMentorships() {
-    const term = (document.getElementById('mentorshipSearch').value || '').toLowerCase();
-    const status = document.getElementById('statusFilter').value;
+    const term = (document.getElementById('mentorshipSearch')?.value || '').toLowerCase();
+    const statusEl = document.getElementById('statusFilter');
+    const status = statusEl ? statusEl.value : '';
     let visible = 0;
     document.querySelectorAll('.mentorship-row').forEach(row => {
       const textMatch = row.textContent.toLowerCase().includes(term);
@@ -338,8 +377,12 @@
     const emptyMsg = document.getElementById('filterEmptyMessage');
     if (emptyMsg) emptyMsg.classList.toggle('hidden', visible > 0);
   }
-  document.getElementById('mentorshipSearch').addEventListener('input', filterMentorships);
-  document.getElementById('statusFilter').addEventListener('change', filterMentorships);
+  document.addEventListener('DOMContentLoaded', function() {
+    const searchEl = document.getElementById('mentorshipSearch');
+    const statusEl = document.getElementById('statusFilter');
+    if (searchEl) searchEl.addEventListener('input', filterMentorships);
+    if (statusEl) statusEl.addEventListener('change', filterMentorships);
+  });
 
   // Make navigation buttons active on click
   document.addEventListener('DOMContentLoaded', function() {
@@ -401,6 +444,13 @@
                 <span class="text-xs text-gray-500">Organization:</span>
                 <p class="font-medium">${mentorship.mentor_profile ? mentorship.mentor_profile.organisation : 'N/A'}</p>
               </div>
+              ${mentorship.mentor && mentorship.mentor.id ? `
+              <div class="pt-2">
+                <a href="/view_mentor_profile/${mentorship.mentor.id}" target="_blank"
+                   class="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800">
+                  View Full Mentor Profile &rarr;
+                </a>
+              </div>` : ''}
             </div>
           </div>
 
@@ -424,6 +474,13 @@
                 <span class="text-xs text-gray-500">Institution:</span>
                 <p class="font-medium">${mentorship.mentee_profile ? mentorship.mentee_profile.institution : 'N/A'}</p>
               </div>
+              ${mentorship.mentee && mentorship.mentee.id ? `
+              <div class="pt-2">
+                <a href="/view_mentee_profile/${mentorship.mentee.id}" target="_blank"
+                   class="inline-flex items-center gap-1 text-xs font-semibold text-green-600 hover:text-green-800">
+                  View Full Mentee Profile &rarr;
+                </a>
+              </div>` : ''}
             </div>
           </div>
         </div>
@@ -527,13 +584,18 @@
 
   function closeMentorshipDetails() {
     const modal = document.getElementById('mentorshipDetailsModal');
-    modal.classList.add('hidden');
+    if (modal) modal.classList.add('hidden');
   }
 
   // Close modal when clicking outside
-  document.getElementById('mentorshipDetailsModal').addEventListener('click', function(e) {
-    if (e.target.id === 'mentorshipDetailsModal') {
-      closeMentorshipDetails();
+  document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('mentorshipDetailsModal');
+    if (modal) {
+      modal.addEventListener('click', function(e) {
+        if (e.target.id === 'mentorshipDetailsModal') {
+          closeMentorshipDetails();
+        }
+      });
     }
   });
 
@@ -547,8 +609,7 @@
   });
 
   // ---------- Rating System for Institution Mentorships ----------
-  const mentorRatingCache = {};
-  const menteeRatingCache = {};
+  // Note: mentorRatingCache and menteeRatingCache are declared at top of script to avoid TDZ errors
 
   function renderStarsHtml(rating) {
     const full = Math.floor(rating);
@@ -596,45 +657,61 @@
   }
 
   async function loadAllInstitutionMentorshipRatings() {
-    // 1. Load Mentor Ratings
+    // 1. Load Mentor Ratings in parallel
     const mentorContainers = document.querySelectorAll('[data-mentor-uid]');
     const mentorIds = [...new Set([...mentorContainers].map(c => c.getAttribute('data-mentor-uid')))].filter(Boolean);
-    for (const uid of mentorIds) {
-      const rating = await fetchMentorRating(uid);
-      if (!rating) continue;
-      // Update quick-pill
-      document.querySelectorAll('.inst-ms-pill-' + uid).forEach(el => {
-        el.textContent = rating.final_rating.toFixed(1);
-      });
-      // Update stars in dedicated rating cell
-      document.querySelectorAll('.inst-ms-stars-' + uid).forEach(el => {
-        el.innerHTML = renderStarsHtml(rating.final_rating);
-      });
-      // Update score in dedicated rating cell
-      document.querySelectorAll('.inst-ms-num-' + uid).forEach(el => {
-        el.textContent = rating.final_rating.toFixed(1) + ' / 5.0';
-      });
-    }
+    
+    await Promise.all(mentorIds.map(async (uid) => {
+      try {
+        const rating = await fetchMentorRating(uid);
+        const score = (rating && typeof rating.final_rating === 'number') ? rating.final_rating : 0.0;
+        const displayScore = score > 0 ? score.toFixed(1) : '0.0';
+        
+        // Update quick-pill
+        document.querySelectorAll('.inst-ms-pill-' + uid).forEach(el => {
+          el.textContent = displayScore;
+        });
+        // Update stars in dedicated rating cell
+        document.querySelectorAll('.inst-ms-stars-' + uid).forEach(el => {
+          el.innerHTML = renderStarsHtml(score);
+        });
+        // Update score in dedicated rating cell
+        document.querySelectorAll('.inst-ms-num-' + uid).forEach(el => {
+          el.textContent = displayScore + ' / 5.0';
+        });
+      } catch (err) {
+        console.error('Error rendering mentor rating for ' + uid, err);
+        document.querySelectorAll('.inst-ms-pill-' + uid).forEach(el => { el.textContent = '0.0'; });
+      }
+    }));
 
-    // 2. Load Mentee Ratings
+    // 2. Load Mentee Ratings in parallel
     const menteeContainers = document.querySelectorAll('[data-mentee-uid]');
     const menteeIds = [...new Set([...menteeContainers].map(c => c.getAttribute('data-mentee-uid')))].filter(Boolean);
-    for (const uid of menteeIds) {
-      const rating = await fetchMenteeRating(uid);
-      if (!rating) continue;
-      // Update quick-pill
-      document.querySelectorAll('.inst-ms-mentee-pill-' + uid).forEach(el => {
-        el.textContent = rating.final_rating.toFixed(1);
-      });
-      // Update stars in dedicated rating cell
-      document.querySelectorAll('.inst-ms-mentee-stars-' + uid).forEach(el => {
-        el.innerHTML = renderStarsHtml(rating.final_rating);
-      });
-      // Update score in dedicated rating cell
-      document.querySelectorAll('.inst-ms-mentee-num-' + uid).forEach(el => {
-        el.textContent = rating.final_rating.toFixed(1) + ' / 5.0';
-      });
-    }
+
+    await Promise.all(menteeIds.map(async (uid) => {
+      try {
+        const rating = await fetchMenteeRating(uid);
+        const score = (rating && typeof rating.final_rating === 'number') ? rating.final_rating : 0.0;
+        const displayScore = score > 0 ? score.toFixed(1) : '0.0';
+
+        // Update quick-pill
+        document.querySelectorAll('.inst-ms-mentee-pill-' + uid).forEach(el => {
+          el.textContent = displayScore;
+        });
+        // Update stars in dedicated rating cell
+        document.querySelectorAll('.inst-ms-mentee-stars-' + uid).forEach(el => {
+          el.innerHTML = renderStarsHtml(score);
+        });
+        // Update score in dedicated rating cell
+        document.querySelectorAll('.inst-ms-mentee-num-' + uid).forEach(el => {
+          el.textContent = displayScore + ' / 5.0';
+        });
+      } catch (err) {
+        console.error('Error rendering mentee rating for ' + uid, err);
+        document.querySelectorAll('.inst-ms-mentee-pill-' + uid).forEach(el => { el.textContent = '0.0'; });
+      }
+    }));
   }
 
   async function openRatingPopup(uid, name) {
@@ -711,9 +788,11 @@
     popup.classList.remove('flex');
   }
 
-  document.addEventListener('DOMContentLoaded', function() {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadAllInstitutionMentorshipRatings);
+  } else {
     loadAllInstitutionMentorshipRatings();
-  });
+  }
 </script>
 
 <!-- Mentorship Details Modal -->

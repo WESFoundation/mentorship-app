@@ -4373,11 +4373,29 @@ def view_institution(institution_id):
     # First get mentee IDs
     mentee_ids = [user.id for user in institution_mentees]
     
+    # Get mentorship requests involving institution members (both as mentees AND mentors)
+    mentor_ids = [user.id for user in institution_mentors]
+    mentee_ids = [user.id for user in institution_mentees]
+
     institution_mentorship_requests = []
-    if mentee_ids:
-        institution_mentorship_requests = MentorshipRequest.query\
-            .filter(MentorshipRequest.mentee_id.in_(mentee_ids))\
-            .all()
+    if mentee_ids or mentor_ids:
+        from sqlalchemy.orm import joinedload
+        q = MentorshipRequest.query.options(
+            joinedload(MentorshipRequest.mentor),
+            joinedload(MentorshipRequest.mentee)
+        )
+        filters = []
+        if mentee_ids:
+            filters.append(MentorshipRequest.mentee_id.in_(mentee_ids))
+        if mentor_ids:
+            filters.append(MentorshipRequest.mentor_id.in_(mentor_ids))
+        from sqlalchemy import or_
+        institution_mentorship_requests = q.filter(
+            or_(*filters)
+        ).order_by(
+            (MentorshipRequest.final_status == 'pending').desc(),
+            MentorshipRequest.created_at.desc()
+        ).all()
     
     # Calculate statistics
     total_mentors = len(institution_mentors)
@@ -7591,7 +7609,14 @@ def supervisor_calendar():
         mentor = User.query.get(meeting.requested_to_id)
         
         # Determine meeting status based on date/time
-        meeting_datetime = datetime.combine(meeting.meeting_date, meeting.meeting_time)
+        if not meeting.meeting_date:
+            continue  # Skip meetings with no date
+        import datetime as dt
+        meeting_time = meeting.meeting_time if meeting.meeting_time else dt.time(10, 0)
+        try:
+            meeting_datetime = datetime.combine(meeting.meeting_date, meeting_time)
+        except Exception:
+            continue
         now = datetime.now()
         
         if meeting.status == "cancelled":

@@ -340,8 +340,8 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 text-slate-700">
-                    {% for request in mentorship_requests[:10] %}
-                    <tr class="hover:bg-slate-50/60 transition">
+                    {% for request in mentorship_requests %}
+                    <tr class="mentorship-item {% if loop.index > 10 %}mentorship-item-extra hidden{% endif %} hover:bg-slate-50/60 transition">
                         <td class="px-4 py-3 whitespace-nowrap">
                             <div class="font-semibold text-slate-800">{{ request.mentee.name }}</div>
                             <div class="text-xs text-slate-400">{{ request.mentee.email }}</div>
@@ -381,8 +381,15 @@
         </div>
         
         {% if mentorship_requests|length > 10 %}
-        <div class="mt-4 text-center">
-            <p class="text-xs text-slate-500">Showing top 10 of {{ mentorship_requests|length }} total mentorships</p>
+        <div class="mt-4 text-center border-t border-slate-100 pt-4">
+            <button type="button" onclick="toggleMentorshipsView()"
+                    class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl transition shadow-sm cursor-pointer"
+                    id="view-all-mentorships-btn">
+                <span>See More (Showing 10 of {{ mentorship_requests|length }})</span>
+                <svg class="w-3.5 h-3.5 transition-transform duration-200" id="mentorships-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
         </div>
         {% endif %}
         
@@ -437,6 +444,24 @@ function toggleMentorsView() {
     } else {
         extraItems.forEach(el => el.classList.remove('hidden'));
         btn.textContent = 'Show Less';
+    }
+}
+
+function toggleMentorshipsView() {
+    const extraItems = document.querySelectorAll('.mentorship-item-extra');
+    const btn = document.getElementById('view-all-mentorships-btn');
+    const chevron = document.getElementById('mentorships-chevron');
+    if (!btn || extraItems.length === 0) return;
+
+    const isHidden = extraItems[0].classList.contains('hidden');
+    if (isHidden) {
+        extraItems.forEach(el => el.classList.remove('hidden'));
+        btn.querySelector('span').textContent = 'See Less';
+        if (chevron) chevron.style.transform = 'rotate(180deg)';
+    } else {
+        extraItems.forEach(el => el.classList.add('hidden'));
+        btn.querySelector('span').textContent = 'See More (Showing 10 of {{ mentorship_requests|length }})';
+        if (chevron) chevron.style.transform = '';
     }
 }
 

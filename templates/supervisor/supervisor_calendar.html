@@ -428,10 +428,20 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentor <span class="text-red-500">*</span></label>
-          <div class="relative">
-            <select id="sm-mentor" name="mentor_id"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm sm-mentor-select"
-              data-placeholder="Search for a mentor...">
+          <div class="relative" id="sm-mentor-combobox-wrap">
+            <div class="relative flex items-center">
+              <svg class="w-4 h-4 text-gray-400 absolute left-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <input type="text" id="sm-mentor-search-input" placeholder="Search or select a mentor..." autocomplete="off" class="w-full pl-9 pr-14 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white cursor-pointer transition-all">
+              <div class="absolute right-2.5 flex items-center gap-1">
+                <button type="button" id="sm-mentor-clear-btn" class="hidden text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-100" onclick="clearSmMentorSearch()" title="Clear">&times;</button>
+                <button type="button" id="sm-mentor-toggle-btn" class="text-gray-400 hover:text-gray-600 p-0.5" tabindex="-1">
+                  <svg class="w-4 h-4 transition-transform duration-200" id="sm-mentor-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+              </div>
+            </div>
+            <div id="sm-mentor-dropdown-list" class="hidden absolute left-0 right-0 z-50 mt-1 max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl divide-y divide-gray-100 text-sm"></div>
+            <!-- Underlying Select (Hidden Single Source of Truth) -->
+            <select id="sm-mentor" name="mentor_id" data-no-search class="hidden" style="display:none !important;">
               <option value="">Choose a mentor...</option>
               {% for mentor in mentors %}
               <option value="{{ mentor.id }}" data-name="{{ mentor.name }}" data-email="{{ mentor.email }}" data-type="Mentor" data-institution="{{ (mentor.institution or (mentor.institution_ref.name if mentor.institution_ref else '')) | trim }}" data-institution-id="{{ mentor.institution_id or '' }}">{{ mentor.name }} ({{ mentor.email }})</option>
@@ -456,10 +466,20 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Select Mentee <span class="text-red-500">*</span></label>
-          <div class="relative">
-            <select id="sm-mentee" name="mentee_id"
-              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm sm-mentee-select"
-              data-placeholder="Search for a mentee...">
+          <div class="relative" id="sm-mentee-combobox-wrap">
+            <div class="relative flex items-center">
+              <svg class="w-4 h-4 text-gray-400 absolute left-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <input type="text" id="sm-mentee-search-input" placeholder="Search or select a mentee..." autocomplete="off" class="w-full pl-9 pr-14 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white cursor-pointer transition-all">
+              <div class="absolute right-2.5 flex items-center gap-1">
+                <button type="button" id="sm-mentee-clear-btn" class="hidden text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-100" onclick="clearSmMenteeSearch()" title="Clear">&times;</button>
+                <button type="button" id="sm-mentee-toggle-btn" class="text-gray-400 hover:text-gray-600 p-0.5" tabindex="-1">
+                  <svg class="w-4 h-4 transition-transform duration-200" id="sm-mentee-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+              </div>
+            </div>
+            <div id="sm-mentee-dropdown-list" class="hidden absolute left-0 right-0 z-50 mt-1 max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl divide-y divide-gray-100 text-sm"></div>
+            <!-- Underlying Select (Hidden Single Source of Truth) -->
+            <select id="sm-mentee" name="mentee_id" data-no-search class="hidden" style="display:none !important;">
               <option value="">Choose a mentee...</option>
               {% for mentee in mentees %}
               <option value="{{ mentee.id }}" data-name="{{ mentee.name }}" data-email="{{ mentee.email }}" data-type="Mentee" data-institution="{{ (mentee.institution or (mentee.institution_ref.name if mentee.institution_ref else '')) | trim }}" data-institution-id="{{ mentee.institution_id or '' }}">{{ mentee.name }} ({{ mentee.email }})</option>
@@ -645,7 +665,7 @@ function initializeEvents() {
     {
       id: {{ meeting.id }},
       title: {{ (meeting.title or '') | tojson }},
-      date: new Date("{{ meeting.date.strftime('%Y-%m-%dT%H:%M:%S') }}"),
+      date: new Date("{{ meeting.date.strftime('%Y-%m-%dT%H:%M:%S') if meeting.date else '' }}"),
       duration: {{ meeting.duration or 0 }},
       mentee: {{ (meeting.mentee or '') | tojson }},
       mentee_email: {{ (meeting.mentee_email or '') | tojson }},
@@ -930,10 +950,53 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
+// ===== Mentorship Connections & Saved Options for Supervisor =====
+var savedSmMentorOptions = [];
+var savedSmMenteeOptions = [];
+var smMenteeToMentors = {};
+var smMentorToMentees = {};
+var smPairToMentorship = {};
+
+function initSavedSmOptions() {
+  if (savedSmMentorOptions.length === 0) {
+    var mSel = document.getElementById('sm-mentor');
+    if (mSel) {
+      for (var i = 0; i < mSel.options.length; i++) {
+        if (mSel.options[i].value) savedSmMentorOptions.push(mSel.options[i].cloneNode(true));
+      }
+    }
+  }
+  if (savedSmMenteeOptions.length === 0) {
+    var eSel = document.getElementById('sm-mentee');
+    if (eSel) {
+      for (var j = 0; j < eSel.options.length; j++) {
+        if (eSel.options[j].value) savedSmMenteeOptions.push(eSel.options[j].cloneNode(true));
+      }
+    }
+  }
+}
+
+{% for m in mentorships %}
+(function() {
+  var mId = "{{ m.mentor_id }}";
+  var eId = "{{ m.mentee_id }}";
+  var msId = "{{ m.id }}";
+  if (!smMenteeToMentors[eId]) smMenteeToMentors[eId] = [];
+  if (smMenteeToMentors[eId].indexOf(mId) === -1) smMenteeToMentors[eId].push(mId);
+
+  if (!smMentorToMentees[mId]) smMentorToMentees[mId] = [];
+  if (smMentorToMentees[mId].indexOf(eId) === -1) smMentorToMentees[mId].push(eId);
+
+  smPairToMentorship[mId + '_' + eId] = msId;
+})();
+{% endfor %}
+
 // ===== Schedule Meeting Modal =====
 function openScheduleMeetingModal() {
   var modal = document.getElementById('schedule-meeting-modal');
   modal.classList.remove('hidden');
+  initSavedSmOptions();
+
   // Set min date to today
   var today = new Date().toISOString().split('T')[0];
   document.getElementById('sm-date').setAttribute('min', today);
@@ -942,19 +1005,40 @@ function openScheduleMeetingModal() {
   document.getElementById('sm-minute').value = '';
   document.getElementById('sm-ampm').value = '';
   document.getElementById('sm-title').value = '';
-  document.getElementById('sm-mentor').value = '';
-  document.getElementById('sm-mentee').value = '';
+
+  var smMentorSel = document.getElementById('sm-mentor');
+  var smMenteeSel = document.getElementById('sm-mentee');
+  if (smMentorSel) {
+    smMentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+    for (var i = 0; i < savedSmMentorOptions.length; i++) {
+      smMentorSel.appendChild(savedSmMentorOptions[i].cloneNode(true));
+    }
+    smMentorSel.value = '';
+    smMentorSel.style.pointerEvents = '';
+    smMentorSel.style.backgroundColor = '';
+  }
+  if (smMenteeSel) {
+    smMenteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
+    for (var j = 0; j < savedSmMenteeOptions.length; j++) {
+      smMenteeSel.appendChild(savedSmMenteeOptions[j].cloneNode(true));
+    }
+    smMenteeSel.value = '';
+    smMenteeSel.style.pointerEvents = '';
+    smMenteeSel.style.backgroundColor = '';
+  }
+
+  var mInput = document.getElementById('sm-mentor-search-input');
+  var eInput = document.getElementById('sm-mentee-search-input');
+  if (mInput) { mInput.style.pointerEvents = ''; mInput.style.backgroundColor = ''; mInput.placeholder = 'Search or select a mentor...'; }
+  if (eInput) { eInput.style.pointerEvents = ''; eInput.style.backgroundColor = ''; eInput.placeholder = 'Search or select a mentee...'; }
+
   document.getElementById('sm-institution').value = '';
   document.getElementById('sm-mentor-institution').value = 'Not specified';
   document.getElementById('sm-mentor-institute-id').value = '';
   document.getElementById('sm-mentee-institution').value = 'Not specified';
   document.getElementById('sm-mentee-institute-id').value = '';
   document.getElementById('sm-mentorship').value = '';
-  // Unlock participant dropdowns
-  document.getElementById('sm-mentor').style.pointerEvents = '';
-  document.getElementById('sm-mentor').style.backgroundColor = '';
-  document.getElementById('sm-mentee').style.pointerEvents = '';
-  document.getElementById('sm-mentee').style.backgroundColor = '';
+
   document.getElementById('sm-duration').value = '';
   document.getElementById('sm-platform').value = 'google';
   var smCustomWrap = document.getElementById('sm-custom-link-wrap');
@@ -979,163 +1063,349 @@ function openScheduleMeetingModal() {
   var status = document.getElementById('sm-status');
   status.classList.add('hidden');
   status.textContent = '';
-  // Initialize searchable selects for mentor and mentee
+  // Reset search inputs for mentor and mentee
+  ['sm-mentor', 'sm-mentee'].forEach(function(type) {
+    var input = document.getElementById(type + '-search-input');
+    if (input) { input.value = ''; input.classList.remove('border-red-500', 'ring-1', 'ring-red-500'); }
+    var clearBtn = document.getElementById(type + '-clear-btn');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    var chevron = document.getElementById(type + '-chevron');
+    if (chevron) chevron.style.transform = '';
+  });
   initSearchableSelects();
-}
-  if (smCustomInput) smCustomInput.value = '';
-  clearAllSmErrors();
-  // Reset task section (keep visible)
-  document.getElementById('sm-task').innerHTML = '<option value="">No task selected (general meeting)</option>';
-  document.getElementById('sm-task-hint').textContent = 'Select a mentorship or mentor & mentee to load available tasks.';
-  // Auto-detect timezone
-  try {
-    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (tz === 'Asia/Calcutta') tz = 'Asia/Kolkata';
-    var tzSelect = document.getElementById('sm-timezone');
-    for (var i = 0; i < tzSelect.options.length; i++) {
-      if (tzSelect.options[i].value === tz) { tzSelect.selectedIndex = i; break; }
-    }
-  } catch(e) {}
-  // Hide banner
-  document.getElementById('sm-participant-banner').classList.add('hidden');
-  var status = document.getElementById('sm-status');
-  status.classList.add('hidden');
-  status.textContent = '';
 }
 
 function closeScheduleMeetingModal() {
   document.getElementById('schedule-meeting-modal').classList.add('hidden');
 }
 
-// Initialize searchable select dropdowns for mentor and mentee
-function initSearchableSelect(selectId, placeholder) {
-    var select = document.getElementById(selectId);
-    if (!select || select.dataset.initialized === 'true') return;
-    
-    var wrapper = document.createElement('div');
-    wrapper.className = 'relative w-full searchable-select-wrapper';
-    
-    var input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm searchable-select-input';
-    input.placeholder = placeholder || 'Search...';
-    input.autocomplete = 'off';
-    input.setAttribute('role', 'combobox');
-    input.setAttribute('aria-autocomplete', 'list');
-    input.setAttribute('aria-expanded', 'false');
-    
-    var dropdown = document.createElement('div');
-    dropdown.className = 'searchable-select-dropdown hidden absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto';
-    dropdown.setAttribute('role', 'listbox');
-    
-    // Move original select inside wrapper
-    select.parentNode.insertBefore(wrapper, select);
-    wrapper.appendChild(input);
-    wrapper.appendChild(dropdown);
-    dropdown.appendChild(select);
-    select.style.display = 'none';
-    select.dataset.initialized = 'true';
-    
-    // Populate dropdown with options
-    function populateDropdown() {
-        dropdown.innerHTML = '';
-        var options = select.querySelectorAll('option');
-        options.forEach(function(option) {
-            if (option.value === '') return; // Skip empty placeholder
-            var item = document.createElement('div');
-            item.className = 'px-4 py-2 hover:bg-blue-50 cursor-pointer transition-colors searchable-option';
-            item.textContent = option.textContent;
-            item.dataset.value = option.value;
-            item.setAttribute('role', 'option');
-            item.addEventListener('click', function() {
-                select.value = option.value;
-                input.value = option.textContent;
-                dropdown.classList.add('hidden');
-                input.setAttribute('aria-expanded', 'false');
-                var event = new Event('change', { bubbles: true });
-                select.dispatchEvent(event);
-            });
-            dropdown.appendChild(item);
-        });
-    }
-    
-    function filterOptions() {
-        var query = input.value.toLowerCase();
-        var options = dropdown.querySelectorAll('.searchable-option');
-        options.forEach(function(item) {
-            var text = item.textContent.toLowerCase();
-            if (text.indexOf(input.value.toLowerCase()) !== -1) {
-                item.classList.remove('hidden');
-            } else {
-                item.classList.add('hidden');
+var isFilteringSmParticipants = false;
+
+function filterSmConnectedParticipants(changedSource) {
+  if (isFilteringSmParticipants) return;
+  // If mentorship select is locked by user picking a mentorship, do not overwrite with auto-filter
+  if (document.getElementById('sm-mentorship').value && document.getElementById('sm-mentor').style.pointerEvents === 'none') {
+    return;
+  }
+  isFilteringSmParticipants = true;
+  try {
+    initSavedSmOptions();
+    var mentorSel = document.getElementById('sm-mentor');
+    var menteeSel = document.getElementById('sm-mentee');
+    var mentorInput = document.getElementById('sm-mentor-search-input');
+    var menteeInput = document.getElementById('sm-mentee-search-input');
+    var msSel = document.getElementById('sm-mentorship');
+
+    var selectedMentorId = mentorSel ? mentorSel.value : '';
+    var selectedMenteeId = menteeSel ? menteeSel.value : '';
+
+    if (changedSource === 'mentee') {
+      if (selectedMenteeId) {
+        var connectedMentorIds = (smMenteeToMentors[selectedMenteeId] || []).map(String);
+        var currentMentorVal = mentorSel.value;
+        mentorSel.innerHTML = '';
+        var matchingMentorOpts = [];
+        for (var k = 0; k < savedSmMentorOptions.length; k++) {
+          var optM = savedSmMentorOptions[k];
+          if (connectedMentorIds.indexOf(String(optM.value)) !== -1) {
+            matchingMentorOpts.push(optM.cloneNode(true));
+          }
+        }
+        if (matchingMentorOpts.length === 0) {
+          mentorSel.innerHTML = '<option value="">No connected mentors found</option>';
+          mentorSel.value = '';
+          if (mentorInput) mentorInput.placeholder = 'No connected mentors for this mentee';
+        } else {
+          mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+          for (var m = 0; m < matchingMentorOpts.length; m++) {
+            mentorSel.appendChild(matchingMentorOpts[m]);
+          }
+          if (matchingMentorOpts.length === 1) {
+            mentorSel.value = matchingMentorOpts[0].value;
+          } else if (currentMentorVal && connectedMentorIds.indexOf(String(currentMentorVal)) !== -1) {
+            mentorSel.value = currentMentorVal;
+          } else {
+            mentorSel.value = '';
+          }
+          if (mentorInput) mentorInput.placeholder = 'Search or select a mentor...';
+        }
+      } else {
+        if (mentorInput) mentorInput.placeholder = 'Search or select a mentor...';
+        if (selectedMentorId) {
+          var connectedMenteeIds = (smMentorToMentees[selectedMentorId] || []).map(String);
+          menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
+          for (var i = 0; i < savedSmMenteeOptions.length; i++) {
+            var optE = savedSmMenteeOptions[i];
+            if (connectedMenteeIds.indexOf(String(optE.value)) !== -1) {
+              menteeSel.appendChild(optE.cloneNode(true));
             }
-        });
-    }
-    
-    function showDropdown() {
-        populateDropdown();
-        dropdown.classList.remove('hidden');
-        input.setAttribute('aria-expanded', 'true');
-    }
-    
-    function hideDropdown() {
-        dropdown.classList.add('hidden');
-        input.setAttribute('aria-expanded', 'false');
-    }
-    
-    input.addEventListener('focus', showDropdown);
-    input.addEventListener('input', filterOptions);
-    input.addEventListener('blur', function() {
-        setTimeout(hideDropdown, 200);
-    });
-    
-    input.addEventListener('keydown', function(e) {
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            var items = dropdown.querySelectorAll('.searchable-option:not(.hidden)');
-            var selected = dropdown.querySelector('.searchable-option.selected');
-            var index = -1;
-            items.forEach(function(item, i) {
-                if (item.classList.contains('selected')) index = i;
-            });
-            var nextIndex = index + 1 < items.length ? index + 1 : 0;
-            items.forEach(function(item) { item.classList.remove('selected'); });
-            items[nextIndex].classList.add('selected');
-            items[nextIndex].scrollIntoView({ block: 'nearest' });
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            var items = dropdown.querySelectorAll('.searchable-option:not(.hidden)');
-            var index = -1;
-            items.forEach(function(item, i) {
-                if (item.classList.contains('selected')) index = i;
-            });
-            var nextIndex = index - 1 >= 0 ? index - 1 : items.length - 1;
-            items.forEach(function(item) { item.classList.remove('selected'); });
-            items[nextIndex].classList.add('selected');
-            items[nextIndex].scrollIntoView({ block: 'nearest' });
-        } else if (e.key === 'Enter') {
-            e.preventDefault();
-            var selected = dropdown.querySelector('.searchable-option.selected:not(.hidden)');
-            if (selected) selected.click();
-        } else if (e.key === 'Escape') {
-            hideDropdown();
+          }
+          menteeSel.value = '';
+        } else {
+          mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+          for (var j = 0; j < savedSmMentorOptions.length; j++) {
+            mentorSel.appendChild(savedSmMentorOptions[j].cloneNode(true));
+          }
+          mentorSel.value = '';
+          menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
+          for (var l = 0; l < savedSmMenteeOptions.length; l++) {
+            menteeSel.appendChild(savedSmMenteeOptions[l].cloneNode(true));
+          }
+          menteeSel.value = '';
+          if (menteeInput) menteeInput.placeholder = 'Search or select a mentee...';
         }
-    });
-    
-    document.addEventListener('click', function(e) {
-        if (!wrapper.contains(e.target)) {
-            hideDropdown();
+      }
+    } else if (changedSource === 'mentor') {
+      if (selectedMentorId) {
+        var connectedMenteeIds2 = (smMentorToMentees[selectedMentorId] || []).map(String);
+        var currentMenteeVal = menteeSel.value;
+        menteeSel.innerHTML = '';
+        var matchingMenteeOpts = [];
+        for (var n = 0; n < savedSmMenteeOptions.length; n++) {
+          var optE2 = savedSmMenteeOptions[n];
+          if (connectedMenteeIds2.indexOf(String(optE2.value)) !== -1) {
+            matchingMenteeOpts.push(optE2.cloneNode(true));
+          }
         }
-    });
-    
-    input.value = select.options[select.selectedIndex] ? select.options[select.selectedIndex].textContent : '';
-    if (select.value) input.value = select.options[select.selectedIndex].textContent;
-    select.dataset.initialized = 'true';
+        if (matchingMenteeOpts.length === 0) {
+          menteeSel.innerHTML = '<option value="">No connected mentees found</option>';
+          menteeSel.value = '';
+          if (menteeInput) menteeInput.placeholder = 'No connected mentees for this mentor';
+        } else {
+          menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
+          for (var p = 0; p < matchingMenteeOpts.length; p++) {
+            menteeSel.appendChild(matchingMenteeOpts[p]);
+          }
+          if (matchingMenteeOpts.length === 1) {
+            menteeSel.value = matchingMenteeOpts[0].value;
+          } else if (currentMenteeVal && connectedMenteeIds2.indexOf(String(currentMenteeVal)) !== -1) {
+            menteeSel.value = currentMenteeVal;
+          } else {
+            menteeSel.value = '';
+          }
+          if (menteeInput) menteeInput.placeholder = 'Search or select a mentee...';
+        }
+      } else {
+        if (menteeInput) menteeInput.placeholder = 'Search or select a mentee...';
+        if (selectedMenteeId) {
+          var connectedMentorIds2 = (smMenteeToMentors[selectedMenteeId] || []).map(String);
+          mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+          for (var q = 0; q < savedSmMentorOptions.length; q++) {
+            var optM2 = savedSmMentorOptions[q];
+            if (connectedMentorIds2.indexOf(String(optM2.value)) !== -1) {
+              mentorSel.appendChild(optM2.cloneNode(true));
+            }
+          }
+          mentorSel.value = '';
+        } else {
+          mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+          for (var r = 0; r < savedSmMentorOptions.length; r++) {
+            mentorSel.appendChild(savedSmMentorOptions[r].cloneNode(true));
+          }
+          mentorSel.value = '';
+          menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
+          for (var s = 0; s < savedSmMenteeOptions.length; s++) {
+            menteeSel.appendChild(savedSmMenteeOptions[s].cloneNode(true));
+          }
+          menteeSel.value = '';
+          if (mentorInput) mentorInput.placeholder = 'Search or select a mentor...';
+        }
+      }
+    }
+
+    var finalMentorId = mentorSel.value;
+    var finalMenteeId = menteeSel.value;
+    if (finalMentorId && finalMenteeId) {
+      var pairKey = finalMentorId + '_' + finalMenteeId;
+      if (smPairToMentorship[pairKey] && msSel) {
+        msSel.value = smPairToMentorship[pairKey];
+      }
+    } else if (msSel) {
+      msSel.value = '';
+    }
+
+    updateSmMentorInstitution();
+    updateSmMenteeInstitution();
+    updateParticipantBanner();
+    syncSmSearchBars();
+    loadTasksForSupervisorMeeting(menteeSel.value, mentorSel.value);
+  } finally {
+    isFilteringSmParticipants = false;
+  }
 }
 
+function clearSmMentorSearch() {
+  var sel = document.getElementById('sm-mentor');
+  var input = document.getElementById('sm-mentor-search-input');
+  var list = document.getElementById('sm-mentor-dropdown-list');
+  var clearBtn = document.getElementById('sm-mentor-clear-btn');
+  if (input) input.value = '';
+  if (list) list.classList.add('hidden');
+  if (clearBtn) clearBtn.classList.add('hidden');
+  if (sel) {
+    sel.value = '';
+    filterSmConnectedParticipants('mentor');
+  }
+}
+
+function clearSmMenteeSearch() {
+  var sel = document.getElementById('sm-mentee');
+  var input = document.getElementById('sm-mentee-search-input');
+  var list = document.getElementById('sm-mentee-dropdown-list');
+  var clearBtn = document.getElementById('sm-mentee-clear-btn');
+  if (input) input.value = '';
+  if (list) list.classList.add('hidden');
+  if (clearBtn) clearBtn.classList.add('hidden');
+  if (sel) {
+    sel.value = '';
+    filterSmConnectedParticipants('mentee');
+  }
+}
+
+function syncSmSearchBars() {
+  ['sm-mentor', 'sm-mentee'].forEach(function(id) {
+    var sel = document.getElementById(id);
+    var input = document.getElementById(id + '-search-input');
+    var clearBtn = document.getElementById(id + '-clear-btn');
+    if (sel && input) {
+      if (sel.selectedIndex >= 0 && sel.value) {
+        input.value = sel.options[sel.selectedIndex].text.trim();
+        if (clearBtn) clearBtn.classList.remove('hidden');
+      } else {
+        input.value = '';
+        if (clearBtn) clearBtn.classList.add('hidden');
+      }
+    }
+  });
+}
+
+function setupSmSchedulerSearch(type) {
+  var input = document.getElementById('sm-' + type + '-search-input');
+  var list = document.getElementById('sm-' + type + '-dropdown-list');
+  var sel = document.getElementById('sm-' + type);
+  var clearBtn = document.getElementById('sm-' + type + '-clear-btn');
+  var toggleBtn = document.getElementById('sm-' + type + '-toggle-btn');
+  var chevron = document.getElementById('sm-' + type + '-chevron');
+  if (!input || !list || !sel) return;
+
+  function renderList(filterText) {
+    var query = (filterText || '').trim().toLowerCase();
+    list.innerHTML = '';
+    var matchCount = 0;
+    for (var i = 0; i < sel.options.length; i++) {
+      var opt = sel.options[i];
+      if (!opt.value) continue;
+      var text = opt.text || '';
+      var val = opt.value;
+      if (!query || text.toLowerCase().indexOf(query) !== -1) {
+        matchCount++;
+        var item = document.createElement('div');
+        item.className = 'px-3 py-2 hover:bg-blue-50 cursor-pointer flex items-center justify-between transition-colors ' + (sel.value === val ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-800');
+        item.textContent = text;
+        item.dataset.value = val;
+        item.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          sel.value = this.dataset.value;
+          input.value = this.textContent;
+          if (clearBtn) clearBtn.classList.remove('hidden');
+          list.classList.add('hidden');
+          if (chevron) chevron.style.transform = '';
+          input.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+          var errEl = document.getElementById('sm-' + type + '-error');
+          if (errEl) { errEl.classList.add('hidden'); errEl.classList.remove('flex'); }
+          filterSmConnectedParticipants(type);
+        });
+        list.appendChild(item);
+      }
+    }
+    if (matchCount === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'px-3 py-2.5 text-xs text-gray-500 italic text-center';
+      var emptyMsg = (sel.options.length === 1 && !sel.options[0].value && sel.options[0].text)
+        ? sel.options[0].text
+        : ('No matching ' + type + 's found');
+      empty.textContent = emptyMsg;
+      list.appendChild(empty);
+    }
+    list.classList.remove('hidden');
+    if (chevron) chevron.style.transform = 'rotate(180deg)';
+  }
+
+  input.addEventListener('focus', function() {
+    renderList('');
+  });
+
+  input.addEventListener('click', function() {
+    if (list.classList.contains('hidden')) {
+      renderList('');
+    }
+  });
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (list.classList.contains('hidden')) {
+        input.focus();
+        renderList('');
+      } else {
+        list.classList.add('hidden');
+        if (chevron) chevron.style.transform = '';
+      }
+    });
+  }
+
+  input.addEventListener('input', function() {
+    input.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+    var errEl = document.getElementById('sm-' + type + '-error');
+    if (errEl) { errEl.classList.add('hidden'); errEl.classList.remove('flex'); }
+    if (clearBtn) {
+      if (this.value) clearBtn.classList.remove('hidden');
+      else clearBtn.classList.add('hidden');
+    }
+    renderList(this.value);
+  });
+
+  input.addEventListener('blur', function() {
+    setTimeout(function() {
+      if (list) list.classList.add('hidden');
+      if (chevron) chevron.style.transform = '';
+    }, 250);
+  });
+
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      var items = list.querySelectorAll('div[data-value]');
+      if (items.length > 0) items[0].focus();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      var firstItem = list.querySelector('div[data-value]');
+      if (firstItem) {
+        sel.value = firstItem.dataset.value;
+        input.value = firstItem.textContent;
+        if (clearBtn) clearBtn.classList.remove('hidden');
+        list.classList.add('hidden');
+        if (chevron) chevron.style.transform = '';
+        input.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+        var errEl = document.getElementById('sm-' + type + '-error');
+        if (errEl) { errEl.classList.add('hidden'); errEl.classList.remove('flex'); }
+        sel.dispatchEvent(new Event('change'));
+      }
+    } else if (e.key === 'Escape') {
+      list.classList.add('hidden');
+      if (chevron) chevron.style.transform = '';
+    }
+  });
+}
+
+var smSearchablesInitialized = false;
 function initSearchableSelects() {
-    initSearchableSelect('sm-mentor', 'Search for a mentor...');
-    initSearchableSelect('sm-mentee', 'Search for a mentee...');
+  if (!smSearchablesInitialized) {
+    setupSmSchedulerSearch('mentor');
+    setupSmSchedulerSearch('mentee');
+    smSearchablesInitialized = true;
+  }
 }
 
 function toggleSmCustomLink() {
@@ -1160,7 +1430,8 @@ function clearAllSmErrors() {
   var fields = [
     'sm-title', 'sm-date', 'sm-hour', 'sm-minute', 'sm-ampm',
     'sm-duration', 'sm-platform', 'sm-custom-link', 'sm-timezone',
-    'sm-mentorship', 'sm-mentor', 'sm-mentee', 'sm-institution'
+    'sm-mentorship', 'sm-mentor', 'sm-mentee', 'sm-institution',
+    'sm-mentor-search-input', 'sm-mentee-search-input'
   ];
   fields.forEach(function(id) {
     var el = document.getElementById(id);
@@ -1266,16 +1537,25 @@ function updateSmMenteeInstitution() {
   if (instId && document.getElementById('sm-institution') && !document.getElementById('sm-institution').value) {
     document.getElementById('sm-institution').value = instId;
   }
-}
-
-// Mentorship selection — auto-fill mentor/mentee/institutions + load tasks
+}// Mentorship selection — auto-fill mentor/mentee/institutions + load tasks
 document.getElementById('sm-mentorship').addEventListener('change', async function() {
   var opt = this.options[this.selectedIndex];
   var mentorSel = document.getElementById('sm-mentor');
   var menteeSel = document.getElementById('sm-mentee');
+  var mInput = document.getElementById('sm-mentor-search-input');
+  var eInput = document.getElementById('sm-mentee-search-input');
 
   if (!this.value) {
+    initSavedSmOptions();
+    mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+    for (var i = 0; i < savedSmMentorOptions.length; i++) {
+      mentorSel.appendChild(savedSmMentorOptions[i].cloneNode(true));
+    }
     mentorSel.value = '';
+    menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
+    for (var j = 0; j < savedSmMenteeOptions.length; j++) {
+      menteeSel.appendChild(savedSmMenteeOptions[j].cloneNode(true));
+    }
     menteeSel.value = '';
     document.getElementById('sm-mentor-institution').value = 'Not specified';
     document.getElementById('sm-mentor-institute-id').value = '';
@@ -1286,6 +1566,9 @@ document.getElementById('sm-mentorship').addEventListener('change', async functi
     mentorSel.style.backgroundColor = '';
     menteeSel.style.pointerEvents = '';
     menteeSel.style.backgroundColor = '';
+    if (mInput) { mInput.style.pointerEvents = ''; mInput.style.backgroundColor = ''; mInput.placeholder = 'Search or select a mentor...'; }
+    if (eInput) { eInput.style.pointerEvents = ''; eInput.style.backgroundColor = ''; eInput.placeholder = 'Search or select a mentee...'; }
+    syncSmSearchBars();
     loadTasksForSupervisorMeeting(null, null);
     updateParticipantBanner();
     return;
@@ -1299,11 +1582,21 @@ document.getElementById('sm-mentorship').addEventListener('change', async functi
   var menteeInstId = opt.dataset.menteeInstId || '';
   var instUserId = opt.dataset.instId || '';
 
-  // Auto-fill mentor dropdown
+  // Auto-fill mentor dropdown (restore options if needed)
+  initSavedSmOptions();
+  mentorSel.innerHTML = '<option value="">Choose a mentor...</option>';
+  for (var mi = 0; mi < savedSmMentorOptions.length; mi++) {
+    mentorSel.appendChild(savedSmMentorOptions[mi].cloneNode(true));
+  }
   for (var i = 0; i < mentorSel.options.length; i++) {
     if (mentorSel.options[i].value === mentorId) { mentorSel.selectedIndex = i; break; }
   }
-  // Auto-fill mentee dropdown
+
+  // Auto-fill mentee dropdown (restore options if needed)
+  menteeSel.innerHTML = '<option value="">Choose a mentee...</option>';
+  for (var mj = 0; mj < savedSmMenteeOptions.length; mj++) {
+    menteeSel.appendChild(savedSmMenteeOptions[mj].cloneNode(true));
+  }
   for (var j = 0; j < menteeSel.options.length; j++) {
     if (menteeSel.options[j].value === menteeId) { menteeSel.selectedIndex = j; break; }
   }
@@ -1324,28 +1617,21 @@ document.getElementById('sm-mentorship').addEventListener('change', async functi
   mentorSel.style.backgroundColor = '#f8fafc';
   menteeSel.style.pointerEvents = 'none';
   menteeSel.style.backgroundColor = '#f8fafc';
+  if (mInput) { mInput.style.pointerEvents = 'none'; mInput.style.backgroundColor = '#f8fafc'; }
+  if (eInput) { eInput.style.pointerEvents = 'none'; eInput.style.backgroundColor = '#f8fafc'; }
+  syncSmSearchBars();
   updateParticipantBanner();
 
   // Load tasks
   await loadTasksForSupervisorMeeting(menteeId, mentorId);
 });
 
-// Also trigger task reload and institute update when mentor or mentee dropdown changes manually
+// Trigger bidirectional connected filtering when mentor or mentee dropdown changes
 document.getElementById('sm-mentor').addEventListener('change', function() {
-  updateSmMentorInstitution();
-  if (!document.getElementById('sm-mentorship').value) {
-    var mentorId = this.value;
-    var menteeId = document.getElementById('sm-mentee').value;
-    loadTasksForSupervisorMeeting(menteeId, mentorId);
-  }
+  filterSmConnectedParticipants('mentor');
 });
 document.getElementById('sm-mentee').addEventListener('change', function() {
-  updateSmMenteeInstitution();
-  if (!document.getElementById('sm-mentorship').value) {
-    var menteeId = this.value;
-    var mentorId = document.getElementById('sm-mentor').value;
-    loadTasksForSupervisorMeeting(menteeId, mentorId);
-  }
+  filterSmConnectedParticipants('mentee');
 });
 
 async function handleScheduleMeeting() {
@@ -1386,6 +1672,20 @@ async function handleScheduleMeeting() {
     if (el) {
       el.classList.add('border-red-500', 'ring-1', 'ring-red-500');
       if (!firstInvalidEl) firstInvalidEl = el;
+    }
+    if (name === 'Mentor') {
+      var mInput = document.getElementById('sm-mentor-search-input');
+      if (mInput) {
+        mInput.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+        if (!firstInvalidEl) firstInvalidEl = mInput;
+      }
+    }
+    if (name === 'Mentee') {
+      var eInput = document.getElementById('sm-mentee-search-input');
+      if (eInput) {
+        eInput.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+        if (!firstInvalidEl) firstInvalidEl = eInput;
+      }
     }
     missingFields.push(name);
   }
@@ -1558,7 +1858,8 @@ async function handleScheduleMeeting() {
 [
   'sm-title', 'sm-date', 'sm-hour', 'sm-minute', 'sm-ampm',
   'sm-duration', 'sm-platform', 'sm-custom-link', 'sm-timezone',
-  'sm-mentorship', 'sm-mentor', 'sm-mentee', 'sm-institution'
+  'sm-mentorship', 'sm-mentor', 'sm-mentee', 'sm-institution',
+  'sm-mentor-search-input', 'sm-mentee-search-input'
 ].forEach(function(id) {
   var el = document.getElementById(id);
   if (el) {

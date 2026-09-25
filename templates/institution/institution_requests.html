@@ -193,7 +193,19 @@
                 </div>
                 {% endif %}
                 <div>
-                  <p class="font-semibold text-gray-800 text-sm">{{ request.mentee.name if request.mentee else 'Unknown' }}{% if request.mentee and request.mentee.scholarly %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-blue-700 bg-blue-50 px-1 py-0.5 rounded-full border border-blue-200" title="Scholarly Mentee"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3.001zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/></svg> Scholarly</span>{% endif %}</p>
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <button type="button" class="font-semibold text-gray-800 text-sm hover:underline hover:text-blue-600 cursor-pointer text-left"
+                            onclick="const b = this.closest('tr').querySelector('.view-mentee-profile-btn'); if(b) openMenteeProfileModal(b.dataset);"
+                            title="Click to view mentee profile">{{ request.mentee.name if request.mentee else 'Unknown' }}</button>{% if request.mentee and request.mentee.scholarly %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-blue-700 bg-blue-50 px-1 py-0.5 rounded-full border border-blue-200" title="Scholarly Mentee"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3.001zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/></svg> Scholarly</span>{% endif %}
+                    {% if request.mentee %}
+                    <button type="button" onclick="openMenteeRatingPopup({{ request.mentee.id }}, '{{ request.mentee.name|e }}')"
+                            class="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-full text-[11px] font-semibold text-emerald-800 transition cursor-pointer"
+                            title="View {{ request.mentee.name }}'s rating breakdown">
+                      <span class="text-emerald-500">&#9733;</span>
+                      <span class="inst-req-mentee-pill-{{ request.mentee.id }}" data-mentee-uid="{{ request.mentee.id }}">--</span>
+                    </button>
+                    {% endif %}
+                  </div>
                   <p class="text-xs text-gray-500">Mentee</p>
                 </div>
               </div>
@@ -208,7 +220,19 @@
               <!-- Mentor -->
               <div class="flex items-center">
                 <div class="text-right">
-                  <p class="font-semibold text-gray-800 text-sm">{{ request.mentor.name if request.mentor else 'Unknown' }}{% if request.mentor and request.mentor.premium %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}{% if request.mentor and request.mentor.is_corporate %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded-full border border-emerald-200" title="Corporate Verified"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg> Corporate</span>{% endif %}</p>
+                  <div class="flex items-center justify-end gap-1.5 flex-wrap">
+                    {% if request.mentor %}
+                    <button type="button" onclick="openRatingPopup({{ request.mentor.id }}, '{{ request.mentor.name|e }}')"
+                            class="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-full text-[11px] font-semibold text-amber-800 transition cursor-pointer"
+                            title="View {{ request.mentor.name }}'s rating breakdown">
+                      <span class="text-amber-500">&#9733;</span>
+                      <span class="inst-req-mentor-pill-{{ request.mentor.id }}" data-mentor-uid="{{ request.mentor.id }}">--</span>
+                    </button>
+                    {% endif %}
+                    <button type="button" class="font-semibold text-gray-800 text-sm hover:underline hover:text-green-600 cursor-pointer text-right"
+                            onclick="const b = this.closest('tr').querySelector('.view-mentor-profile-btn'); if(b) openMentorProfileModal(b.dataset);"
+                            title="Click to view mentor profile">{{ request.mentor.name if request.mentor else 'Unknown' }}</button>{% if request.mentor and request.mentor.premium %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}{% if request.mentor and request.mentor.is_corporate %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded-full border border-emerald-200" title="Corporate Verified"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg> Corporate</span>{% endif %}
+                  </div>
                   <p class="text-xs text-gray-500">Mentor</p>
                 </div>
                 {% if request.mentor.mentor_profile and request.mentor.mentor_profile.profile_picture %}
@@ -243,114 +267,149 @@
             </span>
           </td>
           <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
+            <div class="flex items-center gap-1.5 justify-end">
+              <!-- Compact Mentee Profile Button -->
+              <button type="button"
+                class="view-mentee-profile-btn inline-flex items-center gap-1 px-2 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-medium rounded-lg transition duration-200 shadow-2xs"
+                title="View Mentee Profile"
+                data-mentee-id="{{ request.mentee.id if request.mentee else '' }}"
+                data-mentee-name="{{ request.mentee.name if request.mentee else '' }}"
+                data-mentee-email="{{ request.mentee.email if request.mentee else '' }}"
+                {% if request.mentee and request.mentee.mentee_profile %}
+                data-who-am-i="{{ request.mentee.mentee_profile.who_am_i or '' }}"
+                data-education-level="{{ request.mentee.mentee_profile.education_level or '' }}"
+                data-institution-name="{{ request.mentee.mentee_profile.institution_name or '' }}"
+                data-board-university="{{ request.mentee.mentee_profile.board_university or '' }}"
+                data-course-stream="{{ request.mentee.mentee_profile.course_stream or '' }}"
+                data-school-name="{{ request.mentee.mentee_profile.school_name or '' }}"
+                data-school-board="{{ request.mentee.mentee_profile.school_board or '' }}"
+                data-school-passing-year="{{ request.mentee.mentee_profile.school_passing_year or '' }}"
+                data-career-interest="{{ request.mentee.mentee_profile.career_interest or '' }}"
+                data-current-role="{{ request.mentee.mentee_profile.current_role or '' }}"
+                data-industry="{{ request.mentee.mentee_profile.industry or '' }}"
+                data-years-experience="{{ request.mentee.mentee_profile.years_experience or '' }}"
+                data-current-organization="{{ request.mentee.mentee_profile.current_organization or '' }}"
+                data-key-skills="{{ request.mentee.mentee_profile.key_skills or '' }}"
+                data-career-goal="{{ request.mentee.mentee_profile.career_goal or '' }}"
+                data-startup-stage="{{ request.mentee.mentee_profile.startup_stage or '' }}"
+                data-startup-name="{{ request.mentee.mentee_profile.startup_name or '' }}"
+                data-startup-industry="{{ request.mentee.mentee_profile.startup_industry or '' }}"
+                data-team-size="{{ request.mentee.mentee_profile.team_size or '' }}"
+                data-main-challenge="{{ request.mentee.mentee_profile.main_challenge or '' }}"
+                data-mentorship-type="{{ request.mentee.mentee_profile.mentorship_type or '' }}"
+                data-freelance-skill="{{ request.mentee.mentee_profile.freelance_skill or '' }}"
+                data-freelance-experience="{{ request.mentee.mentee_profile.freelance_experience or '' }}"
+                data-freelance-platforms="{{ request.mentee.mentee_profile.freelance_platforms or '' }}"
+                data-freelance-challenge="{{ request.mentee.mentee_profile.freelance_challenge or '' }}"
+                data-last-role="{{ request.mentee.mentee_profile.last_role or '' }}"
+                data-career-break-reason="{{ request.mentee.mentee_profile.career_break_reason or '' }}"
+                data-restart-field="{{ request.mentee.mentee_profile.restart_field or '' }}"
+                data-support-expected="{{ request.mentee.mentee_profile.support_expected or '' }}"
+                data-dob="{{ request.mentee.mentee_profile.dob or '' }}"
+                data-father-name="{{ request.mentee.mentee_profile.father_name or '' }}"
+                data-address-line1="{{ request.mentee.mentee_profile.address_line1 or '' }}"
+                data-address-line2="{{ request.mentee.mentee_profile.address_line2 or '' }}"
+                data-city="{{ request.mentee.mentee_profile.city or '' }}"
+                data-state="{{ request.mentee.mentee_profile.state or '' }}"
+                data-postal-code="{{ request.mentee.mentee_profile.postal_code or '' }}"
+                data-country="{{ request.mentee.mentee_profile.country or '' }}"
+                data-institution="{{ request.mentee.mentee_profile.institution or '' }}"
+                data-institution-other="{{ request.mentee.mentee_profile.institution_other or '' }}"
+                data-school="{{ request.mentee.mentee_profile.school_college_name or '' }}"
+                data-mobile="{{ request.mentee.mentee_profile.mobile_number or '' }}"
+                data-mobile-country-code="{{ request.mentee.mentee_profile.mobile_country_code or '+91' }}"
+                data-whatsapp="{{ request.mentee.mentee_profile.whatsapp_number or '' }}"
+                data-whatsapp-country-code="{{ request.mentee.mentee_profile.whatsapp_country_code or '+91' }}"
+                data-govt-private="{{ request.mentee.mentee_profile.govt_private or '' }}"
+                data-stream="{{ request.mentee.mentee_profile.stream or '' }}"
+                data-class="{{ request.mentee.mentee_profile.class_year or '' }}"
+                data-favourite-subject="{{ request.mentee.mentee_profile.favourite_subject or '' }}"
+                data-goal="{{ request.mentee.mentee_profile.goal or '' }}"
+                data-parent-name="{{ request.mentee.mentee_profile.parent_name or '' }}"
+                data-parent-mobile="{{ request.mentee.mentee_profile.parent_mobile or '' }}"
+                data-parent-mobile-country-code="{{ request.mentee.mentee_profile.parent_mobile_country_code or '+91' }}"
+                data-comments="{{ request.mentee.mentee_profile.comments or '' }}"
+                data-mentorship-expectations="{{ request.mentee.mentee_profile.mentorship_expectations or '' }}"
+                data-picture="{{ request.mentee.mentee_profile.profile_picture or '' }}"
+                {% else %}
+                data-debug-no-profile="true"
+                {% endif %}>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                <span>Mentee</span>
+              </button>
 
-      <div class="flex gap-2 justify-end">
-              <button class="view-mentee-profile-btn px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-100 text-blue-700 text-xs sm:text-sm font-medium rounded-lg hover:bg-blue-200 transition duration-200"
-          data-mentee-id="{{ request.mentee.id if request.mentee else '' }}"
-          data-mentee-name="{{ request.mentee.name if request.mentee else '' }}"
-          data-mentee-email="{{ request.mentee.email if request.mentee else '' }}"
-          {% if request.mentee and request.mentee.mentee_profile %}
-          data-who-am-i="{{ request.mentee.mentee_profile.who_am_i or '' }}"
-          data-education-level="{{ request.mentee.mentee_profile.education_level or '' }}"
-          data-institution-name="{{ request.mentee.mentee_profile.institution_name or '' }}"
-          data-board-university="{{ request.mentee.mentee_profile.board_university or '' }}"
-          data-course-stream="{{ request.mentee.mentee_profile.course_stream or '' }}"
-          data-school-name="{{ request.mentee.mentee_profile.school_name or '' }}"
-          data-school-board="{{ request.mentee.mentee_profile.school_board or '' }}"
-          data-school-passing-year="{{ request.mentee.mentee_profile.school_passing_year or '' }}"
-          data-career-interest="{{ request.mentee.mentee_profile.career_interest or '' }}"
-          data-current-role="{{ request.mentee.mentee_profile.current_role or '' }}"
-          data-industry="{{ request.mentee.mentee_profile.industry or '' }}"
-          data-years-experience="{{ request.mentee.mentee_profile.years_experience or '' }}"
-          data-current-organization="{{ request.mentee.mentee_profile.current_organization or '' }}"
-          data-key-skills="{{ request.mentee.mentee_profile.key_skills or '' }}"
-          data-career-goal="{{ request.mentee.mentee_profile.career_goal or '' }}"
-          data-startup-stage="{{ request.mentee.mentee_profile.startup_stage or '' }}"
-          data-startup-name="{{ request.mentee.mentee_profile.startup_name or '' }}"
-          data-startup-industry="{{ request.mentee.mentee_profile.startup_industry or '' }}"
-          data-team-size="{{ request.mentee.mentee_profile.team_size or '' }}"
-          data-main-challenge="{{ request.mentee.mentee_profile.main_challenge or '' }}"
-          data-mentorship-type="{{ request.mentee.mentee_profile.mentorship_type or '' }}"
-          data-freelance-skill="{{ request.mentee.mentee_profile.freelance_skill or '' }}"
-          data-freelance-experience="{{ request.mentee.mentee_profile.freelance_experience or '' }}"
-          data-freelance-platforms="{{ request.mentee.mentee_profile.freelance_platforms or '' }}"
-          data-freelance-challenge="{{ request.mentee.mentee_profile.freelance_challenge or '' }}"
-          data-last-role="{{ request.mentee.mentee_profile.last_role or '' }}"
-          data-career-break-reason="{{ request.mentee.mentee_profile.career_break_reason or '' }}"
-          data-restart-field="{{ request.mentee.mentee_profile.restart_field or '' }}"
-          data-support-expected="{{ request.mentee.mentee_profile.support_expected or '' }}"
-          data-dob="{{ request.mentee.mentee_profile.dob or '' }}"
-          data-father-name="{{ request.mentee.mentee_profile.father_name or '' }}"
-          data-address-line1="{{ request.mentee.mentee_profile.address_line1 or '' }}"
-          data-address-line2="{{ request.mentee.mentee_profile.address_line2 or '' }}"
-          data-city="{{ request.mentee.mentee_profile.city or '' }}"
-          data-state="{{ request.mentee.mentee_profile.state or '' }}"
-          data-postal-code="{{ request.mentee.mentee_profile.postal_code or '' }}"
-          data-country="{{ request.mentee.mentee_profile.country or '' }}"
-          data-institution="{{ request.mentee.mentee_profile.institution or '' }}"
-          data-institution-other="{{ request.mentee.mentee_profile.institution_other or '' }}"
-          data-school="{{ request.mentee.mentee_profile.school_college_name or '' }}"
-          data-mobile="{{ request.mentee.mentee_profile.mobile_number or '' }}"
-          data-mobile-country-code="{{ request.mentee.mentee_profile.mobile_country_code or '+91' }}"
-          data-whatsapp="{{ request.mentee.mentee_profile.whatsapp_number or '' }}"
-          data-whatsapp-country-code="{{ request.mentee.mentee_profile.whatsapp_country_code or '+91' }}"
-          data-govt-private="{{ request.mentee.mentee_profile.govt_private or '' }}"
-          data-stream="{{ request.mentee.mentee_profile.stream or '' }}"
-          data-class="{{ request.mentee.mentee_profile.class_year or '' }}"
-          data-favourite-subject="{{ request.mentee.mentee_profile.favourite_subject or '' }}"
-          data-goal="{{ request.mentee.mentee_profile.goal or '' }}"
-          data-parent-name="{{ request.mentee.mentee_profile.parent_name or '' }}"
-          data-parent-mobile="{{ request.mentee.mentee_profile.parent_mobile or '' }}"
-          data-parent-mobile-country-code="{{ request.mentee.mentee_profile.parent_mobile_country_code or '+91' }}"
-          data-comments="{{ request.mentee.mentee_profile.comments or '' }}"
-          data-mentorship-expectations="{{ request.mentee.mentee_profile.mentorship_expectations or '' }}"
-          data-picture="{{ request.mentee.mentee_profile.profile_picture or '' }}"
-          {% else %}
-          data-debug-no-profile="true"
-          {% endif %}>
-          View Mentee Profile
-        </button>
-              <button class="view-mentor-profile-btn px-3 py-2 bg-green-100 text-green-700 text-xs font-medium rounded-lg hover:bg-green-200 transition duration-200"
-          data-mentor-id="{{ request.mentor.id if request.mentor else '' }}"
-          data-mentor-name="{{ request.mentor.name if request.mentor else '' }}"
-          data-mentor-email="{{ request.mentor.email if request.mentor else '' }}"
-          {% if request.mentor and request.mentor.mentor_profile %}
-          data-profession="{{ request.mentor.mentor_profile.profession or '' }}"
-          data-organisation="{{ request.mentor.mentor_profile.organisation or '' }}"
-          data-experience="{{ request.mentor.mentor_profile.years_of_experience or '' }}"
-          data-location="{{ request.mentor.mentor_profile.location or '' }}"
-          data-education="{{ request.mentor.mentor_profile.education or '' }}"
-          data-industry="{{ request.mentor.mentor_profile.industry_sector or '' }}"
-          data-skills="{{ request.mentor.mentor_profile.skills or '' }}"
-          data-why-mentor="{{ request.mentor.mentor_profile.why_mentor or '' }}"
-          data-picture="{{ request.mentor.mentor_profile.profile_picture or '' }}"
-          data-role="{{ request.mentor.mentor_profile.role or '' }}"
-          data-whatsapp="{{ request.mentor.mentor_profile.whatsapp or '' }}"
-          data-language="{{ request.mentor.mentor_profile.language or '' }}"
-          data-highest-qualification="{{ request.mentor.mentor_profile.highest_qualification or '' }}"
-          data-degree-name="{{ request.mentor.mentor_profile.degree_name or '' }}"
-          data-field-of-study="{{ request.mentor.mentor_profile.field_of_study or '' }}"
-          data-university-name="{{ request.mentor.mentor_profile.university_name or '' }}"
-          data-graduation-year="{{ request.mentor.mentor_profile.graduation_year or '' }}"
-          data-academic-status="{{ request.mentor.mentor_profile.academic_status or '' }}"
-          data-certifications="{{ request.mentor.mentor_profile.certifications or '' }}"
-          data-research-work="{{ request.mentor.mentor_profile.research_work or '' }}"
-          data-linkedin-link="{{ request.mentor.mentor_profile.linkedin_link or '' }}"
-          data-github-link="{{ request.mentor.mentor_profile.github_link or '' }}"
-          data-portfolio-link="{{ request.mentor.mentor_profile.portfolio_link or '' }}"
-          data-other-social-link="{{ request.mentor.mentor_profile.other_social_link or '' }}"
-          data-mentorship-topics="{{ request.mentor.mentor_profile.mentorship_topics or '' }}"
-          data-mentorship-type-preference="{{ request.mentor.mentor_profile.mentorship_type_preference or '' }}"
-          data-preferred-communication="{{ request.mentor.mentor_profile.preferred_communication or '' }}"
-          data-availability="{{ request.mentor.mentor_profile.availability or '' }}"
-          data-connect-frequency="{{ request.mentor.mentor_profile.connect_frequency or '' }}"
-          data-preferred-duration="{{ request.mentor.mentor_profile.preferred_duration or '' }}"
-          data-mentorship-philosophy="{{ request.mentor.mentor_profile.mentorship_philosophy or '' }}"
-          data-mentorship-motto="{{ request.mentor.mentor_profile.mentorship_motto or '' }}"
-          data-additional-info="{{ request.mentor.mentor_profile.additional_info or '' }}"
-          {% endif %}>
-          View Mentor Profile
-        </button>
+              <!-- Compact Mentor Profile Button -->
+              <button type="button"
+                class="view-mentor-profile-btn inline-flex items-center gap-1 px-2 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 text-xs font-medium rounded-lg transition duration-200 shadow-2xs"
+                title="View Mentor Profile"
+                data-mentor-id="{{ request.mentor.id if request.mentor else '' }}"
+                data-mentor-name="{{ request.mentor.name if request.mentor else '' }}"
+                data-mentor-email="{{ request.mentor.email if request.mentor else '' }}"
+                {% if request.mentor and request.mentor.mentor_profile %}
+                data-profession="{{ request.mentor.mentor_profile.profession or '' }}"
+                data-organisation="{{ request.mentor.mentor_profile.organisation or '' }}"
+                data-experience="{{ request.mentor.mentor_profile.years_of_experience or '' }}"
+                data-location="{{ request.mentor.mentor_profile.location or '' }}"
+                data-education="{{ request.mentor.mentor_profile.education or '' }}"
+                data-industry="{{ request.mentor.mentor_profile.industry_sector or '' }}"
+                data-skills="{{ request.mentor.mentor_profile.skills or '' }}"
+                data-why-mentor="{{ request.mentor.mentor_profile.why_mentor or '' }}"
+                data-picture="{{ request.mentor.mentor_profile.profile_picture or '' }}"
+                data-role="{{ request.mentor.mentor_profile.role or '' }}"
+                data-whatsapp="{{ request.mentor.mentor_profile.whatsapp or '' }}"
+                data-language="{{ request.mentor.mentor_profile.language or '' }}"
+                data-highest-qualification="{{ request.mentor.mentor_profile.highest_qualification or '' }}"
+                data-degree-name="{{ request.mentor.mentor_profile.degree_name or '' }}"
+                data-field-of-study="{{ request.mentor.mentor_profile.field_of_study or '' }}"
+                data-university-name="{{ request.mentor.mentor_profile.university_name or '' }}"
+                data-graduation-year="{{ request.mentor.mentor_profile.graduation_year or '' }}"
+                data-academic-status="{{ request.mentor.mentor_profile.academic_status or '' }}"
+                data-certifications="{{ request.mentor.mentor_profile.certifications or '' }}"
+                data-research-work="{{ request.mentor.mentor_profile.research_work or '' }}"
+                data-linkedin-link="{{ request.mentor.mentor_profile.linkedin_link or '' }}"
+                data-github-link="{{ request.mentor.mentor_profile.github_link or '' }}"
+                data-portfolio-link="{{ request.mentor.mentor_profile.portfolio_link or '' }}"
+                data-other-social-link="{{ request.mentor.mentor_profile.other_social_link or '' }}"
+                data-mentorship-topics="{{ request.mentor.mentor_profile.mentorship_topics or '' }}"
+                data-mentorship-type-preference="{{ request.mentor.mentor_profile.mentorship_type_preference or '' }}"
+                data-preferred-communication="{{ request.mentor.mentor_profile.preferred_communication or '' }}"
+                data-availability="{{ request.mentor.mentor_profile.availability or '' }}"
+                data-connect-frequency="{{ request.mentor.mentor_profile.connect_frequency or '' }}"
+                data-preferred-duration="{{ request.mentor.mentor_profile.preferred_duration or '' }}"
+                data-mentorship-philosophy="{{ request.mentor.mentor_profile.mentorship_philosophy or '' }}"
+                data-mentorship-motto="{{ request.mentor.mentor_profile.mentorship_motto or '' }}"
+                data-additional-info="{{ request.mentor.mentor_profile.additional_info or '' }}"
+                {% endif %}>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                <span>Mentor</span>
+              </button>
+
+              <!-- Tick (Approve) & Cross (Reject) Buttons if pending -->
+              {% if request.final_status == 'pending' or request.supervisor_status == 'pending' %}
+              <form method="POST" action="{{ url_for('institution_response') }}" class="inline m-0">
+                <input type="hidden" name="request_id" value="{{ request.id }}">
+                <input type="hidden" name="action" value="approve">
+                <input type="hidden" name="next" value="{{ url_for('institution_requests') }}">
+                <button type="submit" title="Approve Request" aria-label="Approve"
+                  class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-green-600 hover:bg-green-700 text-white flex items-center justify-center transition-all shadow-xs hover:scale-105">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                  </svg>
+                </button>
+              </form>
+              <form method="POST" action="{{ url_for('institution_response') }}" class="inline m-0"
+                onsubmit="return confirm('Reject this mentorship request? The mentee will be notified.');">
+                <input type="hidden" name="request_id" value="{{ request.id }}">
+                <input type="hidden" name="action" value="reject">
+                <input type="hidden" name="next" value="{{ url_for('institution_requests') }}">
+                <button type="submit" title="Reject Request" aria-label="Reject"
+                  class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 flex items-center justify-center transition-all shadow-xs hover:scale-105">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                </button>
+              </form>
+              {% endif %}
             </div>
           </td>
         </tr>
@@ -405,7 +464,10 @@
         <!-- filled by JS -->
       </div>
 
-      <div class="mt-8 pt-6 border-t border-gray-200 flex justify-end">
+      <div class="mt-8 pt-6 border-t border-gray-200 flex flex-wrap justify-between items-center gap-3">
+        <a id="menteeModalFullPageLink" href="#" target="_blank" class="text-sm font-semibold text-blue-600 hover:text-blue-800 inline-flex items-center gap-1">
+          Open Full Mentee Profile Page &rarr;
+        </a>
         <button onclick="closeMenteeProfileModal()" class="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200 font-medium">Close</button>
       </div>
     </div>
@@ -424,6 +486,12 @@
     </div>
     <div class="p-8" id="mentorModalBody">
       <!-- filled by JS -->
+    </div>
+    <div class="px-8 pb-8 flex flex-wrap justify-between items-center gap-3 border-t border-gray-100 pt-4">
+      <a id="mentorModalFullPageLink" href="#" target="_blank" class="text-sm font-semibold text-green-600 hover:text-green-800 inline-flex items-center gap-1">
+        Open Full Mentor Profile Page &rarr;
+      </a>
+      <button onclick="closeMentorProfileModal()" class="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200 font-medium">Close</button>
     </div>
   </div>
 </div>
@@ -452,105 +520,194 @@ function filterInstRequests() {
   if (countEl) countEl.textContent = `Showing ${visible} of ${rows.length} requests`;
 }
 
-// ---------- Shared helpers ----------
+// Shared helpers & Profile Modals
 function safeText(v) {
-  if (!v) return '';
-  const s = String(v);
+  if (v === null || v === undefined) return '';
+  const s = String(v).trim();
+  if (s === 'None' || s === 'null' || s === 'undefined' || s === 'Not specified') return '';
   return s;
 }
 
 function showField(clone, label, value) {
+  const cleanVal = safeText(value);
+  if (!cleanVal) return 0;
   const wrapper = document.createElement('div');
-  if (value && value !== 'None' && value !== '' && value !== 'Not specified') {
-    wrapper.className = 'flex items-start';
-    wrapper.innerHTML = `
-      <svg class="w-5 h-5 text-gray-400 mr-3 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-      <div><p class="font-medium text-gray-600">${label}</p><p class="text-gray-800">${safeText(value)}</p></div>`;
-    clone.appendChild(wrapper);
-  }
+  wrapper.className = 'flex items-start';
+  wrapper.innerHTML = `
+    <svg class="w-5 h-5 text-gray-400 mr-3 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+    <div><p class="font-medium text-gray-500 text-xs">${label}</p><p class="text-gray-800 font-semibold text-sm mt-0.5">${cleanVal}</p></div>`;
+  clone.appendChild(wrapper);
+  return 1;
 }
 
 function showSection(clone, title, pairs) {
-  const htmlRows = pairs.filter(p => p[1] && p[1] !== 'None' && p[1] !== '' && p[1] !== 'Not specified');
-  if (htmlRows.length === 0) return;
+  const htmlRows = pairs.filter(p => {
+    const val = safeText(p[1]);
+    return val !== '';
+  });
+  if (htmlRows.length === 0) return 0;
   const section = document.createElement('div');
-  section.className = 'bg-gray-50 p-5 rounded-lg border border-gray-100';
+  section.className = 'bg-gray-50 p-5 rounded-xl border border-gray-100 shadow-2xs';
   const h = document.createElement('h4');
-  h.className = 'font-semibold text-gray-800 mb-3 border-b pb-2';
+  h.className = 'font-semibold text-gray-800 mb-3 border-b border-gray-200 pb-2 text-sm';
   h.textContent = title;
   section.appendChild(h);
   const grid = document.createElement('div');
   grid.className = 'grid grid-cols-1 md:grid-cols-2 gap-4';
   htmlRows.forEach(([label, value]) => {
     const d = document.createElement('div');
-    d.innerHTML = `<p class="font-medium text-gray-600 text-sm">${label}</p><p class="text-gray-800">${safeText(value)}</p>`;
+    d.innerHTML = `<p class="font-medium text-gray-500 text-xs">${label}</p><p class="text-gray-800 font-semibold text-sm mt-0.5">${safeText(value)}</p>`;
     grid.appendChild(d);
   });
   section.appendChild(grid);
   clone.appendChild(section);
+  return 1;
 }
 
 // ---------- Mentee Profile Modal ----------
 function openMenteeProfileModal(m) {
-  document.getElementById('menteeModalName').innerText = m.name || 'Not specified';
-  document.getElementById('menteeModalEmail').innerText = m.email || 'Not specified';
-  document.getElementById('menteeModalWhoAmI').innerText = m.who_am_i || 'Not specified';
-  document.getElementById('menteeModalStream').innerText = m.stream || '';
-  document.getElementById('menteeModalGoal').innerText = m.goal || '';
+  const name = m.menteeName || m.name || 'Mentee';
+  const email = m.menteeEmail || m.email || '';
+  const whoAmI = m.whoAmI || m.who_am_i || '';
+  const stream = m.stream || '';
+  const goal = m.goal || '';
+
+  document.getElementById('menteeModalName').innerText = name;
+  document.getElementById('menteeModalEmail').innerText = email;
+
+  const whoAmIEl = document.getElementById('menteeModalWhoAmI');
+  if (whoAmI) {
+    whoAmIEl.innerText = whoAmI.replace(/_/g, ' ');
+    whoAmIEl.style.display = '';
+  } else {
+    whoAmIEl.style.display = 'none';
+  }
+
+  const streamEl = document.getElementById('menteeModalStream');
+  if (stream) {
+    streamEl.innerText = stream;
+    streamEl.style.display = '';
+  } else {
+    streamEl.style.display = 'none';
+  }
+
+  const goalEl = document.getElementById('menteeModalGoal');
+  if (goal) {
+    goalEl.innerText = goal;
+    goalEl.style.display = '';
+  } else {
+    goalEl.style.display = 'none';
+  }
+
   const profilePic = document.getElementById('menteeModalProfilePic');
-  if (m.picture) { profilePic.src = '/static/uploads/' + m.picture; }
-  else { profilePic.src = 'https://via.placeholder.com/96?text=' + encodeURIComponent((m.name || '?').charAt(0)); }
+  if (m.picture && m.picture.trim()) {
+    profilePic.src = '/static/uploads/' + m.picture;
+  } else {
+    profilePic.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(name) + '&background=2563eb&color=fff';
+  }
+
+  const menteeId = m.menteeId || m.id;
+  const fullPageLink = document.getElementById('menteeModalFullPageLink');
+  if (fullPageLink) {
+    if (menteeId) {
+      fullPageLink.href = '/view_mentee_profile/' + menteeId;
+      fullPageLink.style.display = 'inline-flex';
+    } else {
+      fullPageLink.style.display = 'none';
+    }
+  }
 
   const body = document.getElementById('menteeModalBody');
   body.innerHTML = '';
 
-  showSection(body, 'Personal Information', [
+  const mobileNumber = m.mobile || m.mobileNumber || '';
+  const mobileCountryCode = m.mobileCountryCode || m.mobile_country_code || '+91';
+  const mobileDisplay = mobileNumber ? `${mobileCountryCode} ${mobileNumber}` : '';
+
+  const whatsappNumber = m.whatsapp || m.whatsappNumber || '';
+  const whatsappCountryCode = m.whatsappCountryCode || m.whatsapp_country_code || '+91';
+  const whatsappDisplay = whatsappNumber ? `${whatsappCountryCode} ${whatsappNumber}` : '';
+
+  const parentMobile = m.parentMobile || m.parent_mobile || '';
+  const parentMobileCode = m.parentMobileCountryCode || m.parent_mobile_country_code || '+91';
+  const parentMobileDisplay = parentMobile ? `${parentMobileCode} ${parentMobile}` : '';
+
+  let sectionsAdded = 0;
+
+  sectionsAdded += showSection(body, 'Personal Information', [
     ['Date of Birth', m.dob],
-    ["Father's Name", m.father_name],
-    ['Mobile Number', (m.mobile_country_code || '') + ' ' + (m.mobile || '')],
-    ['WhatsApp Number', (m.whatsapp_country_code || '') + ' ' + (m.whatsapp || '')],
-    ['Emergency Mobile', m.parent_mobile]
+    ["Father's Name", m.fatherName || m.father_name],
+    ["Parent's Name", m.parentName || m.parent_name],
+    ['Mobile Number', mobileDisplay],
+    ['WhatsApp Number', whatsappDisplay],
+    ['Parent / Emergency Mobile', parentMobileDisplay]
   ]);
-  showSection(body, 'Address Information', [
-    ['Address Line 1', m.address_line1],
-    ['Address Line 2', m.address_line2],
+
+  sectionsAdded += showSection(body, 'Address Information', [
+    ['Address Line 1', m.addressLine1 || m.address_line1],
+    ['Address Line 2', m.addressLine2 || m.address_line2],
     ['City', m.city],
     ['State', m.state],
-    ['Postal Code', m.postal_code],
+    ['Postal Code', m.postalCode || m.postal_code],
     ['Country', m.country]
   ]);
-  showSection(body, 'Educational Information', [
-    ['Education Level', m.education_level],
-    ['School/College', m.school],
-    ['Class/Year', m.class],
-    ['Institution Type', m.govt_private],
-    ['Favourite Subject', m.favourite_subject]
+
+  sectionsAdded += showSection(body, 'Educational Information', [
+    ['Education Level', m.educationLevel || m.education_level],
+    ['School/College', m.school || m.schoolCollegeName || m.school_college_name],
+    ['Class/Year', m.class || m.classYear || m.class_year],
+    ['Institution Type', m.govtPrivate || m.govt_private],
+    ['Favourite Subject', m.favouriteSubject || m.favourite_subject]
   ]);
-  showSection(body, 'University Details', [
-    ['Institution Name', m.institution_name],
-    ['University/Board', m.board_university],
-    ['Course/Stream', m.course_stream]
+
+  sectionsAdded += showSection(body, 'University Details', [
+    ['Institution Name', m.institutionName || m.institution_name || m.institution],
+    ['University/Board', m.boardUniversity || m.board_university],
+    ['Course/Stream', m.courseStream || m.course_stream]
   ]);
-  showSection(body, 'Professional Information', [
-    ['Current Role', m.current_role],
+
+  sectionsAdded += showSection(body, 'School Details', [
+    ['School Name', m.schoolName || m.school_name],
+    ['School Board', m.schoolBoard || m.school_board],
+    ['Passing Year', m.schoolPassingYear || m.school_passing_year]
+  ]);
+
+  sectionsAdded += showSection(body, 'Professional Information', [
+    ['Current Role', m.currentRole || m.current_role],
     ['Industry', m.industry],
-    ['Years of Experience', m.years_experience],
-    ['Current Organization', m.current_organization],
-    ['Key Skills', m.key_skills]
+    ['Years of Experience', m.yearsExperience || m.years_experience],
+    ['Current Organization', m.currentOrganization || m.current_organization],
+    ['Key Skills', m.keySkills || m.key_skills]
   ]);
-  showSection(body, 'Career Information', [
-    ['Career Goal', m.career_goal],
-    ['Career Interest', m.career_interest],
-    ['Last Role', m.last_role],
-    ['What are you exploring?', m.restart_field],
-    ['Guidance Needed', m.support_expected]
+
+  sectionsAdded += showSection(body, 'Career Information', [
+    ['Career Goal', m.careerGoal || m.career_goal],
+    ['Career Interest', m.careerInterest || m.career_interest],
+    ['Last Role', m.lastRole || m.last_role],
+    ['What are you exploring?', m.restartField || m.restart_field],
+    ['Guidance Needed', m.supportExpected || m.support_expected]
   ]);
-  showSection(body, 'Mentorship Expectations', [
-    ['Expectations', m.mentorship_expectations]
+
+  sectionsAdded += showSection(body, 'Mentorship Expectations', [
+    ['Mentorship Type', m.mentorshipType || m.mentorship_type],
+    ['Expectations', m.mentorshipExpectations || m.mentorship_expectations]
   ]);
-  showSection(body, 'Additional Comments', [
+
+  sectionsAdded += showSection(body, 'Additional Comments', [
     ['Comments', m.comments]
   ]);
+
+  if (sectionsAdded === 0) {
+    body.innerHTML = `
+      <div class="text-center py-8 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+        <svg class="w-12 h-12 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+        </svg>
+        <p class="font-medium text-gray-600">No extended profile details available</p>
+        <p class="text-xs text-gray-400 mt-1">This mentee has not provided additional profile information yet.</p>
+      </div>
+    `;
+  }
 
   document.getElementById('menteeProfileModal').classList.remove('hidden');
 }
@@ -564,93 +721,136 @@ function openMentorProfileModal(m) {
   const body = document.getElementById('mentorModalBody');
   body.innerHTML = '';
 
+  const name = m.mentorName || m.name || 'Mentor';
+  const email = m.mentorEmail || m.email || '';
+  const picture = m.picture || '';
+
   // Header
   const header = document.createElement('div');
   header.className = 'flex flex-col md:flex-row items-center gap-6 mb-8';
+  const avatarUrl = (picture && picture.trim()) ? ('/static/uploads/' + picture) : ('https://ui-avatars.com/api/?name=' + encodeURIComponent(name) + '&background=16a34a&color=fff');
   header.innerHTML = `
-    <img src="${m.picture ? '/static/uploads/' + m.picture : 'https://via.placeholder.com/112?text=' + encodeURIComponent((m.name || '?').charAt(0))}" alt="Profile" class="w-28 h-28 rounded-full object-cover border-4 border-green-50 shadow-sm">
+    <img src="${avatarUrl}" alt="Profile" class="w-24 h-24 rounded-full object-cover border-4 border-green-50 shadow-sm">
     <div class="text-center md:text-left">
-      <h3 class="text-2xl font-bold text-gray-800 mb-1">${safeText(m.name || '')}</h3>
-      <p class="text-sm text-gray-600 mb-3">${safeText(m.email || '')}</p>
+      <h3 class="text-2xl font-bold text-gray-800 mb-1">${safeText(name)}</h3>
+      <p class="text-sm text-gray-600 mb-2">${safeText(email)}</p>
+      <div class="flex flex-wrap gap-2 justify-center md:justify-start">
+        ${m.profession ? `<span class="bg-blue-100 text-blue-800 text-xs px-2.5 py-1 rounded-full font-medium">${safeText(m.profession)}</span>` : ''}
+        ${m.organisation ? `<span class="bg-purple-100 text-purple-800 text-xs px-2.5 py-1 rounded-full font-medium">${safeText(m.organisation)}</span>` : ''}
+      </div>
     </div>`;
   body.appendChild(header);
 
-  const grid = document.createElement('div');
-  grid.className = 'grid grid-cols-1 md:grid-cols-2 gap-6 text-gray-700 mb-8';
-  const col1 = document.createElement('div');
-  col1.className = 'space-y-4';
-  const h1 = document.createElement('h4');
-  h1.className = 'font-semibold text-gray-800 mb-3 border-b pb-2';
-  h1.textContent = 'Professional Details';
-  col1.appendChild(h1);
-  showField(col1, 'Profession', m.profession);
-  showField(col1, 'Role/Position', m.role);
-  showField(col1, 'Organisation', m.organisation);
-  showField(col1, 'Years of Experience', m.experience);
-  showField(col1, 'Industry', m.industry);
-  showField(col1, 'Skills', m.skills);
-  grid.appendChild(col1);
+  const mentorId = m.mentorId || m.id;
+  const fullPageLink = document.getElementById('mentorModalFullPageLink');
+  if (fullPageLink) {
+    if (mentorId) {
+      fullPageLink.href = '/view_mentor_profile/' + mentorId;
+      fullPageLink.style.display = 'inline-flex';
+    } else {
+      fullPageLink.style.display = 'none';
+    }
+  }
 
-  const col2 = document.createElement('div');
-  col2.className = 'space-y-4';
-  const h2 = document.createElement('h4');
-  h2.className = 'font-semibold text-gray-800 mb-3 border-b pb-2';
-  h2.textContent = 'Contact & Location';
-  col2.appendChild(h2);
-  showField(col2, 'Location', m.location);
-  showField(col2, 'WhatsApp', m.whatsapp);
-  showField(col2, 'Languages', m.language);
-  grid.appendChild(col2);
-  body.appendChild(grid);
+  let sectionsAdded = 0;
 
-  showSection(body, 'Educational Background', [
-    ['Highest Qualification', m.highest_qualification],
-    ['Degree', m.degree_name],
-    ['Field of Study', m.field_of_study],
-    ['University', m.university_name],
-    ['Graduation Year', m.graduation_year],
-    ['Academic Status', m.academic_status],
+  const profPairs = [
+    ['Profession', m.profession],
+    ['Role/Position', m.role],
+    ['Organisation', m.organisation],
+    ['Years of Experience', m.experience || m.yearsOfExperience || m.years_of_experience],
+    ['Industry/Sector', m.industry || m.industrySector || m.industry_sector],
+    ['Key Skills', m.skills]
+  ];
+  sectionsAdded += showSection(body, 'Professional Details', profPairs);
+
+  const contactPairs = [
+    ['Location', m.location],
+    ['WhatsApp', m.whatsapp],
+    ['Languages', m.language]
+  ];
+  sectionsAdded += showSection(body, 'Contact & Location', contactPairs);
+
+  sectionsAdded += showSection(body, 'Educational Background', [
+    ['Highest Qualification', m.highestQualification || m.highest_qualification],
+    ['Degree', m.degreeName || m.degree_name],
+    ['Field of Study', m.fieldOfStudy || m.field_of_study],
+    ['University', m.universityName || m.university_name],
+    ['Graduation Year', m.graduationYear || m.graduation_year],
+    ['Academic Status', m.academicStatus || m.academic_status],
     ['Certifications', m.certifications],
-    ['Research Work', m.research_work]
+    ['Research Work', m.researchWork || m.research_work]
   ]);
 
-  showSection(body, 'Social Links', [
-    ['LinkedIn', m.linkedin_link],
-    ['GitHub', m.github_link],
-    ['Portfolio', m.portfolio_link],
-    ['Other Social Link', m.other_social_link]
+  sectionsAdded += showSection(body, 'Social Links', [
+    ['LinkedIn', m.linkedinLink || m.linkedin_link],
+    ['GitHub', m.githubLink || m.github_link],
+    ['Portfolio', m.portfolioLink || m.portfolio_link],
+    ['Other Social Link', m.otherSocialLink || m.other_social_link]
   ]);
 
-  showSection(body, 'Mentorship Preferences', [
-    ['Mentorship Topics', m.mentorship_topics],
-    ['Type Preference', m.mentorship_type_preference],
-    ['Preferred Communication', m.preferred_communication],
+  sectionsAdded += showSection(body, 'Mentorship Preferences', [
+    ['Mentorship Topics', m.mentorshipTopics || m.mentorship_topics],
+    ['Type Preference', m.mentorshipTypePreference || m.mentorship_type_preference],
+    ['Preferred Communication', m.preferredCommunication || m.preferred_communication],
     ['Availability', m.availability],
-    ['Connect Frequency', m.connect_frequency],
-    ['Preferred Duration', m.preferred_duration]
+    ['Connect Frequency', m.connectFrequency || m.connect_frequency],
+    ['Preferred Duration', m.preferredDuration || m.preferred_duration]
   ]);
 
-  const whyWrap = document.createElement('div');
-  whyWrap.className = 'mb-8';
-  whyWrap.innerHTML = `<h4 class="font-semibold text-gray-800 flex items-center mb-4"><svg class="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>Why I Became a Mentor</h4>
-    <div class="bg-gray-50 p-5 rounded-lg border border-gray-100"><p id="mentorWhyMentorText" class="text-gray-600 italic"></p></div>`;
-  body.appendChild(whyWrap);
-  document.getElementById('mentorWhyMentorText').innerText = m.why_mentor || '';
+  const whyText = m.whyMentor || m.why_mentor || '';
+  if (whyText && whyText.trim() && whyText !== 'None') {
+    sectionsAdded++;
+    const whyWrap = document.createElement('div');
+    whyWrap.className = 'mb-6';
+    whyWrap.innerHTML = `
+      <div class="bg-gray-50 p-5 rounded-xl border border-gray-100">
+        <h4 class="font-semibold text-gray-800 mb-2 border-b border-gray-200 pb-2 flex items-center text-sm">
+          <svg class="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+          Why I Became a Mentor
+        </h4>
+        <p class="text-gray-700 italic text-sm">${safeText(whyText)}</p>
+      </div>`;
+    body.appendChild(whyWrap);
+  }
 
-  const mottoWrap = document.createElement('div');
-  mottoWrap.className = 'mb-8';
-  mottoWrap.innerHTML = `<h4 class="font-semibold text-gray-800 flex items-center mb-4"><svg class="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>Mentorship Philosophy & Motto</h4>
-    <div class="bg-gray-50 p-5 rounded-lg border border-gray-100">
-      <p id="mentorMottoText" class="text-gray-800 italic bg-white p-3 rounded border font-medium mb-3"></p>
-      <p id="mentorPhilosophyText" class="text-gray-600"></p>
-    </div>`;
-  body.appendChild(mottoWrap);
-  document.getElementById('mentorMottoText').innerText = m.mentorship_motto || '';
-  document.getElementById('mentorPhilosophyText').innerText = m.mentorship_philosophy || '';
+  const mottoText = m.mentorshipMotto || m.mentorship_motto || '';
+  const philText = m.mentorshipPhilosophy || m.mentorship_philosophy || '';
+  if ((mottoText && mottoText.trim() && mottoText !== 'None') || (philText && philText.trim() && philText !== 'None')) {
+    sectionsAdded++;
+    const mottoWrap = document.createElement('div');
+    mottoWrap.className = 'mb-6';
+    mottoWrap.innerHTML = `
+      <div class="bg-gray-50 p-5 rounded-xl border border-gray-100">
+        <h4 class="font-semibold text-gray-800 mb-2 border-b border-gray-200 pb-2 flex items-center text-sm">
+          <svg class="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+          Mentorship Philosophy & Motto
+        </h4>
+        ${mottoText ? `<p class="text-gray-800 italic bg-white p-3 rounded-lg border font-medium mb-3 text-sm">"${safeText(mottoText)}"</p>` : ''}
+        ${philText ? `<p class="text-gray-700 text-sm">${safeText(philText)}</p>` : ''}
+      </div>`;
+    body.appendChild(mottoWrap);
+  }
 
-  showSection(body, 'Additional Information', [
-    ['Info', m.additional_info]
-  ]);
+  const addInfo = m.additionalInfo || m.additional_info || '';
+  if (addInfo && addInfo.trim() && addInfo !== 'None') {
+    sectionsAdded += showSection(body, 'Additional Information', [
+      ['Info', addInfo]
+    ]);
+  }
+
+  if (sectionsAdded === 0) {
+    const emptyWrap = document.createElement('div');
+    emptyWrap.className = 'text-center py-8 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200';
+    emptyWrap.innerHTML = `
+      <svg class="w-12 h-12 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+      </svg>
+      <p class="font-medium text-gray-600">No extended profile details available</p>
+      <p class="text-xs text-gray-400 mt-1">This mentor has not completed their extended profile yet.</p>
+    `;
+    body.appendChild(emptyWrap);
+  }
 
   document.getElementById('mentorProfileModal').classList.remove('hidden');
 }
@@ -681,6 +881,294 @@ document.querySelectorAll('#menteeProfileModal, #mentorProfileModal').forEach(fu
     }
   });
 });
+
+// ---------- Rating System for Institution Requests ----------
+var mentorRatingCache = {};
+var menteeRatingCache = {};
+
+function renderStarsHtml(rating) {
+  const full = Math.floor(rating);
+  const half = (rating - full >= 0.3 && rating - full < 0.8);
+  const empty = 5 - full - (half ? 1 : 0);
+  let html = '';
+  for (let i = 0; i < full; i++) html += '<span class="text-yellow-400">&#9733;</span>';
+  if (half) html += '<span class="text-yellow-400" style="opacity:0.8">&#9733;</span>';
+  for (let i = 0; i < empty; i++) html += '<span class="text-gray-300">&#9734;</span>';
+  return html;
+}
+
+async function fetchMentorRating(mentorId) {
+  if (!mentorId) return null;
+  if (mentorRatingCache[mentorId]) return mentorRatingCache[mentorId];
+  try {
+    const res = await fetch('/api/mentor_rating_simple/' + mentorId);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && data.success && data.rating) {
+      mentorRatingCache[mentorId] = data.rating;
+      return data.rating;
+    }
+  } catch(e) {
+    console.error('Error fetching mentor rating:', e);
+  }
+  return null;
+}
+
+async function fetchMenteeRating(menteeId) {
+  if (!menteeId) return null;
+  if (menteeRatingCache[menteeId]) return menteeRatingCache[menteeId];
+  try {
+    const res = await fetch('/api/mentee_rating_simple/' + menteeId);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && data.success && data.rating) {
+      menteeRatingCache[menteeId] = data.rating;
+      return data.rating;
+    }
+  } catch(e) {
+    console.error('Error fetching mentee rating:', e);
+  }
+  return null;
+}
+
+async function loadAllInstitutionRatings() {
+  // 1. Mentor Ratings
+  const mentorContainers = document.querySelectorAll('[data-mentor-uid]');
+  const mentorIds = [...new Set([...mentorContainers].map(c => c.getAttribute('data-mentor-uid')))].filter(Boolean);
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < mentorIds.length; i += BATCH_SIZE) {
+    const batch = mentorIds.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(async (uid) => {
+      const rating = await fetchMentorRating(uid);
+      const score = (rating && rating.final_rating != null) ? rating.final_rating : 0;
+      document.querySelectorAll('.inst-req-mentor-pill-' + uid).forEach(el => {
+        el.textContent = score > 0 ? score.toFixed(1) : (rating ? '0.0' : 'N/A');
+      });
+    }));
+  }
+
+  // 2. Mentee Ratings
+  const menteeContainers = document.querySelectorAll('[data-mentee-uid]');
+  const menteeIds = [...new Set([...menteeContainers].map(c => c.getAttribute('data-mentee-uid')))].filter(Boolean);
+  for (let i = 0; i < menteeIds.length; i += BATCH_SIZE) {
+    const batch = menteeIds.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(async (uid) => {
+      const rating = await fetchMenteeRating(uid);
+      const score = (rating && rating.final_rating != null) ? rating.final_rating : 0;
+      document.querySelectorAll('.inst-req-mentee-pill-' + uid).forEach(el => {
+        el.textContent = score > 0 ? score.toFixed(1) : (rating ? '0.0' : 'N/A');
+      });
+    }));
+  }
+}
+
+async function openRatingPopup(uid, name) {
+  const popup = document.getElementById('ratingPopup');
+  if (!popup) return;
+  document.getElementById('popupMentorName').textContent = name || 'Mentor';
+  document.getElementById('popupFinalRating').textContent = '--';
+  document.getElementById('popupStars').innerHTML = '';
+  document.getElementById('popupPc').textContent = '--';
+  document.getElementById('popupSk').textContent = '--';
+  document.getElementById('popupMe').textContent = '--';
+  document.getElementById('popupTe').textContent = '--';
+  document.getElementById('popupSup').textContent = '--';
+  
+  popup.classList.remove('hidden');
+  popup.classList.add('flex');
+
+  const rating = await fetchMentorRating(uid);
+  if (!rating) {
+    document.getElementById('popupFinalRating').textContent = 'N/A';
+    return;
+  }
+
+  document.getElementById('popupFinalRating').textContent = rating.final_rating.toFixed(1);
+  document.getElementById('popupStars').innerHTML = renderStarsHtml(rating.final_rating);
+  document.getElementById('popupPc').textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+  document.getElementById('popupSk').textContent = rating.useful_skills != null ? rating.useful_skills.toFixed(1) + ' / 5.0' : 'N/A';
+  document.getElementById('popupMe').textContent = rating.has_mentee_feedback ? rating.mentee_feedback.toFixed(1) + ' / 5.0' : 'N/A';
+  document.getElementById('popupTe').textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
+  document.getElementById('popupSup').textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
+}
+
+function closeRatingPopup() {
+  const popup = document.getElementById('ratingPopup');
+  if (!popup) return;
+  popup.classList.add('hidden');
+  popup.classList.remove('flex');
+}
+
+async function openMenteeRatingPopup(uid, name) {
+  const popup = document.getElementById('menteeRatingPopup');
+  if (!popup) return;
+  document.getElementById('popupMenteeName').textContent = name || 'Mentee';
+  document.getElementById('popupMenteeFinalRating').textContent = '--';
+  document.getElementById('popupMenteeStars').innerHTML = '';
+  document.getElementById('popupMenteePc').textContent = '--';
+  document.getElementById('popupMenteeGc').textContent = '--';
+  document.getElementById('popupMenteeMe').textContent = '--';
+  document.getElementById('popupMenteeTc').textContent = '--';
+  document.getElementById('popupMenteeMf').textContent = '--';
+
+  popup.classList.remove('hidden');
+  popup.classList.add('flex');
+
+  const rating = await fetchMenteeRating(uid);
+  if (!rating) {
+    document.getElementById('popupMenteeFinalRating').textContent = 'N/A';
+    return;
+  }
+
+  document.getElementById('popupMenteeFinalRating').textContent = rating.final_rating.toFixed(1);
+  document.getElementById('popupMenteeStars').innerHTML = renderStarsHtml(rating.final_rating);
+  document.getElementById('popupMenteePc').textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+  document.getElementById('popupMenteeGc').textContent = rating.goal_clarity != null ? rating.goal_clarity.toFixed(1) + ' / 5.0' : 'N/A';
+  document.getElementById('popupMenteeMe').textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
+  document.getElementById('popupMenteeTc').textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
+  document.getElementById('popupMenteeMf').textContent = rating.has_mentor_feedback ? rating.mentor_feedback.toFixed(1) + ' / 5.0' : 'N/A';
+}
+
+function closeMenteeRatingPopup() {
+  const popup = document.getElementById('menteeRatingPopup');
+  if (!popup) return;
+  popup.classList.add('hidden');
+  popup.classList.remove('flex');
+}
+
+// Close modals with Escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeMenteeProfileModal();
+    closeMentorProfileModal();
+    closeRatingPopup();
+    closeMenteeRatingPopup();
+  }
+});
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', loadAllInstitutionRatings);
+} else {
+  loadAllInstitutionRatings();
+}
 </script>
+
+<!-- Mentor Rating Breakdown Popup -->
+<div id="ratingPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4" onclick="if(event.target===this)closeRatingPopup()">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+    <div class="bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-5 text-white flex items-center justify-between">
+      <div>
+        <h3 class="text-lg font-bold">Mentor Rating Breakdown</h3>
+        <p class="text-amber-100 text-sm" id="popupMentorName">--</p>
+      </div>
+      <button onclick="closeRatingPopup()" class="text-white/80 hover:text-white transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="p-6">
+      <div class="flex items-center gap-5 mb-6 pb-6 border-b border-gray-100">
+        <div class="text-center shrink-0">
+          <div class="text-5xl font-extrabold text-amber-500" id="popupFinalRating">--</div>
+          <div class="flex items-center justify-center gap-0.5 mt-1 text-xl text-yellow-400" id="popupStars"></div>
+          <p class="text-xs text-gray-500 font-medium mt-1">out of 5.0</p>
+        </div>
+        <div class="flex-1 space-y-2.5">
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Profile Complete</span>
+            <span class="font-bold text-gray-900" id="popupPc">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Useful Skills</span>
+            <span class="font-bold text-gray-900" id="popupSk">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Mentee Feedback</span>
+            <span class="font-bold text-gray-900" id="popupMe">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Task Completion</span>
+            <span class="font-bold text-gray-900" id="popupTe">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Mentorship Experience</span>
+            <span class="font-bold text-gray-900" id="popupSup">--</span>
+          </div>
+        </div>
+      </div>
+      <div class="bg-amber-50 rounded-xl p-3.5 text-center border border-amber-200">
+        <p class="text-xs text-gray-700">
+          <strong>Final Rating</strong> is calculated as the average of all criteria with available data.
+        </p>
+      </div>
+      <div class="mt-4 text-center">
+        <a href="{{ url_for('rating_calculation_page') }}" target="_blank" class="text-sm text-amber-600 hover:text-amber-700 font-semibold underline inline-flex items-center gap-1">
+          <span>How is this calculated?</span>
+          <span>&rarr;</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Mentee Rating Breakdown Popup -->
+<div id="menteeRatingPopup" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4" onclick="if(event.target===this)closeMenteeRatingPopup()">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+    <div class="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-5 text-white flex items-center justify-between">
+      <div>
+        <h3 class="text-lg font-bold">Mentee Rating Breakdown</h3>
+        <p class="text-emerald-100 text-sm" id="popupMenteeName">--</p>
+      </div>
+      <button onclick="closeMenteeRatingPopup()" class="text-white/80 hover:text-white transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="p-6">
+      <div class="flex items-center gap-5 mb-6 pb-6 border-b border-gray-100">
+        <div class="text-center shrink-0">
+          <div class="text-5xl font-extrabold text-emerald-600" id="popupMenteeFinalRating">--</div>
+          <div class="flex items-center justify-center gap-0.5 mt-1 text-xl text-yellow-400" id="popupMenteeStars"></div>
+          <p class="text-xs text-gray-500 font-medium mt-1">out of 5.0</p>
+        </div>
+        <div class="flex-1 space-y-2.5">
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Profile Complete</span>
+            <span class="font-bold text-gray-900" id="popupMenteePc">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Goal Clarity</span>
+            <span class="font-bold text-gray-900" id="popupMenteeGc">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Mentorship Experience</span>
+            <span class="font-bold text-gray-900" id="popupMenteeMe">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Task Completion</span>
+            <span class="font-bold text-gray-900" id="popupMenteeTc">--</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-600">Mentor Feedback</span>
+            <span class="font-bold text-gray-900" id="popupMenteeMf">--</span>
+          </div>
+        </div>
+      </div>
+      <div class="bg-emerald-50 rounded-xl p-3.5 text-center border border-emerald-200">
+        <p class="text-xs text-gray-700">
+          <strong>Final Rating</strong> is calculated as the average of all criteria with available data.
+        </p>
+      </div>
+      <div class="mt-4 text-center">
+        <a href="{{ url_for('rating_calculation_page') }}" target="_blank" class="text-sm text-emerald-600 hover:text-emerald-700 font-semibold underline inline-flex items-center gap-1">
+          <span>How is this calculated?</span>
+          <span>&rarr;</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
 
 {% endblock %}
