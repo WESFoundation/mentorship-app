@@ -1400,18 +1400,25 @@ class MentorProfile(db.Model):
     portfolio_link = db.Column(db.String(200))  # New field
     other_social_link = db.Column(db.String(200))
     
-    # Mentorship Preferences
-    mentorship_topics = db.Column(db.Text)  # New field - topics they can mentor on
-    mentorship_type_preference = db.Column(db.String(200))  # New field - school, women, etc.
+    # Mentorship Preferences - Restructured as per Arif Sir's guidance
+    # 1. Who mentor wants to mentor over (based on mentee's who_am_i)
+    target_audience = db.Column(db.Text)  # Comma-separated: school_student,university_student,seeking_internship,young_professional,exploring
+    
+    # 2. Base topics mentor wants to mentor on (general categories)
+    base_mentorship_topics = db.Column(db.Text)  # Comma-separated: School Subjects, Coding Basics, Career Guidance, Azure DevOps, etc.
+    
+    # 3. Specific topics mentor can mentor on (detailed topics)
+    mentorship_topics = db.Column(db.Text)  # Existing - detailed specific topics
+    
+    # Other mentorship preferences
     preferred_communication = db.Column(db.String(100))  # online, offline, hybrid
     availability = db.Column(db.String(100))
     connect_frequency = db.Column(db.String(100))
-    preferred_duration = db.Column(db.String(100))  # New field - 1 month, 6 months, etc.
+    preferred_duration = db.Column(db.String(100))  # 1 month, 6 months, etc.
     
-    # Mentor Philosophy
-    why_mentor = db.Column(db.Text)  # Changed from "why become mentor" to "why mentor"
-    mentorship_philosophy = db.Column(db.Text)  # New field
-    mentorship_motto = db.Column(db.String(300))  # New field
+    # Mentor Philosophy (merged to 2 fields)
+    why_mentor = db.Column(db.Text)  # Why mentor?
+    mentorship_philosophy = db.Column(db.Text)  # Merged: Philosophy + Motto
     
     # Additional Information
     additional_info = db.Column(db.Text)
@@ -1634,6 +1641,7 @@ class MentorshipRequest(db.Model):
     
     # Request status tracking
     mentor_status = db.Column(db.String(20), default="pending") # 'pending', 'accepted', 'rejected'
+    mentor_original_status = db.Column(db.String(20), nullable=True) # Track mentor's original decision: 'accepted', 'rejected', 'pending'
     supervisor_status = db.Column(db.String(20), default="pending") # 'pending', 'approved', 'rejected'
     final_status = db.Column(db.String(20), default="pending") # 'pending', 'approved', 'rejected'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -5954,6 +5962,47 @@ def api_institution_logo(institution_id):
         return jsonify({"success": False, "error": "Institution not found"}), 404
     logo_url = get_institution_logo_url(institution)
     return jsonify({"success": True, "logo_url": logo_url, "name": institution.name})
+
+
+@app.route("/api/institutions", methods=["GET"])
+def api_institutions():
+    """Get list of institutions for sourcing request form."""
+    if "email" not in session:
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    # Get query param for search
+    search = request.args.get("search", "").strip().lower()
+    limit = int(request.args.get("limit", 50))
+    
+    query = Institution.query.filter_by(status="active").join(User, Institution.user_id == User.id)
+    
+    if search:
+        query = query.filter(
+            db.or_(
+                User.name.ilike(f"%{search}%"),
+                Institution.city.ilike(f"%{search}%"),
+                Institution.country.ilike(f"%{search}%"),
+                Institution.institution_type.ilike(f"%{search}%")
+            )
+        )
+    
+    institutions = query.limit(limit).all()
+    
+    result = []
+    for inst in institutions:
+        user = inst.user
+        result.append({
+            "id": inst.id,
+            "name": inst.name or (user.name if user else "Unknown"),
+            "country": inst.country,
+            "city": inst.city,
+            "institution_type": inst.institution_type,
+            "website": inst.website,
+            "profile_picture": inst.profile_picture,
+            "email_domain": inst.email_domain
+        })
+    
+    return jsonify({"success": True, "institutions": result})
 
 
 @app.route("/find_mentor", methods=["GET"])
@@ -10344,18 +10393,53 @@ def _compute_profile_completeness_score(user_id, user_type):
         return 0
     return result.get("percentage", 0)
 
-def _compute_profile_attractiveness_score(user_id, user_type):
-    """Profile attractiveness based on skill count. Score = min(skill_count * 10, 100)."""
+def _compute_skills_percentile(user_id, user_type):
+    """
+    Calculate skills percentile among all users of the same type.
+    Returns 0-100 percentile score.
+    If user has 0 skills, returns 0.
+    """
     if user_type == "1":
         profile = MentorProfile.query.filter_by(user_id=user_id).first()
-        skills = profile.skills if profile else ""
+        user_skills = profile.skills if profile else ""
+        all_profiles = MentorProfile.query.all()
+        skill_field = 'skills'
     elif user_type == "2":
         profile = MenteeProfile.query.filter_by(user_id=user_id).first()
-        skills = profile.key_skills if profile else ""
+        user_skills = profile.key_skills if profile else ""
+        all_profiles = MenteeProfile.query.all()
+        skill_field = 'key_skills'
     else:
         return 0
-    count = _count_skills(skills)
-    return min(count * 10, 100)
+    
+    user_count = _count_skills(user_skills)
+    if user_count == 0:
+        return 0
+    
+    # Get skill counts for all users
+    all_counts = []
+    for p in all_profiles:
+        skills = getattr(p, skill_field, "") or ""
+        all_counts.append(_count_skills(skills))
+    
+    if not all_counts:
+        return 50  # Default to median if no data
+    
+    # Calculate percentile: percentage of users with <= skills
+    # Using standard percentile formula: (number of values below + 0.5 * number equal) / total * 100
+    below = sum(1 for c in all_counts if c < user_count)
+    equal = sum(1 for c in all_counts if c == user_count)
+    percentile = ((below + 0.5 * equal) / len(all_counts)) * 100
+    
+    return round(percentile, 1)
+
+
+def _compute_profile_attractiveness_score(user_id, user_type):
+    """
+    Profile attractiveness based on skills percentile.
+    Returns 0-100 score (percentile * 1, since percentile is already 0-100).
+    """
+    return _compute_skills_percentile(user_id, user_type)
 
 def _compute_supervisor_review_score(mentor_id):
     """Dynamic supervisor review score based on mentor's track record.
@@ -10981,6 +11065,38 @@ def api_get_mentor_rating_breakdown(mentor_id):
             "star_rating": min(5, max(0, round(final_score / 20, 1)))
         }
     })
+
+
+@app.route("/api/mentor_skills_percentile/<int:mentor_id>")
+def api_mentor_skills_percentile(mentor_id):
+    """Get skills percentile for a mentor."""
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    
+    mentor = db.session.get(User, mentor_id)
+    if not mentor:
+        mp = db.session.get(MentorProfile, mentor_id)
+        if mp:
+            mentor = db.session.get(User, mp.user_id)
+            mentor_id = mp.user_id
+    
+    if not mentor:
+        return jsonify({"success": False, "message": "Mentor not found"}), 404
+    
+    try:
+        percentile = _compute_skills_percentile(mentor_id, "1")
+        profile = MentorProfile.query.filter_by(user_id=mentor_id).first()
+        skills_count = _count_skills(profile.skills) if profile else 0
+        
+        return jsonify({
+            "success": True,
+            "mentor_id": mentor_id,
+            "skills_count": skills_count,
+            "skills_percentile": percentile,
+            "skills_stars": round(percentile / 20, 1)
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 
 @app.route("/api/mentor_rating_simple/<int:mentor_id>")
@@ -12662,7 +12778,13 @@ def mentor_response():
     # Update status
     action_clean = (action or "").strip().lower()
     action_is_accept = action_clean in ("accept", "accepted", "approve", "approved")
-    mentorship_request.mentor_status = "accepted" if action_is_accept else "rejected"
+    new_mentor_status = "accepted" if action_is_accept else "rejected"
+    
+    # Record mentor's original decision if not already recorded
+    if not mentorship_request.mentor_original_status:
+        mentorship_request.mentor_original_status = new_mentor_status
+    
+    mentorship_request.mentor_status = new_mentor_status
 
     # For anchor mentors: auto-approve and assign tasks when mentor accepts
     assigned_tasks = []
@@ -14084,6 +14206,131 @@ def view_mentee_profile(mentee_id):
         profile_picture=profile.profile_picture if profile else None,
         institution_profile_picture=institution_profile_picture
     )
+
+# API endpoint to fetch mentor/mentee profile data for modals
+@app.route("/api/profile/<string:user_type>/<int:user_id>")
+def api_get_profile(user_type, user_id):
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"success": False, "message": "User not found"}), 404
+    
+    profile_data = {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "profile_picture": user.profile_picture if hasattr(user, 'profile_picture') else None
+    }
+    
+    if user_type == "mentor":
+        if user.user_type != "1":
+            return jsonify({"success": False, "message": "Not a mentor"}), 400
+        profile = MentorProfile.query.filter_by(user_id=user_id).first()
+        if profile:
+            profile_data.update({
+                "profession": profile.profession,
+                "role": profile.role,
+                "organisation": profile.organisation,
+                "years_of_experience": profile.years_of_experience,
+                "location": profile.location,
+                "education": profile.education,
+                "industry_sector": profile.industry_sector,
+                "skills": profile.skills,
+                "why_mentor": profile.why_mentor,
+                "additional_info": profile.additional_info,
+                "whatsapp": profile.whatsapp,
+                "language": profile.language,
+                "highest_qualification": profile.highest_qualification,
+                "degree_name": profile.degree_name,
+                "field_of_study": profile.field_of_study,
+                "university_name": profile.university_name,
+                "graduation_year": profile.graduation_year,
+                "academic_status": profile.academic_status,
+                "certifications": profile.certifications,
+                "research_work": profile.research_work,
+                "linkedin_link": profile.linkedin_link,
+                "github_link": profile.github_link,
+                "portfolio_link": profile.portfolio_link,
+                "other_social_link": profile.other_social_link,
+                "mentorship_topics": profile.mentorship_topics,
+                "mentorship_type_preference": profile.mentorship_type_preference,
+                "preferred_communication": profile.preferred_communication,
+                "availability": profile.availability,
+                "connect_frequency": profile.connect_frequency,
+                "preferred_duration": profile.preferred_duration,
+                "mentorship_philosophy": profile.mentorship_philosophy,
+                "mentorship_motto": profile.mentorship_motto,
+                "profile_picture": profile.profile_picture
+            })
+    elif user_type == "mentee":
+        if user.user_type != "2":
+            return jsonify({"success": False, "message": "Not a mentee"}), 400
+        profile = MenteeProfile.query.filter_by(user_id=user_id).first()
+        if profile:
+            profile_data.update({
+                "who_am_i": profile.who_am_i,
+                "education_level": profile.education_level,
+                "institution_name": profile.institution_name,
+                "board_university": profile.board_university,
+                "course_stream": profile.course_stream,
+                "school_name": profile.school_name,
+                "school_board": profile.school_board,
+                "school_passing_year": profile.school_passing_year,
+                "career_interest": profile.career_interest,
+                "current_role": profile.current_role,
+                "industry": profile.industry,
+                "years_experience": profile.years_experience,
+                "current_organization": profile.current_organization,
+                "key_skills": profile.key_skills,
+                "career_goal": profile.career_goal,
+                "startup_stage": profile.startup_stage,
+                "startup_name": profile.startup_name,
+                "startup_industry": profile.startup_industry,
+                "team_size": profile.team_size,
+                "main_challenge": profile.main_challenge,
+                "mentorship_type": profile.mentorship_type,
+                "freelance_skill": profile.freelance_skill,
+                "freelance_experience": profile.freelance_experience,
+                "freelance_platforms": profile.freelance_platforms,
+                "freelance_challenge": profile.freelance_challenge,
+                "last_role": profile.last_role,
+                "career_break_reason": profile.career_break_reason,
+                "restart_field": profile.restart_field,
+                "support_expected": profile.support_expected,
+                "dob": profile.dob,
+                "father_name": profile.father_name,
+                "address_line1": profile.address_line1,
+                "address_line2": profile.address_line2,
+                "city": profile.city,
+                "state": profile.state,
+                "postal_code": profile.postal_code,
+                "country": profile.country,
+                "institution": profile.institution,
+                "institution_other": profile.institution_other,
+                "school_college_name": profile.school_college_name,
+                "mobile_number": profile.mobile_number,
+                "mobile_country_code": profile.mobile_country_code,
+                "whatsapp_number": profile.whatsapp_number,
+                "whatsapp_country_code": profile.whatsapp_country_code,
+                "govt_private": profile.govt_private,
+                "stream": profile.stream,
+                "class_year": profile.class_year,
+                "favourite_subject": profile.favourite_subject,
+                "goal": profile.goal,
+                "parent_name": profile.parent_name,
+                "parent_mobile": profile.parent_mobile,
+                "parent_mobile_country_code": profile.parent_mobile_country_code,
+                "comments": profile.comments,
+                "mentorship_expectations": profile.mentorship_expectations,
+                "profile_picture": profile.profile_picture
+            })
+    else:
+        return jsonify({"success": False, "message": "Invalid user type"}), 400
+    
+    return jsonify({"success": True, "profile": profile_data})
+
 # ------------------ APPROVE/REJECT MENTORSHIP REQUESTS ------------------
 @app.route("/supervisor_response", methods=["POST"])
 def supervisor_response():
@@ -14108,8 +14355,14 @@ def supervisor_response():
     if action_clean in ("approve", "approved", "accept", "accepted"):
         mentorship_request.supervisor_status = "approved"
         mentorship_request.final_status = "approved"
-        if mentorship_request.mentor_status == "pending":
-            mentorship_request.mentor_status = "accepted"
+        
+        # Auto-approve from mentor side when supervisor approves
+        # This ensures supervisor has final say, but mentor's original decision is preserved in mentor_original_status
+        mentorship_request.mentor_status = "accepted"
+        
+        # If mentor_original_status is not set yet (mentor hasn't responded), set it to accepted
+        if not mentorship_request.mentor_original_status:
+            mentorship_request.mentor_original_status = "accepted"
 
         # Assign tasks for ALL anchor mentorships
         assigned_tasks = []

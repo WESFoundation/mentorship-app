@@ -109,11 +109,26 @@
           <td class="px-3 sm:px-6 py-4">
             <div class="text-sm font-semibold text-gray-900 flex items-center flex-wrap gap-1.5">
               {% if mentorship.mentor %}
-              <a href="{{ url_for('view_mentor_profile', mentor_id=mentorship.mentor.id) }}" target="_blank"
-                 class="hover:underline hover:text-blue-600 transition-colors"
-                 title="View {{ mentorship.mentor.name }}'s full profile">
+              <button type="button" onclick="openProfileModal({
+                name: '{{ mentorship.mentor.name|e }}',
+                email: '{{ mentorship.mentor.email|e }}',
+                role: 'Mentor',
+                profile_picture: '{% if mentorship.mentor.mentor_profile and mentorship.mentor.mentor_profile.profile_picture %}{{ url_for('static', filename='uploads/' ~ mentorship.mentor.mentor_profile.profile_picture) }}{% else %}{% endif %}',
+                is_corporate: {% if mentorship.mentor.is_corporate %}true{% else %}false{% endif %},
+                premium: {% if mentorship.mentor.premium %}true{% else %}false{% endif %},
+                scholarly: {% if mentorship.mentor.scholarly %}true{% else %}false{% endif %},
+                location: '{{ mentorship.mentor_profile.location|e if mentorship.mentor_profile else '' }}',
+                institution: '{{ mentorship.mentor_profile.organisation|e if mentorship.mentor_profile else '' }}',
+                bio: '{{ mentorship.mentor_profile.bio|e if mentorship.mentor_profile else '' }}',
+                skills: '{{ mentorship.mentor_profile.skills|e if mentorship.mentor_profile else '' }}',
+                mentorship_type_preference: '{{ mentorship.mentor_profile.mentorship_type_preference|e if mentorship.mentor_profile else '' }}',
+                preferred_duration: '{{ mentorship.mentor_profile.preferred_duration|e if mentorship.mentor_profile else '' }}',
+                connect_frequency: '{{ mentorship.mentor_profile.connect_frequency|e if mentorship.mentor_profile else '' }}'
+              })"
+                      class="hover:underline hover:text-blue-600 transition-colors font-semibold text-gray-900"
+                      title="View {{ mentorship.mentor.name }}'s full profile">
                 {{ mentorship.mentor.name }}
-              </a>
+              </button>
               {% if mentorship.mentor.premium %}
               <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded-full border border-amber-200" title="Premium Mentor">
                 <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium
@@ -132,11 +147,26 @@
               <span class="text-gray-400 font-normal">→</span>
 
               {% if mentorship.mentee %}
-              <a href="{{ url_for('view_mentee_profile', mentee_id=mentorship.mentee.id) }}" target="_blank"
-                 class="hover:underline hover:text-blue-600 transition-colors"
-                 title="View {{ mentorship.mentee.name }}'s full profile">
+              <button type="button" onclick="openProfileModal({
+                name: '{{ mentorship.mentee.name|e }}',
+                email: '{{ mentorship.mentee.email|e }}',
+                role: 'Mentee',
+                profile_picture: '{% if mentorship.mentee.mentee_profile and mentorship.mentee.mentee_profile.profile_picture %}{{ url_for('static', filename='uploads/' ~ mentorship.mentee.mentee_profile.profile_picture) }}{% else %}{% endif %}',
+                is_corporate: false,
+                premium: false,
+                scholarly: {% if mentorship.mentee.scholarly %}true{% else %}false{% endif %},
+                location: '{{ mentorship.mentee_profile.location|e if mentorship.mentee_profile else '' }}',
+                institution: '{{ mentorship.mentee_profile.institution|e if mentorship.mentee_profile else '' }}',
+                bio: '{{ mentorship.mentee_profile.bio|e if mentorship.mentee_profile else '' }}',
+                skills: '{{ mentorship.mentee_profile.skills|e if mentorship.mentee_profile else '' }}',
+                mentorship_type_preference: '',
+                preferred_duration: '',
+                connect_frequency: ''
+              })"
+                      class="hover:underline hover:text-blue-600 transition-colors font-semibold text-gray-900"
+                      title="View {{ mentorship.mentee.name }}'s full profile">
                 {{ mentorship.mentee.name }}
-              </a>
+              </button>
               {% if mentorship.mentee.scholarly %}
               <span class="inline-flex items-center gap-0.5 text-xs font-bold text-blue-700 bg-blue-50 px-1 py-0.5 rounded-full border border-blue-200" title="Scholarly Mentee">
                 <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3.001zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/></svg> Scholarly
@@ -467,10 +497,30 @@
               </div>
               ${mentorship.mentor && mentorship.mentor.id ? `
               <div class="pt-2">
-                <a href="/view_mentor_profile/${mentorship.mentor.id}" target="_blank"
-                   class="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800">
+                <button type="button" onclick="openProfileModal({
+                  name: '${mentorship.mentor.name}',
+                  email: '${mentorship.mentor.email}',
+                  role: 'Mentor',
+                  profile_picture: '${mentorship.mentor_profile && mentorship.mentor_profile.profile_picture ? '/static/uploads/' + mentorship.mentor_profile.profile_picture : ''}',
+                  is_corporate: ${mentorship.mentor.is_corporate ? 'true' : 'false'},
+                  premium: ${mentorship.mentor.premium ? 'true' : 'false'},
+                  scholarly: ${mentorship.mentor.scholarly ? 'true' : 'false'},
+                  location: '${mentorship.mentor_profile ? mentorship.mentor_profile.location || '' : ''}',
+                  institution: '${mentorship.mentor_profile ? mentorship.mentor_profile.organisation || '' : ''}',
+                  bio: '${mentorship.mentor_profile ? mentorship.mentor_profile.bio || '' : ''}',
+                  skills: '${mentorship.mentor_profile ? mentorship.mentor_profile.skills || '' : ''}',
+                  target_audience: '${mentorship.mentor_profile ? (mentorship.mentor_profile.target_audience || '') : ''}',
+                  base_mentorship_topics: '${mentorship.mentor_profile ? (mentorship.mentor_profile.base_mentorship_topics || '') : ''}',
+                  mentorship_topics: '${mentorship.mentor_profile ? (mentorship.mentor_profile.mentorship_topics || '') : ''}',
+                  why_mentor: '${mentorship.mentor_profile ? (mentorship.mentor_profile.why_mentor || '') : ''}',
+                  mentorship_philosophy: '${mentorship.mentor_profile ? (mentorship.mentor_profile.mentorship_philosophy || '') : ''}',
+                  mentorship_type_preference: '${mentorship.mentor_profile ? mentorship.mentor_profile.mentorship_type_preference || '' : ''}',
+                  preferred_duration: '${mentorship.mentor_profile ? mentorship.mentor_profile.preferred_duration || '' : ''}',
+                  connect_frequency: '${mentorship.mentor_profile ? mentorship.mentor_profile.connect_frequency || '' : ''}'
+                })"
+                        class="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800">
                   View Full Mentor Profile &rarr;
-                </a>
+                </button>
               </div>` : ''}
             </div>
           </div>
@@ -497,14 +547,122 @@
               </div>
               ${mentorship.mentee && mentorship.mentee.id ? `
               <div class="pt-2">
-                <a href="/view_mentee_profile/${mentorship.mentee.id}" target="_blank"
-                   class="inline-flex items-center gap-1 text-xs font-semibold text-green-600 hover:text-green-800">
+                <button type="button" onclick="openProfileModal({
+                  name: '${mentorship.mentee.name}',
+                  email: '${mentorship.mentee.email}',
+                  role: 'Mentee',
+                  profile_picture: '${mentorship.mentee_profile && mentorship.mentee_profile.profile_picture ? '/static/uploads/' + mentorship.mentee_profile.profile_picture : ''}',
+                  is_corporate: false,
+                  premium: false,
+                  scholarly: ${mentorship.mentee.scholarly ? 'true' : 'false'},
+                  location: '${mentorship.mentee_profile ? mentorship.mentee_profile.location || '' : ''}',
+                  institution: '${mentorship.mentee_profile ? mentorship.mentee_profile.institution || '' : ''}',
+                  bio: '${mentorship.mentee_profile ? mentorship.mentee_profile.bio || '' : ''}',
+                  skills: '${mentorship.mentee_profile ? mentorship.mentee_profile.skills || '' : ''}',
+                  mentorship_type_preference: '',
+                  preferred_duration: '',
+                  connect_frequency: ''
+                })"
+                        class="inline-flex items-center gap-1 text-xs font-semibold text-green-600 hover:text-green-800">
                   View Full Mentee Profile &rarr;
-                </a>
+                </button>
               </div>` : ''}
             </div>
           </div>
         </div>
+
+        <!-- Mentor Profile Details (New Structure) -->
+        ${mentorship.mentor_profile ? `
+        <div class="space-y-5 pt-4 border-t border-gray-200">
+          <h4 class="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+            </svg>
+            Mentor Profile Details
+          </h4>
+
+          <!-- 1. Who Mentor Wants to Mentor Over -->
+          <div>
+            <h5 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Who Mentor Wants to Mentor Over</h5>
+            <div class="flex flex-wrap gap-2">
+              ${(() => {
+                const audience = mentorship.mentor_profile.target_audience || '';
+                const audienceList = audience.split(',').filter(a => a.trim());
+                const audienceLabels = {
+                  'school_student': { label: 'School Student', icon: 'M12 14l9-5-9-5-9 5 9 5z', color: 'blue' },
+                  'university_student': { label: 'University Student', icon: 'M12 14l9-5-9-5-9 5 9 5z', color: 'blue' },
+                  'seeking_internship': { label: 'Seeking Internship', icon: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', color: 'indigo' },
+                  'young_professional': { label: 'Young Professional', icon: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', color: 'purple' },
+                  'exploring': { label: 'Exploring', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z', color: 'gray' },
+                  'entrepreneur': { label: 'Entrepreneur', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', color: 'amber' }
+                };
+                if (audienceList.length === 0) {
+                  return '<span class="text-xs text-gray-400 italic">Not specified</span>';
+                }
+                return audienceList.map(a => {
+                  const info = audienceLabels[a.trim()] || { label: a.trim(), icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', color: 'gray' };
+                  return '<span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-' + info.color + '-50 text-' + info.color + '-700 rounded-full text-xs font-medium border border-' + info.color + '-200"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + info.icon + '"/></svg>' + info.label + '</span>';
+                }).join('');
+              })()}
+            </div>
+          </div>
+
+          <!-- 2. Base Topics Mentor Wants to Mentor On -->
+          <div>
+            <h5 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Base Mentorship Topics</h5>
+            <div class="flex flex-wrap gap-2">
+              ${(() => {
+                const topics = mentorship.mentor_profile.base_mentorship_topics || '';
+                const topicList = topics.split(',').filter(t => t.trim());
+                const topicLabels = {
+                  'school_subjects': 'School Subjects',
+                  'coding_basics': 'Coding Basics',
+                  'career_guidance': 'Career Guidance',
+                  'azure_devops': 'Azure DevOps',
+                  'cloud_computing': 'Cloud Computing',
+                  'data_science': 'Data Science',
+                  'web_development': 'Web Development',
+                  'mobile_development': 'Mobile Development',
+                  'soft_skills': 'Soft Skills',
+                  'leadership': 'Leadership',
+                  'entrepreneurship': 'Entrepreneurship'
+                };
+                if (topicList.length === 0) {
+                  return '<span class="text-xs text-gray-400 italic">Not specified</span>';
+                }
+                return topicList.map(t => {
+                  const label = topicLabels[t.trim()] || t.trim();
+                  return '<span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-xs font-medium border border-green-200">' + label + '</span>';
+                }).join('');
+              })()}
+            </div>
+          </div>
+
+          <!-- 3. Specific Mentorship Topics -->
+          <div>
+            <h5 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Specific Mentorship Topics</h5>
+            <div class="bg-gray-50 p-3 rounded-lg">
+              <p class="text-xs text-gray-700 whitespace-pre-line">${mentorship.mentor_profile.mentorship_topics || 'Not specified'}</p>
+            </div>
+          </div>
+
+          <!-- 4. Mentor Philosophy (2 fields merged) -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h5 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Why Mentor?</h5>
+              <div class="bg-gray-50 p-3 rounded-lg">
+                <p class="text-xs text-gray-700 whitespace-pre-line">${mentorship.mentor_profile.why_mentor || 'Not specified'}</p>
+              </div>
+            </div>
+            <div>
+              <h5 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Mentorship Philosophy & Motto</h5>
+              <div class="bg-gray-50 p-3 rounded-lg">
+                <p class="text-xs text-gray-700 whitespace-pre-line">${mentorship.mentor_profile.mentorship_philosophy || 'Not specified'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        ` : ''}
 
         <!-- Mentorship Details -->
         <div class="space-y-4">
@@ -626,6 +784,7 @@
       closeMentorshipDetails();
       closeRatingPopup();
       closeMenteeRatingPopup();
+      closeProfileModal();
     }
   });
 
@@ -807,6 +966,130 @@
     if (!popup) return;
     popup.classList.add('hidden');
     popup.classList.remove('flex');
+  }
+
+  // Profile Modal Functions
+  function openProfileModal(userData) {
+    const modal = document.getElementById('profileViewModal');
+    if (!modal) return;
+
+    // Set avatar
+    const avatarEl = document.getElementById('profileAvatar');
+    if (userData.profile_picture) {
+      avatarEl.style.backgroundImage = `url('${userData.profile_picture}')`;
+      avatarEl.textContent = '';
+    } else {
+      avatarEl.style.backgroundImage = '';
+      avatarEl.textContent = userData.name ? userData.name.charAt(0).toUpperCase() : '?';
+    }
+
+    // Set basic info
+    document.getElementById('profileModalName').textContent = userData.name || 'Not specified';
+    document.getElementById('profileModalEmail').textContent = userData.email || 'Not specified';
+    
+    // Set role badge
+    const roleEl = document.getElementById('profileModalRole');
+    roleEl.textContent = userData.role || 'Mentor';
+    roleEl.className = 'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ' + 
+      (userData.role === 'Mentee' ? 'text-green-700 bg-green-50' : 'text-blue-700 bg-blue-50');
+
+    // Set badges
+    const corporateEl = document.getElementById('profileModalCorporate');
+    const premiumEl = document.getElementById('profileModalPremium');
+    const scholarlyEl = document.getElementById('profileModalScholarly');
+    
+    corporateEl.classList.toggle('hidden', !userData.is_corporate);
+    premiumEl.classList.toggle('hidden', !userData.premium);
+    scholarlyEl.classList.toggle('hidden', !userData.scholarly);
+
+    // Set contact info
+    document.getElementById('profileModalEmail').textContent = userData.email || 'Not specified';
+    document.getElementById('profileModalLocation').textContent = userData.location || 'Not specified';
+    document.getElementById('profileModalInstitution').textContent = userData.institution || 'Not specified';
+
+    // Set bio
+    document.getElementById('profileModalBio').textContent = userData.bio || 'No bio provided';
+
+    // Set skills
+    const skillsContainer = document.getElementById('profileSkills');
+    if (userData.skills && userData.skills.trim()) {
+      const skills = userData.skills.split(',').map(s => s.trim()).filter(s => s);
+      skillsContainer.innerHTML = skills.map(skill => 
+        `<span class="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-full">${skill}</span>`
+      ).join('');
+    } else {
+      skillsContainer.innerHTML = '<span class="text-xs text-gray-500">No skills listed</span>';
+    }
+
+    // Show/hide mentor preferences section - New Structure
+    const mentorPrefSection = document.getElementById('mentorPreferencesSection');
+    if (userData.role === 'Mentor') {
+      mentorPrefSection.classList.remove('hidden');
+      
+      // 1. Target Audience (Who mentor wants to mentor over)
+      const targetAudienceContainer = document.getElementById('profileTargetAudience');
+      if (userData.target_audience && userData.target_audience.trim()) {
+        const audienceList = userData.target_audience.split(',').filter(a => a.trim());
+        const audienceLabels = {
+          'school_student': { label: 'School Student', icon: 'M12 14l9-5-9-5-9 5 9 5z', color: 'blue' },
+          'university_student': { label: 'University Student', icon: 'M12 14l9-5-9-5-9 5 9 5z', color: 'blue' },
+          'seeking_internship': { label: 'Seeking Internship', icon: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 002 2z', color: 'indigo' },
+          'young_professional': { label: 'Young Professional', icon: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 002-2H5a2 2 0 002 2z', color: 'purple' },
+          'exploring': { label: 'Exploring', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z', color: 'gray' },
+          'entrepreneur': { label: 'Entrepreneur', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', color: 'amber' }
+        };
+        targetAudienceContainer.innerHTML = audienceList.map(a => {
+          const info = audienceLabels[a.trim()] || { label: a.trim(), icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', color: 'gray' };
+          return '<span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-' + info.color + '-50 text-' + info.color + '-700 rounded-full text-xs font-medium border border-' + info.color + '-200"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + info.icon + '"/></svg>' + info.label + '</span>';
+        }).join('');
+      } else {
+        targetAudienceContainer.innerHTML = '<span class="text-xs text-gray-500">Not specified</span>';
+      }
+      
+      // 2. Base Mentorship Topics
+      const baseTopicsContainer = document.getElementById('profileBaseTopics');
+      if (userData.base_mentorship_topics && userData.base_mentorship_topics.trim()) {
+        const topicList = userData.base_mentorship_topics.split(',').filter(t => t.trim());
+        const topicLabels = {
+          'school_subjects': 'School Subjects',
+          'coding_basics': 'Coding Basics',
+          'career_guidance': 'Career Guidance',
+          'azure_devops': 'Azure DevOps',
+          'cloud_computing': 'Cloud Computing',
+          'data_science': 'Data Science',
+          'web_development': 'Web Development',
+          'mobile_development': 'Mobile Development',
+          'soft_skills': 'Soft Skills',
+          'leadership': 'Leadership',
+          'entrepreneurship': 'Entrepreneurship'
+        };
+        baseTopicsContainer.innerHTML = topicList.map(t => {
+          const label = topicLabels[t.trim()] || t.trim();
+          return '<span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-xs font-medium border border-green-200">' + label + '</span>';
+        }).join('');
+      } else {
+        baseTopicsContainer.innerHTML = '<span class="text-xs text-gray-500">Not specified</span>';
+      }
+      
+      // 3. Specific Mentorship Topics
+      document.getElementById('profileSpecificTopics').textContent = userData.mentorship_topics || 'Not specified';
+      
+      // 4. Mentor Philosophy (2 fields merged)
+      document.getElementById('profileWhyMentor').textContent = userData.why_mentor || 'Not specified';
+      document.getElementById('profileMentorshipPhilosophy').textContent = userData.mentorship_philosophy || 'Not specified';
+    } else {
+      mentorPrefSection.classList.add('hidden');
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function closeProfileModal() {
+    const modal = document.getElementById('profileViewModal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
   }
 
   if (document.readyState === 'loading') {
@@ -1051,26 +1334,47 @@
         </div>
       </div>
 
-      <!-- Mentorship Preferences (for mentors) -->
+      <!-- Mentorship Preferences (for mentors) - New Structure -->
       <div id="mentorPreferencesSection" class="hidden">
         <div class="divider my-4"></div>
-        <h4 class="text-sm font-semibold text-gray-700 mb-2">Mentorship Preferences</h4>
-        <div class="grid grid-cols-2 gap-4">
+        
+        <!-- 1. Who Mentor Wants to Mentor Over -->
+        <div>
+          <h4 class="text-sm font-semibold text-gray-700 mb-2">Who Mentor Wants to Mentor Over</h4>
+          <div id="profileTargetAudience" class="flex flex-wrap gap-2">
+            <span class="text-xs text-gray-500">Not specified</span>
+          </div>
+        </div>
+
+        <!-- 2. Base Mentorship Topics -->
+        <div>
+          <h4 class="text-sm font-semibold text-gray-700 mb-2">Base Mentorship Topics</h4>
+          <div id="profileBaseTopics" class="flex flex-wrap gap-2">
+            <span class="text-xs text-gray-500">Not specified</span>
+          </div>
+        </div>
+
+        <!-- 3. Specific Mentorship Topics -->
+        <div>
+          <h4 class="text-sm font-semibold text-gray-700 mb-2">Specific Mentorship Topics</h4>
+          <div class="bg-gray-50 p-3 rounded-lg">
+            <p id="profileSpecificTopics" class="text-sm text-gray-700 whitespace-pre-line">Not specified</p>
+          </div>
+        </div>
+
+        <!-- 4. Mentor Philosophy (2 fields merged) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label class="text-xs text-gray-500">Mentorship Type</label>
-            <p id="prefMentorshipType" class="font-medium text-gray-900">Not specified</p>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Why Mentor?</h4>
+            <div class="bg-gray-50 p-3 rounded-lg">
+              <p id="profileWhyMentor" class="text-sm text-gray-700 whitespace-pre-line">Not specified</p>
+            </div>
           </div>
           <div>
-            <label class="text-xs text-gray-500">Preferred Duration</label>
-            <p id="prefDuration" class="font-medium text-gray-900">Not specified</p>
-          </div>
-          <div>
-            <label class="text-xs text-gray-500">Preferred Frequency</label>
-            <p id="prefFrequency" class="font-medium text-gray-900">Not specified</p>
-          </div>
-          <div>
-            <label class="text-xs text-gray-500">Preferred Duration</label>
-            <p id="prefDuration2" class="font-medium text-gray-900">Not specified</p>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Mentorship Philosophy & Motto</h4>
+            <div class="bg-gray-50 p-3 rounded-lg">
+              <p id="profileMentorshipPhilosophy" class="text-sm text-gray-700 whitespace-pre-line">Not specified</p>
+            </div>
           </div>
         </div>
       </div>

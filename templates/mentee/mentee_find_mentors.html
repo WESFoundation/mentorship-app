@@ -566,9 +566,25 @@
 
       <div>
         <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Preferred Institution / Organisation</label>
-        <input type="text" name="preferred_institution" placeholder="e.g. MIT, Google, WHO, Stanford University"
-          class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white">
-        <p class="text-[11px] text-gray-500 mt-1">Specify which institution or organisation you'd like the mentor to be from.</p>
+        <div class="relative" id="institutionDropdownWrapper">
+          <button type="button" onclick="toggleMultiSelect('institution')" id="institutionDropdownBtn"
+            class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white flex items-center justify-between">
+            <span id="institutionDropdownLabel" class="text-gray-400">Select institutions...</span>
+            <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div id="institutionDropdownList" class="hidden absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+            <div class="p-2 border-b border-gray-100 sticky top-0 bg-white">
+              <input type="text" id="institutionSearch" placeholder="Search institutions..." oninput="filterMultiSelect('institution')"
+                class="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+            </div>
+            <div id="institutionOptions" class="p-1">
+              <!-- Institutions will be loaded dynamically -->
+              <div class="text-center text-xs text-gray-500 py-4">Loading institutions...</div>
+            </div>
+          </div>
+          <input type="hidden" name="preferred_institution" id="institutionsHiddenInput" value="">
+        </div>
+        <p class="text-[11px] text-gray-500 mt-1">Select one or more preferred institutions/organisations for your mentor.</p>
       </div>
 
       <div>
@@ -1544,6 +1560,10 @@
   function openContactFeedbackModal() {
     const modal = document.getElementById('contactFeedbackModal');
     if (modal) modal.classList.remove('hidden');
+    // Load institutions if not already loaded
+    if (!multiSelectData.institution.loaded) {
+      initMultiSelect('institution');
+    }
   }
 
   function closeContactFeedbackModal() {
@@ -1597,7 +1617,7 @@
     }
   });
 
-  // ---------- Multi-Select Dropdowns for Country & Language ----------
+  // ---------- Multi-Select Dropdowns for Country, Language & Institution ----------
   const multiSelectData = {
     country: {
       selected: [],
@@ -1637,11 +1657,50 @@
         "Maltese","Luxembourgish","Catalan","Basque","Galician","Welsh","Irish (Gaelic)",
         "Scots Gaelic","Maori","Hawaiian","Samoan","Tongan","Fijian"
       ]
+    },
+    institution: {
+      selected: [],
+      options: [],
+      loaded: false
     }
   };
 
   function initMultiSelect(type) {
     const container = document.getElementById(type + 'Options');
+    
+    // For institution, load from API first
+    if (type === 'institution') {
+      if (!multiSelectData.institution.loaded) {
+        container.innerHTML = '<div class="text-center text-xs text-gray-500 py-4">Loading institutions...</div>';
+        fetch('/api/institutions?limit=100')
+          .then(res => res.json())
+          .then(data => {
+            if (data.success && data.institutions) {
+              multiSelectData.institution.options = data.institutions.map(inst => ({
+                name: inst.name,
+                country: inst.country,
+                city: inst.city,
+                type: inst.institution_type,
+                website: inst.website,
+                profile_picture: inst.profile_picture
+              }));
+              multiSelectData.institution.loaded = true;
+              renderInstitutionOptions();
+            } else {
+              container.innerHTML = '<div class="text-center text-xs text-red-500 py-4">Failed to load institutions</div>';
+            }
+          })
+          .catch(err => {
+            console.error('Error loading institutions:', err);
+            container.innerHTML = '<div class="text-center text-xs text-red-500 py-4">Error loading institutions</div>';
+          });
+        return;
+      } else {
+        renderInstitutionOptions();
+        return;
+      }
+    }
+    
     const options = multiSelectData[type].options;
     container.innerHTML = options.map(opt =>
       '<label class="flex items-center gap-2 px-3 py-1.5 hover:bg-blue-50 cursor-pointer rounded-lg text-sm text-gray-700">' +
@@ -1649,6 +1708,32 @@
           (multiSelectData[type].selected.includes(opt) ? 'checked' : '') +
           ' class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">' +
         '<span>' + opt + '</span>' +
+      '</label>'
+    ).join('');
+  }
+  
+  function renderInstitutionOptions() {
+    const container = document.getElementById('institutionOptions');
+    const options = multiSelectData.institution.options;
+    container.innerHTML = options.map(inst =>
+      '<label class="flex items-center gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer rounded-lg text-sm text-gray-700 group">' +
+        '<input type="checkbox" value="' + inst.name + '" onchange="toggleMultiSelectItem(\'institution\', this.value, this.checked)" ' +
+          (multiSelectData.institution.selected.includes(inst.name) ? 'checked' : '') +
+          ' class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5 shrink-0">' +
+        '<div class="flex-1 min-w-0 flex items-center gap-3">' +
+          (inst.profile_picture ? 
+            '<img src="/static/uploads/' + inst.profile_picture + '" alt="" class="w-6 h-6 rounded-full object-cover border border-gray-200">' :
+            '<div class="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xs flex items-center justify-center font-bold">' + (inst.name ? inst.name.charAt(0).toUpperCase() : '?') + '</div>'
+          ) +
+          '<div class="flex-1 min-w-0">' +
+            '<span class="font-medium text-gray-900 truncate block">' + inst.name + '</span>' +
+            '<div class="flex items-center gap-2 text-xs text-gray-500 mt-0.5">' +
+              (inst.country ? '<span class="flex items-center gap-0.5"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657A12.002 12.002 0 0112 21.75a12.002 12.002 0 01-3.485-6.923M18.718 9.532l7.545 7.545M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' + inst.country + '</span>' : '') +
+              (inst.city ? '<span class="flex items-center gap-0.5"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657A12.002 12.002 0 0112 21.75a12.002 12.002 0 01-3.485-6.923M18.718 9.532l7.545 7.545M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' + inst.city + '</span>' : '') +
+              (inst.type ? '<span class="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] capitalize">' + inst.type + '</span>' : '') +
+            '</div>' +
+          '</div>' +
+        '</div>' +
       '</label>'
     ).join('');
   }
@@ -1679,7 +1764,11 @@
   function updateMultiSelectUI(type) {
     const data = multiSelectData[type];
     const label = document.getElementById(type + 'DropdownLabel');
-    const hiddenInput = document.getElementById(type === 'country' ? 'countriesHiddenInput' : 'languagesHiddenInput');
+    let hiddenInput;
+    if (type === 'country') hiddenInput = document.getElementById('countriesHiddenInput');
+    else if (type === 'language') hiddenInput = document.getElementById('languagesHiddenInput');
+    else if (type === 'institution') hiddenInput = document.getElementById('institutionsHiddenInput');
+    
     if (data.selected.length === 0) {
       label.textContent = 'Select ' + type + 's...';
       label.className = 'text-gray-400';
@@ -1690,7 +1779,7 @@
       label.textContent = data.selected[0] + ', ' + data.selected[1] + ' +' + (data.selected.length - 2) + ' more';
       label.className = 'text-gray-800';
     }
-    hiddenInput.value = data.selected.join(',');
+    if (hiddenInput) hiddenInput.value = data.selected.join(',');
     // Re-render options to update checkboxes
     initMultiSelect(type);
   }
@@ -1707,7 +1796,7 @@
 
   // Close dropdowns when clicking outside
   document.addEventListener('click', function(e) {
-    if (!e.target.closest('#countryDropdownWrapper') && !e.target.closest('#languageDropdownWrapper')) {
+    if (!e.target.closest('#countryDropdownWrapper') && !e.target.closest('#languageDropdownWrapper') && !e.target.closest('#institutionDropdownWrapper')) {
       document.querySelectorAll('[id$="DropdownList"]').forEach(el => el.classList.add('hidden'));
     }
   });
@@ -1716,7 +1805,7 @@
   const origCloseFn = closeContactFeedbackModal;
   closeContactFeedbackModal = function() {
     origCloseFn();
-    ['country', 'language'].forEach(type => {
+    ['country', 'language', 'institution'].forEach(type => {
       multiSelectData[type].selected = [];
       updateMultiSelectUI(type);
     });
@@ -1726,6 +1815,7 @@
   document.addEventListener('DOMContentLoaded', function() {
     initMultiSelect('country');
     initMultiSelect('language');
+    initMultiSelect('institution');
   });
 
   // ---------- Rating System ----------

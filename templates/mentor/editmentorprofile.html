@@ -1268,7 +1268,115 @@
             </div>
         </div>
 
-        <!-- Mentor Philosophy -->
+        <!-- Target Audience & Base Topics -->
+        <div class="bg-white p-8 rounded-2xl shadow-lg border border-blue-100">
+            <h3 class="text-3xl font-bold text-gray-800 mb-6 pb-3 border-b-2 border-blue-100">
+                <i class="fas fa-users text-blue-500 mr-3"></i>Mentorship Focus
+            </h3>
+            <div class="space-y-6">
+                <!-- 1. Target Audience -->
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-3">Who I Want to Mentor </label>
+                    <p class="text-sm text-gray-500 mb-3">Select the types of mentees you want to work with (based on their profile category)</p>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {% set target_audience_list = (target_audience or '').split(',') if target_audience else [] %}
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition duration-200 {% if 'school_student' in target_audience_list %}border-blue-500 bg-blue-50{% endif %}">
+                            <input type="checkbox" name="target_audience" value="school_student" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200" {% if 'school_student' in target_audience_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">School Students</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition duration-200 {% if 'university_student' in target_audience_list %}border-blue-500 bg-blue-50{% endif %}">
+                            <input type="checkbox" name="target_audience" value="university_student" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200" {% if 'university_student' in target_audience_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">University Students</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition duration-200 {% if 'seeking_internship' in target_audience_list %}border-blue-500 bg-blue-50{% endif %}">
+                            <input type="checkbox" name="target_audience" value="seeking_internship" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200" {% if 'seeking_internship' in target_audience_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Seeking Internship</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition duration-200 {% if 'young_professional' in target_audience_list %}border-blue-500 bg-blue-50{% endif %}">
+                            <input type="checkbox" name="target_audience" value="young_professional" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200" {% if 'young_professional' in target_audience_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Young Professionals</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition duration-200 {% if 'exploring' in target_audience_list %}border-blue-500 bg-blue-50{% endif %}">
+                            <input type="checkbox" name="target_audience" value="exploring" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200" {% if 'exploring' in target_audience_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Career Explorers</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition duration-200 {% if 'entrepreneur' in target_audience_list %}border-blue-500 bg-blue-50{% endif %}">
+                            <input type="checkbox" name="target_audience" value="entrepreneur" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200" {% if 'entrepreneur' in target_audience_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Entrepreneurs</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 2. Base Mentorship Topics -->
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-3">What I Want to Mentor On (Base Topics) </label>
+                    <p class="text-sm text-gray-500 mb-3">Select general topic categories you want to mentor on</p>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {% set base_topics_list = (base_mentorship_topics or '').split(',') if base_mentorship_topics else [] %}
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'school_subjects' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
+                            <input type="checkbox" name="base_mentorship_topics" value="school_subjects" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'school_subjects' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">School Subjects</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'coding_basics' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
+                            <input type="checkbox" name="base_mentorship_topics" value="coding_basics" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'coding_basics' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Coding Basics</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'career_guidance' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
+                            <input type="checkbox" name="base_mentorship_topics" value="career_guidance" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'career_guidance' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Career Guidance</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'azure_devops' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
+                            <input type="checkbox" name="base_mentorship_topics" value="azure_devops" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'azure_devops' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Azure DevOps</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'cloud_computing' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
+                            <input type="checkbox" name="base_mentorship_topics" value="cloud_computing" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'cloud_computing' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Cloud Computing</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'data_science' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
+                            <input type="checkbox" name="base_mentorship_topics" value="data_science" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'data_science' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Data Science</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'web_development' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
+                            <input type="checkbox" name="base_mentorship_topics" value="web_development" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'web_development' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Web Development</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'mobile_development' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
+                            <input type="checkbox" name="base_mentorship_topics" value="mobile_development" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'mobile_development' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Mobile Development</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'soft_skills' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
+                            <input type="checkbox" name="base_mentorship_topics" value="soft_skills" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'soft_skills' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Soft Skills</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'leadership' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
+                            <input type="checkbox" name="base_mentorship_topics" value="leadership" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'leadership' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Leadership</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'entrepreneurship' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
+                            <input type="checkbox" name="base_mentorship_topics" value="entrepreneurship" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'entrepreneurship' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Entrepreneurship</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Specific Mentorship Topics -->
+        <div class="bg-white p-8 rounded-2xl shadow-lg border border-blue-100">
+            <h3 class="text-3xl font-bold text-gray-800 mb-6 pb-3 border-b-2 border-blue-100">
+                <i class="fas fa-tags text-purple-500 mr-3"></i>Specific Mentorship Topics
+            </h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">Specific Topics I Can Mentor On </label>
+                    <p class="text-sm text-gray-500 mb-2">Enter specific, detailed topics (comma-separated)</p>
+                    <textarea name="mentorship_topics" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition duration-300" rows="3" placeholder="e.g., Python for beginners, Resume review for tech roles, Azure CI/CD pipelines, System design interviews, React hooks, Career transition to tech...">{{ mentorship_topics }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mentor Philosophy (2 fields only) -->
         <div class="bg-white p-8 rounded-2xl shadow-lg border border-blue-100">
             <h3 class="text-3xl font-bold text-gray-800 mb-6 pb-3 border-b-2 border-blue-100">
                 <i class="fas fa-lightbulb text-yellow-500 mr-3"></i>Mentor Philosophy
@@ -1279,12 +1387,8 @@
                     <textarea name="why_mentor" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300" rows="3" placeholder="Share your motivation for becoming a mentor...">{{ why_mentor }}</textarea>
                 </div>
                 <div>
-                    <label class="block text-gray-700 font-semibold mb-2">Mentorship Philosophy </label>
-                    <textarea name="mentorship_philosophy" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300" rows="3" placeholder="Describe your approach to mentorship...">{{ mentorship_philosophy }}</textarea>
-                </div>
-                <div>
-                    <label class="block text-gray-700 font-semibold mb-2">Mentorship Motto </label>
-                    <input type="text" name="mentorship_motto" value="{{ mentorship_motto }}" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300" placeholder="e.g., 'Empower through guidance and support'">
+                    <label class="block text-gray-700 font-semibold mb-2">Mentorship Philosophy & Motto </label>
+                    <textarea name="mentorship_philosophy" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300" rows="4" placeholder="Describe your approach to mentorship and include your motto (e.g., 'I believe in hands-on learning. My motto: Empower through guidance and support')">{{ mentorship_philosophy }}</textarea>
                 </div>
             </div>
         </div>
@@ -1306,225 +1410,59 @@
     </form>
 </div>
 
-<script>
-// ========== Cascading Country > State > City/District Dropdowns (Pure Dropdowns) ==========
-(function() {
-    const countrySelect = document.getElementById('country_select');
-    const stateSelect = document.getElementById('state_select');
-    const citySelect = document.getElementById('city_select');
-    const stateFieldContainer = document.getElementById('state_field_container');
-    const cityFieldContainer = document.getElementById('city_field_container');
-    const stateLabel = document.getElementById('state_label');
-    const cityLabel = document.getElementById('city_label');
-
-    // Current values from server
-    const currentCountry = {{ country|tojson }};
-    const currentState = {{ state|tojson }};
-    const currentCity = {{ city|tojson }};
-
-    let locationData = {};
-    let allCountriesData = []; // [{name, dial_code, code}]
-    let globalStatesData = {};
-
-    const COUNTRY_KEY_MAP = {
-        'United States': 'USA',
-        'United States of America': 'USA'
-    };
-
-    function getCountryDataKey(countryName) {
-        return COUNTRY_KEY_MAP[countryName] || countryName;
-    }
-
-    // Fetch location data + all countries + global states in parallel
-    Promise.all([
-        fetch('/api/location_data').then(r => r.json()).catch(() => ({})),
-        fetch('/api/all_countries').then(r => r.json()).catch(() => ({ success: false, countries: [] })),
-        fetch('/static/data/global_states.json').then(r => r.json()).catch(() => ({}))
-    ]).then(([locData, countryData, gStates]) => {
-        locationData = locData || {};
-        allCountriesData = (countryData && countryData.countries) ? countryData.countries : [];
-        globalStatesData = gStates || {};
-
-        populateCountries();
-        if (currentCountry) {
-            countrySelect.value = currentCountry;
-            onCountryChange();
-        }
-    }).catch(err => {
-        console.error('Failed to load location data:', err);
-    });
-
+<script src="{{ url_for('static', filename='js/location_cascade.js') }}"></script>
+    <script>
+    // Helper to get dial code from allCountriesData (loaded by LocationCascade)
+    let allCountriesData = [];
+    
+    // Fetch all countries data for dial codes
+    fetch('/api/all_countries')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.countries) {
+                allCountriesData = data.countries;
+            }
+        })
+        .catch(err => console.error('Failed to load country data:', err));
+    
     function getDialCodeForCountry(countryName) {
         const match = allCountriesData.find(c => c.name === countryName);
         return match ? match.dial_code : null;
     }
-
-    function populateCountries() {
-        countrySelect.innerHTML = '<option value="">Select Country</option>';
-
-        // Group by region
-        const regions = {
-            'Asia': ['Afghanistan', 'Armenia', 'Azerbaijan', 'Bahrain', 'Bangladesh', 'Bhutan', 'Brunei', 'Cambodia', 'China', 'Cyprus', 'Georgia', 'Hong Kong', 'India', 'Indonesia', 'Iran', 'Iraq', 'Israel', 'Japan', 'Jordan', 'Kazakhstan', 'Kuwait', 'Kyrgyzstan', 'Laos', 'Lebanon', 'Macau', 'Malaysia', 'Maldives', 'Mongolia', 'Myanmar', 'Nepal', 'North Korea', 'Oman', 'Pakistan', 'Palestine', 'Philippines', 'Qatar', 'Saudi Arabia', 'Singapore', 'South Korea', 'Sri Lanka', 'Syria', 'Taiwan', 'Tajikistan', 'Thailand', 'Timor-Leste', 'Turkey', 'Turkmenistan', 'United Arab Emirates', 'Uzbekistan', 'Vietnam', 'Yemen'],
-            'Europe': ['Albania', 'Andorra', 'Austria', 'Belarus', 'Belgium', 'Bosnia and Herzegovina', 'Bulgaria', 'Croatia', 'Czech Republic', 'Denmark', 'Estonia', 'Finland', 'France', 'Germany', 'Greece', 'Hungary', 'Iceland', 'Ireland', 'Italy', 'Latvia', 'Liechtenstein', 'Lithuania', 'Luxembourg', 'Malta', 'Moldova', 'Monaco', 'Montenegro', 'Netherlands', 'North Macedonia', 'Norway', 'Poland', 'Portugal', 'Romania', 'Russia', 'San Marino', 'Serbia', 'Slovakia', 'Slovenia', 'Spain', 'Sweden', 'Switzerland', 'Ukraine', 'United Kingdom', 'Vatican City'],
-            'Americas': ['Antigua and Barbuda', 'Argentina', 'Bahamas', 'Barbados', 'Belize', 'Bolivia', 'Brazil', 'Canada', 'Chile', 'Colombia', 'Costa Rica', 'Cuba', 'Dominica', 'Dominican Republic', 'Ecuador', 'El Salvador', 'Grenada', 'Guatemala', 'Guyana', 'Haiti', 'Honduras', 'Jamaica', 'Mexico', 'Nicaragua', 'Panama', 'Paraguay', 'Peru', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Suriname', 'Trinidad and Tobago', 'United States', 'Uruguay', 'Venezuela'],
-            'Africa': ['Algeria', 'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cameroon', 'Cape Verde', 'Central African Republic', 'Chad', 'Comoros', 'Congo', 'DR Congo', "Cote d'Ivoire", 'Djibouti', 'Egypt', 'Equatorial Guinea', 'Eritrea', 'Eswatini', 'Ethiopia', 'Gabon', 'Gambia', 'Ghana', 'Guinea', 'Guinea-Bissau', 'Kenya', 'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius', 'Morocco', 'Mozambique', 'Namibia', 'Niger', 'Nigeria', 'Rwanda', 'Sao Tome and Principe', 'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 'South Africa', 'South Sudan', 'Sudan', 'Tanzania', 'Togo', 'Tunisia', 'Uganda', 'Zambia', 'Zimbabwe'],
-            'Oceania': ['Australia', 'Fiji', 'Kiribati', 'Marshall Islands', 'Micronesia', 'Nauru', 'New Zealand', 'Palau', 'Papua New Guinea', 'Samoa', 'Solomon Islands', 'Tonga', 'Tuvalu', 'Vanuatu']
-        };
-
-        const allNames = new Set(allCountriesData.map(c => c.name));
-
-        for (const [region, countries] of Object.entries(regions)) {
-            const available = countries.filter(c => allNames.has(c));
-            if (available.length > 0) {
-                const group = document.createElement('optgroup');
-                group.label = region;
-                for (const c of available.sort()) {
-                    const opt = document.createElement('option');
-                    opt.value = c;
-                    opt.textContent = c;
-                    group.appendChild(opt);
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        window.locationCascade = new LocationCascade({
+            countryId: 'country_select',
+            stateId: 'state_select',
+            cityId: 'city_select',
+            stateLabelId: 'state_label',
+            cityLabelId: 'city_label',
+            currentCountry: {{ country|tojson }},
+            currentState: {{ state|tojson }},
+            currentCity: {{ city|tojson }},
+            onCountryChange: function(country) {
+                const dialCode = getDialCodeForCountry(country);
+                if (dialCode) {
+                    const phoneInput = document.querySelector('input[name="whatsapp_country_code"]');
+                    if (phoneInput) {
+                        phoneInput.value = dialCode;
+                    }
                 }
-                countrySelect.appendChild(group);
-            }
-        }
-
-        const inRegions = new Set(Object.values(regions).flat());
-        const remaining = allCountriesData.filter(c => !inRegions.has(c.name));
-        if (remaining.length > 0) {
-            const group = document.createElement('optgroup');
-            group.label = 'Other Countries';
-            for (const c of remaining.sort((a,b) => a.name.localeCompare(b.name))) {
-                const opt = document.createElement('option');
-                opt.value = c.name;
-                opt.textContent = c.name;
-                group.appendChild(opt);
-            }
-            countrySelect.appendChild(group);
-        }
-    }
-
-    function onCountryChange() {
-        const country = countrySelect.value;
-
-        if (country) {
-            const dialCode = getDialCodeForCountry(country);
-            if (dialCode) {
-                const phoneInput = document.querySelector('input[name="whatsapp_country_code"]');
-                if (phoneInput) {
-                    phoneInput.value = dialCode;
+                
+                const stateFieldContainer = document.getElementById('state_field_container');
+                const cityFieldContainer = document.getElementById('city_field_container');
+                
+                if (!country) {
+                    stateFieldContainer.style.display = 'none';
+                    cityFieldContainer.style.display = 'none';
+                    return;
                 }
+                
+                stateFieldContainer.style.display = 'block';
             }
-        }
-
-        stateSelect.innerHTML = '<option value="">Select State</option>';
-        citySelect.innerHTML = '<option value="">Select District / City</option>';
-
-        if (!country) {
-            stateFieldContainer.style.display = 'none';
-            cityFieldContainer.style.display = 'none';
-            return;
-        }
-
-        stateFieldContainer.style.display = 'block';
-
-        if (country === 'India') {
-            stateLabel.textContent = 'State';
-            cityLabel.textContent = 'District';
-        } else {
-            stateLabel.textContent = 'State / Province';
-            cityLabel.textContent = 'District / City';
-        }
-
-        const cData = locationData[getCountryDataKey(country)];
-        let statesList = [];
-
-        if (cData && cData.states) {
-            statesList = Object.keys(cData.states);
-        } else if (globalStatesData[country] && globalStatesData[country].length > 0) {
-            statesList = globalStatesData[country];
-        }
-
-        if (statesList.length > 0) {
-            statesList.forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s;
-                opt.textContent = s;
-                stateSelect.appendChild(opt);
-            });
-        } else {
-            const opt = document.createElement('option');
-            opt.value = country;
-            opt.textContent = country + ' (National / Region)';
-            stateSelect.appendChild(opt);
-        }
-
-        if (currentState) {
-            const found = Array.from(stateSelect.options).some(o => o.value.toLowerCase() === currentState.toLowerCase());
-            if (found) {
-                stateSelect.value = currentState;
-            } else if (currentState) {
-                const savedOpt = document.createElement('option');
-                savedOpt.value = currentState;
-                savedOpt.textContent = currentState;
-                stateSelect.appendChild(savedOpt);
-                stateSelect.value = currentState;
-            }
-        }
-
-        onStateChange();
-    }
-
-    function onStateChange() {
-        const country = countrySelect.value;
-        const state = stateSelect.value;
-        citySelect.innerHTML = '<option value="">Select District / City</option>';
-
-        if (!state) {
-            cityFieldContainer.style.display = 'none';
-            return;
-        }
-
-        cityFieldContainer.style.display = 'block';
-
-        const cData = locationData[getCountryDataKey(country)];
-        let cities = [];
-
-        if (cData && cData.states && cData.states[state]) {
-            cities = cData.states[state];
-        }
-
-        if (cities.length > 0) {
-            cities.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c;
-                opt.textContent = c;
-                citySelect.appendChild(opt);
-            });
-        } else {
-            const opt = document.createElement('option');
-            opt.value = state;
-            opt.textContent = state + ' (Main District)';
-            citySelect.appendChild(opt);
-        }
-
-        if (currentCity) {
-            const found = Array.from(citySelect.options).some(o => o.value.toLowerCase() === currentCity.toLowerCase());
-            if (found) {
-                citySelect.value = currentCity;
-            } else if (currentCity) {
-                const savedOpt = document.createElement('option');
-                savedOpt.value = currentCity;
-                savedOpt.textContent = currentCity;
-                citySelect.appendChild(savedOpt);
-                citySelect.value = currentCity;
-            }
-        }
-    }
-
-    countrySelect.addEventListener('change', onCountryChange);
-    stateSelect.addEventListener('change', onStateChange);
-})();
-</script>
+        });
+    });
+    </script>
 
 <script>
 // Datalist for country codes
@@ -1738,13 +1676,15 @@ function validateForm() {
         { name: 'graduation_year', label: 'Graduation Year' },
         { name: 'academic_status', label: 'Academic Status' },
         { name: 'linkedin_link', label: 'LinkedIn Link' },
+        { name: 'target_audience', label: 'Target Audience' },
+        { name: 'base_mentorship_topics', label: 'Base Mentorship Topics' },
+        { name: 'mentorship_topics', label: 'Mentorship Topics' },
         { name: 'preferred_communication', label: 'Preferred Communication' },
         { name: 'availability', label: 'Availability' },
         { name: 'connect_frequency', label: 'Connect Frequency' },
         { name: 'preferred_duration', label: 'Preferred Duration' },
         { name: 'why_mentor', label: 'Why Mentor' },
-        { name: 'mentorship_philosophy', label: 'Mentorship Philosophy' },
-        { name: 'mentorship_motto', label: 'Mentorship Motto' }
+        { name: 'mentorship_philosophy', label: 'Mentorship Philosophy' }
     ];
 
     let emptyFields = [];

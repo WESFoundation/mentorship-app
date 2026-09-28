@@ -789,8 +789,12 @@ function openMentorProfileModal(m) {
     ['Other Social Link', m.otherSocialLink || m.other_social_link]
   ]);
 
-  sectionsAdded += showSection(body, 'Mentorship Preferences', [
-    ['Mentorship Topics', m.mentorshipTopics || m.mentorship_topics],
+  sectionsAdded += showSection(body, 'Mentorship Preferences (New Structure)', [
+    ['Who Mentor Wants to Mentor Over (Target Audience)', m.targetAudience || m.target_audience],
+    ['Base Mentorship Topics', m.baseMentorshipTopics || m.base_mentorship_topics],
+    ['Specific Mentorship Topics', m.mentorshipTopics || m.mentorship_topics],
+    ['Why Mentor', m.whyMentor || m.why_mentor],
+    ['Mentorship Philosophy & Motto', m.mentorshipPhilosophy || m.mentorship_philosophy],
     ['Type Preference', m.mentorshipTypePreference || m.mentorship_type_preference],
     ['Preferred Communication', m.preferredCommunication || m.preferred_communication],
     ['Availability', m.availability],
