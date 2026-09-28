@@ -347,14 +347,6 @@
                         <select name="city" id="city_select" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300">
                             <option value="">Select District / City</option>
                         </select>
-                        <!-- Fallback text input for "Other" -->
-                        <input type="text" name="city" id="city_text_input" style="display: none;" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300 mt-2" placeholder="Enter your district / city">
-                    </div>
-
-                    <!-- Other Country Field -->
-                    <div id="other_country_field" style="display: none;">
-                        <label class="block text-gray-700 font-semibold mb-2">Specify Your Country</label>
-                        <input type="text" name="other_country" id="other_country" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300" placeholder="Enter your country name">
                     </div>
 
 <div>
@@ -1315,17 +1307,15 @@
 </div>
 
 <script>
-// ========== Cascading Country > State > City/District Dropdowns ==========
+// ========== Cascading Country > State > City/District Dropdowns (Pure Dropdowns) ==========
 (function() {
     const countrySelect = document.getElementById('country_select');
     const stateSelect = document.getElementById('state_select');
     const citySelect = document.getElementById('city_select');
-    const cityTextInput = document.getElementById('city_text_input');
     const stateFieldContainer = document.getElementById('state_field_container');
     const cityFieldContainer = document.getElementById('city_field_container');
     const stateLabel = document.getElementById('state_label');
     const cityLabel = document.getElementById('city_label');
-    const otherCountryField = document.getElementById('other_country_field');
 
     // Current values from server
     const currentCountry = {{ country|tojson }};
@@ -1334,37 +1324,36 @@
 
     let locationData = {};
     let allCountriesData = []; // [{name, dial_code, code}]
+    let globalStatesData = {};
 
-    // Map all_countries names → LOCATION_DATA keys (for countries with state/city data)
     const COUNTRY_KEY_MAP = {
-        'United States': 'USA'
+        'United States': 'USA',
+        'United States of America': 'USA'
     };
 
     function getCountryDataKey(countryName) {
         return COUNTRY_KEY_MAP[countryName] || countryName;
     }
 
-    // Fetch location data + all countries in parallel
+    // Fetch location data + all countries + global states in parallel
     Promise.all([
-        fetch('/api/location_data').then(r => r.json()),
-        fetch('/api/all_countries').then(r => r.json())
-    ]).then(([locData, countryData]) => {
-        locationData = locData;
-        allCountriesData = (countryData.countries || []);
+        fetch('/api/location_data').then(r => r.json()).catch(() => ({})),
+        fetch('/api/all_countries').then(r => r.json()).catch(() => ({ success: false, countries: [] })),
+        fetch('/static/data/global_states.json').then(r => r.json()).catch(() => ({}))
+    ]).then(([locData, countryData, gStates]) => {
+        locationData = locData || {};
+        allCountriesData = (countryData && countryData.countries) ? countryData.countries : [];
+        globalStatesData = gStates || {};
+
         populateCountries();
         if (currentCountry) {
             countrySelect.value = currentCountry;
             onCountryChange();
         }
     }).catch(err => {
-        console.error('Failed to load data:', err);
-        const opt = document.createElement('option');
-        opt.value = 'Other';
-        opt.textContent = '🌍 Other (Please specify)';
-        countrySelect.appendChild(opt);
+        console.error('Failed to load location data:', err);
     });
 
-    // Country name -> dial code lookup
     function getDialCodeForCountry(countryName) {
         const match = allCountriesData.find(c => c.name === countryName);
         return match ? match.dial_code : null;
@@ -1382,10 +1371,8 @@
             'Oceania': ['Australia', 'Fiji', 'Kiribati', 'Marshall Islands', 'Micronesia', 'Nauru', 'New Zealand', 'Palau', 'Papua New Guinea', 'Samoa', 'Solomon Islands', 'Tonga', 'Tuvalu', 'Vanuatu']
         };
 
-        // Build name set for quick lookup
         const allNames = new Set(allCountriesData.map(c => c.name));
 
-        // Add countries by region
         for (const [region, countries] of Object.entries(regions)) {
             const available = countries.filter(c => allNames.has(c));
             if (available.length > 0) {
@@ -1401,13 +1388,12 @@
             }
         }
 
-        // Add remaining countries not in any region
         const inRegions = new Set(Object.values(regions).flat());
         const remaining = allCountriesData.filter(c => !inRegions.has(c.name));
         if (remaining.length > 0) {
             const group = document.createElement('optgroup');
             group.label = 'Other Countries';
-            for (const c of remaining) {
+            for (const c of remaining.sort((a,b) => a.name.localeCompare(b.name))) {
                 const opt = document.createElement('option');
                 opt.value = c.name;
                 opt.textContent = c.name;
@@ -1415,19 +1401,12 @@
             }
             countrySelect.appendChild(group);
         }
-
-        // "Other" option
-        const otherOpt = document.createElement('option');
-        otherOpt.value = 'Other';
-        otherOpt.textContent = '🌍 Other (Please specify)';
-        countrySelect.appendChild(otherOpt);
     }
 
     function onCountryChange() {
         const country = countrySelect.value;
 
-        // Auto-update phone country code when country changes
-        if (country && country !== 'Other') {
+        if (country) {
             const dialCode = getDialCodeForCountry(country);
             if (dialCode) {
                 const phoneInput = document.querySelector('input[name="whatsapp_country_code"]');
@@ -1437,160 +1416,113 @@
             }
         }
 
-        // Reset state and city
         stateSelect.innerHTML = '<option value="">Select State</option>';
         citySelect.innerHTML = '<option value="">Select District / City</option>';
-        cityTextInput.style.display = 'none';
-        citySelect.style.display = '';
 
-        if (!country || country === 'Other') {
+        if (!country) {
             stateFieldContainer.style.display = 'none';
             cityFieldContainer.style.display = 'none';
-            otherCountryField.style.display = country === 'Other' ? 'block' : 'none';
             return;
         }
 
-        otherCountryField.style.display = 'none';
-
-        const countryData = locationData[getCountryDataKey(country)];
-        if (!countryData) {
-            // Country not in our data - show district/city dropdown with "Other" option only
-            stateFieldContainer.style.display = 'none';
-            cityFieldContainer.style.display = 'block';
-            citySelect.style.display = '';
-            cityTextInput.style.display = 'none';
-            cityLabel.textContent = 'District / City';
-            citySelect.innerHTML = '<option value="">Select District / City</option>';
-            if (currentCity) {
-                var otherOpt = document.createElement('option');
-                otherOpt.value = currentCity;
-                otherOpt.textContent = currentCity;
-                citySelect.appendChild(otherOpt);
-                citySelect.value = currentCity;
-            }
-            var otherOpt2 = document.createElement('option');
-            otherOpt2.value = 'Other';
-            otherOpt2.textContent = 'Other (type below)';
-            citySelect.appendChild(otherOpt2);
-            return;
-        }
-
-        const states = Object.keys(countryData.states);
         stateFieldContainer.style.display = 'block';
 
-        // Set label based on country type
         if (country === 'India') {
             stateLabel.textContent = 'State';
-            cityLabel.textContent = 'District / City';
+            cityLabel.textContent = 'District';
         } else {
             stateLabel.textContent = 'State / Province';
             cityLabel.textContent = 'District / City';
         }
 
-        // Populate states
-        for (const s of states) {
+        const cData = locationData[getCountryDataKey(country)];
+        let statesList = [];
+
+        if (cData && cData.states) {
+            statesList = Object.keys(cData.states);
+        } else if (globalStatesData[country] && globalStatesData[country].length > 0) {
+            statesList = globalStatesData[country];
+        }
+
+        if (statesList.length > 0) {
+            statesList.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s;
+                opt.textContent = s;
+                stateSelect.appendChild(opt);
+            });
+        } else {
             const opt = document.createElement('option');
-            opt.value = s;
-            opt.textContent = s;
+            opt.value = country;
+            opt.textContent = country + ' (National / Region)';
             stateSelect.appendChild(opt);
         }
 
-        // If we have a saved state, select it
-        if (currentState && states.includes(currentState)) {
-            stateSelect.value = currentState;
-            onStateChange();
-        } else {
-            // Show city field for text input if no matching state
-            cityFieldContainer.style.display = 'block';
-            citySelect.style.display = 'none';
-            cityTextInput.style.display = '';
-            cityTextInput.value = currentCity || '';
+        if (currentState) {
+            const found = Array.from(stateSelect.options).some(o => o.value.toLowerCase() === currentState.toLowerCase());
+            if (found) {
+                stateSelect.value = currentState;
+            } else if (currentState) {
+                const savedOpt = document.createElement('option');
+                savedOpt.value = currentState;
+                savedOpt.textContent = currentState;
+                stateSelect.appendChild(savedOpt);
+                stateSelect.value = currentState;
+            }
         }
+
+        onStateChange();
     }
 
     function onStateChange() {
         const country = countrySelect.value;
         const state = stateSelect.value;
-        const countryData = locationData[getCountryDataKey(country)];
-
         citySelect.innerHTML = '<option value="">Select District / City</option>';
-        cityTextInput.style.display = 'none';
-        citySelect.style.display = '';
 
-        if (!state || !countryData) {
+        if (!state) {
             cityFieldContainer.style.display = 'none';
             return;
         }
 
-        const cities = countryData.states[state] || [];
         cityFieldContainer.style.display = 'block';
 
-        if (cities.length === 0) {
-            // No cities listed - show text input
-            citySelect.style.display = 'none';
-            cityTextInput.style.display = '';
-            cityTextInput.value = currentCity || '';
-        } else {
-            for (const c of cities) {
+        const cData = locationData[getCountryDataKey(country)];
+        let cities = [];
+
+        if (cData && cData.states && cData.states[state]) {
+            cities = cData.states[state];
+        }
+
+        if (cities.length > 0) {
+            cities.forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c;
                 opt.textContent = c;
                 citySelect.appendChild(opt);
-            }
+            });
+        } else {
+            const opt = document.createElement('option');
+            opt.value = state;
+            opt.textContent = state + ' (Main District)';
+            citySelect.appendChild(opt);
+        }
 
-            // Add "Other" option
-            const otherOpt = document.createElement('option');
-            otherOpt.value = 'Other';
-            otherOpt.textContent = 'Other (type below)';
-            citySelect.appendChild(otherOpt);
-
-            // If we have a saved city, select it
-            if (currentCity) {
-                const cityMatch = cities.find(c => c.toLowerCase() === currentCity.toLowerCase());
-                if (cityMatch) {
-                    citySelect.value = cityMatch;
-                } else if (currentCity) {
-                    // City not in list - set to Other and show text input
-                    citySelect.value = 'Other';
-                    showCityTextInput();
-                    cityTextInput.value = currentCity;
-                }
+        if (currentCity) {
+            const found = Array.from(citySelect.options).some(o => o.value.toLowerCase() === currentCity.toLowerCase());
+            if (found) {
+                citySelect.value = currentCity;
+            } else if (currentCity) {
+                const savedOpt = document.createElement('option');
+                savedOpt.value = currentCity;
+                savedOpt.textContent = currentCity;
+                citySelect.appendChild(savedOpt);
+                citySelect.value = currentCity;
             }
         }
     }
 
-    function showCityTextInput() {
-        citySelect.style.display = 'none';
-        cityTextInput.style.display = '';
-        cityTextInput.value = '';
-        cityTextInput.focus();
-    }
-
-    // Event listeners
     countrySelect.addEventListener('change', onCountryChange);
     stateSelect.addEventListener('change', onStateChange);
-    citySelect.addEventListener('change', function() {
-        if (this.value === 'Other') {
-            showCityTextInput();
-        } else {
-            cityTextInput.style.display = 'none';
-            cityTextInput.value = '';
-        }
-    });
-
-    // Handle form submission: ensure only one city value is sent
-    document.getElementById('mentorProfileForm').addEventListener('submit', function(e) {
-        if (citySelect.value === 'Other' && cityTextInput.value.trim()) {
-            // User selected "Other" and typed a city - send text input value only
-            citySelect.removeAttribute('name');
-        } else if (citySelect.value && citySelect.value !== 'Other') {
-            // Normal dropdown selection - remove text input from form
-            cityTextInput.removeAttribute('name');
-        } else if (cityTextInput.style.display !== 'none' && cityTextInput.value.trim()) {
-            // Text input is visible and has value (no dropdown option)
-            citySelect.removeAttribute('name');
-        }
-    });
 })();
 </script>
 
