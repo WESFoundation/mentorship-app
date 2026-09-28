@@ -1,0 +1,28 @@
+def google_login():
+    """Redirect to Google OAuth consent screen for login"""
+    # Check if user is already logged in
+    if "email" in session and "user_id" in session:
+        user = User.query.get(session["user_id"])
+        if user:
+            # User already logged in, redirect to dashboard
+            if user.user_type == "1":
+                return redirect(url_for("mentordashboard"))
+            elif user.user_type == "2":
+                return redirect(url_for("menteedashboard"))
+            elif user.user_type == "0":
+                return redirect(url_for("supervisordashboard"))
+            elif user.user_type == "3":
+                return redirect(url_for("institutiondashboard"))
+            else:
+                return redirect(url_for("select_user_type"))
+    
+    redirect_uri = get_current_redirect_uri()
+    flow = get_google_flow(LOGIN_SCOPES, redirect_uri)
+    authorization_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true',
+        prompt='select_account'  # Allow user to select account but skip consent if already authorized
+    )
+    session['state'] = state
+    session['oauth_type'] = 'login'  # Mark this as login flow
+    return redirect(authorization_url)

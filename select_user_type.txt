@@ -1,0 +1,187 @@
+def select_user_type():
+    """Allow OAuth users to select their user type.
+
+    Two paths:
+    1. Pending Google sign-up (account NOT yet created): requires the Gmail OTP
+       to be verified, then the account is created here with the chosen role.
+    2. Legacy OAuth user whose account exists without a role yet.
+    """
+    pending = session.get("pending_google")
+
+    if pending:
+        if not session.get("otp_verified"):
+            print("❌ Pending signup present but OTP not verified - redirecting")
+            return redirect(url_for("verify_signup_otp"))
+
+        # If an account with this email appeared meanwhile, drop the pending flow
+        existing = User.query.filter_by(email=pending["email"]).first()
+        if existing:
+            session.pop("pending_google", None)
+            session.pop("otp_verified", None)
+        else:
+            if request.method == "POST":
+                user_type = request.form.get("user_type")
+                if user_type not in ["1", "2"]:
+                    flash("Invalid role selected. Please choose Mentor or Mentee.", "error")
+                    return redirect(url_for("select_user_type"))
+
+                # Final one-account-per-email guard (covers Gmail variants and
+                # accounts created between OTP verification and this moment).
+                canonical_new = _canonical_email(pending["email"])
+                duplicate = None
+                for candidate in User.query.all():
+                    if _canonical_email(candidate.email) == canonical_new:
+                        duplicate = candidate
+                        break
+                if duplicate:
+                    print(f"⛔ Duplicate signup blocked: '{pending['email']}' matches existing account '{duplicate.email}'")
+                    for key in ("pending_google", "otp_verified"):
+                        session.pop(key, None)
+                    flash(f"An account already exists with this email address. Please sign in with your existing account instead.", "error")
+                    return redirect(url_for("signin"))
+
+                try:
+                    new_user = User(
+                        name=(pending.get("name") or pending["email"].split("@")[0]).strip(),
+                        email=pending["email"],
+                        google_id=pending.get("google_id"),
+                        oauth_provider="google",
+                        profile_picture_url=pending.get("picture") or None,
+                        oauth_created_at=datetime.utcnow(),
+                        user_type=user_type
+                    )
+                    db.session.add(new_user)
+                    db.session.flush()
+
+                    if user_type == "3":
+                        institution = Institution.get_by_name(institution_name)
+                        if not institution:
+                            institution = Institution(
+                                user_id=new_user.id,
+                                name=institution_name,
+                                contact_person=new_user.name,
+                                contact_email=new_user.email,
+                                status="active"
+                            )
+                            db.session.add(institution)
+                            db.session.flush()
+                        new_user.institution_id = institution.id
+
+                    db.session.commit()
+                    print(f"✅ Verified signup complete - new {user_type} account id={new_user.id}")
+                except Exception as e:
+                    db.session.rollback()
+                    app.logger.error(f"Pending signup account creation failed: {e}")
+                    flash("Could not create your account. Please try again.", "error")
+                    return redirect(url_for("select_user_type"))
+
+                # Welcome email (non-blocking)
+                try:
+                    send_welcome_email(new_user.email, new_user.name, signup_method="oauth")
+                except Exception as e:
+                    print(f"⚠️ Welcome email failed but signup successful: {e}")
+
+                # Log the user in
+                session.permanent = True
+                session["email"] = new_user.email
+                session["user_id"] = new_user.id
+                session["user_type"] = user_type
+                session["user_name"] = new_user.name
+                session["oauth_user"] = True
+
+                for key in ("pending_google", "otp_verified"):
+                    session.pop(key, None)
+
+                flash("Your account has been created and your email verified!", "success")
+
+                if user_type == "1":
+                    flash("Welcome! Please complete your mentor profile to continue.", "info")
+                    return redirect(url_for("editmentorprofile"))
+                elif user_type == "2":
+                    flash("Welcome! Please complete your mentee profile to continue.", "info")
+                    return redirect(url_for("editmenteeprofile"))
+                elif user_type == "0":
+                    flash("Welcome! Please complete your supervisor profile to continue.", "info")
+                    return redirect(url_for("editsupervisorprofile"))
+                elif user_type == "3":
+                    flash("Welcome! Please complete your institution profile to continue.", "info")
+                    return redirect(url_for("editinstitutionprofile"))
+
+            # GET — show the role selection page for a verified pending signup
+            return render_template(
+                "auth/select_user_type.html",
+                user={"name": pending.get("name") or "", "email": pending["email"]},
+                pending=True
+            )
+
+    if "email" not in session:
+        print("❌ No email in session - redirecting to signin")
+        return redirect(url_for("signin"))
+    
+    print(f"✅ Email in session: {session.get('email')}")
+    
+    user = User.query.filter_by(email=session["email"]).first()
+    
+    if not user:
+        print(f"❌ User not found for email: {session.get('email')}")
+        return redirect(url_for("signin"))
+    
+    print(f"✅ User found: {user.email}, Current type: {user.user_type}")
+    
+    # If user already has a type, redirect to dashboard
+    if user.user_type:
+        session.permanent = True
+        session["user_type"] = user.user_type
+        session["user_id"] = user.id
+        
+        print(f"📝 User already has type: {user.user_type}, redirecting to dashboard")
+        
+        if user.user_type == "1":
+            return redirect(url_for("mentordashboard"))
+        elif user.user_type == "2":
+            return redirect(url_for("menteedashboard"))
+        elif user.user_type == "0":
+            return redirect(url_for("supervisordashboard"))
+        elif user.user_type == "3":
+            return redirect(url_for("institutiondashboard"))
+    
+    if request.method == "POST":
+        user_type = request.form.get("user_type")
+        
+        print(f"📝 User selected type: {user_type}")
+        
+        if user_type not in ["0", "1", "2", "3"]:
+            flash("Invalid user type selected", "error")
+            return redirect(url_for("select_user_type"))
+        
+        # Update user type
+        user.user_type = user_type
+        db.session.commit()
+        
+        print(f"✅ User type saved to database: {user_type}")
+        
+        # Update session
+        session.permanent = True
+        session["user_type"] = user_type
+        session["user_id"] = user.id
+        session["user_name"] = user.name
+        
+        print(f"📝 Session updated - Type: {session.get('user_type')}, ID: {session.get('user_id')}")
+        
+        # Redirect to profile completion
+        if user_type == "1":
+            flash("Welcome! Please complete your mentor profile to continue.", "info")
+            return redirect(url_for("editmentorprofile"))
+        elif user_type == "2":
+            flash("Welcome! Please complete your mentee profile to continue.", "info")
+            return redirect(url_for("editmenteeprofile"))
+        elif user_type == "0":
+            flash("Welcome! Please complete your supervisor profile to continue.", "info")
+            return redirect(url_for("editsupervisorprofile"))
+        elif user_type == "3":
+            flash("Welcome! Please complete your institution profile to continue.", "info")
+            return redirect(url_for("editinstitutionprofile"))
+    
+    return render_template("auth/select_user_type.html", user=user)
+
+# Helper function to calculate mentor profile completion percentage

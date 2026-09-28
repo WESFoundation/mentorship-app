@@ -13,8 +13,8 @@ with app.test_client() as client:
         ('toggleDropdown', 'toggleDropdown' in content),
         ('toggleDescription', 'toggleDescription' in content),
         ('toggleLocation', 'toggleLocation' in content),
-        ('dropdown fixed', "dropdown.style.position = 'fixed'" in content),
+        ('dropdown fixed', 'position: fixed' in content),
         ('See less', 'See less' in content),
     ]
-    for name, found in checks:
-        print(name + ': ' + ('PASS' if found else 'FAIL'))
+    for name, result in checks:
+        print(name + ': ' + ('PASS' if result else 'FAIL'))

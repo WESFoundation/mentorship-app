@@ -5849,6 +5849,10 @@ def editinstitutionprofile():
                 for u in institution_users:
                     u.is_corporate = False
                 db.session.commit()
+            
+            # Also refresh current user's corporate status (covers edge cases)
+            refresh_user_corporate_status(user)
+            
             flash("Institution profile updated successfully!", "success")
             return redirect(url_for("institutionprofile"))
             
@@ -8622,6 +8626,42 @@ def api_export_institution_data():
         as_attachment=True,
         download_name=f"{fname}.xlsx"
     )
+
+
+
+@app.route("/api/institution_users/<int:institution_id>", methods=["GET"])
+def api_institution_users(institution_id):
+    """Get all users (mentors and mentees) for an institution.
+    Returns list of users with their details including is_corporate flag."""
+    # Verify institution exists
+    institution = Institution.query.get(institution_id)
+    if not institution:
+        return jsonify({"error": "Institution not found"}), 404
+    
+    # Get all users linked to this institution
+    users = User.query.filter_by(institution_id=institution_id).all()
+    
+    users_data = []
+    for user in users:
+        users_data.append({
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "user_type": user.user_type,
+            "user_type_label": "Mentor" if user.user_type == "1" else ("Mentee" if user.user_type == "2" else "Institution"),
+            "institution_id": user.institution_id,
+            "institution_name": user.institution,
+            "is_corporate": getattr(user, 'is_corporate', False),
+            "profile_picture": user.profile_picture,
+            "created_at": user.created_at.isoformat() if user.created_at else None
+        })
+    
+    return jsonify({
+        "institution_id": institution_id,
+        "institution_name": institution.name,
+        "users": users_data,
+        "total_users": len(users_data)
+    })
 
 
 def _build_supervisor_export():
@@ -13343,7 +13383,8 @@ def my_certificate():
                 connections_list.append({
                     "id": mr.id,
                     "name": mentee.name,
-                    "type": "mentee"
+                    "type": "mentee",
+                    "is_corporate": getattr(mentee, 'is_corporate', False)
                 })
 
         # Also include mentees linked via MenteeTask if not already in list
@@ -13356,7 +13397,8 @@ def my_certificate():
                     connections_list.append({
                         "id": f"t_{t.id}",
                         "name": mentee.name,
-                        "type": "mentee"
+                        "type": "mentee",
+                        "is_corporate": getattr(mentee, 'is_corporate', False)
                     })
         
         # Sessions
@@ -13418,7 +13460,8 @@ def my_certificate():
                 connections_list.append({
                     "id": mr.id,
                     "name": mentor.name,
-                    "type": "mentor"
+                    "type": "mentor",
+                    "is_corporate": getattr(mentor, 'is_corporate', False)
                 })
 
         # Also include mentors linked via MenteeTask if not already in list
@@ -13431,7 +13474,8 @@ def my_certificate():
                     connections_list.append({
                         "id": f"t_{t.id}",
                         "name": mentor.name,
-                        "type": "mentor"
+                        "type": "mentor",
+                        "is_corporate": getattr(mentor, 'is_corporate', False)
                     })
         
         # Sessions

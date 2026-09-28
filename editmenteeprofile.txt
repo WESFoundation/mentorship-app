@@ -1,0 +1,310 @@
+def editmenteeprofile():
+    if "email" not in session or session.get("user_type") != "2":
+        return redirect(url_for("signin"))
+
+    # Current user
+    user = User.query.filter_by(email=session["email"]).first()
+    profile = MenteeProfile.query.filter_by(user_id=user.id).first()
+    
+    # Get institutions for dropdown
+    institutions = Institution.query.filter_by(status="active").all()
+
+    if request.method == "POST":
+        # Check if this is an AJAX request
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
+                  request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html
+        
+        # Get "Who am I?" selection
+        who_am_i = request.form.get("who_am_i", "").strip()
+        
+        # Validate "Who am I?" is selected
+        if not who_am_i:
+            error_msg = "Please select 'Who am I?'"
+            if is_ajax:
+                return jsonify({"success": False, "message": error_msg}), 400
+            flash(error_msg, "error")
+            return redirect(url_for("editmenteeprofile"))
+        
+        # Define mandatory fields for each category
+        mandatory_fields_by_category = {
+            'school_student': ['school_name'],
+            'university_student': ['institution_name'],
+            'seeking_internship': ['institution_name'],
+            'young_professional': ['current_role', 'industry', 'years_experience', 'current_organization'],
+            'exploring': ['last_role', 'restart_field', 'support_expected']
+        }
+        
+        # Common mandatory fields for all categories
+        common_mandatory = ['mobile_number', 'mentorship_expectations', 'institution']
+        
+        # General details mandatory fields
+        general_details_mandatory = ['city', 'state', 'country', 'institution']
+        
+        # Validate common mandatory fields
+        missing_fields = []
+        for field in common_mandatory:
+            value = request.form.get(field, "").strip()
+            if not value:
+                missing_fields.append(field.replace('_', ' ').title())
+        
+        # Validate general details mandatory fields
+        for field in general_details_mandatory:
+            value = request.form.get(field, "").strip()
+            if not value:
+                missing_fields.append(field.replace('_', ' ').title())
+        
+        # Validate terms agreement
+        if not request.form.get('terms_agreement'):
+            missing_fields.append('Terms & Conditions Agreement')
+        
+        # Validate GDPR agreement
+        if not request.form.get('gdpr_agreement'):
+            missing_fields.append('GDPR Agreement')
+        
+        # Validate profile picture (only if no existing picture)
+        if not profile or not profile.profile_picture:
+            if 'profile_picture' not in request.files or not request.files['profile_picture'].filename:
+                missing_fields.append('Profile Picture')
+        
+        # Validate category-specific mandatory fields (ONLY for selected category)
+        category_fields = mandatory_fields_by_category.get(who_am_i, [])
+        for field in category_fields:
+            value = request.form.get(field, "").strip()
+            if not value:
+                missing_fields.append(field.replace('_', ' ').title())
+        
+        # If validation fails, show error
+        if missing_fields:
+            error_msg = f"Please fill all mandatory fields: {', '.join(missing_fields)}"
+            if is_ajax:
+                return jsonify({"success": False, "message": error_msg, "missing_fields": missing_fields}), 400
+            flash(error_msg, "error")
+            return redirect(url_for("editmenteeprofile"))
+        
+        # Create profile if not exists
+        if not profile:
+            profile = MenteeProfile(user_id=user.id)
+            db.session.add(profile)
+
+        # Save common fields
+        profile.who_am_i = who_am_i
+        profile.dob = request.form.get("dob")
+        
+        # Check if parent consent is needed (under 18 AND from Luxembourg)
+        country = request.form.get("country", "")
+        parent_email = request.form.get("parent_email", "").strip()
+        if profile.dob and needs_parent_consent(profile.dob, country):
+            # Mentee is under 18, parent consent required
+            if parent_email:
+                profile.parent_email = parent_email
+                
+                # Generate consent token if not already generated
+                if not profile.parent_consent_token:
+                    profile.parent_consent_token = generate_consent_token()
+                    profile.parent_consent_status = "pending"
+                    
+                    # Send consent email to parent
+                    parent_name = request.form.get("parent_name", "Parent/Guardian")
+                    print(f"🔔 Attempting to send parent consent email to: {parent_email}")
+                    print(f"   Parent Name: {parent_name}")
+                    print(f"   Mentee Name: {user.name}")
+                    print(f"   Token: {profile.parent_consent_token}")
+                    
+                    email_sent = send_parent_consent_email(
+                        parent_email=parent_email,
+                        parent_name=parent_name,
+                        mentee_name=user.name,
+                        consent_token=profile.parent_consent_token
+                    )
+                    
+                    if email_sent:
+                        print(f"✅ Parent consent email sent successfully to {parent_email}")
+                    else:
+                        print(f"❌ Failed to send parent consent email to {parent_email}")
+        else:
+            # Mentee is 18 or older, auto-approve
+            profile.parent_consent_status = "approved"
+        
+        profile.mobile_number = request.form.get("mobile_number")
+        profile.mobile_country_code = request.form.get("mobile_country_code", "+1")
+        profile.whatsapp_number = request.form.get("whatsapp_number")
+        profile.whatsapp_country_code = request.form.get("whatsapp_country_code", "+1")
+        profile.parent_mobile = request.form.get("parent_mobile")
+        profile.parent_mobile_country_code = request.form.get("parent_mobile_country_code", "+1")
+        profile.school_college_name = request.form.get("school_college_name")
+        profile.stream = request.form.get("stream")
+        profile.goal = request.form.get("goal")
+        profile.mentorship_expectations = request.form.get("mentorship_expectations")
+        profile.linkedin_link = request.form.get("linkedin_link")
+        # Save "Yes" only if both terms and GDPR are agreed
+        terms_agreed = request.form.get("terms_agreement")
+        gdpr_agreed = request.form.get("gdpr_agreement")
+        profile.terms_agreement = "Yes" if (terms_agreed and gdpr_agreed) else "No"
+        
+        # Save general details
+        profile.father_name = request.form.get("father_name")
+        profile.parent_name = request.form.get("parent_name")
+        profile.comments = request.form.get("comments")
+        profile.address_line1 = request.form.get("address_line1")
+        profile.address_line2 = request.form.get("address_line2")
+        profile.city = request.form.get("city")
+        profile.state = request.form.get("state")
+        profile.postal_code = request.form.get("postal_code")
+        profile.country = request.form.get("country")
+        
+        # Save institution field
+        institution_value = request.form.get("institution")
+        profile.institution = institution_value
+        if institution_value == "Other":
+            profile.institution_other = request.form.get("institution_other")
+        else:
+            profile.institution_other = None
+
+        # SCHOOL STUDENT fields
+        if who_am_i == "school_student":
+            profile.school_name = request.form.get("school_name")
+            profile.class_year = request.form.get("class_year")
+            profile.school_board = request.form.get("school_board")
+            profile.course_stream = request.form.get("course_stream")
+            profile.favourite_subject = request.form.get("favourite_subject")
+            profile.career_interest = request.form.get("career_interest")
+            profile.govt_private = request.form.get("govt_private")
+
+        # UNIVERSITY STUDENT fields
+        elif who_am_i == "university_student":
+            profile.institution_name = request.form.get("institution_name")
+            profile.education_level = request.form.get("education_level")
+            profile.course_stream = request.form.get("course_stream")
+            profile.class_year = request.form.get("class_year")
+            profile.favourite_subject = request.form.get("favourite_subject")
+            profile.career_interest = request.form.get("career_interest")
+
+        # SEEKING INTERNSHIP fields
+        elif who_am_i == "seeking_internship":
+            profile.education_level = request.form.get("education_level")
+            profile.course_stream = request.form.get("course_stream")
+            profile.institution_name = request.form.get("institution_name")
+            profile.career_interest = request.form.get("career_interest")
+            profile.key_skills = request.form.get("key_skills")
+            profile.career_goal = request.form.get("career_goal")
+
+        # YOUNG PROFESSIONAL fields
+        elif who_am_i == "young_professional":
+            profile.current_role = request.form.get("current_role")
+            profile.industry = request.form.get("industry")
+            profile.years_experience = request.form.get("years_experience")
+            profile.current_organization = request.form.get("current_organization")
+            profile.key_skills = request.form.get("key_skills")
+            profile.career_goal = request.form.get("career_goal")
+
+        # EXPLORING fields
+        elif who_am_i == "exploring":
+            profile.education_level = request.form.get("education_level")
+            profile.last_role = request.form.get("last_role")
+            profile.career_interest = request.form.get("career_interest")
+            profile.restart_field = request.form.get("restart_field")
+            profile.support_expected = request.form.get("support_expected")
+
+        # Handle profile picture upload
+        if 'profile_picture' in request.files:
+            file = request.files['profile_picture']
+            if file and file.filename and allowed_file(file.filename):
+                filename = secure_filename(f"mentee_{profile.id}_{file.filename}")
+                file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
+                profile.profile_picture = filename
+
+        db.session.commit()
+        
+        refresh_user_corporate_status(user)
+        
+        # Check if parent consent email was sent
+        parent_consent_sent = False
+        if profile.dob and needs_parent_consent(profile.dob, profile.country) and profile.parent_consent_status == "pending":
+            parent_consent_sent = True
+        
+        # Return JSON response for AJAX requests
+        if is_ajax:
+            message = "Mentee profile updated successfully!"
+            if parent_consent_sent:
+                message += " A consent email has been sent to your parent/guardian."
+            return jsonify({
+                "success": True, 
+                "message": message,
+                "redirect_url": url_for("menteeprofile"),
+                "parent_consent_sent": parent_consent_sent
+            }), 200
+        
+        # Traditional response for non-AJAX requests
+        flash("Mentee profile updated successfully!", "success")
+        if parent_consent_sent:
+            flash("A consent email has been sent to your parent/guardian. You need their approval before connecting with mentors.", "info")
+        return redirect(url_for("menteeprofile"))
+
+    # GET request – pre-fill form with existing data
+    return render_template(
+        "mentee/editmenteeprofile.html",
+        full_name=user.name,
+        email=user.email,
+        institutions=institutions,
+        dob=profile.dob if profile else "",
+        mobile_number=profile.mobile_number if profile else "",
+        mobile_country_code=profile.mobile_country_code if profile and profile.mobile_country_code else "+1",
+        whatsapp_number=profile.whatsapp_number if profile else "",
+        whatsapp_country_code=profile.whatsapp_country_code if profile and profile.whatsapp_country_code else "+1",
+        who_am_i=profile.who_am_i if profile and profile.who_am_i else None,
+        # General details
+        father_name=profile.father_name if profile else "",
+        parent_name=profile.parent_name if profile else "",
+        parent_email=profile.parent_email if profile else "",
+        address_line1=profile.address_line1 if profile else "",
+        address_line2=profile.address_line2 if profile else "",
+        city=profile.city if profile else "",
+        state=profile.state if profile else "",
+        postal_code=profile.postal_code if profile else "",
+        country=profile.country if profile else "",
+        institution=profile.institution if profile else "",
+        institution_other=profile.institution_other if profile else "",
+        # New common fields
+        parent_mobile=profile.parent_mobile if profile else "",
+        parent_mobile_country_code=profile.parent_mobile_country_code if profile and profile.parent_mobile_country_code else "+1",
+        school_college_name=profile.school_college_name if profile else "",
+        stream=profile.stream if profile else "",
+        goal=profile.goal if profile else "",
+        govt_private=profile.govt_private if profile else "",
+        # Other fields
+        education_level=profile.education_level if profile else "",
+        institution_name=profile.institution_name if profile else "",
+        board_university=profile.board_university if profile else "",
+        course_stream=profile.course_stream if profile else "",
+        class_year=profile.class_year if profile else "",
+        favourite_subject=profile.favourite_subject if profile else "",
+        career_interest=profile.career_interest if profile else "",
+        school_name=profile.school_name if profile else "",
+        school_board=profile.school_board if profile else "",
+        school_passing_year=profile.school_passing_year if profile else "",
+        current_role=profile.current_role if profile else "",
+        industry=profile.industry if profile else "",
+        years_experience=profile.years_experience if profile else "",
+        current_organization=profile.current_organization if profile else "",
+        key_skills=profile.key_skills if profile else "",
+        career_goal=profile.career_goal if profile else "",
+        startup_stage=profile.startup_stage if profile else "",
+        startup_name=profile.startup_name if profile else "",
+        startup_industry=profile.startup_industry if profile else "",
+        team_size=profile.team_size if profile else "",
+        main_challenge=profile.main_challenge if profile else "",
+        mentorship_type=profile.mentorship_type if profile else "",
+        freelance_skill=profile.freelance_skill if profile else "",
+        freelance_experience=profile.freelance_experience if profile else "",
+        freelance_platforms=profile.freelance_platforms if profile else "",
+        freelance_challenge=profile.freelance_challenge if profile else "",
+        last_role=profile.last_role if profile else "",
+        career_break_reason=profile.career_break_reason if profile else "",
+        restart_field=profile.restart_field if profile else "",
+        support_expected=profile.support_expected if profile else "",
+        mentorship_expectations=profile.mentorship_expectations if profile else "",
+        linkedin_link=profile.linkedin_link if profile else "",
+        terms_agreement=profile.terms_agreement if profile else "",
+        parent_consent_status=profile.parent_consent_status if profile else None,
+        profile_picture=profile.profile_picture if profile else None
+    )

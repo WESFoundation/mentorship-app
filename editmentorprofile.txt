@@ -1,0 +1,265 @@
+def editmentorprofile():
+    if "email" not in session or session.get("user_type") != "1":
+        return redirect(url_for("signin"))
+
+    # Current user
+    user = User.query.filter_by(email=session["email"]).first()
+    profile = MentorProfile.query.filter_by(user_id=user.id).first()
+    
+    # Get institutions for dropdown
+    institutions = Institution.query.filter_by(status="active").all()
+
+    if request.method == "POST":
+        # Create profile if not exists
+        if not profile:
+            profile = MentorProfile(user_id=user.id)
+            db.session.add(profile)
+
+        # No mandatory fields validation - mentor can save partial profile
+
+        # Update institution if changed
+        new_institution = request.form.get("institution")
+
+        if new_institution and new_institution != user.institution:
+            user.institution = new_institution
+            db.session.add(user)
+
+        if new_institution == "Other":
+            other_institution = request.form.get("other_institution_name")
+            if other_institution:
+                user.institution = other_institution
+                db.session.add(user)
+
+       # Save form data to mentor profile
+        # Handle "Other" option for profession
+        profession = request.form.get("profession")
+        if profession == "Other":
+            other_profession = request.form.get("other_profession")
+            profile.profession = other_profession if other_profession else profession
+        else:
+            profile.profession = profession
+        
+        profile.skills = request.form.get("skills")
+        profile.role = request.form.get("role")
+        
+        # Handle "Other" option for industry_sector
+        industry_sector = request.form.get("industry_sector")
+        if industry_sector == "Other":
+            other_industry_sector = request.form.get("other_industry_sector")
+            profile.industry_sector = other_industry_sector if other_industry_sector else industry_sector
+        else:
+            profile.industry_sector = industry_sector
+        
+        profile.organisation = request.form.get("organisation")
+        profile.years_of_experience = request.form.get("years_of_experience")
+        
+        # Handle WhatsApp with country code - combine them
+        whatsapp_country_code = request.form.get("whatsapp_country_code", "+1")
+        whatsapp_number = request.form.get("whatsapp")
+        if whatsapp_number:
+            # Combine country code and number
+            profile.whatsapp = f"{whatsapp_country_code} {whatsapp_number}"
+        else:
+            profile.whatsapp = None
+        
+        # Handle "Other" option for country
+        country = request.form.get("country")
+        if country == "Other":
+            other_country = request.form.get("other_country")
+            country = other_country if other_country else country
+        
+        city = request.form.get("city")
+        state = request.form.get("state")
+        # Build location string: "City, State, Country" for normal, "District, State, India" for India, or just "City, Country"
+        if city and state and country:
+            profile.location = f"{city}, {state}, {country}"
+        elif city and country:
+            profile.location = f"{city}, {country}"
+        else:
+            profile.location = city or country
+        
+        # Handle multiple language selection with "Other" option
+        languages = request.form.getlist("language")
+        other_language = request.form.get("other_language")
+        if "Other" in languages and other_language:
+            languages = [lang for lang in languages if lang != "Other"]
+            languages.append(other_language)
+        profile.language = ", ".join(languages) if languages else None
+        
+        # Social links
+        profile.linkedin_link = request.form.get("linkedin_link")
+        profile.github_link = request.form.get("github_link")
+        profile.portfolio_link = request.form.get("portfolio_link")
+        profile.other_social_link = request.form.get("other_social_link")
+        
+        # Mentorship preferences
+        mentorship_topics = request.form.getlist("mentorship_topics")
+        profile.mentorship_topics = ", ".join(mentorship_topics) if mentorship_topics else None
+        
+        mentorship_types = request.form.getlist("mentorship_type_preference")
+        profile.mentorship_type_preference = ", ".join(mentorship_types) if mentorship_types else None
+        
+        profile.preferred_communication = request.form.get("preferred_communication")
+        profile.availability = request.form.get("availability")
+        profile.connect_frequency = request.form.get("connect_frequency")
+        profile.preferred_duration = request.form.get("preferred_duration")
+        
+        # Mentor philosophy
+        profile.why_mentor = request.form.get("why_mentor")
+        profile.mentorship_philosophy = request.form.get("mentorship_philosophy")
+        profile.mentorship_motto = request.form.get("mentorship_motto")
+        
+        profile.additional_info = request.form.get("additional_info")
+
+        # Educational Information
+        profile.highest_qualification = request.form.get("highest_qualification")
+        profile.degree_name = request.form.get("degree_name")
+        profile.field_of_study = request.form.get("field_of_study")
+        profile.university_name = request.form.get("university_name")
+        profile.graduation_year = request.form.get("graduation_year")
+        profile.academic_status = request.form.get("academic_status")
+        profile.certifications = request.form.get("certifications")
+        profile.research_work = request.form.get("research_work")
+        
+        # Set education field (legacy field) based on new educational fields
+        # This ensures backward compatibility with the old field
+        if profile.highest_qualification or profile.degree_name:
+            education_parts = []
+            if profile.degree_name:
+                education_parts.append(profile.degree_name)
+            if profile.field_of_study:
+                education_parts.append(f"in {profile.field_of_study}")
+            if profile.highest_qualification:
+                education_parts.append(f"({profile.highest_qualification})")
+            profile.education = " ".join(education_parts) if education_parts else "Not specified"
+        else:
+            profile.education = "Not specified"
+
+        # Handle profile picture upload
+        file = request.files.get("profile_picture")
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
+            profile.profile_picture = filename
+
+        # Handle criminal certificate upload (PDF only)
+        criminal_cert_file = request.files.get("criminal_certificate")
+        if criminal_cert_file and criminal_cert_file.filename:
+            if criminal_cert_file.filename.lower().endswith('.pdf'):
+                cert_filename = secure_filename(criminal_cert_file.filename)
+                # Add timestamp to avoid filename conflicts
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                cert_filename = f"criminal_cert_{user.id}_{timestamp}_{cert_filename}"
+                criminal_cert_file.save(os.path.join(app.config["UPLOAD_FOLDER"], cert_filename))
+                profile.criminal_certificate = cert_filename
+                print(f"✅ Criminal certificate uploaded: {cert_filename}")
+            else:
+                flash("Criminal Certificate must be a PDF file", "error")
+                return redirect(url_for("editmentorprofile"))
+
+        try:
+# Update corporate affiliation status if user has an institution
+            refresh_user_corporate_status(user)
+            
+            db.session.commit()
+            # Clear any saved form data from session on successful save
+            session.pop('mentor_form_data', None)
+            flash("✅ Profile updated successfully!", "success")
+            print("✅ Database commit successful!")
+            return redirect(url_for("mentorprofile"))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"❌ Error updating profile: {str(e)}", "error")
+            print(f"❌ Database commit failed: {str(e)}")
+
+    # GET request – pre-fill form with existing data
+    # Check if there's saved form data from failed validation
+    form_data = session.pop('mentor_form_data', None)
+    
+    # Parse location to get city, state, and country separately
+    location = profile.location if profile else ""
+    city = ""
+    country = ""
+    state = ""
+    if location and ", " in location:
+        parts = location.split(", ")
+        if len(parts) >= 3:
+            # New format: "City, State, Country"
+            city = parts[0]
+            state = parts[1]
+            country = parts[2]
+        elif len(parts) == 2:
+            city = parts[0]
+            country = parts[1]
+    else:
+        city = location
+    
+    # Parse WhatsApp to get country code and number separately
+    whatsapp_full = profile.whatsapp if profile else ""
+    whatsapp_country_code = "+1"  # Default
+    whatsapp_number = ""
+    
+    if whatsapp_full:
+        # Try to split by space to separate country code and number
+        parts = whatsapp_full.split(" ", 1)
+        if len(parts) == 2 and parts[0].startswith("+"):
+            whatsapp_country_code = parts[0]
+            whatsapp_number = parts[1]
+        else:
+            # If no space or doesn't start with +, treat entire string as number
+            whatsapp_number = whatsapp_full
+    
+    # Use form_data if available (from failed validation), otherwise use profile data
+    return render_template(
+        "mentor/editmentorprofile.html",
+        full_name=user.name,
+        email=user.email,
+        institution=form_data.get('institution') if form_data else user.institution,
+        institutions=institutions,
+        profession=form_data.get('profession') if form_data else (profile.profession if profile else ""),
+        other_profession=form_data.get('other_profession') if form_data else "",
+        skills=form_data.get('skills') if form_data else (profile.skills if profile else ""),
+        role=form_data.get('role') if form_data else (profile.role if profile else ""),
+        industry_sector=form_data.get('industry_sector') if form_data else (profile.industry_sector if profile else ""),
+        other_industry_sector=form_data.get('other_industry_sector') if form_data else "",
+        organisation=form_data.get('organisation') if form_data else (profile.organisation if profile else ""),
+        years_of_experience=form_data.get('years_of_experience') if form_data else (profile.years_of_experience if profile else ""),
+        whatsapp=form_data.get('whatsapp') if form_data else whatsapp_number,
+        whatsapp_country_code=form_data.get('whatsapp_country_code') if form_data else whatsapp_country_code,
+        location=location,
+        city=form_data.get('city') if form_data else city,
+        state=form_data.get('state') if form_data else state,
+        country=form_data.get('country') if form_data else country,
+        other_country=form_data.get('other_country') if form_data else "",
+        education=profile.education if profile else "",
+        language=", ".join(form_data.get('language', [])) if form_data else (profile.language if profile else ""),
+        other_language=form_data.get('other_language') if form_data else "",
+        linkedin_link=form_data.get('linkedin_link') if form_data else (profile.linkedin_link if profile else ""),
+        github_link=form_data.get('github_link') if form_data else (profile.github_link if profile else ""),
+        portfolio_link=form_data.get('portfolio_link') if form_data else (profile.portfolio_link if profile else ""),
+        other_social_link=form_data.get('other_social_link') if form_data else (profile.other_social_link if profile else ""),
+        mentorship_topics=", ".join(form_data.get('mentorship_topics', [])) if form_data else ((profile.mentorship_topics or "") if profile else ""),
+        mentorship_type_preference=", ".join(form_data.get('mentorship_type_preference', [])) if form_data else ((profile.mentorship_type_preference or "") if profile else ""),
+        preferred_communication=form_data.get('preferred_communication') if form_data else (profile.preferred_communication if profile else ""),
+        availability=form_data.get('availability') if form_data else (profile.availability if profile else ""),
+        connect_frequency=form_data.get('connect_frequency') if form_data else (profile.connect_frequency if profile else ""),
+        preferred_duration=form_data.get('preferred_duration') if form_data else (profile.preferred_duration if profile else ""),
+        why_mentor=form_data.get('why_mentor') if form_data else (profile.why_mentor if profile else ""),
+        mentorship_philosophy=form_data.get('mentorship_philosophy') if form_data else (profile.mentorship_philosophy if profile else ""),
+        mentorship_motto=form_data.get('mentorship_motto') if form_data else (profile.mentorship_motto if profile else ""),
+        additional_info=form_data.get('additional_info') if form_data else (profile.additional_info if profile else ""),
+        profile_picture=profile.profile_picture if profile else None,
+        criminal_certificate=profile.criminal_certificate if profile else None,
+        # Educational Information
+        highest_qualification=form_data.get('highest_qualification') if form_data else (profile.highest_qualification if profile else ""),
+        degree_name=form_data.get('degree_name') if form_data else (profile.degree_name if profile else ""),
+        field_of_study=form_data.get('field_of_study') if form_data else (profile.field_of_study if profile else ""),
+        university_name=form_data.get('university_name') if form_data else (profile.university_name if profile else ""),
+        graduation_year=form_data.get('graduation_year') if form_data else (profile.graduation_year if profile else ""),
+        academic_status=form_data.get('academic_status') if form_data else (profile.academic_status if profile else ""),
+        certifications=form_data.get('certifications') if form_data else (profile.certifications if profile else ""),
+        research_work=form_data.get('research_work') if form_data else (profile.research_work if profile else "")
+    )
+
+
+#-----------------edit mentee profile-------------------

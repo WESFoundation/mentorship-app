@@ -1,0 +1,113 @@
+def create_account():
+    """Supervisor can create accounts for mentors, mentees, and institutions"""
+    if "email" not in session or session.get("user_type") != "0":
+        flash("Only supervisors can create accounts!", "error")
+        return redirect(url_for("signin"))
+    
+    if request.method == "POST":
+        name = request.form.get("name")
+        email = (request.form.get("email") or "").strip().lower()
+        password = request.form.get("password")
+        confirm_password = request.form.get("confirm_password")
+        user_type = request.form.get("user_type")
+        institution_name = request.form.get("institution", "")
+        new_institution_name = request.form.get("new_institution_name", "")
+        
+        # For institution admin, the name is the institution name
+        if user_type == "3":
+            if new_institution_name:
+                # Use the institution name provided in the new_institution_name field
+                institution_name = new_institution_name
+                name = institution_name
+            else:
+                flash("Please provide an institution name!", "error")
+                return redirect(url_for("create_account"))
+        
+        # Validation
+        if not all([name, email, password, confirm_password, user_type]):
+            flash("Please fill all required fields!", "error")
+            return redirect(url_for("create_account"))
+        
+        if len(password) < 6:
+            flash("Password must be at least 6 characters long!", "error")
+            return redirect(url_for("create_account"))
+        
+        if password != confirm_password:
+            flash("Passwords do not match!", "error")
+            return redirect(url_for("create_account"))
+        
+        # Check if email already exists
+        existing_user = User.query.filter(db.func.lower(User.email) == email).first()
+        if existing_user:
+            flash("Email already exists! Please use a different email.", "error")
+            return redirect(url_for("create_account"))
+        
+        # For institutions, check if institution name already exists
+        if user_type == "3":
+            existing_institution = User.query.filter_by(name=name, user_type="3").first()
+            if existing_institution:
+                flash("Institution name already exists! Please use a different name.", "error")
+                return redirect(url_for("create_account"))
+        
+        try:
+            # Hash password
+            hashed_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=8)
+            
+            # Look up institution if provided
+            institution_obj = None
+            if institution_name and user_type != "3":
+                # Institution.name is a @property from User.name, so we need to join
+                institution_user = User.query.filter_by(name=institution_name, user_type="3").first()
+                if institution_user:
+                    institution_obj = Institution.query.filter_by(user_id=institution_user.id).first()
+            
+            # Create new user
+            new_user = User(
+                name=name,
+                email=email,
+                password=hashed_password,
+                user_type=user_type,
+                institution=institution_name if user_type != "3" else None,
+                institution_id=institution_obj.id if institution_obj else None
+            )
+            
+            # Check corporate email affiliation
+            if institution_obj and email:
+                new_user.is_corporate = check_corporate_email(email, institution_obj)
+            
+            db.session.add(new_user)
+            db.session.flush()  # Get user ID
+            
+            # For institution admin (user_type = "3"), create institution profile
+            if user_type == "3":
+                institution = Institution(
+                    user_id=new_user.id,
+                    status="active"
+                )
+                db.session.add(institution)
+                db.session.flush()
+                
+                new_user.institution_id = institution.id
+                db.session.commit()
+            elif institution_obj:
+                db.session.commit()
+            else:
+                db.session.commit()
+            
+            flash(f"✅ Account created successfully for {name} ({email})", "success")
+            return redirect(url_for("manage_created_accounts"))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error creating account: {str(e)}", "error")
+            return redirect(url_for("create_account"))
+    
+    # Get existing institutions for dropdown (only show institutions that can be selected by mentors/mentees)
+    # These would be institutions created by supervisors, not institution admins
+    institutions = Institution.query.all()  # For now, show all institutions
+    
+    return render_template(
+        "supervisor/create_account.html",
+        show_sidebar=True,
+        institutions=institutions
+    )
+

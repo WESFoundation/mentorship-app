@@ -1,0 +1,167 @@
+def callback():
+    """Handle Google OAuth callback"""
+    print("\n" + "="*60)
+    print("🔄 CALLBACK ROUTE CALLED")
+    print("="*60)
+    
+    try:
+        print(f"📍 Step 1: Getting state from session")
+        state = session.get('state')
+        print(f"   State: {state}")
+        
+        print(f"📍 Step 2: Creating Flow from client secrets or env vars")
+        redirect_uri = get_current_redirect_uri()
+        flow = get_google_flow(LOGIN_SCOPES, redirect_uri, state=state)
+        print(f"   ✅ Flow created")
+        
+        print(f"📍 Step 3: Getting authorization response")
+        authorization_response = request.url
+        print(f"   URL: {authorization_response}")
+        
+        print(f"📍 Step 4: Fetching token")
+        # Set environment variable to allow scope changes
+        os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
+        flow.fetch_token(authorization_response=authorization_response)
+        print(f"   ✅ Token fetched")
+        
+        print(f"📍 Step 5: Getting credentials")
+        credentials = flow.credentials
+        access_token = credentials.token
+        print(f"   ✅ Credentials obtained")
+        print(f"   Token: {access_token[:30]}..." if access_token else "   No token")
+        
+        print(f"📍 Step 6: Getting user info via HTTP request")
+        # Use requests library to get user info directly with access token
+        import requests as http_requests
+        
+        headers = {'Authorization': f'Bearer {access_token}'}
+        user_info_response = http_requests.get(
+            'https://www.googleapis.com/oauth2/v2/userinfo',
+            headers=headers
+        )
+        
+        print(f"   Response status: {user_info_response.status_code}")
+        
+        if user_info_response.status_code != 200:
+            print(f"   ❌ Error response: {user_info_response.text}")
+            flash("Error getting user info from Google. Please try again.", "error")
+            return redirect(url_for("signin"))
+        
+        user_info = user_info_response.json()
+        print(f"   ✅ User info retrieved")
+        
+        google_id = user_info.get('id')
+        email = (user_info.get('email') or "").strip().lower()
+        name = user_info.get('name', email.split('@')[0] if email else 'User')
+        picture_url = user_info.get('picture')
+        
+        print(f"\n📊 Google User Data:")
+        print(f"   Name: {name}")
+        print(f"   Email: {email}")
+        print(f"   Google ID: {google_id}")
+        print(f"   Picture: {picture_url}")
+        
+        if not email:
+            print(f"   ❌ ERROR: No email in response!")
+            flash("Could not get email from Google. Please try again.", "error")
+            return redirect(url_for("signin"))
+        
+        print(f"\n📍 Step 7: Checking if user exists in database")
+        user = User.query.filter(db.func.lower(User.email) == email).first()
+        
+        # Duplicate-identity guard: Gmail ignores dots and '+tag' suffixes, so
+        # 'nida.p+x@gmail.com' is the SAME mailbox as 'nidap@gmail.com'. Match
+        # variants too so nobody can create a second account for one email.
+        if not user:
+            canonical = _canonical_email(email)
+            for candidate in User.query.all():
+                if _canonical_email(candidate.email) == canonical:
+                    user = candidate
+                    break
+        
+        if user:
+            # Case-insensitive check: same canonical email = same person
+            if _canonical_email(user.email) != _canonical_email(email):
+                print(f"   ⛔ Duplicate blocked: '{email}' is a variant of existing account '{user.email}'")
+                flash("An account already exists with this email address. Please sign in with your existing Mentor Connect account instead of creating a new one.", "error")
+                return redirect(url_for("signin"))
+            print(f"   ✅ Existing user found: {user.email}")
+            print(f"   User ID: {user.id}")
+            print(f"   User Type: {user.user_type}")
+            
+            # Normalize stored email to lowercase + update Google ID
+            needs_commit = False
+            if user.email != email:
+                print(f"   🔄 Normalizing email: '{user.email}' → '{email}'")
+                user.email = email
+                needs_commit = True
+            if not user.google_id:
+                user.google_id = google_id
+                user.oauth_provider = 'google'
+                user.profile_picture_url = picture_url
+                needs_commit = True
+            if needs_commit:
+                db.session.commit()
+                print(f"   ✅ Updated user record")
+            
+            # Auto-check corporate affiliation after email normalization
+            refresh_user_corporate_status(user)
+            
+            print(f"\n📍 Step 8: Setting session for existing user")
+            session.permanent = True
+            session["email"] = user.email
+            session["user_type"] = user.user_type
+            session["user_id"] = user.id
+            session["user_name"] = user.name
+            print(f"   ✅ Session set")
+            print(f"      Email: {session.get('email')}")
+            print(f"      Type: {session.get('user_type')}")
+            print(f"      ID: {session.get('user_id')}")
+            
+            print(f"\n📍 Step 9: Redirecting based on user type")
+            if user.user_type == "1":
+                print(f"   ➡️ Redirecting to mentordashboard")
+                return redirect(url_for("mentordashboard"))
+            elif user.user_type == "2":
+                print(f"   ➡️ Redirecting to menteedashboard")
+                return redirect(url_for("menteedashboard"))
+            elif user.user_type == "0":
+                print(f"   ➡️ Redirecting to supervisordashboard")
+                return redirect(url_for("supervisordashboard"))
+            elif user.user_type == "3":
+                print(f"   ➡️ Redirecting to institutiondashboard")
+                return redirect(url_for("institutiondashboard"))
+            else:
+                print(f"   ➡️ No user type set, redirecting to select_user_type")
+                return redirect(url_for("select_user_type"))
+        else:
+            print(f"   ❌ User not found — Google verified identity, proceeding to role selection")
+            
+            # Store the Google-verified identity in the session.
+            session.permanent = True
+            session["pending_google"] = {
+                "google_id": google_id,
+                "email": email,
+                "name": name,
+                "picture": picture_url or ""
+            }
+            # Clear any stale login values so the visitor is NOT logged in yet
+            for key in ("email", "user_id", "user_type", "user_name"):
+                session.pop(key, None)
+            
+            # Google OAuth is inherently email-verified by Google's servers
+            session["otp_verified"] = True
+            print("   ✅ Direct Google Sign-Up approved — redirecting to select_user_type")
+            return redirect(url_for("select_user_type"))
+    
+    except Exception as e:
+        print(f"\n❌ ERROR in callback: {str(e)}")
+        import traceback
+        print("\nFull traceback:")
+        traceback.print_exc()
+        print("="*60 + "\n")
+        flash("Error during Google login. Please try again.", "error")
+        return redirect(url_for("signin"))
+
+# ------------------- GOOGLE SIGNUP OTP VERIFICATION -------------------
+SIGNUP_OTP_MAX_ATTEMPTS = 5

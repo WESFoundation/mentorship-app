@@ -1,0 +1,123 @@
+def editinstitutionprofile():
+    if "email" not in session or session.get("user_type") != "3":
+        return redirect(url_for("signin"))
+
+    user = User.query.filter_by(email=session["email"]).first()
+    
+    # Get institution by user_id (primary - linked as admin) or by institution_id
+    institution_details = None
+    if user.id:
+        institution_details = Institution.query.filter_by(user_id=user.id).first()
+    if not institution_details and user.institution_id:
+        institution_details = Institution.query.filter_by(id=user.institution_id).first()
+    if not institution_details:
+        institution_details = Institution.get_by_name(user.institution)
+
+    if request.method == "POST":
+        try:
+            # Validate only editable mandatory fields
+            # Note: name and contact_email are read-only from signup_details, so they're not validated
+            mandatory_fields = {
+                "contact_person": request.form.get("contact_person"),
+                "contact_phone": request.form.get("contact_phone"),
+                "address": request.form.get("address"),
+                "city": request.form.get("city"),
+                "state": request.form.get("state"),
+                "country": request.form.get("country"),
+                "website": request.form.get("website"),
+            }
+            
+            # Check for empty fields
+            missing_fields = []
+            for field_name, field_value in mandatory_fields.items():
+                if not field_value:
+                    missing_fields.append(field_name.replace("_", " ").title())
+            
+            if missing_fields:
+                flash(f"Please fill all mandatory fields: {', '.join(missing_fields)}", "error")
+                return redirect(url_for("editinstitutionprofile"))
+            
+            # If institution doesn't exist, create it with user_id link
+            if not institution_details:
+                institution_details = Institution(
+                    user_id=user.id,  # Link to admin user
+                    status="active"
+                )
+                db.session.add(institution_details)
+                db.session.flush()
+            
+            # Update institution details from form
+            # Note: name and contact_email are read-only from signup_details, so they're not updated
+            institution_details.email_domain = request.form.get("email_domain", "")
+            institution_details.contact_person = request.form.get("contact_person", "")
+            institution_details.contact_phone = request.form.get("contact_phone", "")
+            institution_details.address = request.form.get("address", "")
+            institution_details.city = request.form.get("city", "")
+            institution_details.state = request.form.get("state", "")
+            institution_details.country = request.form.get("country", "")
+            institution_details.website = request.form.get("website", "")
+            
+            # Safely set institution_type
+            try:
+                institution_type = request.form.get("institution_type", "other")
+                if hasattr(institution_details, 'institution_type'):
+                    institution_details.institution_type = institution_type
+            except Exception as e:
+                print(f"Warning: Could not set institution_type: {e}")
+            
+            # Link both ways: user.institution_id and institution.user_id
+            user.institution_id = institution_details.id
+            if not institution_details.user_id:
+                institution_details.user_id = user.id
+            
+            # Handle profile picture upload
+            if 'profile_picture' in request.files:
+                file = request.files['profile_picture']
+                if file and file.filename and allowed_file(file.filename):
+                    filename = secure_filename(f"institution_{institution_details.id}_{file.filename}")
+                    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                    institution_details.profile_picture = filename
+            
+            # Update user details
+            if hasattr(user, 'designation'):
+                user.designation = request.form.get("designation", "")
+            if hasattr(user, 'department'):
+                user.department = request.form.get("department", "")
+            if hasattr(user, 'phone'):
+                user.phone = request.form.get("official_phone", "")
+            
+            # Update corporate status for all users under this institution
+            if institution_details.email_domain:
+                institution_users = User.query.filter_by(institution_id=institution_details.id).all()
+                for u in institution_users:
+                    u.is_corporate = check_corporate_email(u.email, institution_details)
+                db.session.commit()
+            else:
+                # Clear corporate status if no email domain set
+                institution_users = User.query.filter_by(institution_id=institution_details.id).all()
+                for u in institution_users:
+                    u.is_corporate = False
+                db.session.commit()
+            flash("Institution profile updated successfully!", "success")
+            return redirect(url_for("institutionprofile"))
+            
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error updating institution profile: {str(e)}")
+            flash(f"Error updating profile: {str(e)}", "error")
+            return redirect(url_for("editinstitutionprofile"))
+
+    # GET request - prepare data for the form
+    institution_type = 'other'
+    if institution_details and hasattr(institution_details, 'institution_type'):
+        institution_type = institution_details.institution_type or 'other'
+
+    return render_template(
+        "institution/editinstitutionprofile.html",
+        show_sidebar=False,
+        name=user.name,  # Institution name from signup_details.name
+        email=user.email,  # Institution email from signup_details.email
+        institution_details=institution_details
+    )
+
+#-------- find function------------

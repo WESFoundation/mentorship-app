@@ -1,14 +1,19 @@
-import sqlite3
-conn = sqlite3.connect('instance/mentors_connect.db')
-cursor = conn.cursor()
-cursor.execute('SELECT name FROM sqlite_master WHERE type="table"')
-tables = cursor.fetchall()
-for t in tables:
-    print(t[0])
-
-cursor.execute("SELECT COUNT(*) FROM master_task")
-count = cursor.fetchone()[0]
-print('MasterTask count:', count)
-cursor.execute('SELECT id, month, meeting_number, purpose_of_call FROM master_task LIMIT 5')
-for row in cursor.fetchall():
-    print(row)
+import os
+db_path = 'instance/mentors_connect.db'
+print('DB exists:', os.path.exists(db_path))
+if os.path.exists(db_path):
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute('SELECT name FROM sqlite_master WHERE type="table"')
+    tables = cursor.fetchall()
+    print('Tables:', tables)
+    # Check user table schema
+    cursor.execute('PRAGMA table_info(user)')
+    for row in cursor.fetchall():
+        print('user:', row)
+    # Check signup_details table schema
+    cursor.execute('PRAGMA table_info(signup_details)')
+    for row in cursor.fetchall():
+        print('signup_details:', row)
+    conn.close()
