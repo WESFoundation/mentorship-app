@@ -100,7 +100,7 @@
         </div>
       </div>
       <div class="p-6">
-        <p class="text-gray-700 mb-4">Measures the breadth and relevance of skills the mentor offers. More skills mean higher score, capping at 5 stars for 10+ skills.</p>
+        <p class="text-gray-700 mb-4">Measures the breadth and relevance of skills the mentor offers relative to peers using a competitive percentile rank across all registered mentors.</p>
         <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
           <h4 class="font-semibold text-gray-800 mb-2">How it's calculated:</h4>
           <ul class="text-sm text-gray-600 space-y-1.5">
@@ -110,11 +110,11 @@
             </li>
             <li class="flex items-start gap-2">
               <span class="text-green-500 mt-0.5">&#8226;</span>
-              <span><strong>Formula:</strong> min(skill_count &times; 10, 100) = percentage, then percentage / 20 = star rating</span>
+              <span><strong>Formula:</strong> Percentile Rank = (count_below + 0.5 &times; count_equal) / total_mentors &times; 100, then percentile / 20 = star rating (0-5 stars)</span>
             </li>
             <li class="flex items-start gap-2">
               <span class="text-green-500 mt-0.5">&#8226;</span>
-              <span><strong>Example:</strong> 7 skills = 70% = <strong>3.5 stars</strong>; 10+ skills = <strong>5.0 stars</strong></span>
+              <span><strong>Example:</strong> A mentor with more skills than 80% of mentors receives an 80th percentile = <strong>4.0 stars</strong>; top tier mentors receive <strong>5.0 stars</strong>; 0 skills = <strong>0 stars</strong></span>
             </li>
           </ul>
         </div>
@@ -697,3 +697,5 @@
     switchRatingTab('mentee');
   }
 </script>
+</main>
+{% endblock %}

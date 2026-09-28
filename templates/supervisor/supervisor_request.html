@@ -361,6 +361,7 @@
 
               {% if req.supervisor_status == 'pending' %}
               <div class="flex gap-1.5 justify-end">
+                {% if req.mentor_status != 'rejected' %}
                 <form action="{{ url_for('supervisor_response') }}" method="POST">
                   <input type="hidden" name="request_id" value="{{ req.id }}">
                   <input type="hidden" name="action" value="approve">
@@ -372,6 +373,15 @@
                     </svg>
                   </button>
                 </form>
+                {% else %}
+                <button type="button" disabled
+                  class="p-2 bg-gray-200 text-gray-400 text-xs rounded-lg cursor-not-allowed flex items-center justify-center"
+                  title="Cannot approve: Mentor declined this request">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                  </svg>
+                </button>
+                {% endif %}
 
                 <form action="{{ url_for('supervisor_response') }}" method="POST">
                   <input type="hidden" name="request_id" value="{{ req.id }}">

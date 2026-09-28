@@ -99,6 +99,11 @@ class LocationCascade {
         
         // Add event listener for country changes
         this.countrySelect.addEventListener('change', () => this.onCountryChange());
+
+        // Add event listener for state changes
+        if (this.stateSelect) {
+            this.stateSelect.addEventListener('change', () => this.onStateChange());
+        }
     }
     
     onCountryChange() {

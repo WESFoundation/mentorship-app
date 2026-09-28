@@ -1409,6 +1409,7 @@ class MentorProfile(db.Model):
     
     # 3. Specific topics mentor can mentor on (detailed topics)
     mentorship_topics = db.Column(db.Text)  # Existing - detailed specific topics
+    mentorship_type_preference = db.Column(db.String(100))
     
     # Other mentorship preferences
     preferred_communication = db.Column(db.String(100))  # online, offline, hybrid
@@ -1419,6 +1420,7 @@ class MentorProfile(db.Model):
     # Mentor Philosophy (merged to 2 fields)
     why_mentor = db.Column(db.Text)  # Why mentor?
     mentorship_philosophy = db.Column(db.Text)  # Merged: Philosophy + Motto
+    mentorship_motto = db.Column(db.Text)
     
     # Additional Information
     additional_info = db.Column(db.Text)
@@ -6062,7 +6064,7 @@ def find_mentor():
             mentor.profile_picture = mentor_profile.profile_picture
             mentor.why_mentor = mentor_profile.why_mentor
             mentor.mentorship_topics = mentor_profile.mentorship_topics
-            mentor.mentorship_type_preference = mentor_profile.mentorship_type_preference
+            mentor.mentorship_type_preference = getattr(mentor_profile, 'mentorship_type_preference', None)
             mentor.availability = mentor_profile.availability
             mentor.connect_frequency = mentor_profile.connect_frequency
             mentor.preferred_duration = mentor_profile.preferred_duration
@@ -6075,7 +6077,7 @@ def find_mentor():
             mentor.certifications = mentor_profile.certifications
             mentor.research_work = mentor_profile.research_work
             mentor.mentorship_philosophy = mentor_profile.mentorship_philosophy
-            mentor.mentorship_motto = mentor_profile.mentorship_motto
+            mentor.mentorship_motto = getattr(mentor_profile, 'mentorship_motto', None)
             mentor.is_profile_complete = check_profile_complete(user.id, "1", profile_obj=mentor_profile)
         else:
             # Use basic user data as fallback for incomplete profiles
@@ -12796,6 +12798,12 @@ def mentor_response():
             assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
         except Exception as e:
             print(f"Task assignment error for anchor mentor: {e}")
+    elif action_is_accept and mentorship_request.supervisor_status == "approved":
+        # Supervisor already approved previously, now mentor accepts -> finalize!
+        mentorship_request.final_status = "approved"
+    elif not action_is_accept:
+        # Mentor rejected -> finalize rejection
+        mentorship_request.final_status = "rejected"
 
     try:
         db.session.commit()
@@ -12834,8 +12842,8 @@ def mentor_response():
 
     flash(f"Request {action}ed successfully!", "success")
 
-    # For anchor mentorships, also send connection notifications and emails
-    if action_is_accept and is_anchor_mentorship(mentorship_request):
+    # For anchor mentorships or whenever request is finalized to approved, send connection notifications and emails
+    if action_is_accept and (is_anchor_mentorship(mentorship_request) or mentorship_request.final_status == "approved"):
         try:
             notify_mentorship_connection(mentorship_request)
         except Exception as e:
@@ -14353,31 +14361,46 @@ def supervisor_response():
     # Update status based on action
     action_clean = (action or "").strip().lower()
     if action_clean in ("approve", "approved", "accept", "accepted"):
-        mentorship_request.supervisor_status = "approved"
-        mentorship_request.final_status = "approved"
-        
-        # Auto-approve from mentor side when supervisor approves
-        # This ensures supervisor has final say, but mentor's original decision is preserved in mentor_original_status
-        mentorship_request.mentor_status = "accepted"
-        
-        # If mentor_original_status is not set yet (mentor hasn't responded), set it to accepted
-        if not mentorship_request.mentor_original_status:
-            mentorship_request.mentor_original_status = "accepted"
+        # Check if mentor already rejected
+        if mentorship_request.mentor_status == "rejected" or mentorship_request.mentor_original_status == "rejected":
+            flash("Cannot approve — the mentor has already rejected this request. The mentor's opinion is respected.", "warning")
+            return redirect(url_for("view_requests"))
 
-        # Assign tasks for ALL anchor mentorships
-        assigned_tasks = []
-        if is_anchor_mentorship(mentorship_request):
-            try:
-                assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
-                if assigned_tasks:
-                    flash(f"Mentorship approved! {len(assigned_tasks)} tasks assigned.", "success")
-                else:
-                    flash("Mentorship approved! But no tasks were assigned.", "warning")
-            except Exception as e:
-                flash(f"Mentorship approved but task assignment failed: {str(e)}", "warning")
-                print("Task assignment error:", e)
+        mentorship_request.supervisor_status = "approved"
+
+        # Check if mentor already accepted
+        if mentorship_request.mentor_status == "accepted":
+            mentorship_request.final_status = "approved"
+
+            # Assign tasks for ALL anchor mentorships
+            assigned_tasks = []
+            if is_anchor_mentorship(mentorship_request):
+                try:
+                    assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
+                    if assigned_tasks:
+                        flash(f"Mentorship approved! {len(assigned_tasks)} tasks assigned.", "success")
+                    else:
+                        flash("Mentorship approved! But no tasks were assigned.", "warning")
+                except Exception as e:
+                    flash(f"Mentorship approved but task assignment failed: {str(e)}", "warning")
+                    print("Task assignment error:", e)
+            else:
+                flash("Mentorship request approved!", "success")
         else:
-            flash("Mentorship request approved!", "success")
+            # Mentor has not responded yet (pending)
+            mentorship_request.final_status = "pending"
+            flash("Supervisor approval recorded. Waiting for mentor acceptance to finalize.", "info")
+
+            # Notify the mentor that supervisor approved and is awaiting their response
+            try:
+                if mentorship_request.mentor:
+                    create_notification(
+                        mentorship_request.mentor.id,
+                        f"Supervisor approved a mentorship request with {mentorship_request.mentee.name if mentorship_request.mentee else 'a mentee'}. Please review and respond.",
+                        url_for("mentor_mentorship_request")
+                    )
+            except Exception as e:
+                print("Notification error for mentor:", e)
 
     elif action_clean in ("reject", "rejected"):
         mentorship_request.supervisor_status = "rejected"
@@ -14413,7 +14436,7 @@ def supervisor_response():
         return redirect(url_for("view_requests"))
 
     # Post-commit notifications (wrapped in try-except so they don't crash the request)
-    if action == "approve":
+    if action_clean in ("approve", "approved", "accept", "accepted") and mentorship_request.final_status == "approved":
         try:
             notify_mentorship_connection(mentorship_request)
         except Exception as e:
@@ -14422,7 +14445,9 @@ def supervisor_response():
             send_mentorship_connected_email(mentorship_request)
         except Exception as e:
             print("send_mentorship_connected_email error:", e)
-    return redirect(url_for("view_requests", status="approved" if action == "approve" else "rejected"))
+
+    redirect_status = "approved" if (action_clean in ("approve", "approved", "accept", "accepted") and mentorship_request.final_status == "approved") else ("rejected" if action_clean in ("reject", "rejected") else "all")
+    return redirect(url_for("view_requests", status=redirect_status))
 
 
 # ------------------ ALL MENTORSHIPS PAGE ------------------
