@@ -278,18 +278,6 @@
           </td>
           <td class="px-2 sm:px-4 py-3 whitespace-nowrap text-right">
             {% if mentorship.request.final_status == 'pending' %}
-<<<<<<< HEAD
-            <div class="flex flex-wrap justify-end gap-1.5">
-              <form method="POST" action="{{ url_for('institution_response') }}">
-                <input type="hidden" name="request_id" value="{{ mentorship.request.id }}">
-                <input type="hidden" name="action" value="approve">
-                <input type="hidden" name="next" value="{{ url_for('institution_mentorships') }}">
-                <button type="submit"
-                  class="p-2 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
-                  title="Approve">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
-=======
             <div class="flex items-center justify-end gap-1.5">
               <!-- Quick Approve (Tick) -->
               <form method="POST" action="{{ url_for('institution_response') }}" class="inline m-0 p-0">
@@ -300,7 +288,6 @@
                   class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-green-600 hover:bg-green-700 text-white flex items-center justify-center transition-all shadow-xs hover:scale-105 cursor-pointer">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
->>>>>>> 18b16d149cc865521746391af275b87c9ee6d950
                   </svg>
                 </button>
               </form>
@@ -310,18 +297,10 @@
                 <input type="hidden" name="request_id" value="{{ mentorship.request.id }}">
                 <input type="hidden" name="action" value="reject">
                 <input type="hidden" name="next" value="{{ url_for('institution_mentorships') }}">
-<<<<<<< HEAD
-                <button type="submit"
-                  class="p-2 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center"
-                  title="Reject">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
-=======
                 <button type="submit" title="Reject Mentorship Request" aria-label="Reject"
                   class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 flex items-center justify-center transition-all shadow-xs hover:scale-105 cursor-pointer">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
->>>>>>> 18b16d149cc865521746391af275b87c9ee6d950
                   </svg>
                 </button>
               </form>

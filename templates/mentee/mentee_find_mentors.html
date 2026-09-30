@@ -564,27 +564,52 @@
         </div>
       </div>
 
+      <!-- Preferred Institution List Maker -->
       <div>
-        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Preferred Institution / Organisation</label>
-        <div class="relative" id="institutionDropdownWrapper">
-          <button type="button" onclick="toggleMultiSelect('institution')" id="institutionDropdownBtn"
-            class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white flex items-center justify-between">
-            <span id="institutionDropdownLabel" class="text-gray-400">Select institutions...</span>
-            <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-          </button>
-          <div id="institutionDropdownList" class="hidden absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
-            <div class="p-2 border-b border-gray-100 sticky top-0 bg-white">
-              <input type="text" id="institutionSearch" placeholder="Search institutions..." oninput="filterMultiSelect('institution')"
-                class="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider">Preferred Institutions / Organisations</label>
+          <span id="institutionCountBadge" class="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full hidden">0 added</span>
+        </div>
+        <div class="relative" id="institutionListMakerWrapper">
+          <div class="relative flex items-center">
+            <svg class="w-4 h-4 text-gray-400 absolute left-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            <input type="text" id="institutionSearchInput" 
+              placeholder="Search or enter institution name..."
+              autocomplete="off"
+              onfocus="openInstitutionDropdown()"
+              oninput="handleInstitutionSearchInput()"
+              onkeydown="handleInstitutionKeydown(event)"
+              class="w-full pl-9 pr-16 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition">
+            <button type="button" id="addCustomInstBtn" onclick="addCurrentInputInstitution()"
+              class="absolute right-1.5 px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition hidden">
+              + Add
+            </button>
+          </div>
+
+          <!-- Autocomplete Dropdown List -->
+          <div id="institutionDropdownList" class="hidden absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+            <div id="institutionOptionsList" class="p-1 space-y-0.5 divide-y divide-gray-50">
+              <div class="text-center text-xs text-gray-500 py-3">Loading institutions...</div>
             </div>
-            <div id="institutionOptions" class="p-1">
-              <!-- Institutions will be loaded dynamically -->
-              <div class="text-center text-xs text-gray-500 py-4">Loading institutions...</div>
+            <!-- Custom Add Option row when typing -->
+            <div id="institutionCustomOption" class="hidden p-1.5 border-t border-gray-100 bg-gray-50/80">
+              <button type="button" onclick="addCurrentInputInstitution()" class="w-full text-left px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-100/60 rounded-lg flex items-center gap-1.5 font-medium transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>Add custom: "<span id="customInstNamePreview" class="font-bold"></span>"</span>
+              </button>
             </div>
           </div>
+
           <input type="hidden" name="preferred_institution" id="institutionsHiddenInput" value="">
         </div>
-        <p class="text-[11px] text-gray-500 mt-1">Select one or more preferred institutions/organisations for your mentor.</p>
+
+        <!-- Selected Institutions List Maker Display -->
+        <div id="selectedInstitutionsContainer" class="mt-2 space-y-1.5">
+          <!-- Dynamically populated list items -->
+        </div>
+        <p class="text-[11px] text-gray-500 mt-1">Search or enter one or more institutions to build your preference list.</p>
       </div>
 
       <div>
@@ -1560,15 +1585,14 @@
   function openContactFeedbackModal() {
     const modal = document.getElementById('contactFeedbackModal');
     if (modal) modal.classList.remove('hidden');
-    // Load institutions if not already loaded
-    if (!multiSelectData.institution.loaded) {
-      initMultiSelect('institution');
-    }
+    // Load institutions for list maker if not already loaded
+    loadInstitutionsForListMaker();
   }
 
   function closeContactFeedbackModal() {
     const modal = document.getElementById('contactFeedbackModal');
     if (modal) modal.classList.add('hidden');
+    resetInstitutionListMaker();
   }
 
   async function submitContactFeedback(e) {
@@ -1597,6 +1621,9 @@
         form.reset();
         document.getElementById('countriesHiddenInput').value = '';
         document.getElementById('languagesHiddenInput').value = '';
+        const instHidden = document.getElementById('institutionsHiddenInput');
+        if (instHidden) instHidden.value = '';
+        resetInstitutionListMaker();
         closeContactFeedbackModal();
       } else {
         alert(data.error || 'Failed to submit request. Please try again.');
@@ -1657,50 +1684,232 @@
         "Maltese","Luxembourgish","Catalan","Basque","Galician","Welsh","Irish (Gaelic)",
         "Scots Gaelic","Maori","Hawaiian","Samoan","Tongan","Fijian"
       ]
-    },
-    institution: {
-      selected: [],
-      options: [],
-      loaded: false
     }
   };
 
-  function initMultiSelect(type) {
-    const container = document.getElementById(type + 'Options');
-    
-    // For institution, load from API first
-    if (type === 'institution') {
-      if (!multiSelectData.institution.loaded) {
-        container.innerHTML = '<div class="text-center text-xs text-gray-500 py-4">Loading institutions...</div>';
-        fetch('/api/institutions?limit=100')
-          .then(res => res.json())
-          .then(data => {
-            if (data.success && data.institutions) {
-              multiSelectData.institution.options = data.institutions.map(inst => ({
-                name: inst.name,
-                country: inst.country,
-                city: inst.city,
-                type: inst.institution_type,
-                website: inst.website,
-                profile_picture: inst.profile_picture
-              }));
-              multiSelectData.institution.loaded = true;
-              renderInstitutionOptions();
-            } else {
-              container.innerHTML = '<div class="text-center text-xs text-red-500 py-4">Failed to load institutions</div>';
+  // ---------- Institution List Maker Logic ----------
+  let allInstitutionsCache = [];
+  let selectedInstitutionsList = [];
+  let institutionsLoaded = false;
+
+  async function loadInstitutionsForListMaker() {
+    if (institutionsLoaded) return;
+    try {
+      const res = await fetch('/api/institutions?limit=100');
+      const data = await res.json();
+      if (data.success && data.institutions) {
+        allInstitutionsCache = data.institutions;
+        institutionsLoaded = true;
+        renderInstitutionDropdownOptions();
+      }
+    } catch (err) {
+      console.error('Error loading institutions:', err);
+    }
+  }
+
+  function openInstitutionDropdown() {
+    loadInstitutionsForListMaker();
+    const dropdown = document.getElementById('institutionDropdownList');
+    if (dropdown) dropdown.classList.remove('hidden');
+    const input = document.getElementById('institutionSearchInput');
+    renderInstitutionDropdownOptions(input ? input.value : '');
+  }
+
+  function handleInstitutionSearchInput() {
+    const input = document.getElementById('institutionSearchInput');
+    const query = (input ? input.value : '').trim();
+    const addBtn = document.getElementById('addCustomInstBtn');
+    const customRow = document.getElementById('institutionCustomOption');
+    const customPreview = document.getElementById('customInstNamePreview');
+
+    if (query.length > 0) {
+      if (addBtn) addBtn.classList.remove('hidden');
+      if (customRow) customRow.classList.remove('hidden');
+      if (customPreview) customPreview.textContent = query;
+    } else {
+      if (addBtn) addBtn.classList.add('hidden');
+      if (customRow) customRow.classList.add('hidden');
+    }
+
+    const dropdown = document.getElementById('institutionDropdownList');
+    if (dropdown) dropdown.classList.remove('hidden');
+    renderInstitutionDropdownOptions(query);
+  }
+
+  function handleInstitutionKeydown(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addCurrentInputInstitution();
+    }
+  }
+
+  function renderInstitutionDropdownOptions(filter = '') {
+    const container = document.getElementById('institutionOptionsList');
+    if (!container) return;
+
+    const query = filter.toLowerCase().trim();
+    const filtered = allInstitutionsCache.filter(inst => {
+      const name = (inst.name || '').toLowerCase();
+      const type = (inst.institution_type || '').toLowerCase();
+      const city = (inst.city || '').toLowerCase();
+      const country = (inst.country || '').toLowerCase();
+      return name.includes(query) || type.includes(query) || city.includes(query) || country.includes(query);
+    });
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="text-center text-xs text-gray-500 py-3">No matching institutions in database</div>';
+      return;
+    }
+
+    container.innerHTML = filtered.map(inst => {
+      const isSelected = selectedInstitutionsList.some(s => s.name.toLowerCase() === inst.name.toLowerCase());
+      const initial = (inst.name || '?').charAt(0).toUpperCase();
+      const avatarHtml = inst.profile_picture 
+        ? `<img src="/static/uploads/${inst.profile_picture}" alt="" class="w-6 h-6 rounded-full object-cover border border-gray-200 shrink-0">`
+        : `<div class="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xs flex items-center justify-center font-bold shrink-0">${initial}</div>`;
+      
+      const safeName = (inst.name || '').replace(/'/g, "\\'");
+      const safeType = (inst.institution_type || '').replace(/'/g, "\\'");
+      const safeCity = (inst.city || '').replace(/'/g, "\\'");
+      const safeCountry = (inst.country || '').replace(/'/g, "\\'");
+
+      return `
+        <div onclick="${isSelected ? '' : `selectInstitutionFromList('${safeName}', '${safeType}', '${safeCity}', '${safeCountry}')`}"
+          class="flex items-center justify-between px-3 py-2 rounded-lg text-xs transition cursor-pointer ${isSelected ? 'bg-gray-50 opacity-60 cursor-not-allowed' : 'hover:bg-blue-50 text-gray-800'}">
+          <div class="flex items-center gap-2.5 min-w-0 flex-1">
+            ${avatarHtml}
+            <div class="min-w-0 flex-1">
+              <div class="font-medium text-gray-900 truncate">${inst.name}</div>
+              <div class="flex items-center gap-2 text-[10px] text-gray-500 mt-0.5">
+                ${inst.institution_type ? `<span class="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded capitalize font-medium">${inst.institution_type}</span>` : ''}
+                ${(inst.city || inst.country) ? `<span>${[inst.city, inst.country].filter(Boolean).join(', ')}</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <div class="shrink-0 ml-2">
+            ${isSelected 
+              ? `<span class="text-emerald-600 font-semibold text-[11px] flex items-center gap-0.5"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg> Added</span>`
+              : `<span class="text-blue-600 hover:text-blue-800 font-semibold text-[11px]">+ Add</span>`
             }
-          })
-          .catch(err => {
-            console.error('Error loading institutions:', err);
-            container.innerHTML = '<div class="text-center text-xs text-red-500 py-4">Error loading institutions</div>';
-          });
-        return;
-      } else {
-        renderInstitutionOptions();
-        return;
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function selectInstitutionFromList(name, type = '', city = '', country = '') {
+    if (!name) return;
+    if (selectedInstitutionsList.some(s => s.name.toLowerCase() === name.toLowerCase())) return;
+    
+    // Find in cache if not supplied
+    if (!type && !city && !country) {
+      const found = allInstitutionsCache.find(i => i.name.toLowerCase() === name.toLowerCase());
+      if (found) {
+        type = found.institution_type || '';
+        city = found.city || '';
+        country = found.country || '';
       }
     }
-    
+
+    selectedInstitutionsList.push({ name, type, city, country });
+    updateSelectedInstitutionsUI();
+
+    // Clear search input
+    const input = document.getElementById('institutionSearchInput');
+    if (input) input.value = '';
+    handleInstitutionSearchInput();
+  }
+
+  function addCurrentInputInstitution() {
+    const input = document.getElementById('institutionSearchInput');
+    if (!input) return;
+    const name = input.value.trim();
+    if (!name) return;
+    selectInstitutionFromList(name);
+  }
+
+  function removeSelectedInstitution(name) {
+    selectedInstitutionsList = selectedInstitutionsList.filter(s => s.name.toLowerCase() !== name.toLowerCase());
+    updateSelectedInstitutionsUI();
+    renderInstitutionDropdownOptions();
+  }
+
+  function updateSelectedInstitutionsUI() {
+    const container = document.getElementById('selectedInstitutionsContainer');
+    const hiddenInput = document.getElementById('institutionsHiddenInput');
+    const badge = document.getElementById('institutionCountBadge');
+
+    if (hiddenInput) {
+      hiddenInput.value = selectedInstitutionsList.map(s => s.name).join(', ');
+    }
+
+    if (badge) {
+      if (selectedInstitutionsList.length > 0) {
+        badge.textContent = `${selectedInstitutionsList.length} added`;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    if (!container) return;
+
+    if (selectedInstitutionsList.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+
+    container.innerHTML = selectedInstitutionsList.map(inst => {
+      const initial = (inst.name || '?').charAt(0).toUpperCase();
+      const safeName = (inst.name || '').replace(/'/g, "\\'");
+      const loc = [inst.city, inst.country].filter(Boolean).join(', ');
+
+      return `
+        <div class="flex items-center justify-between p-2.5 bg-gradient-to-r from-blue-50/70 via-indigo-50/30 to-slate-50 border border-blue-200/80 rounded-xl shadow-xs hover:border-blue-300 transition-all group">
+          <div class="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
+            <div class="w-7 h-7 rounded-lg bg-blue-600 text-white text-xs flex items-center justify-center font-bold shrink-0 shadow-xs">
+              ${initial}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-semibold text-gray-900 text-xs sm:text-sm truncate">${inst.name}</span>
+                ${inst.type ? `<span class="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-semibold uppercase tracking-wider">${inst.type}</span>` : ''}
+              </div>
+              ${loc ? `
+                <div class="flex items-center gap-1 text-[11px] text-gray-500 mt-0.5">
+                  <svg class="w-3 h-3 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657A12.002 12.002 0 0112 21.75a12.002 12.002 0 01-3.485-6.923M18.718 9.532l7.545 7.545M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  <span>${loc}</span>
+                </div>` : ''}
+            </div>
+          </div>
+          <button type="button" onclick="removeSelectedInstitution('${safeName}')"
+            class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+            title="Remove ${inst.name}">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function resetInstitutionListMaker() {
+    selectedInstitutionsList = [];
+    const input = document.getElementById('institutionSearchInput');
+    if (input) input.value = '';
+    const addBtn = document.getElementById('addCustomInstBtn');
+    if (addBtn) addBtn.classList.add('hidden');
+    const customRow = document.getElementById('institutionCustomOption');
+    if (customRow) customRow.classList.add('hidden');
+    updateSelectedInstitutionsUI();
+  }
+
+  function initMultiSelect(type) {
+    const container = document.getElementById(type + 'Options');
+    if (!container) return;
     const options = multiSelectData[type].options;
     container.innerHTML = options.map(opt =>
       '<label class="flex items-center gap-2 px-3 py-1.5 hover:bg-blue-50 cursor-pointer rounded-lg text-sm text-gray-700">' +
@@ -1711,43 +1920,21 @@
       '</label>'
     ).join('');
   }
-  
-  function renderInstitutionOptions() {
-    const container = document.getElementById('institutionOptions');
-    const options = multiSelectData.institution.options;
-    container.innerHTML = options.map(inst =>
-      '<label class="flex items-center gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer rounded-lg text-sm text-gray-700 group">' +
-        '<input type="checkbox" value="' + inst.name + '" onchange="toggleMultiSelectItem(\'institution\', this.value, this.checked)" ' +
-          (multiSelectData.institution.selected.includes(inst.name) ? 'checked' : '') +
-          ' class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5 shrink-0">' +
-        '<div class="flex-1 min-w-0 flex items-center gap-3">' +
-          (inst.profile_picture ? 
-            '<img src="/static/uploads/' + inst.profile_picture + '" alt="" class="w-6 h-6 rounded-full object-cover border border-gray-200">' :
-            '<div class="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xs flex items-center justify-center font-bold">' + (inst.name ? inst.name.charAt(0).toUpperCase() : '?') + '</div>'
-          ) +
-          '<div class="flex-1 min-w-0">' +
-            '<span class="font-medium text-gray-900 truncate block">' + inst.name + '</span>' +
-            '<div class="flex items-center gap-2 text-xs text-gray-500 mt-0.5">' +
-              (inst.country ? '<span class="flex items-center gap-0.5"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657A12.002 12.002 0 0112 21.75a12.002 12.002 0 01-3.485-6.923M18.718 9.532l7.545 7.545M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' + inst.country + '</span>' : '') +
-              (inst.city ? '<span class="flex items-center gap-0.5"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657A12.002 12.002 0 0112 21.75a12.002 12.002 0 01-3.485-6.923M18.718 9.532l7.545 7.545M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' + inst.city + '</span>' : '') +
-              (inst.type ? '<span class="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] capitalize">' + inst.type + '</span>' : '') +
-            '</div>' +
-          '</div>' +
-        '</div>' +
-      '</label>'
-    ).join('');
-  }
 
   function toggleMultiSelect(type) {
     const list = document.getElementById(type + 'DropdownList');
+    if (!list) return;
     const wasHidden = list.classList.contains('hidden');
     // Close all other dropdowns
     document.querySelectorAll('[id$="DropdownList"]').forEach(el => el.classList.add('hidden'));
     if (wasHidden) {
       list.classList.remove('hidden');
-      document.getElementById(type + 'Search').value = '';
-      filterMultiSelect(type);
-      document.getElementById(type + 'Search').focus();
+      const searchInput = document.getElementById(type + 'Search');
+      if (searchInput) {
+        searchInput.value = '';
+        filterMultiSelect(type);
+        searchInput.focus();
+      }
     }
   }
 
@@ -1767,17 +1954,22 @@
     let hiddenInput;
     if (type === 'country') hiddenInput = document.getElementById('countriesHiddenInput');
     else if (type === 'language') hiddenInput = document.getElementById('languagesHiddenInput');
-    else if (type === 'institution') hiddenInput = document.getElementById('institutionsHiddenInput');
     
     if (data.selected.length === 0) {
-      label.textContent = 'Select ' + type + 's...';
-      label.className = 'text-gray-400';
+      if (label) {
+        label.textContent = 'Select ' + type + 's...';
+        label.className = 'text-gray-400';
+      }
     } else if (data.selected.length <= 2) {
-      label.textContent = data.selected.join(', ');
-      label.className = 'text-gray-800';
+      if (label) {
+        label.textContent = data.selected.join(', ');
+        label.className = 'text-gray-800';
+      }
     } else {
-      label.textContent = data.selected[0] + ', ' + data.selected[1] + ' +' + (data.selected.length - 2) + ' more';
-      label.className = 'text-gray-800';
+      if (label) {
+        label.textContent = data.selected[0] + ', ' + data.selected[1] + ' +' + (data.selected.length - 2) + ' more';
+        label.className = 'text-gray-800';
+      }
     }
     if (hiddenInput) hiddenInput.value = data.selected.join(',');
     // Re-render options to update checkboxes
@@ -1785,8 +1977,10 @@
   }
 
   function filterMultiSelect(type) {
-    const search = document.getElementById(type + 'Search').value.toLowerCase();
+    const searchInput = document.getElementById(type + 'Search');
+    const search = searchInput ? searchInput.value.toLowerCase() : '';
     const container = document.getElementById(type + 'Options');
+    if (!container) return;
     const labels = container.querySelectorAll('label');
     labels.forEach(label => {
       const text = label.textContent.toLowerCase();
@@ -1796,7 +1990,7 @@
 
   // Close dropdowns when clicking outside
   document.addEventListener('click', function(e) {
-    if (!e.target.closest('#countryDropdownWrapper') && !e.target.closest('#languageDropdownWrapper') && !e.target.closest('#institutionDropdownWrapper')) {
+    if (!e.target.closest('#countryDropdownWrapper') && !e.target.closest('#languageDropdownWrapper') && !e.target.closest('#institutionListMakerWrapper')) {
       document.querySelectorAll('[id$="DropdownList"]').forEach(el => el.classList.add('hidden'));
     }
   });
@@ -1805,17 +1999,20 @@
   const origCloseFn = closeContactFeedbackModal;
   closeContactFeedbackModal = function() {
     origCloseFn();
-    ['country', 'language', 'institution'].forEach(type => {
-      multiSelectData[type].selected = [];
-      updateMultiSelectUI(type);
+    ['country', 'language'].forEach(type => {
+      if (multiSelectData[type]) {
+        multiSelectData[type].selected = [];
+        updateMultiSelectUI(type);
+      }
     });
+    resetInstitutionListMaker();
   };
 
   // Initialize multi-selects on load
   document.addEventListener('DOMContentLoaded', function() {
     initMultiSelect('country');
     initMultiSelect('language');
-    initMultiSelect('institution');
+    loadInstitutionsForListMaker();
   });
 
   // ---------- Rating System ----------

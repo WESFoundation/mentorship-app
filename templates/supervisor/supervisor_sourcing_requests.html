@@ -299,9 +299,23 @@
       </div>
       {% endif %}
 
-      <!-- Country & Language from message metadata -->
-      {%- if '[Preferred Countries]:' in req.message or '[Preferred Languages]:' in req.message -%}
+      <!-- Country, Language & Institution from message metadata -->
+      {%- if '[Preferred Countries]:' in req.message or '[Preferred Languages]:' in req.message or '[Preferred Institution]:' in req.message -%}
       <div class="mb-3 flex flex-wrap gap-3">
+        {%- if '[Preferred Institution]:' in req.message -%}
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs font-semibold text-gray-500">Institutions:</span>
+          {%- for line in req.message.split('\n') -%}
+            {%- if line.startswith('[Preferred Institution]:') -%}
+              {%- for inst in line.replace('[Preferred Institution]:', '').strip().split(',') -%}
+          <span class="inline-block px-2.5 py-0.5 bg-blue-50 text-blue-700 rounded-md text-xs font-medium border border-blue-100">
+            {{ inst.strip() }}
+          </span>
+              {%- endfor -%}
+            {%- endif -%}
+          {%- endfor -%}
+        </div>
+        {%- endif -%}
         {%- if '[Preferred Countries]:' in req.message -%}
         <div class="flex items-center gap-2 flex-wrap">
           <span class="text-xs font-semibold text-gray-500">Countries:</span>
@@ -357,7 +371,7 @@
         <span class="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Details & Specifics</span>
         <p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed search-message">
           {%- for line in req.message.split('\n') -%}
-            {%- if not line.startswith('[Preferred Countries]:') and not line.startswith('[Preferred Languages]:') and not line.startswith('[Resolved Mentors]:') and not line.startswith('[Resolution Date]:') -%}
+            {%- if not line.startswith('[Preferred Countries]:') and not line.startswith('[Preferred Languages]:') and not line.startswith('[Preferred Institution]:') and not line.startswith('[Resolved Mentors]:') and not line.startswith('[Resolution Date]:') -%}
               {{ line }}{{ '\n' if not loop.last else '' }}
             {%- endif -%}
           {%- endfor -%}

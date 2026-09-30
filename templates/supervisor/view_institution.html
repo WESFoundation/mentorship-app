@@ -1,18 +1,3 @@
-<<<<<<< HEAD
-// Toggle functions for mentor/mentee views
-    function toggleMentorsView() {
-        const container = document.querySelector('.space-y-3.max-h-80.overflow-y-auto');
-        const btn = document.getElementById('view-all-mentors-btn');
-        const isCollapsed = container.classList.contains('max-h-80');
-        const mentorCount = document.querySelectorAll('.view-mentor-profile-btn').length;
-        
-        if (isCollapsed) {
-            container.classList.remove('max-h-80');
-            btn.textContent = 'Show Less';
-        } else {
-            container.classList.add('max-h-80');
-            btn.textContent = 'View All ' + mentorCount + ' Mentors';
-=======
 {% extends "base2.html" %}
 
 {% block title %}{{ institution.name }} - Details{% endblock %}
@@ -510,23 +495,8 @@ function toggleDescription(btn) {
             fullText.classList.add('hidden');
             shortText.classList.remove('hidden');
             btn.textContent = 'See more';
->>>>>>> 18b16d149cc865521746391af275b87c9ee6d950
         }
     }
-
-    function toggleMenteesView() {
-        const container = document.querySelectorAll('.space-y-3.max-h-80.overflow-y-auto')[1];
-        const btn = document.getElementById('view-all-mentees-btn');
-        const isCollapsed = container.classList.contains('max-h-80');
-        const menteeCount = document.querySelectorAll('.view-mentee-profile-btn').length;
-        
-        if (isCollapsed) {
-            container.classList.remove('max-h-80');
-            btn.textContent = 'Show Less';
-        } else {
-            container.classList.add('max-h-80');
-            btn.textContent = 'View All ' + menteeCount + ' Mentees';
-        }
-    }
-
-    // Toggle description "See more"
+}
+</script>
+{% endblock %}
