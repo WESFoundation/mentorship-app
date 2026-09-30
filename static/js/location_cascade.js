@@ -19,7 +19,29 @@ class LocationCascade {
         
         this.COUNTRY_KEY_MAP = {
             'United States': 'USA',
-            'United States of America': 'USA'
+            'United States of America': 'USA',
+            'United Kingdom': 'UK',
+            'United Arab Emirates': 'UAE',
+            'South Korea': 'Korea',
+            'South Africa': 'SouthAfrica',
+            'Saudi Arabia': 'SaudiArabia',
+            'New Zealand': 'NewZealand',
+            'Papua New Guinea': 'PapuaNewGuinea',
+            'Sri Lanka': 'SriLanka',
+            'Costa Rica': 'CostaRica',
+            'El Salvador': 'ElSalvador',
+            'Equatorial Guinea': 'EquatorialGuinea',
+            'Guinea-Bissau': 'GuineaBissau',
+            'Hong Kong': 'HongKong',
+            'North Korea': 'NorthKorea',
+            'North Macedonia': 'NorthMacedonia',
+            'Sierra Leone': 'SierraLeone',
+            'Solomon Islands': 'SolomonIslands',
+            'St. Kitts and Nevis': 'StKittsNevis',
+            'St. Lucia': 'StLucia',
+            'St. Vincent and the Grenadines': 'StVincentGrenadines',
+            'Trinidad and Tobago': 'TrinidadTobago',
+            'Vatican City': 'VaticanCity'
         };
         
         this.onCountryChangeCallback = options.onCountryChange || null;
