@@ -12800,7 +12800,6 @@ def mentor_response():
     # BUT only if no institution approval is needed (institution_status is approved)
     assigned_tasks = []
     if action_is_accept and is_anchor_mentorship(mentorship_request):
-<<<<<<< HEAD
         if mentorship_request.institution_status == "approved":
             mentorship_request.supervisor_status = "approved"
             mentorship_request.final_status = "approved"
@@ -12812,21 +12811,12 @@ def mentor_response():
         else:
             # Institution approval needed, don't auto-approve
             pass
-=======
-        mentorship_request.supervisor_status = "approved"
-        mentorship_request.final_status = "approved"
-        # Assign tasks for ALL anchor mentorships
-        try:
-            assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
-        except Exception as e:
-            print(f"Task assignment error for anchor mentor: {e}")
     elif action_is_accept and mentorship_request.supervisor_status == "approved":
         # Supervisor already approved previously, now mentor accepts -> finalize!
         mentorship_request.final_status = "approved"
     elif not action_is_accept:
         # Mentor rejected -> finalize rejection
         mentorship_request.final_status = "rejected"
->>>>>>> cf15ff86ea9d0eb08cd2ab49913cbe941b277f85
 
     try:
         db.session.commit()
@@ -14384,16 +14374,20 @@ def supervisor_response():
     # Update status based on action
     action_clean = (action or "").strip().lower()
     if action_clean in ("approve", "approved", "accept", "accepted"):
-<<<<<<< HEAD
+        # Check if mentor already rejected
+        if mentorship_request.mentor_status == "rejected" or mentorship_request.mentor_original_status == "rejected":
+            flash("Cannot approve — the mentor has already rejected this request. The mentor's opinion is respected.", "warning")
+            return redirect(url_for("view_requests"))
+
         mentorship_request.supervisor_status = "approved"
-        
+
         # Check if institution approval is needed and already approved
         needs_institution_approval = (
             mentorship_request.mentee and 
             mentorship_request.mentee.institution_id and 
             mentorship_request.institution_status != "approved"
         )
-        
+
         if needs_institution_approval:
             # Institution approval pending, supervisor approval recorded but final not set
             flash("Supervisor approval recorded. Waiting for institution approval.", "info")
@@ -14423,48 +14417,6 @@ def supervisor_response():
                     print("Task assignment error:", e)
             else:
                 flash("Mentorship request approved!", "success")
-=======
-        # Check if mentor already rejected
-        if mentorship_request.mentor_status == "rejected" or mentorship_request.mentor_original_status == "rejected":
-            flash("Cannot approve — the mentor has already rejected this request. The mentor's opinion is respected.", "warning")
-            return redirect(url_for("view_requests"))
-
-        mentorship_request.supervisor_status = "approved"
-
-        # Check if mentor already accepted
-        if mentorship_request.mentor_status == "accepted":
-            mentorship_request.final_status = "approved"
-
-            # Assign tasks for ALL anchor mentorships
-            assigned_tasks = []
-            if is_anchor_mentorship(mentorship_request):
-                try:
-                    assigned_tasks = assign_master_tasks_to_mentorship(mentorship_request)
-                    if assigned_tasks:
-                        flash(f"Mentorship approved! {len(assigned_tasks)} tasks assigned.", "success")
-                    else:
-                        flash("Mentorship approved! But no tasks were assigned.", "warning")
-                except Exception as e:
-                    flash(f"Mentorship approved but task assignment failed: {str(e)}", "warning")
-                    print("Task assignment error:", e)
-            else:
-                flash("Mentorship request approved!", "success")
-        else:
-            # Mentor has not responded yet (pending)
-            mentorship_request.final_status = "pending"
-            flash("Supervisor approval recorded. Waiting for mentor acceptance to finalize.", "info")
-
-            # Notify the mentor that supervisor approved and is awaiting their response
-            try:
-                if mentorship_request.mentor:
-                    create_notification(
-                        mentorship_request.mentor.id,
-                        f"Supervisor approved a mentorship request with {mentorship_request.mentee.name if mentorship_request.mentee else 'a mentee'}. Please review and respond.",
-                        url_for("mentor_mentorship_request")
-                    )
-            except Exception as e:
-                print("Notification error for mentor:", e)
->>>>>>> cf15ff86ea9d0eb08cd2ab49913cbe941b277f85
 
     elif action_clean in ("reject", "rejected"):
         mentorship_request.supervisor_status = "rejected"
