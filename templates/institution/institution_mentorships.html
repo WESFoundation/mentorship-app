@@ -121,6 +121,11 @@
                 institution: '{{ mentorship.mentor_profile.organisation|e if mentorship.mentor_profile else '' }}',
                 bio: '{{ mentorship.mentor_profile.bio|e if mentorship.mentor_profile else '' }}',
                 skills: '{{ mentorship.mentor_profile.skills|e if mentorship.mentor_profile else '' }}',
+                target_audience: '{{ mentorship.mentor_profile.target_audience|e if mentorship.mentor_profile else '' }}',
+                base_mentorship_topics: '{{ mentorship.mentor_profile.base_mentorship_topics|e if mentorship.mentor_profile else '' }}',
+                mentorship_topics: '{{ mentorship.mentor_profile.mentorship_topics|e if mentorship.mentor_profile else '' }}',
+                why_mentor: '{{ mentorship.mentor_profile.why_mentor|e if mentorship.mentor_profile else '' }}',
+                mentorship_philosophy: '{{ mentorship.mentor_profile.mentorship_philosophy|e if mentorship.mentor_profile else '' }}',
                 mentorship_type_preference: '{{ mentorship.mentor_profile.mentorship_type_preference|e if mentorship.mentor_profile else '' }}',
                 preferred_duration: '{{ mentorship.mentor_profile.preferred_duration|e if mentorship.mentor_profile else '' }}',
                 connect_frequency: '{{ mentorship.mentor_profile.connect_frequency|e if mentorship.mentor_profile else '' }}'
@@ -159,6 +164,11 @@
                 institution: '{{ mentorship.mentee_profile.institution|e if mentorship.mentee_profile else '' }}',
                 bio: '{{ mentorship.mentee_profile.bio|e if mentorship.mentee_profile else '' }}',
                 skills: '{{ mentorship.mentee_profile.skills|e if mentorship.mentee_profile else '' }}',
+                target_audience: '',
+                base_mentorship_topics: '',
+                mentorship_topics: '',
+                why_mentor: '',
+                mentorship_philosophy: '',
                 mentorship_type_preference: '',
                 preferred_duration: '',
                 connect_frequency: ''

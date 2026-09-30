@@ -1275,105 +1275,101 @@
             </h3>
             <div class="space-y-6">
                 <!-- 1. Target Audience -->
-                <div>
+                <div id="targetAudienceSection">
                     <label class="block text-gray-700 font-semibold mb-3">Who I Want to Mentor </label>
                     <p class="text-sm text-gray-500 mb-3">Select the types of mentees you want to work with (based on their profile category)</p>
                     <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
                         {% set target_audience_list = (target_audience or '').split(',') if target_audience else [] %}
                         <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition duration-200 {% if 'school_student' in target_audience_list %}border-blue-500 bg-blue-50{% endif %}">
-                            <input type="checkbox" name="target_audience" value="school_student" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200" {% if 'school_student' in target_audience_list %}checked{% endif %}>
+                            <input type="checkbox" name="target_audience" value="school_student" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200 target-audience-checkbox" {% if 'school_student' in target_audience_list %}checked{% endif %} onchange="updateBaseTopicsVisibility()">
                             <span class="text-sm font-medium text-gray-800">School Students</span>
                         </label>
                         <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition duration-200 {% if 'university_student' in target_audience_list %}border-blue-500 bg-blue-50{% endif %}">
-                            <input type="checkbox" name="target_audience" value="university_student" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200" {% if 'university_student' in target_audience_list %}checked{% endif %}>
+                            <input type="checkbox" name="target_audience" value="university_student" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200 target-audience-checkbox" {% if 'university_student' in target_audience_list %}checked{% endif %} onchange="updateBaseTopicsVisibility()">
                             <span class="text-sm font-medium text-gray-800">University Students</span>
                         </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition duration-200 {% if 'seeking_internship' in target_audience_list %}border-blue-500 bg-blue-50{% endif %}">
-                            <input type="checkbox" name="target_audience" value="seeking_internship" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200" {% if 'seeking_internship' in target_audience_list %}checked{% endif %}>
-                            <span class="text-sm font-medium text-gray-800">Seeking Internship</span>
-                        </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition duration-200 {% if 'young_professional' in target_audience_list %}border-blue-500 bg-blue-50{% endif %}">
-                            <input type="checkbox" name="target_audience" value="young_professional" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200" {% if 'young_professional' in target_audience_list %}checked{% endif %}>
-                            <span class="text-sm font-medium text-gray-800">Young Professionals</span>
-                        </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition duration-200 {% if 'exploring' in target_audience_list %}border-blue-500 bg-blue-50{% endif %}">
-                            <input type="checkbox" name="target_audience" value="exploring" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200" {% if 'exploring' in target_audience_list %}checked{% endif %}>
-                            <span class="text-sm font-medium text-gray-800">Career Explorers</span>
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition duration-200 {% if 'young_professional' in target_audience_list or 'seeking_internship' in target_audience_list or 'exploring' in target_audience_list %}border-blue-500 bg-blue-50{% endif %}">
+                            <input type="checkbox" name="target_audience" value="young_professional_career_explorer" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200 target-audience-checkbox" {% if 'young_professional' in target_audience_list or 'seeking_internship' in target_audience_list or 'exploring' in target_audience_list %}checked{% endif %} onchange="updateBaseTopicsVisibility()">
+                            <span class="text-sm font-medium text-gray-800">Young Professionals & Career Explorers</span>
                         </label>
                         <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition duration-200 {% if 'entrepreneur' in target_audience_list %}border-blue-500 bg-blue-50{% endif %}">
-                            <input type="checkbox" name="target_audience" value="entrepreneur" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200" {% if 'entrepreneur' in target_audience_list %}checked{% endif %}>
+                            <input type="checkbox" name="target_audience" value="entrepreneur" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-200 target-audience-checkbox" {% if 'entrepreneur' in target_audience_list %}checked{% endif %} onchange="updateBaseTopicsVisibility()">
                             <span class="text-sm font-medium text-gray-800">Entrepreneurs</span>
                         </label>
                     </div>
+                    <!-- Hidden inputs for backward compatibility -->
+                    <input type="hidden" name="target_audience_legacy_seeking" id="target_audience_legacy_seeking" value="">
+                    <input type="hidden" name="target_audience_legacy_exploring" id="target_audience_legacy_exploring" value="">
                 </div>
 
                 <!-- 2. Base Mentorship Topics -->
-                <div>
+                <div id="baseTopicsSection">
                     <label class="block text-gray-700 font-semibold mb-3">What I Want to Mentor On (Base Topics) </label>
-                    <p class="text-sm text-gray-500 mb-3">Select general topic categories you want to mentor on</p>
+                    <p class="text-sm text-gray-500 mb-3">Select general topic categories you want to mentor on <span class="text-blue-600 font-medium">(filtered by target audience)</span></p>
                     <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
                         {% set base_topics_list = (base_mentorship_topics or '').split(',') if base_mentorship_topics else [] %}
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'school_subjects' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
-                            <input type="checkbox" name="base_mentorship_topics" value="school_subjects" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'school_subjects' in base_topics_list %}checked{% endif %}>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'school_subjects' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="school_student">
+                            <input type="checkbox" name="base_mentorship_topics" value="school_subjects" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'school_subjects' in base_topics_list %}checked{% endif %}>
                             <span class="text-sm font-medium text-gray-800">School Subjects</span>
                         </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'coding_basics' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
-                            <input type="checkbox" name="base_mentorship_topics" value="coding_basics" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'coding_basics' in base_topics_list %}checked{% endif %}>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'coding_basics' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="university_student,young_professional_career_explorer">
+                            <input type="checkbox" name="base_mentorship_topics" value="coding_basics" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'coding_basics' in base_topics_list %}checked{% endif %}>
                             <span class="text-sm font-medium text-gray-800">Coding Basics</span>
                         </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'career_guidance' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
-                            <input type="checkbox" name="base_mentorship_topics" value="career_guidance" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'career_guidance' in base_topics_list %}checked{% endif %}>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'career_guidance' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="university_student,young_professional_career_explorer,entrepreneur">
+                            <input type="checkbox" name="base_mentorship_topics" value="career_guidance" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'career_guidance' in base_topics_list %}checked{% endif %}>
                             <span class="text-sm font-medium text-gray-800">Career Guidance</span>
                         </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'azure_devops' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
-                            <input type="checkbox" name="base_mentorship_topics" value="azure_devops" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'azure_devops' in base_topics_list %}checked{% endif %}>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'azure_devops' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="university_student,young_professional_career_explorer">
+                            <input type="checkbox" name="base_mentorship_topics" value="azure_devops" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'azure_devops' in base_topics_list %}checked{% endif %}>
                             <span class="text-sm font-medium text-gray-800">Azure DevOps</span>
                         </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'cloud_computing' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
-                            <input type="checkbox" name="base_mentorship_topics" value="cloud_computing" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'cloud_computing' in base_topics_list %}checked{% endif %}>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'cloud_computing' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="university_student,young_professional_career_explorer">
+                            <input type="checkbox" name="base_mentorship_topics" value="cloud_computing" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'cloud_computing' in base_topics_list %}checked{% endif %}>
                             <span class="text-sm font-medium text-gray-800">Cloud Computing</span>
                         </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'data_science' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
-                            <input type="checkbox" name="base_mentorship_topics" value="data_science" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'data_science' in base_topics_list %}checked{% endif %}>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'data_science' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="university_student">
+                            <input type="checkbox" name="base_mentorship_topics" value="data_science" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'data_science' in base_topics_list %}checked{% endif %}>
                             <span class="text-sm font-medium text-gray-800">Data Science</span>
                         </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'web_development' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
-                            <input type="checkbox" name="base_mentorship_topics" value="web_development" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'web_development' in base_topics_list %}checked{% endif %}>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'web_development' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="university_student,young_professional_career_explorer">
+                            <input type="checkbox" name="base_mentorship_topics" value="web_development" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'web_development' in base_topics_list %}checked{% endif %}>
                             <span class="text-sm font-medium text-gray-800">Web Development</span>
                         </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'mobile_development' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
-                            <input type="checkbox" name="base_mentorship_topics" value="mobile_development" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'mobile_development' in base_topics_list %}checked{% endif %}>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'mobile_development' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="university_student,young_professional_career_explorer">
+                            <input type="checkbox" name="base_mentorship_topics" value="mobile_development" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'mobile_development' in base_topics_list %}checked{% endif %}>
                             <span class="text-sm font-medium text-gray-800">Mobile Development</span>
                         </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'soft_skills' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
-                            <input type="checkbox" name="base_mentorship_topics" value="soft_skills" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'soft_skills' in base_topics_list %}checked{% endif %}>
-                            <span class="text-sm font-medium text-gray-800">Soft Skills</span>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'soft_skills' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="school_student,university_student,young_professional_career_explorer,entrepreneur">
+                            <input type="checkbox" name="base_mentorship_topics" value="soft_skills" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'soft_skills' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Soft Skills / Communication</span>
                         </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'leadership' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
-                            <input type="checkbox" name="base_mentorship_topics" value="leadership" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'leadership' in base_topics_list %}checked{% endif %}>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'leadership' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="young_professional_career_explorer,entrepreneur">
+                            <input type="checkbox" name="base_mentorship_topics" value="leadership" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'leadership' in base_topics_list %}checked{% endif %}>
                             <span class="text-sm font-medium text-gray-800">Leadership</span>
                         </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'entrepreneurship' in base_topics_list %}border-green-500 bg-green-50{% endif %}">
-                            <input type="checkbox" name="base_mentorship_topics" value="entrepreneurship" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200" {% if 'entrepreneurship' in base_topics_list %}checked{% endif %}>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'entrepreneurship' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="entrepreneur">
+                            <input type="checkbox" name="base_mentorship_topics" value="entrepreneurship" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'entrepreneurship' in base_topics_list %}checked{% endif %}>
                             <span class="text-sm font-medium text-gray-800">Entrepreneurship</span>
+                        </label>
+                        <!-- New topic for young professionals & career explorers -->
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'seeking_internships' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="university_student,young_professional_career_explorer">
+                            <input type="checkbox" name="base_mentorship_topics" value="seeking_internships" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'seeking_internships' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Seeking Internships</span>
                         </label>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Specific Mentorship Topics -->
+        <!-- 3. Specific Mentorship Topics (Detailed) -->
         <div class="bg-white p-8 rounded-2xl shadow-lg border border-blue-100">
             <h3 class="text-3xl font-bold text-gray-800 mb-6 pb-3 border-b-2 border-blue-100">
-                <i class="fas fa-tags text-purple-500 mr-3"></i>Specific Mentorship Topics
+                <i class="fas fa-list-alt text-purple-500 mr-3"></i>Specific Mentorship Topics
             </h3>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-gray-700 font-semibold mb-2">Specific Topics I Can Mentor On </label>
-                    <p class="text-sm text-gray-500 mb-2">Enter specific, detailed topics (comma-separated)</p>
-                    <textarea name="mentorship_topics" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition duration-300" rows="3" placeholder="e.g., Python for beginners, Resume review for tech roles, Azure CI/CD pipelines, System design interviews, React hooks, Career transition to tech...">{{ mentorship_topics }}</textarea>
-                </div>
-            </div>
+            <p class="text-sm text-gray-500 mb-4">Select specific topics you can mentor on in detail</p>
+            <textarea name="mentorship_topics" class="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition duration-300" rows="6" placeholder="List specific topics you can mentor on, separated by commas (e.g., Python for Data Science, React.js Fundamentals, Career Planning for Fresh Graduates, Azure CI/CD Pipelines...)">{{ mentorship_topics }}</textarea>
+            <p class="text-xs text-gray-400 mt-2">Enter specific topics separated by commas. These will be shown to mentees as your detailed areas of expertise.</p>
         </div>
 
         <!-- Mentor Philosophy (2 fields only) -->
@@ -2300,7 +2296,112 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 });
 
-// Auto-detect country code from IP (only fills empty/default fields)
+// ===== Mentorship Focus: Dynamic Base Topics Filtering =====
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // Mapping of target audience to base topics
+    const audienceToTopics = {
+        'school_student': ['school_subjects', 'soft_skills'],
+        'university_student': ['coding_basics', 'career_guidance', 'azure_devops', 'cloud_computing', 'data_science', 'web_development', 'mobile_development', 'soft_skills', 'seeking_internships'],
+        'young_professional_career_explorer': ['coding_basics', 'career_guidance', 'azure_devops', 'cloud_computing', 'web_development', 'mobile_development', 'soft_skills', 'leadership', 'seeking_internships'],
+        'entrepreneur': ['career_guidance', 'soft_skills', 'leadership', 'entrepreneurship']
+    };
+    
+    const targetAudienceCheckboxes = document.querySelectorAll('.target-audience-checkbox');
+    const baseTopicLabels = document.querySelectorAll('.base-topic-label');
+    const baseTopicCheckboxes = document.querySelectorAll('.base-topic-checkbox');
+    const baseTopicsSection = document.getElementById('baseTopicsSection');
+    const legacySeekingInput = document.getElementById('target_audience_legacy_seeking');
+    const legacyExploringInput = document.getElementById('target_audience_legacy_exploring');
+    
+    function getSelectedAudiences() {
+        const selected = [];
+        targetAudienceCheckboxes.forEach(cb => {
+            if (cb.checked) selected.push(cb.value);
+        });
+        return selected;
+    }
+    
+    function updateBaseTopicsVisibility() {
+        const selectedAudiences = getSelectedAudiences();
+        
+        // Handle backward compatibility for merged fields
+        if (legacySeekingInput) {
+            legacySeekingInput.value = selectedAudiences.includes('young_professional_career_explorer') ? '1' : '0';
+        }
+        if (legacyExploringInput) {
+            legacyExploringInput.value = selectedAudiences.includes('young_professional_career_explorer') ? '1' : '0';
+        }
+        
+        // If no audience selected, show all topics
+        if (selectedAudiences.length === 0) {
+            baseTopicLabels.forEach(label => {
+                label.style.display = 'flex';
+                label.classList.remove('opacity-30', 'pointer-events-none');
+            });
+            return;
+        }
+        
+        // Get all relevant topics for selected audiences
+        let relevantTopics = new Set();
+        selectedAudiences.forEach(audience => {
+            if (audienceToTopics[audience]) {
+                audienceToTopics[audience].forEach(topic => relevantTopics.add(topic));
+            }
+        });
+        
+        // Show/hide base topic labels
+        baseTopicLabels.forEach(label => {
+            const topicValue = label.querySelector('.base-topic-checkbox').value;
+            const audiences = label.getAttribute('data-target-audience').split(',');
+            
+            // Check if this topic is relevant for any selected audience
+            const isRelevant = audiences.some(a => selectedAudiences.includes(a)) || relevantTopics.has(topicValue);
+            
+            if (isRelevant) {
+                label.style.display = 'flex';
+                label.classList.remove('opacity-30', 'pointer-events-none');
+                label.querySelector('.base-topic-checkbox').disabled = false;
+            } else {
+                label.style.display = 'none';
+                label.classList.add('opacity-30', 'pointer-events-none');
+                label.querySelector('.base-topic-checkbox').disabled = true;
+                // Uncheck hidden topics
+                label.querySelector('.base-topic-checkbox').checked = false;
+            }
+        });
+        
+        // If base topics section exists, add visual indicator
+        if (baseTopicsSection) {
+            if (selectedAudiences.length > 0) {
+                baseTopicsSection.classList.remove('hidden');
+            }
+        }
+    }
+    
+    // Initial update
+    updateBaseTopicsVisibility();
+    
+    // Add change listeners
+    targetAudienceCheckboxes.forEach(cb => {
+        cb.addEventListener('change', updateBaseTopicsVisibility);
+    });
+    
+    // Also handle the legacy fields on form submit
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function() {
+            // Ensure legacy fields are set based on the merged checkbox
+            const mergedCheckbox = document.querySelector('input[name="target_audience"][value="young_professional_career_explorer"]');
+            if (mergedCheckbox && mergedCheckbox.checked) {
+                if (legacySeekingInput) legacySeekingInput.value = '1';
+                if (legacyExploringInput) legacyExploringInput.value = '1';
+            }
+        });
+    }
+});
+
+// ===== Auto-detect country code from IP (only fills empty/default fields) =====
 (function() {
     var defaultCodes = ['+1', '+91', '+01'];
     fetch('/api/detect_country').then(function(r) { return r.json(); }).then(function(res) {

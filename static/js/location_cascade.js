@@ -112,7 +112,19 @@ class LocationCascade {
             this.citySelect.innerHTML = '<option value="">Select District / City</option>';
         }
         
-        if (!country) return;
+        // If no country selected, clear and return
+        if (!country) {
+            // Update labels to default
+            if (this.stateLabel && this.cityLabel) {
+                this.stateLabel.textContent = 'State / Province *';
+                this.cityLabel.textContent = 'District / City *';
+            }
+            // Call external callback if provided
+            if (this.onCountryChangeCallback) {
+                this.onCountryChangeCallback('');
+            }
+            return;
+        }
         
         // Update phone code if function exists
         if (typeof autoUpdatePhoneCode === 'function') {
