@@ -976,11 +976,36 @@
     document.getElementById('profileModalName').textContent = userData.name || 'Not specified';
     document.getElementById('profileModalEmail').textContent = userData.email || 'Not specified';
     
-    // Set role badge
+    // Set role badge and header info/icon
     const roleEl = document.getElementById('profileModalRole');
+    const isMentee = userData.role === 'Mentee';
     roleEl.textContent = userData.role || 'Mentor';
     roleEl.className = 'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ' + 
-      (userData.role === 'Mentee' ? 'text-green-700 bg-green-50' : 'text-blue-700 bg-blue-50');
+      (isMentee ? 'text-green-700 bg-green-50' : 'text-blue-700 bg-blue-50');
+
+    const modalTitleEl = document.getElementById('profileModalTitle');
+    const modalSubtitleEl = document.getElementById('profileModalSubtitle');
+    const modalHeaderEl = document.getElementById('profileModalHeader');
+    const modalIconEl = document.getElementById('profileModalIcon');
+
+    if (modalTitleEl) modalTitleEl.textContent = isMentee ? 'Mentee Profile' : 'Mentor Profile';
+    if (modalSubtitleEl) modalSubtitleEl.textContent = isMentee ? 'Mentee details and preferences' : 'Mentor qualifications and preferences';
+    if (modalHeaderEl) {
+      if (isMentee) {
+        modalHeaderEl.className = 'bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 flex items-center justify-between';
+      } else {
+        modalHeaderEl.className = 'bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex items-center justify-between';
+      }
+    }
+    if (modalIconEl) {
+      if (isMentee) {
+        // Mentee / student graduation cap icon
+        modalIconEl.innerHTML = '<path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3.001zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/>';
+      } else {
+        // Mentor / user icon
+        modalIconEl.innerHTML = '<path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>';
+      }
+    }
 
     // Set badges
     const corporateEl = document.getElementById('profileModalCorporate');
@@ -1238,7 +1263,7 @@
 <div id="profileViewModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4" onclick="if(event.target===this)closeProfileModal()">
   <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-w-xl overflow-hidden">
     <!-- Modal Header -->
-    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex items-center justify-between">
+    <div id="profileModalHeader" class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm border border-white/30">
           <svg id="profileModalIcon" class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -1288,15 +1313,15 @@
       <!-- Contact Info -->
       <div class="space-y-3">
         <div class="flex items-center gap-3 text-sm text-gray-600">
-          <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 12M15 12a3 3 0 01-6 0 3 3 0 016 0z"/></svg>
+          <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
           <span id="profileModalEmailContact" class="text-gray-700 truncate">email@example.com</span>
         </div>
         <div class="flex items-center gap-3 text-sm text-gray-600">
-          <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657A12.002 12.002 0 0112 21.75a12.002 12.002 0 01-3.485-6.923M18.718 9.532l7.545 7.545M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           <span id="profileModalLocation" class="text-gray-700 truncate">Location not specified</span>
         </div>
-        <div class="flex items-center gap-3 text-sm">
-          <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657A12.002 12.002 0 0112 21.75a12.002 12.002 0 01-3.485-6.923M18.718 9.532l7.545 7.545M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <div class="flex items-center gap-3 text-sm text-gray-600">
+          <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
           <span id="profileModalInstitution" class="text-gray-700 truncate">Institution not specified</span>
         </div>
       </div>

@@ -1,5 +1,6 @@
 // Shared Location Cascade Utility
 // Handles Country > State > City cascading dropdowns across all profile forms
+// Robust across local and production environments
 
 class LocationCascade {
     constructor(options = {}) {
@@ -9,39 +10,56 @@ class LocationCascade {
         this.stateLabel = document.getElementById(options.stateLabelId || 'state_label');
         this.cityLabel = document.getElementById(options.cityLabelId || 'city_label');
         
-        this.currentCountry = options.currentCountry || '';
-        this.currentState = options.currentState || '';
-        this.currentCity = options.currentCity || '';
+        this.currentCountry = (options.currentCountry || '').trim();
+        this.currentState = (options.currentState || '').trim();
+        this.currentCity = (options.currentCity || '').trim();
+
+        // Flag to only restore initial state/city once on initial country match
+        this.isInitialLoad = true;
         
         this.locationData = {};
         this.allCountriesData = [];
         this.globalStatesData = {};
         
-        this.COUNTRY_KEY_MAP = {
+        // Aliases mapping country names in various forms to LOCATION_DATA keys
+        this.LOCATION_DATA_MAP = {
             'United States': 'USA',
             'United States of America': 'USA',
+            'USA': 'USA',
             'United Kingdom': 'UK',
+            'UK': 'UK',
+            'Great Britain': 'UK',
             'United Arab Emirates': 'UAE',
-            'South Korea': 'Korea',
-            'South Africa': 'SouthAfrica',
-            'Saudi Arabia': 'SaudiArabia',
-            'New Zealand': 'NewZealand',
-            'Papua New Guinea': 'PapuaNewGuinea',
-            'Sri Lanka': 'SriLanka',
-            'Costa Rica': 'CostaRica',
-            'El Salvador': 'ElSalvador',
-            'Equatorial Guinea': 'EquatorialGuinea',
-            'Guinea-Bissau': 'GuineaBissau',
-            'Hong Kong': 'HongKong',
-            'North Korea': 'NorthKorea',
-            'North Macedonia': 'NorthMacedonia',
-            'Sierra Leone': 'SierraLeone',
-            'Solomon Islands': 'SolomonIslands',
-            'St. Kitts and Nevis': 'StKittsNevis',
-            'St. Lucia': 'StLucia',
-            'St. Vincent and the Grenadines': 'StVincentGrenadines',
-            'Trinidad and Tobago': 'TrinidadTobago',
-            'Vatican City': 'VaticanCity'
+            'UAE': 'UAE',
+            'South Korea': 'South Korea',
+            'Korea, Republic of': 'South Korea',
+            'Korea': 'South Korea',
+            'South Africa': 'South Africa',
+            'Russian Federation': 'Russia'
+        };
+
+        // Aliases mapping to global_states.json keys
+        this.GLOBAL_STATES_MAP = {
+            'USA': 'United States',
+            'United States of America': 'United States',
+            'UK': 'United Kingdom',
+            'UAE': 'United Arab Emirates',
+            'The Bahamas': 'Bahamas',
+            'Bahamas': 'The Bahamas',
+            'The Gambia': 'Gambia',
+            'Gambia': 'The Gambia',
+            'Hong Kong': 'Hong Kong S.A.R.',
+            'Macau': 'Macau S.A.R.',
+            'Palestine': 'Palestinian Territory Occupied',
+            'Saint Barthelemy': 'Saint-Barthelemy',
+            'Saint Martin': 'Saint-Martin (French part)',
+            'Sint Maarten': 'Sint Maarten (Dutch part)',
+            'US Virgin Islands': 'Virgin Islands (US)',
+            'Vatican City': 'Vatican City State (Holy See)',
+            'Fiji': 'Fiji Islands',
+            'DR Congo': 'Democratic Republic of the Congo',
+            'Congo': 'Congo',
+            'Wallis and Futuna': 'Wallis and Futuna Islands'
         };
         
         this.onCountryChangeCallback = options.onCountryChange || null;
@@ -50,29 +68,46 @@ class LocationCascade {
         this.init();
     }
     
-    getCountryDataKey(name) {
-        return this.COUNTRY_KEY_MAP[name] || name;
-    }
-    
     async init() {
-        // Start loading data immediately
+        // Fetch all data sources with graceful fallback
         const [locData, countryData, gStates] = await Promise.allSettled([
             fetch('/api/location_data').then(r => r.json()).catch(() => ({})),
             fetch('/api/all_countries').then(r => r.json()).catch(() => ({ success: false, countries: [] })),
             fetch('/static/data/global_states.json').then(r => r.json()).catch(() => ({}))
         ]);
         
-        this.locationData = locData.status === 'fulfilled' ? (locData.value || {}) : {};
+        this.locationData = locData.status === 'fulfilled' && locData.value ? locData.value : {};
         this.allCountriesData = (countryData.status === 'fulfilled' && countryData.value && countryData.value.countries) 
             ? countryData.value.countries : [];
-        this.globalStatesData = gStates.status === 'fulfilled' ? (gStates.value || {}) : {};
+        this.globalStatesData = gStates.status === 'fulfilled' && gStates.value ? gStates.value : {};
         
         this.populateCountries();
         
         if (this.currentCountry) {
-            this.countrySelect.value = this.currentCountry;
-            this.onCountryChange();
+            // Find option matching currentCountry (case-insensitive)
+            if (this.countrySelect) {
+                const matchOpt = Array.from(this.countrySelect.options).find(
+                    o => o.value.toLowerCase() === this.currentCountry.toLowerCase()
+                );
+                if (matchOpt) {
+                    this.countrySelect.value = matchOpt.value;
+                } else {
+                    // If not in list, add as an option
+                    const opt = document.createElement('option');
+                    opt.value = this.currentCountry;
+                    opt.textContent = this.currentCountry;
+                    this.countrySelect.appendChild(opt);
+                    this.countrySelect.value = this.currentCountry;
+                }
+            }
+            this.onCountryChange(true);
+        } else {
+            // No country chosen: ensure state/city are cleanly reset
+            this.onCountryChange(false);
         }
+        
+        // After initial setup is completed, clear initial load flag
+        this.isInitialLoad = false;
     }
     
     populateCountries() {
@@ -88,7 +123,12 @@ class LocationCascade {
             'Oceania': ['Australia', 'Fiji', 'Kiribati', 'Marshall Islands', 'Micronesia', 'Nauru', 'New Zealand', 'Palau', 'Papua New Guinea', 'Samoa', 'Solomon Islands', 'Tonga', 'Tuvalu', 'Vanuatu']
         };
         
-        const allNames = new Set(this.allCountriesData.map(c => c.name));
+        let allNames = new Set(this.allCountriesData.map(c => c.name));
+        
+        // Fallback list of country names if api_all_countries fails or is empty
+        if (allNames.size === 0) {
+            Object.values(regions).flat().forEach(c => allNames.add(c));
+        }
         
         for (const [region, countries] of Object.entries(regions)) {
             const available = countries.filter(c => allNames.has(c));
@@ -120,18 +160,83 @@ class LocationCascade {
         }
         
         // Add event listener for country changes
-        this.countrySelect.addEventListener('change', () => this.onCountryChange());
+        this.countrySelect.addEventListener('change', () => {
+            // When user changes country dropdown interactively, clear previous saved state/city
+            this.currentState = '';
+            this.currentCity = '';
+            this.isInitialLoad = false;
+            this.onCountryChange(false);
+        });
 
         // Add event listener for state changes
         if (this.stateSelect) {
-            this.stateSelect.addEventListener('change', () => this.onStateChange());
+            this.stateSelect.addEventListener('change', () => {
+                // When user changes state dropdown interactively, clear previous saved city
+                this.currentCity = '';
+                this.onStateChange(false);
+            });
         }
     }
+
+    getStatesForCountry(country) {
+        if (!country) return [];
+
+        // 1. Check direct match or alias in locationData (app.py)
+        const locKey = this.LOCATION_DATA_MAP[country] || country;
+        if (this.locationData[locKey] && this.locationData[locKey].states) {
+            return Object.keys(this.locationData[locKey].states);
+        }
+        if (this.locationData[country] && this.locationData[country].states) {
+            return Object.keys(this.locationData[country].states);
+        }
+
+        // 2. Check direct match or alias in globalStatesData (global_states.json)
+        if (this.globalStatesData[country] && this.globalStatesData[country].length > 0) {
+            return this.globalStatesData[country];
+        }
+        const gsKey = this.GLOBAL_STATES_MAP[country];
+        if (gsKey && this.globalStatesData[gsKey] && this.globalStatesData[gsKey].length > 0) {
+            return this.globalStatesData[gsKey];
+        }
+
+        // 3. Case-insensitive lookup in globalStatesData
+        const countryLower = country.toLowerCase().trim();
+        for (const [k, v] of Object.entries(this.globalStatesData)) {
+            if (k.toLowerCase() === countryLower && Array.isArray(v) && v.length > 0) {
+                return v;
+            }
+        }
+
+        return [];
+    }
+
+    getCitiesForState(country, state) {
+        if (!country || !state) return [];
+
+        const locKey = this.LOCATION_DATA_MAP[country] || country;
+        const cData = this.locationData[locKey] || this.locationData[country];
+
+        if (cData && cData.states) {
+            // Check direct state match
+            if (cData.states[state] && Array.isArray(cData.states[state])) {
+                return cData.states[state];
+            }
+            // Check case-insensitive state match
+            const stateLower = state.toLowerCase().trim();
+            for (const [sName, cityList] of Object.entries(cData.states)) {
+                if (sName.toLowerCase() === stateLower && Array.isArray(cityList)) {
+                    return cityList;
+                }
+            }
+        }
+
+        return [];
+    }
     
-    onCountryChange() {
-        const country = this.countrySelect.value;
+    onCountryChange(isInitial = false) {
+        const country = this.countrySelect ? this.countrySelect.value : '';
         
-        // Reset state and city
+        // Reset state and city selects completely
         if (this.stateSelect) {
             this.stateSelect.innerHTML = '<option value="">Select State</option>';
         }
@@ -139,14 +244,12 @@ class LocationCascade {
             this.citySelect.innerHTML = '<option value="">Select District / City</option>';
         }
         
-        // If no country selected, clear and return
+        // If no country selected, reset labels and return immediately
         if (!country) {
-            // Update labels to default
             if (this.stateLabel && this.cityLabel) {
                 this.stateLabel.textContent = 'State / Province *';
                 this.cityLabel.textContent = 'District / City *';
             }
-            // Call external callback if provided
             if (this.onCountryChangeCallback) {
                 this.onCountryChangeCallback('');
             }
@@ -164,9 +267,10 @@ class LocationCascade {
             checkAge();
         }
         
-        // Update labels
+        // Update labels based on whether country is India
+        const isIndia = (country === 'India');
         if (this.stateLabel && this.cityLabel) {
-            if (country === 'India') {
+            if (isIndia) {
                 this.stateLabel.textContent = 'State *';
                 this.cityLabel.textContent = 'District *';
             } else {
@@ -175,15 +279,8 @@ class LocationCascade {
             }
         }
         
-        // Populate states
-        const cData = this.locationData[this.getCountryDataKey(country)];
-        let statesList = [];
-        
-        if (cData && cData.states) {
-            statesList = Object.keys(cData.states);
-        } else if (this.globalStatesData[country] && this.globalStatesData[country].length > 0) {
-            statesList = this.globalStatesData[country];
-        }
+        // Retrieve states strictly for the selected country
+        const statesList = this.getStatesForCountry(country);
         
         if (this.stateSelect) {
             if (statesList.length > 0) {
@@ -200,25 +297,30 @@ class LocationCascade {
                 this.stateSelect.appendChild(opt);
             }
             
-            // Restore current state if it exists
-            if (this.currentState) {
-                const found = Array.from(this.stateSelect.options).some(
+            // Only restore currentState on initial load if currentState actually belongs to this country
+            if (isInitial && this.currentState) {
+                const foundOpt = Array.from(this.stateSelect.options).find(
                     o => o.value.toLowerCase() === this.currentState.toLowerCase()
                 );
-                if (found) {
-                    this.stateSelect.value = this.currentState;
-                } else {
+                if (foundOpt) {
+                    this.stateSelect.value = foundOpt.value;
+                } else if (!isIndia && statesList.length === 0) {
+                    // Only for small nations with no state list, allow custom state
                     const savedOpt = document.createElement('option');
                     savedOpt.value = this.currentState;
                     savedOpt.textContent = this.currentState;
                     this.stateSelect.appendChild(savedOpt);
                     this.stateSelect.value = this.currentState;
+                } else {
+                    // State does not belong to the selected country - clear it
+                    this.currentState = '';
+                    this.currentCity = '';
                 }
             }
         }
         
-        // Trigger state change to populate cities
-        this.onStateChange();
+        // Populate cities for current state
+        this.onStateChange(isInitial);
         
         // Call external callback if provided
         if (this.onCountryChangeCallback) {
@@ -226,22 +328,23 @@ class LocationCascade {
         }
     }
     
-    onStateChange() {
-        const country = this.countrySelect.value;
+    onStateChange(isInitial = false) {
+        const country = this.countrySelect ? this.countrySelect.value : '';
         const state = this.stateSelect ? this.stateSelect.value : '';
         
         if (this.citySelect) {
             this.citySelect.innerHTML = '<option value="">Select District / City</option>';
         }
         
-        if (!country || !state) return;
-        
-        const cData = this.locationData[this.getCountryDataKey(country)];
-        let cities = [];
-        
-        if (cData && cData.states && cData.states[state]) {
-            cities = cData.states[state];
+        if (!country || !state) {
+            if (this.onStateChangeCallback) {
+                this.onStateChangeCallback('');
+            }
+            return;
         }
+        
+        const isIndia = (country === 'India');
+        const cities = this.getCitiesForState(country, state);
         
         if (this.citySelect) {
             if (cities.length > 0) {
@@ -251,27 +354,29 @@ class LocationCascade {
                     opt.textContent = c;
                     this.citySelect.appendChild(opt);
                 });
-            } else {
-                // If detailed city data is not available, provide the state as city option
+            } else if (!isIndia) {
+                // If detailed city data is not available for a non-India region, provide state/region option
                 const opt = document.createElement('option');
                 opt.value = state;
-                opt.textContent = state + ' (Main District)';
+                opt.textContent = state + ' (Main District / City)';
                 this.citySelect.appendChild(opt);
             }
             
-            // Restore current city if it exists
-            if (this.currentCity) {
-                const found = Array.from(this.citySelect.options).some(
+            // Restore current city only on initial load if it belongs to current options
+            if (isInitial && this.currentCity) {
+                const foundOpt = Array.from(this.citySelect.options).find(
                     o => o.value.toLowerCase() === this.currentCity.toLowerCase()
                 );
-                if (found) {
-                    this.citySelect.value = this.currentCity;
-                } else {
+                if (foundOpt) {
+                    this.citySelect.value = foundOpt.value;
+                } else if (!isIndia) {
                     const savedOpt = document.createElement('option');
                     savedOpt.value = this.currentCity;
                     savedOpt.textContent = this.currentCity;
                     this.citySelect.appendChild(savedOpt);
                     this.citySelect.value = this.currentCity;
+                } else {
+                    this.currentCity = '';
                 }
             }
         }
@@ -286,7 +391,9 @@ class LocationCascade {
     setCountry(country) {
         if (this.countrySelect) {
             this.countrySelect.value = country;
-            this.onCountryChange();
+            this.currentState = '';
+            this.currentCity = '';
+            this.onCountryChange(false);
         }
     }
     
@@ -294,7 +401,8 @@ class LocationCascade {
     setState(state) {
         if (this.stateSelect) {
             this.stateSelect.value = state;
-            this.onStateChange();
+            this.currentCity = '';
+            this.onStateChange(false);
         }
     }
     
