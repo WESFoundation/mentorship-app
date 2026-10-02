@@ -786,29 +786,49 @@
 
             console.log('Selected "Who am I":', whoAmI);
 
-            // Hide all sections
-            document.getElementById('school_student_section').classList.add('hidden');
-            document.getElementById('university_student_section').classList.add('hidden');
-            document.getElementById('seeking_internship_section').classList.add('hidden');
-            document.getElementById('young_professional_section').classList.add('hidden');
-            document.getElementById('exploring_section').classList.add('hidden');
+            // All section IDs
+            const sectionIds = [
+                'school_student_section',
+                'university_student_section',
+                'seeking_internship_section',
+                'young_professional_section',
+                'exploring_section'
+            ];
 
-            // Show relevant section based on selection
+            // Hide all sections and disable their inputs so duplicate field names
+            // don't send empty values that overwrite the active section's data
+            sectionIds.forEach(function(sectionId) {
+                var section = document.getElementById(sectionId);
+                if (section) {
+                    section.classList.add('hidden');
+                    var fields = section.querySelectorAll('input, select, textarea');
+                    fields.forEach(function(f) { f.disabled = true; });
+                }
+            });
+
+            // Show and enable the relevant section
+            var activeSection = null;
             if (whoAmI === 'school_student') {
-                document.getElementById('school_student_section').classList.remove('hidden');
+                activeSection = document.getElementById('school_student_section');
                 console.log('✓ Showing school student section');
             } else if (whoAmI === 'university_student') {
-                document.getElementById('university_student_section').classList.remove('hidden');
+                activeSection = document.getElementById('university_student_section');
                 console.log('✓ Showing university student section');
             } else if (whoAmI === 'seeking_internship') {
-                document.getElementById('seeking_internship_section').classList.remove('hidden');
+                activeSection = document.getElementById('seeking_internship_section');
                 console.log('✓ Showing seeking internship section');
             } else if (whoAmI === 'young_professional') {
-                document.getElementById('young_professional_section').classList.remove('hidden');
+                activeSection = document.getElementById('young_professional_section');
                 console.log('✓ Showing young professional section');
             } else if (whoAmI === 'exploring') {
-                document.getElementById('exploring_section').classList.remove('hidden');
+                activeSection = document.getElementById('exploring_section');
                 console.log('✓ Showing exploring section');
+            }
+
+            if (activeSection) {
+                activeSection.classList.remove('hidden');
+                var fields = activeSection.querySelectorAll('input, select, textarea');
+                fields.forEach(function(f) { f.disabled = false; });
             }
 
             // Update required attributes for visible fields

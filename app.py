@@ -13395,33 +13395,42 @@ def editmenteeprofile():
         else:
             profile.institution_other = None
 
+        # Helper: for fields that appear in multiple sections (e.g. class_year,
+        # course_stream, favourite_subject), pick the first non-empty value.
+        def get_first_nonempty(field_name):
+            values = request.form.getlist(field_name)
+            for v in values:
+                if v and v.strip():
+                    return v.strip()
+            return request.form.get(field_name, "")
+
         # SCHOOL STUDENT fields
         if who_am_i == "school_student":
             profile.school_name = request.form.get("school_name")
-            profile.class_year = request.form.get("class_year")
+            profile.class_year = get_first_nonempty("class_year")
             profile.school_board = request.form.get("school_board")
-            profile.course_stream = request.form.get("course_stream")
-            profile.favourite_subject = request.form.get("favourite_subject")
-            profile.career_interest = request.form.get("career_interest")
+            profile.course_stream = get_first_nonempty("course_stream")
+            profile.favourite_subject = get_first_nonempty("favourite_subject")
+            profile.career_interest = get_first_nonempty("career_interest")
             profile.govt_private = request.form.get("govt_private")
 
         # UNIVERSITY STUDENT fields
         elif who_am_i == "university_student":
-            profile.institution_name = request.form.get("institution_name")
-            profile.education_level = request.form.get("education_level")
-            profile.course_stream = request.form.get("course_stream")
-            profile.class_year = request.form.get("class_year")
-            profile.favourite_subject = request.form.get("favourite_subject")
-            profile.career_interest = request.form.get("career_interest")
+            profile.institution_name = get_first_nonempty("institution_name")
+            profile.education_level = get_first_nonempty("education_level")
+            profile.course_stream = get_first_nonempty("course_stream")
+            profile.class_year = get_first_nonempty("class_year")
+            profile.favourite_subject = get_first_nonempty("favourite_subject")
+            profile.career_interest = get_first_nonempty("career_interest")
 
         # SEEKING INTERNSHIP fields
         elif who_am_i == "seeking_internship":
-            profile.education_level = request.form.get("education_level")
-            profile.course_stream = request.form.get("course_stream")
-            profile.institution_name = request.form.get("institution_name")
-            profile.career_interest = request.form.get("career_interest")
+            profile.education_level = get_first_nonempty("education_level")
+            profile.course_stream = get_first_nonempty("course_stream")
+            profile.institution_name = get_first_nonempty("institution_name")
+            profile.career_interest = get_first_nonempty("career_interest")
             profile.key_skills = request.form.get("key_skills")
-            profile.career_goal = request.form.get("career_goal")
+            profile.career_goal = get_first_nonempty("career_goal")
 
         # YOUNG PROFESSIONAL fields
         elif who_am_i == "young_professional":
