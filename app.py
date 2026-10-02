@@ -10112,7 +10112,9 @@ def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calend
         # Build link section for email
         link_section = ""
         if meet_link:
-            link_section = f'<p><a href="{meet_link}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Join Meeting</a></p>'
+            btn_bg = "#6264a7" if platform == "teams" or (meet_link and "teams" in str(meet_link).lower()) else "#2563eb"
+            btn_text = "Join Microsoft Teams Meeting" if platform == "teams" or (meet_link and "teams" in str(meet_link).lower()) else "Join Meeting"
+            link_section = f'<p><a href="{meet_link}" style="display:inline-block;padding:12px 24px;background:{btn_bg};color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">{btn_text}</a></p>'
         elif platform == "teams" and teams_calendar_link:
             link_section = f'<p><a href="{teams_calendar_link}" style="display:inline-block;padding:12px 24px;background:#6264a7;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Create Meeting in Microsoft Teams</a></p>'
             link_section += '<p style="color:#64748b;font-size:12px;margin-top:8px;">Click above to open Teams and create your meeting. You can invite participants once created.</p>'
@@ -12289,32 +12291,37 @@ def reschedule_meeting(meeting_id):
         meeting.rescheduled_by_id = mentor.id
         meeting.status = "rescheduled"
 
-        # Update Google Calendar event if exists
+        # Update calendar event if exists (Google Calendar or MS Teams)
         if meeting.gcal_event_id:
-            try:
-                service = get_calendar_service()
-                if service:
-                    # Calculate new start and end times
+            if meeting.meet_link and "teams" in str(meeting.meet_link).lower():
+                try:
                     new_start_datetime = datetime.combine(new_meeting_date, new_meeting_time)
-                    new_end_datetime = new_start_datetime + timedelta(minutes=meeting.meeting_duration)
-                    
-                    event_update = {
-                        "start": {"dateTime": new_start_datetime.isoformat(), "timeZone": MEETING_TIMEZONE},
-                        "end": {"dateTime": new_end_datetime.isoformat(), "timeZone": MEETING_TIMEZONE},
-                    }
-                    
-                    service.events().patch(
-                        calendarId=CALENDAR_ID,
-                        eventId=meeting.gcal_event_id,
-                        body=event_update,
-                        sendUpdates="all"
-                    ).execute()
+                    duration_mins = int(meeting.meeting_duration or 60)
+                    new_end_datetime = new_start_datetime + timedelta(minutes=duration_mins)
+                    try:
+                        from zoneinfo import ZoneInfo
+                        tzobj = ZoneInfo(MEETING_TIMEZONE)
+                    except Exception:
+                        tzobj = dt.timezone.utc
+                    new_start_utc = new_start_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
+                    new_end_utc = new_end_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
+                    update_teams_calendar_event(meeting.gcal_event_id, new_start_utc, new_end_utc)
+                    print(f"Microsoft Teams event updated for meeting {meeting_id}")
+                except Exception as e:
+                    print(f"Error updating Teams calendar event for meeting {meeting_id}: {str(e)}")
+            else:
+                try:
+                    new_start_datetime = datetime.combine(new_meeting_date, new_meeting_time)
+                    update_google_calendar_event(
+                        event_id=meeting.gcal_event_id,
+                        new_start_datetime=new_start_datetime,
+                        duration_minutes=meeting.meeting_duration or 60,
+                        timezone=MEETING_TIMEZONE
+                    )
                     print(f"Google Calendar event updated for meeting {meeting_id}")
-                else:
-                    print(f"Google Calendar service unavailable for meeting {meeting_id} - skipping calendar update")
-            except Exception as e:
-                print(f"Error updating Google Calendar for meeting {meeting_id}: {str(e)}")
-                # Continue even if calendar update fails
+                except Exception as e:
+                    print(f"Error updating Google Calendar for meeting {meeting_id}: {str(e)}")
+                    # Continue even if calendar update fails
 
         db.session.commit()
 
@@ -12362,16 +12369,18 @@ def cancel_meeting(meeting_id):
         meeting.rescheduled_by_id = user.id
 
         if meeting.gcal_event_id:
-            try:
-                service = get_calendar_service()
-                if service:
-                    service.events().delete(
-                        calendarId=CALENDAR_ID,
-                        eventId=meeting.gcal_event_id,
-                        sendUpdates="all"
-                    ).execute()
-            except Exception as e:
-                print(f"Error deleting Google Calendar event: {str(e)}")
+            if meeting.meet_link and "teams" in str(meeting.meet_link).lower():
+                try:
+                    delete_teams_calendar_event(meeting.gcal_event_id)
+                    print(f"Microsoft Teams event deleted for meeting {meeting_id}")
+                except Exception as e:
+                    print(f"Error deleting Teams calendar event: {str(e)}")
+            else:
+                try:
+                    delete_google_calendar_event(meeting.gcal_event_id)
+                    print(f"Google Calendar event deleted for meeting {meeting_id}")
+                except Exception as e:
+                    print(f"Error deleting Google Calendar event: {str(e)}")
 
         db.session.commit()
 
@@ -14754,22 +14763,131 @@ def get_calendar_service():
         app.logger.error(f"Could not initialize Google Calendar service: {e}")
         return None
 
-# ---------- Microsoft Graph API for Teams Meetings ----------
-MS_TENANT_ID = os.environ.get("MS_TENANT_ID", "")
-MS_CLIENT_ID = os.environ.get("MS_CLIENT_ID", "")
-MS_CLIENT_SECRET = os.environ.get("MS_CLIENT_SECRET", "")
-MS_USER_EMAIL = os.environ.get("MS_USER_EMAIL", "info@wazireducationsociety.com")
+def update_google_calendar_event(event_id, new_start_datetime, duration_minutes=60, timezone=None, title=None, description=None):
+    """
+    Updates the start/end times (and optionally summary/description) of a Google Calendar event.
+    Ensures RFC 3339 compliance with timezone offsets and tries CALENDAR_ID then 'primary'.
+    Returns True on success, False on failure.
+    """
+    if not event_id:
+        return False
+    service = get_calendar_service()
+    if not service:
+        app.logger.warning("Google Calendar service unavailable for event update")
+        return False
+
+    tz_name = timezone or MEETING_TIMEZONE or "Asia/Kolkata"
+    try:
+        from zoneinfo import ZoneInfo
+        tzobj = ZoneInfo(tz_name)
+    except Exception:
+        tzobj = dt.timezone.utc
+
+    try:
+        duration_mins = int(duration_minutes) if duration_minutes else 60
+        if duration_mins <= 0:
+            duration_mins = 60
+    except (ValueError, TypeError):
+        duration_mins = 60
+
+    new_end_datetime = new_start_datetime + timedelta(minutes=duration_mins)
+
+    # Attach timezone to ensure RFC 3339 formatted timestamps with offset
+    new_start_aware = new_start_datetime.replace(tzinfo=tzobj)
+    new_end_aware = new_end_datetime.replace(tzinfo=tzobj)
+
+    event_update = {
+        "start": {
+            "dateTime": new_start_aware.isoformat(),
+            "timeZone": tz_name
+        },
+        "end": {
+            "dateTime": new_end_aware.isoformat(),
+            "timeZone": tz_name
+        }
+    }
+    if title:
+        event_update["summary"] = title
+    if description:
+        event_update["description"] = description
+
+    try:
+        try:
+            service.events().patch(
+                calendarId=CALENDAR_ID,
+                eventId=event_id,
+                body=event_update,
+                sendUpdates="all"
+            ).execute()
+            app.logger.info(f"Google Calendar event {event_id} updated successfully on {CALENDAR_ID}")
+            return True
+        except Exception as e:
+            if ("404" in str(e) or "notFound" in str(e)) and CALENDAR_ID != "primary":
+                service.events().patch(
+                    calendarId="primary",
+                    eventId=event_id,
+                    body=event_update,
+                    sendUpdates="all"
+                ).execute()
+                app.logger.info(f"Google Calendar event {event_id} updated successfully on primary calendar")
+                return True
+            raise
+    except Exception as e:
+        app.logger.error(f"Error updating Google Calendar event {event_id}: {e}")
+        return False
+
+def delete_google_calendar_event(event_id):
+    """Delete a Google Calendar event by ID. Tries CALENDAR_ID then 'primary'."""
+    if not event_id:
+        return False
+    service = get_calendar_service()
+    if not service:
+        return False
+    try:
+        try:
+            service.events().delete(
+                calendarId=CALENDAR_ID,
+                eventId=event_id,
+                sendUpdates="all"
+            ).execute()
+            return True
+        except Exception as e:
+            if ("404" in str(e) or "notFound" in str(e)) and CALENDAR_ID != "primary":
+                service.events().delete(
+                    calendarId="primary",
+                    eventId=event_id,
+                    sendUpdates="all"
+                ).execute()
+                return True
+            raise
+    except Exception as e:
+        app.logger.error(f"Error deleting Google Calendar event {event_id}: {e}")
+        return False
+
+MS_GRAPH_TENANT_ID = os.environ.get("MS_GRAPH_TENANT_ID") or os.environ.get("MS_TENANT_ID")
+MS_GRAPH_CLIENT_ID = os.environ.get("MS_GRAPH_CLIENT_ID") or os.environ.get("MS_CLIENT_ID")
+MS_GRAPH_CLIENT_SECRET = os.environ.get("MS_GRAPH_CLIENT_SECRET") or os.environ.get("MS_CLIENT_SECRET")
+MS_GRAPH_ORGANIZER_EMAIL = os.environ.get("MS_GRAPH_ORGANIZER_EMAIL") or os.environ.get("MS_USER_EMAIL") or "info@wazireducationsociety.org"
+
+# Backward compatibility aliases
+MS_TENANT_ID = MS_GRAPH_TENANT_ID
+MS_CLIENT_ID = MS_GRAPH_CLIENT_ID
+MS_CLIENT_SECRET = MS_GRAPH_CLIENT_SECRET
+MS_USER_EMAIL = MS_GRAPH_ORGANIZER_EMAIL
 
 def get_ms_graph_token():
     """Obtain an OAuth2 access token for Microsoft Graph using client_credentials flow."""
-    if not MS_TENANT_ID or not MS_CLIENT_ID or not MS_CLIENT_SECRET:
+    tenant_id = MS_GRAPH_TENANT_ID
+    client_id = MS_GRAPH_CLIENT_ID
+    client_secret = MS_GRAPH_CLIENT_SECRET
+    if not tenant_id or not client_id or not client_secret:
         return None
     try:
-        token_url = f"https://login.microsoftonline.com/{MS_TENANT_ID}/oauth2/v2.0/token"
+        token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
         resp = http_requests.post(token_url, data={
             "grant_type": "client_credentials",
-            "client_id": MS_CLIENT_ID,
-            "client_secret": MS_CLIENT_SECRET,
+            "client_id": client_id,
+            "client_secret": client_secret,
             "scope": "https://graph.microsoft.com/.default"
         }, timeout=15)
         if resp.status_code == 200:
@@ -14779,38 +14897,118 @@ def get_ms_graph_token():
         app.logger.error(f"MS Graph token request failed: {e}")
     return None
 
-def create_teams_online_meeting(title, start_utc, end_utc, attendee_emails):
-    """Create a Microsoft Teams online meeting via Graph API and return the join URL.
-    Includes attendees so they receive calendar invitations."""
+def create_teams_calendar_event(title, start_utc, end_utc, attendee_emails, description=None):
+    """Create a calendar event with online MS Teams meeting via Microsoft Graph API.
+    Returns (join_url, event_id) tuple, or (None, None) on failure."""
     token = get_ms_graph_token()
     if not token:
-        return None
+        return None, None
     try:
-        url = f"https://graph.microsoft.com/v1.0/users/{MS_USER_EMAIL}/onlineMeetings"
-        attendees = [{"identity": {"user": {"id": email}}, "role": "presenter"} for email in attendee_emails]
+        url = f"https://graph.microsoft.com/v1.0/users/{MS_GRAPH_ORGANIZER_EMAIL}/events"
+        attendees = []
+        for email in attendee_emails:
+            if email and isinstance(email, str) and email.strip():
+                attendees.append({
+                    "emailAddress": {"address": email.strip()},
+                    "type": "required"
+                })
+
+        formatted_content = (description or title or "Mentorship Session").replace("\n", "<br>")
+
         body = {
             "subject": title,
-            "startDateTime": start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "endDateTime": end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "participants": {
-                "attendees": attendees
+            "body": {
+                "contentType": "HTML",
+                "content": formatted_content
             },
-            "lobbyBypassSettings": {
-                "enabled": True,
-                "scope": "everyone"
-            }
+            "start": {
+                "dateTime": start_utc.strftime("%Y-%m-%dT%H:%M:%S"),
+                "timeZone": "UTC"
+            },
+            "end": {
+                "dateTime": end_utc.strftime("%Y-%m-%dT%H:%M:%S"),
+                "timeZone": "UTC"
+            },
+            "attendees": attendees,
+            "isOnlineMeeting": True,
+            "onlineMeetingProvider": "teamsForBusiness"
         }
+
         resp = http_requests.post(url, json=body, headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
         }, timeout=30)
         if resp.status_code in (200, 201):
-            meeting_data = resp.json()
-            return meeting_data.get("joinWebUrl")
+            event_data = resp.json()
+            event_id = event_data.get("id")
+            online_meeting = event_data.get("onlineMeeting") or {}
+            join_url = online_meeting.get("joinUrl") or event_data.get("onlineMeetingUrl")
+            return join_url, event_id
         app.logger.error(f"Teams meeting creation failed: {resp.status_code} {resp.text}")
     except Exception as e:
         app.logger.error(f"Teams meeting creation error: {e}")
-    return None
+    return None, None
+
+def create_teams_online_meeting(title, start_utc, end_utc, attendee_emails, description=None):
+    """Create a Microsoft Teams online meeting via Graph API and return the join URL."""
+    join_url, _ = create_teams_calendar_event(title, start_utc, end_utc, attendee_emails, description=description)
+    return join_url
+
+def update_teams_calendar_event(event_id, new_start_utc, new_end_utc, title=None, description=None):
+    """Update an existing Teams calendar event via Microsoft Graph API."""
+    if not event_id:
+        return False
+    token = get_ms_graph_token()
+    if not token:
+        return False
+    try:
+        url = f"https://graph.microsoft.com/v1.0/users/{MS_GRAPH_ORGANIZER_EMAIL}/events/{event_id}"
+        patch_body = {
+            "start": {
+                "dateTime": new_start_utc.strftime("%Y-%m-%dT%H:%M:%S"),
+                "timeZone": "UTC"
+            },
+            "end": {
+                "dateTime": new_end_utc.strftime("%Y-%m-%dT%H:%M:%S"),
+                "timeZone": "UTC"
+            }
+        }
+        if title:
+            patch_body["subject"] = title
+        if description:
+            patch_body["body"] = {
+                "contentType": "HTML",
+                "content": str(description).replace("\n", "<br>")
+            }
+        resp = http_requests.patch(url, json=patch_body, headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }, timeout=30)
+        if resp.status_code in (200, 201):
+            return True
+        app.logger.error(f"Teams event update failed: {resp.status_code} {resp.text}")
+    except Exception as e:
+        app.logger.error(f"Teams event update error: {e}")
+    return False
+
+def delete_teams_calendar_event(event_id):
+    """Delete a Teams calendar event via Microsoft Graph API."""
+    if not event_id:
+        return False
+    token = get_ms_graph_token()
+    if not token:
+        return False
+    try:
+        url = f"https://graph.microsoft.com/v1.0/users/{MS_GRAPH_ORGANIZER_EMAIL}/events/{event_id}"
+        resp = http_requests.delete(url, headers={
+            "Authorization": f"Bearer {token}"
+        }, timeout=30)
+        if resp.status_code in (200, 204):
+            return True
+        app.logger.error(f"Teams event delete failed: {resp.status_code} {resp.text}")
+    except Exception as e:
+        app.logger.error(f"Teams event delete error: {e}")
+    return False
 
 #-------------------creat meeting request---------------------------------
 @app.route("/mentee_create_meeting_request/<int:mentor_id>", methods=["GET"])
@@ -15063,8 +15261,13 @@ def create_meeting_ajax():
         return jsonify({"error": "Cannot create meeting for past or current date/time. Please select a future date and time."}), 400
 
     end_datetime = start_datetime + dt.timedelta(minutes=duration_minutes)
-    start_str = start_datetime.isoformat()
-    end_str = end_datetime.isoformat()
+    try:
+        from zoneinfo import ZoneInfo
+        tzobj = ZoneInfo(timezone)
+    except Exception:
+        tzobj = dt.timezone.utc
+    start_str = start_datetime.replace(tzinfo=tzobj).isoformat()
+    end_str = end_datetime.replace(tzinfo=tzobj).isoformat()
 
     # Build task context for description (must be before calendar event creation)
     task_context = ""
@@ -15133,12 +15336,23 @@ def create_meeting_ajax():
                     }
                 }
 
-                event = service.events().insert(
-                    calendarId=CALENDAR_ID,
-                    body=event,
-                    conferenceDataVersion=1,
-                    sendUpdates="all"
-                ).execute()
+                try:
+                    event = service.events().insert(
+                        calendarId=CALENDAR_ID,
+                        body=event,
+                        conferenceDataVersion=1,
+                        sendUpdates="all"
+                    ).execute()
+                except Exception as insert_err:
+                    if ("404" in str(insert_err) or "notFound" in str(insert_err)) and CALENDAR_ID != "primary":
+                        event = service.events().insert(
+                            calendarId="primary",
+                            body=event,
+                            conferenceDataVersion=1,
+                            sendUpdates="all"
+                        ).execute()
+                    else:
+                        raise
 
                 meet_link = event.get("hangoutLink")
                 gcal_event_id = event.get("id")
@@ -15189,9 +15403,18 @@ def create_meeting_ajax():
         if mentee_user and mentee_user.email not in all_emails_teams:
             all_emails_teams.append(mentee_user.email)
 
-        teams_meet_link = create_teams_online_meeting(title, start_utc, end_utc, all_emails_teams)
+        formatted_desc = f"Meeting scheduled by {'Admin' if supervisor.user_type == '0' else 'Coordinator' if supervisor.user_type == '3' else 'Mentor' if supervisor.user_type == '1' else 'Mentee'} {supervisor.name}.{task_context}"
+
+        teams_meet_link, teams_event_id = create_teams_calendar_event(
+            title=title,
+            start_utc=start_utc,
+            end_utc=end_utc,
+            attendee_emails=all_emails_teams,
+            description=formatted_desc
+        )
         if teams_meet_link:
             meet_link = teams_meet_link
+            gcal_event_id = teams_event_id
         else:
             teams_calendar_link = "https://teams.live.com/meet/create"
             calendar_warning = (
@@ -15388,6 +15611,33 @@ def update_meeting_ajax():
         # Update description while keeping the embedded participant tag
         new_desc = description if description else _clean_meeting_description(meeting.meeting_description)
         meeting.meeting_description = _embed_meeting_participants(new_desc, participants)
+
+        # Update calendar event if exists (Google Calendar or MS Teams)
+        if meeting.gcal_event_id:
+            if meeting.meet_link and "teams" in str(meeting.meet_link).lower():
+                try:
+                    try:
+                        from zoneinfo import ZoneInfo
+                        tzobj = ZoneInfo(timezone_val)
+                    except Exception:
+                        tzobj = dt.timezone.utc
+                    new_start_utc = new_dt.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
+                    new_end_utc = (new_dt + dt.timedelta(minutes=meeting_duration)).replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
+                    update_teams_calendar_event(meeting.gcal_event_id, new_start_utc, new_end_utc, title=title, description=new_desc)
+                except Exception as e:
+                    app.logger.error(f"Error updating Teams calendar event on edit: {e}")
+            else:
+                try:
+                    update_google_calendar_event(
+                        event_id=meeting.gcal_event_id,
+                        new_start_datetime=new_dt,
+                        duration_minutes=meeting_duration,
+                        timezone=timezone_val,
+                        title=title,
+                        description=new_desc
+                    )
+                except Exception as e:
+                    app.logger.error(f"Error updating Google Calendar event on edit: {e}")
 
         db.session.commit()
 
