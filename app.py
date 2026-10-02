@@ -2551,11 +2551,6 @@ def _get_request_current_user():
 @app.context_processor
 def inject_current_user():
     user = _get_request_current_user()
-    if user:
-        try:
-            refresh_user_corporate_status(user)
-        except Exception:
-            pass
     return dict(current_user=user)
 
 
@@ -3792,16 +3787,18 @@ def menteedashboard():
         mentee_profile = user.mentee_profile if user else None
         profile_complete = check_profile_complete(user.id, "2", profile_obj=mentee_profile) if user else False
         
-        # Auto-check corporate affiliation if linked to institution
-        refresh_user_corporate_status(user)
-
-        all_mentors = MentorProfile.query.options(joinedload(MentorProfile.user)).all()
+        mentor_filter_rows = MentorProfile.query.with_entities(
+            MentorProfile.profession,
+            MentorProfile.location,
+            MentorProfile.education,
+            MentorProfile.years_of_experience
+        ).distinct().all()
 
         # unique filter values from db
-        professions = sorted({row.profession for row in all_mentors if row.profession})
-        locations = sorted({row.location for row in all_mentors if row.location})
-        educations = sorted({row.education for row in all_mentors if row.education})
-        experiences = sorted({row.years_of_experience for row in all_mentors if row.years_of_experience})
+        professions = sorted({row[0] for row in mentor_filter_rows if row[0]})
+        locations = sorted({row[1] for row in mentor_filter_rows if row[1]})
+        educations = sorted({row[2] for row in mentor_filter_rows if row[2]})
+        experiences = sorted({row[3] for row in mentor_filter_rows if row[3]})
 
         career_goal = mentee_profile.goal if mentee_profile else None
         parent_consent_status = mentee_profile.parent_consent_status if mentee_profile else None
@@ -3923,7 +3920,20 @@ def menteedashboard():
 def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
     """Compute comparative analytics and leaderboards for the supervisor dashboard."""
     try:
-        users_by_id = {u.id: u for u in User.query.options(joinedload(User.mentor_profile), joinedload(User.mentee_profile)).all()}
+        users_by_id = {}
+        for m in mentors:
+            u = getattr(m, "user", None)
+            if u:
+                users_by_id[u.id] = u
+        for m in all_mentees:
+            u = getattr(m, "user", None)
+            if u:
+                users_by_id[u.id] = u
+        for r in all_requests:
+            if getattr(r, "mentor", None):
+                users_by_id[r.mentor.id] = r.mentor
+            if getattr(r, "mentee", None):
+                users_by_id[r.mentee.id] = r.mentee
         master_tasks_by_id = {mt.id: mt for mt in MasterTask.query.all()}
 
         # 1. Active Mentorships mapping
@@ -4026,6 +4036,12 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
             "anchor_count": anchor_count,
             "special_count": special_count
         }
+
+        # Fetch any remaining users referenced in tasks or ratings not already in users_by_id
+        needed_uids = (set(mentee_task_map.keys()) | set(mentor_task_map.keys()) | set(mentor_ratings_map.keys()) | set(mentor_mentees_map.keys())) - set(users_by_id.keys())
+        if needed_uids:
+            for u in User.query.filter(User.id.in_(needed_uids)).options(joinedload(User.mentor_profile), joinedload(User.mentee_profile)).all():
+                users_by_id[u.id] = u
 
         # 5. Leaderboard: Task Completion - Top Mentees
         lb_task_mentees = []
@@ -4234,12 +4250,18 @@ def supervisordashboard():
     for idx, m in enumerate(mentors, 1):
         m.serial = idx
 
-    all_raw_mentors = MentorProfile.query.all()
+    mentor_dropdown_rows = MentorProfile.query.with_entities(
+        MentorProfile.profession,
+        MentorProfile.location,
+        MentorProfile.education,
+        MentorProfile.years_of_experience
+    ).distinct().all()
+
     options = {
-        "professions": sorted({m.profession for m in all_raw_mentors if m.profession}),
-        "locations": sorted({m.location for m in all_raw_mentors if m.location}),
-        "educations": sorted({m.education for m in all_raw_mentors if m.education}),
-        "experiences": sorted({m.years_of_experience for m in all_raw_mentors if m.years_of_experience}),
+        "professions": sorted({r[0] for r in mentor_dropdown_rows if r[0]}),
+        "locations": sorted({r[1] for r in mentor_dropdown_rows if r[1]}),
+        "educations": sorted({r[2] for r in mentor_dropdown_rows if r[2]}),
+        "experiences": sorted({r[3] for r in mentor_dropdown_rows if r[3]}),
     }
 
     # ----------------- Mentees -----------------
@@ -4270,11 +4292,15 @@ def supervisordashboard():
     for idx, m in enumerate(all_mentees, 1):
         m.serial = idx
 
-    # ----------------- Mentee dropdowns -----------------
-    all_raw_mentees = MenteeProfile.query.all()
-    mentee_streams = sorted({m.stream for m in all_raw_mentees if m.stream})
-    mentee_schools = sorted({m.school_college_name for m in all_raw_mentees if m.school_college_name})
-    mentee_goals = sorted({m.goal for m in all_raw_mentees if m.goal})
+    # ----------------- Mentee dropdowns (efficient distinct query) -----------------
+    mentee_dropdown_rows = MenteeProfile.query.with_entities(
+        MenteeProfile.stream,
+        MenteeProfile.school_college_name,
+        MenteeProfile.goal
+    ).distinct().all()
+    mentee_streams = sorted({r[0] for r in mentee_dropdown_rows if r[0]})
+    mentee_schools = sorted({r[1] for r in mentee_dropdown_rows if r[1]})
+    mentee_goals = sorted({r[2] for r in mentee_dropdown_rows if r[2]})
 
     # ----------------- Requests -----------------
     all_requests = MentorshipRequest.query.options(
@@ -4316,29 +4342,30 @@ def institution():
     # Get all institutions
     institutions = Institution.query.order_by(Institution.id.asc()).all()
     
-    # Get institution statistics
+    # Pre-fetch user data and active mentorships in 2 fast batch queries instead of 3 queries per institution
+    users_data = db.session.query(User.user_type, User.institution_id, User.institution).filter(User.user_type.in_(["1", "2"])).all()
+    active_req_data = db.session.query(User.institution_id, User.institution).join(
+        MentorshipRequest, MentorshipRequest.mentee_id == User.id
+    ).filter(MentorshipRequest.final_status == "approved").all()
+
+    # Calculate institution statistics in memory
     institution_stats = []
     for inst in institutions:
-        # Count mentors in this institution
-        mentors_count = User.query.filter(
-            (User.user_type == "1") & 
-            ((User.institution_id == inst.id) | (User.institution == inst.name))
-        ).count()
-        
-        # Count mentees in this institution
-        mentees_count = User.query.filter(
-            (User.user_type == "2") & 
-            ((User.institution_id == inst.id) | (User.institution == inst.name))
-        ).count()
-        
-        # Count active mentorships
-        active_mentorships = MentorshipRequest.query\
-            .join(User, MentorshipRequest.mentee_id == User.id)\
-            .filter(
-                ((User.institution_id == inst.id) | (User.institution == inst.name)) &
-                (MentorshipRequest.final_status == "approved")
-            ).count()
-        
+        inst_name_norm = (inst.name or "").strip().lower()
+
+        mentors_count = sum(
+            1 for ut, iid, iname in users_data
+            if ut == "1" and (iid == inst.id or (iname and iname.strip().lower() == inst_name_norm))
+        )
+        mentees_count = sum(
+            1 for ut, iid, iname in users_data
+            if ut == "2" and (iid == inst.id or (iname and iname.strip().lower() == inst_name_norm))
+        )
+        active_mentorships = sum(
+            1 for iid, iname in active_req_data
+            if (iid == inst.id or (iname and iname.strip().lower() == inst_name_norm))
+        )
+
         institution_stats.append({
             'institution': inst,
             'mentors_count': mentors_count,
@@ -4987,9 +5014,6 @@ def institutiondashboard():
     user = User.query.filter_by(email=session["email"]).first()
     profile_complete = check_profile_complete(user.id, "3")
     
-    # Auto-check corporate affiliation if linked to institution
-    refresh_user_corporate_status(user)
-    
     institution, inst_id, institution_name, aliases = _get_institution_details(user)
     
     # Get all mentors and mentees who belong to this institution
@@ -5497,7 +5521,7 @@ def get_institution_tasks_data():
         if not mentor_obj:
             return False
         if mentor_obj.id not in mentor_corp_cache:
-            mentor_corp_cache[mentor_obj.id] = bool(mentor_obj.is_corporate or refresh_user_corporate_status(mentor_obj))
+            mentor_corp_cache[mentor_obj.id] = bool(getattr(mentor_obj, 'is_corporate', False))
         return mentor_corp_cache[mentor_obj.id]
 
     inst_id_val = institution_id or user.id
@@ -6052,7 +6076,7 @@ def find_mentor():
         mentor = type('MentorData', (), {})()
         mentor.name = user.name
         mentor.email = user.email
-        mentor.is_corporate = refresh_user_corporate_status(user)
+        mentor.is_corporate = bool(getattr(user, 'is_corporate', False))
         mentor.premium = bool(getattr(user, 'premium', False))
         
         if mentor_profile:
@@ -6611,21 +6635,21 @@ def supervisor_find_mentor():
     education = request.args.get("education")
     experience = request.args.get("experience")
 
-    # Fetch ALL mentors (including incomplete profiles)
-    all_users = User.query.filter_by(user_type="1").all()
-    
-    # Create enriched mentor objects with fallback data
+    # Single query: fetch all mentor-type users with their profiles eagerly loaded
+    all_users = User.query.filter_by(user_type="1").outerjoin(
+        MentorProfile, User.id == MentorProfile.user_id
+    ).options(joinedload(User.mentor_profile)).order_by(User.created_at.asc()).all()
+
+    # Build enriched mentor dicts from pre-loaded data (no extra queries)
     enriched_mentors = []
     for user in all_users:
-        profile = MentorProfile.query.filter_by(user_id=user.id).first()
-        
+        profile = user.mentor_profile
         if profile:
-            # Complete profile exists - use it
             enriched_mentor = {
                 'id': profile.id,
                 'user_id': user.id,
                 'user': user,
-                'is_corporate': refresh_user_corporate_status(user),
+                'is_corporate': getattr(user, 'is_corporate', False),
                 'profession': profile.profession,
                 'organisation': profile.organisation,
                 'location': profile.location,
@@ -6662,53 +6686,31 @@ def supervisor_find_mentor():
                 'is_profile_complete': True
             }
         else:
-            # No profile yet - create basic fallback object
             enriched_mentor = {
                 'id': user.id,
                 'user_id': user.id,
                 'user': user,
-                'is_corporate': refresh_user_corporate_status(user),
-                'profession': None,
-                'organisation': None,
-                'location': None,
-                'years_of_experience': None,
-                'profile_picture': None,
-                'education': None,
-                'language': None,
-                'preferred_communication': None,
-                'why_mentor': None,
-                'role': None,
-                'industry_sector': None,
-                'skills': None,
-                'availability': None,
-                'mentorship_topics': None,
-                'linkedin_link': None,
-                'github_link': None,
-                'portfolio_link': None,
-                'preferred_duration': None,
-                'mentorship_type_preference': None,
-                'connect_frequency': None,
-                'whatsapp': None,
-                'highest_qualification': None,
-                'degree_name': None,
-                'field_of_study': None,
-                'university_name': None,
-                'graduation_year': None,
-                'academic_status': None,
-                'certifications': None,
-                'research_work': None,
-                'mentorship_philosophy': None,
-                'mentorship_motto': None,
-                'other_social_link': None,
-                'criminal_certificate': None,
+                'is_corporate': getattr(user, 'is_corporate', False),
+                'profession': None, 'organisation': None, 'location': None,
+                'years_of_experience': None, 'profile_picture': None,
+                'education': None, 'language': None, 'preferred_communication': None,
+                'why_mentor': None, 'role': None, 'industry_sector': None,
+                'skills': None, 'availability': None, 'mentorship_topics': None,
+                'linkedin_link': None, 'github_link': None, 'portfolio_link': None,
+                'preferred_duration': None, 'mentorship_type_preference': None,
+                'connect_frequency': None, 'whatsapp': None,
+                'highest_qualification': None, 'degree_name': None,
+                'field_of_study': None, 'university_name': None,
+                'graduation_year': None, 'academic_status': None,
+                'certifications': None, 'research_work': None,
+                'mentorship_philosophy': None, 'mentorship_motto': None,
+                'other_social_link': None, 'criminal_certificate': None,
                 'is_profile_complete': False
             }
-        
         enriched_mentors.append(enriched_mentor)
 
-    # Apply filters to enriched mentors
+    # Apply filters
     filtered_mentors = enriched_mentors
-    
     if profession:
         filtered_mentors = [m for m in filtered_mentors if m.get('profession') == profession]
     if location:
@@ -6717,25 +6719,27 @@ def supervisor_find_mentor():
         filtered_mentors = [m for m in filtered_mentors if m.get('education') == education]
     if experience:
         filtered_mentors = [m for m in filtered_mentors if m.get('years_of_experience')]
-        if experience == "0-2":
-            filtered_mentors = [m for m in filtered_mentors if int(m.get('years_of_experience', 0)) <= 2]
-        elif experience == "3-5":
-            filtered_mentors = [m for m in filtered_mentors if 3 <= int(m.get('years_of_experience', 0)) <= 5]
-        elif experience == "6-10":
-            filtered_mentors = [m for m in filtered_mentors if 6 <= int(m.get('years_of_experience', 0)) <= 10]
-        elif experience == "10+":
-            filtered_mentors = [m for m in filtered_mentors if int(m.get('years_of_experience', 0)) >= 10]
+        try:
+            if experience == "0-2":
+                filtered_mentors = [m for m in filtered_mentors if int(m.get('years_of_experience', 0)) <= 2]
+            elif experience == "3-5":
+                filtered_mentors = [m for m in filtered_mentors if 3 <= int(m.get('years_of_experience', 0)) <= 5]
+            elif experience == "6-10":
+                filtered_mentors = [m for m in filtered_mentors if 6 <= int(m.get('years_of_experience', 0)) <= 10]
+            elif experience == "10+":
+                filtered_mentors = [m for m in filtered_mentors if int(m.get('years_of_experience', 0)) >= 10]
+        except (ValueError, TypeError):
+            pass
 
-    # Sort by user creation timestamp (oldest first) and add serial numbers
-    filtered_mentors.sort(key=lambda m: m['user'].created_at if m['user'].created_at else datetime.min)
+    # Add serial numbers (already sorted by created_at from the query)
     for idx, m in enumerate(filtered_mentors, 1):
         m['serial'] = idx
 
-    # Get unique filter options from all enriched mentors
-    professions = sorted({m.get('profession') for m in enriched_mentors if m.get('profession')})
-    locations = sorted({m.get('location') for m in enriched_mentors if m.get('location')})
-    educations = sorted({m.get('education') for m in enriched_mentors if m.get('education')})
-    experiences = sorted({m.get('years_of_experience') for m in enriched_mentors if m.get('years_of_experience')})
+    # Efficient distinct queries for filter dropdowns (no full table load)
+    professions = sorted({r[0] for r in MentorProfile.query.with_entities(MentorProfile.profession).distinct() if r[0]})
+    locations = sorted({r[0] for r in MentorProfile.query.with_entities(MentorProfile.location).distinct() if r[0]})
+    educations = sorted({r[0] for r in MentorProfile.query.with_entities(MentorProfile.education).distinct() if r[0]})
+    experiences = sorted({r[0] for r in MentorProfile.query.with_entities(MentorProfile.years_of_experience).distinct() if r[0]})
 
     return render_template(
         "supervisor/supervisor_find_mentor.html",
@@ -6753,7 +6757,7 @@ def supervisor_find_mentee():
     if "email" not in session or session.get("user_type") != "0":
         return redirect(url_for("signin"))
 
-    mentee_query = MenteeProfile.query.join(User, MenteeProfile.user_id == User.id)
+    mentee_query = MenteeProfile.query.options(joinedload(MenteeProfile.user)).join(User, MenteeProfile.user_id == User.id)
     search_query = request.args.get("search", "").lower()
     stream_filter = request.args.get("stream", "")
     school_filter = request.args.get("school", "")
@@ -6795,14 +6799,25 @@ def supervisor_find_mentee():
     for idx, m in enumerate(all_mentees, 1):
         m.serial = idx
 
-    mentee_streams = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.stream).distinct() if row[0]})
-    mentee_schools = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.school_college_name).distinct() if row[0]})
-    mentee_who_am_i = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.who_am_i).distinct() if row[0]})
+    # Batch distinct filter values in a single query
+    distinct_rows = MenteeProfile.query.with_entities(
+        MenteeProfile.stream,
+        MenteeProfile.school_college_name,
+        MenteeProfile.who_am_i,
+        MenteeProfile.city,
+        MenteeProfile.state,
+        MenteeProfile.govt_private,
+        MenteeProfile.education_level
+    ).distinct().all()
+
+    mentee_streams = sorted({row[0] for row in distinct_rows if row[0]})
+    mentee_schools = sorted({row[1] for row in distinct_rows if row[1]})
+    mentee_who_am_i = sorted({row[2] for row in distinct_rows if row[2]})
     mentee_consent_statuses = ["pending", "approved", "rejected"]
-    mentee_cities = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.city).distinct() if row[0]})
-    mentee_states = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.state).distinct() if row[0]})
-    mentee_govt_private = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.govt_private).distinct() if row[0]})
-    mentee_education_levels = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.education_level).distinct() if row[0]})
+    mentee_cities = sorted({row[3] for row in distinct_rows if row[3]})
+    mentee_states = sorted({row[4] for row in distinct_rows if row[4]})
+    mentee_govt_private = sorted({row[5] for row in distinct_rows if row[5]})
+    mentee_education_levels = sorted({row[6] for row in distinct_rows if row[6]})
 
     return render_template(
         "supervisor/supervisor_find_mentee.html",
@@ -11571,7 +11586,7 @@ def get_supervisor_tasks_data():
             if not mentor_obj:
                 return False
             if mentor_obj.id not in mentor_corp_cache:
-                mentor_corp_cache[mentor_obj.id] = bool(mentor_obj.is_corporate or refresh_user_corporate_status(mentor_obj))
+                mentor_corp_cache[mentor_obj.id] = bool(getattr(mentor_obj, 'is_corporate', False))
             return mentor_corp_cache[mentor_obj.id]
 
         def _resolve_task_mentee_fb(ttype, tid, mid=None, master_tid=None):
@@ -12424,11 +12439,15 @@ def supervisor_meeting_details():
     today = date.today()
     now = datetime.now()
 
+    # Pre-fetch all referenced users in 1 batch query instead of 2 queries per meeting
+    user_ids = {m.requester_id for m in meetings if m.requester_id} | {m.requested_to_id for m in meetings if m.requested_to_id}
+    users_by_id = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
+
     # Prepare formatted meeting data with mentee & mentor info
     meeting_data = []
     for meeting in meetings:
-        mentee = User.query.get(meeting.requester_id)
-        mentor = User.query.get(meeting.requested_to_id)
+        mentee = users_by_id.get(meeting.requester_id)
+        mentor = users_by_id.get(meeting.requested_to_id)
 
         # Calculate timing category
         meeting_datetime = datetime.combine(meeting.meeting_date, meeting.meeting_time)
