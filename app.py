@@ -90,6 +90,7 @@ UPLOAD_FOLDER = "static/uploads"
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "pdf"}  # Added PDF for criminal certificate
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB max upload size
 
 # Ensure folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -5871,6 +5872,15 @@ def editinstitutionprofile():
             if 'profile_picture' in request.files:
                 file = request.files['profile_picture']
                 if file and file.filename and allowed_file(file.filename):
+                    # Remove old profile picture file if it exists
+                    old_pic = institution_details.profile_picture if hasattr(institution_details, 'profile_picture') else None
+                    if old_pic:
+                        old_path = os.path.join(app.config['UPLOAD_FOLDER'], old_pic)
+                        if os.path.exists(old_path):
+                            try:
+                                os.remove(old_path)
+                            except OSError:
+                                pass
                     filename = secure_filename(f"institution_{institution_details.id}_{file.filename}")
                     file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
                     institution_details.profile_picture = filename
@@ -13087,8 +13097,17 @@ def editmentorprofile():
 
         # Handle profile picture upload
         file = request.files.get("profile_picture")
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
+        if file and file.filename and allowed_file(file.filename):
+            # Remove old profile picture file if it exists
+            old_pic = profile.profile_picture
+            if old_pic:
+                old_path = os.path.join(app.config["UPLOAD_FOLDER"], old_pic)
+                if os.path.exists(old_path):
+                    try:
+                        os.remove(old_path)
+                    except OSError:
+                        pass  # Non-critical: old file cleanup failed
+            filename = secure_filename(f"mentor_{user.id}_{file.filename}")
             file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
             profile.profile_picture = filename
 
@@ -13425,11 +13444,31 @@ def editmenteeprofile():
         if 'profile_picture' in request.files:
             file = request.files['profile_picture']
             if file and file.filename and allowed_file(file.filename):
+                # Flush to ensure profile.id is assigned for new profiles
+                db.session.flush()
+                # Remove old profile picture file if it exists
+                old_pic = profile.profile_picture
+                if old_pic:
+                    old_path = os.path.join(app.config["UPLOAD_FOLDER"], old_pic)
+                    if os.path.exists(old_path):
+                        try:
+                            os.remove(old_path)
+                        except OSError:
+                            pass  # Non-critical: old file cleanup failed
                 filename = secure_filename(f"mentee_{profile.id}_{file.filename}")
                 file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
                 profile.profile_picture = filename
 
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            error_msg = "An error occurred while saving your profile. Please try again."
+            print(f"❌ Mentee profile save error: {e}")
+            if is_ajax:
+                return jsonify({"success": False, "message": error_msg}), 500
+            flash(error_msg, "error")
+            return redirect(url_for("editmenteeprofile"))
         
         refresh_user_corporate_status(user)
         
@@ -17642,5 +17681,21 @@ if __name__ == '__main__':
             init_scheduler()
         except Exception as e:
             print(f"⚠️ Could not initialize scheduler: {e}")
-    
+
+    # Error handlers for friendly error messages
+    @app.errorhandler(413)
+    def file_too_large(e):
+        if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+            return jsonify({"success": False, "message": "File too large. Maximum upload size is 16 MB."}), 413
+        flash("File too large. Maximum upload size is 16 MB.", "error")
+        return redirect(request.referrer or url_for("signin")), 413
+
+    @app.errorhandler(500)
+    def internal_error(e):
+        db.session.rollback()
+        if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+            return jsonify({"success": False, "message": "An internal error occurred. Please try again."}), 500
+        flash("An internal error occurred. Please try again.", "error")
+        return redirect(request.referrer or url_for("signin")), 500
+
     app.run(debug=True, host='0.0.0.0', port=5000)

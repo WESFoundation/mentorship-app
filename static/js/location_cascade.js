@@ -129,6 +129,7 @@ class LocationCascade {
             'Americas': ['Antigua and Barbuda', 'Argentina', 'Bahamas', 'Barbados', 'Belize', 'Bolivia', 'Brazil', 'Canada', 'Chile', 'Colombia', 'Costa Rica', 'Cuba', 'Dominica', 'Dominican Republic', 'Ecuador', 'El Salvador', 'Grenada', 'Guatemala', 'Guyana', 'Haiti', 'Honduras', 'Jamaica', 'Mexico', 'Nicaragua', 'Panama', 'Paraguay', 'Peru', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Suriname', 'Trinidad and Tobago', 'United States', 'Uruguay', 'Venezuela'],
             'Africa': ['Algeria', 'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cameroon', 'Cape Verde', 'Central African Republic', 'Chad', 'Comoros', 'Congo', 'DR Congo', "Cote d'Ivoire", 'Djibouti', 'Egypt', 'Equatorial Guinea', 'Eritrea', 'Eswatini', 'Ethiopia', 'Gabon', 'Gambia', 'Ghana', 'Guinea', 'Guinea-Bissau', 'Kenya', 'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius', 'Morocco', 'Mozambique', 'Namibia', 'Niger', 'Nigeria', 'Rwanda', 'Sao Tome and Principe', 'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 'South Africa', 'South Sudan', 'Sudan', 'Tanzania', 'Togo', 'Tunisia', 'Uganda', 'Zambia', 'Zimbabwe'],
             'Oceania': ['Australia', 'Fiji', 'Kiribati', 'Marshall Islands', 'Micronesia', 'Nauru', 'New Zealand', 'Palau', 'Papua New Guinea', 'Samoa', 'Solomon Islands', 'Tonga', 'Tuvalu', 'Vanuatu']
+        };
         for (const [region, countries] of Object.entries(regions)) {
             const group = document.createElement('optgroup');
             group.label = region;
@@ -279,24 +280,20 @@ class LocationCascade {
                 this.stateSelect.appendChild(opt);
             }
             
-            // Only restore currentState on initial load if currentState actually belongs to this country
+            // Restore currentState on initial load
             if (isInitial && this.currentState) {
                 const foundOpt = Array.from(this.stateSelect.options).find(
                     o => o.value.toLowerCase() === this.currentState.toLowerCase()
                 );
                 if (foundOpt) {
                     this.stateSelect.value = foundOpt.value;
-                } else if (!isIndia && statesList.length === 0) {
-                    // Only for small nations with no state list, allow custom state
+                } else {
+                    // Retain existing state as an option so user's saved data is never discarded
                     const savedOpt = document.createElement('option');
                     savedOpt.value = this.currentState;
                     savedOpt.textContent = this.currentState;
                     this.stateSelect.appendChild(savedOpt);
                     this.stateSelect.value = this.currentState;
-                } else {
-                    // State does not belong to the selected country - clear it
-                    this.currentState = '';
-                    this.currentCity = '';
                 }
             }
         }
@@ -344,21 +341,19 @@ class LocationCascade {
                 this.citySelect.appendChild(opt);
             }
             
-            // Restore current city only on initial load if it belongs to current options
+            // Restore current city on initial load
             if (isInitial && this.currentCity) {
                 const foundOpt = Array.from(this.citySelect.options).find(
                     o => o.value.toLowerCase() === this.currentCity.toLowerCase()
                 );
                 if (foundOpt) {
                     this.citySelect.value = foundOpt.value;
-                } else if (!isIndia) {
+                } else {
                     const savedOpt = document.createElement('option');
                     savedOpt.value = this.currentCity;
                     savedOpt.textContent = this.currentCity;
                     this.citySelect.appendChild(savedOpt);
                     this.citySelect.value = this.currentCity;
-                } else {
-                    this.currentCity = '';
                 }
             }
         }
