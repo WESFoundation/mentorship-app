@@ -14106,6 +14106,10 @@ def menteeprofile():
             last_role=profile.last_role if profile else "",
             restart_field=profile.restart_field if profile else "",
             support_expected=profile.support_expected if profile else "",
+            # Location & University Details
+            country=profile.country if profile else "",
+            state=profile.state if profile else "",
+            city=profile.city if profile else "",
             # Common fields
             mentorship_expectations=profile.mentorship_expectations if profile else "",
             comments=profile.comments if profile else "",
@@ -14236,7 +14240,27 @@ def view_mentee_profile(mentee_id):
         comments=profile.comments if profile else "",
         terms_agreement=profile.terms_agreement if profile else "",
         profile_picture=profile.profile_picture if profile else None,
-        institution_profile_picture=institution_profile_picture
+        institution_profile_picture=institution_profile_picture,
+        who_am_i=profile.who_am_i if profile else None,
+        country=profile.country if profile else "",
+        state=profile.state if profile else "",
+        city=profile.city if profile else "",
+        institution_name=profile.institution_name if profile else "",
+        education_level=profile.education_level if profile else "",
+        course_stream=profile.course_stream if profile else "",
+        school_name=profile.school_name if profile else "",
+        school_board=profile.school_board if profile else "",
+        career_interest=profile.career_interest if profile else "",
+        key_skills=profile.key_skills if profile else "",
+        career_goal=profile.career_goal if profile else "",
+        current_role=profile.current_role if profile else "",
+        industry=profile.industry if profile else "",
+        years_experience=profile.years_experience if profile else "",
+        current_organization=profile.current_organization if profile else "",
+        last_role=profile.last_role if profile else "",
+        restart_field=profile.restart_field if profile else "",
+        support_expected=profile.support_expected if profile else "",
+        mentorship_expectations=profile.mentorship_expectations if profile else ""
     )
 
 # API endpoint to fetch mentor/mentee profile data for modals

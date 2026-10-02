@@ -605,6 +605,15 @@
             // Get form elements
             const form = this;
             const formData = new FormData(form);
+
+            // Ensure cascading location fields and who_am_i are explicitly captured from DOM
+            const countryEl = document.getElementById('country_select');
+            const stateEl = document.getElementById('state_select');
+            const cityEl = document.getElementById('city_select');
+            if (countryEl && countryEl.value) formData.set('country', countryEl.value.trim());
+            if (stateEl && stateEl.value) formData.set('state', stateEl.value.trim());
+            if (cityEl && cityEl.value) formData.set('city', cityEl.value.trim());
+
             const submitBtn = document.getElementById('saveProfileBtn');
             const btnText = document.getElementById('btnText');
             const btnLoader = document.getElementById('btnLoader');
