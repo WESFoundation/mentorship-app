@@ -1423,16 +1423,27 @@
         // Re-scan after dynamic content changes (e.g. modals, AJAX)
         var _ssObserver = new MutationObserver(function(mutations) {
             var needRescan = false;
-            mutations.forEach(function(m) {
-                if (m.addedNodes.length) needRescan = true;
-            });
+            for (var i = 0; i < mutations.length; i++) {
+                var m = mutations[i];
+                if (m.target && m.target.closest && (m.target.closest('.ss-wrapper') || m.target.closest('.ss-dropdown'))) {
+                    continue;
+                }
+                for (var j = 0; j < m.addedNodes.length; j++) {
+                    var n = m.addedNodes[j];
+                    if (n.nodeType === 1 && (n.nodeName === 'SELECT' || n.querySelector && n.querySelector('select:not(.ss-done):not([data-no-search])'))) {
+                        needRescan = true;
+                        break;
+                    }
+                }
+                if (needRescan) break;
+            }
             if (needRescan) {
                 clearTimeout(_ssObserver._timer);
                 _ssObserver._timer = setTimeout(function() {
-                    document.querySelectorAll('select:not(.ss-done)').forEach(function(sel) {
+                    document.querySelectorAll('select:not(.ss-done):not([data-no-search])').forEach(function(sel) {
                         upgradeSelect(sel);
                     });
-                }, 200);
+                }, 300);
             }
         });
         _ssObserver.observe(document.body, { childList: true, subtree: true });

@@ -69,16 +69,24 @@ class LocationCascade {
     }
     
     async init() {
-        // Fetch all data sources with graceful fallback
-        const [locData, countryData, gStates] = await Promise.allSettled([
+        // Prevent custom searchable select from lagging DOM with 250+ country options and dynamic cascade
+        if (this.countrySelect) {
+            this.countrySelect.setAttribute('data-no-search', 'true');
+        }
+        if (this.stateSelect) {
+            this.stateSelect.setAttribute('data-no-search', 'true');
+        }
+        if (this.citySelect) {
+            this.citySelect.setAttribute('data-no-search', 'true');
+        }
+
+        // Fetch location data sources concurrently with graceful fallback
+        const [locData, gStates] = await Promise.allSettled([
             fetch('/api/location_data').then(r => r.json()).catch(() => ({})),
-            fetch('/api/all_countries').then(r => r.json()).catch(() => ({ success: false, countries: [] })),
             fetch('/static/data/global_states.json').then(r => r.json()).catch(() => ({}))
         ]);
         
         this.locationData = locData.status === 'fulfilled' && locData.value ? locData.value : {};
-        this.allCountriesData = (countryData.status === 'fulfilled' && countryData.value && countryData.value.countries) 
-            ? countryData.value.countries : [];
         this.globalStatesData = gStates.status === 'fulfilled' && gStates.value ? gStates.value : {};
         
         this.populateCountries();
@@ -121,39 +129,13 @@ class LocationCascade {
             'Americas': ['Antigua and Barbuda', 'Argentina', 'Bahamas', 'Barbados', 'Belize', 'Bolivia', 'Brazil', 'Canada', 'Chile', 'Colombia', 'Costa Rica', 'Cuba', 'Dominica', 'Dominican Republic', 'Ecuador', 'El Salvador', 'Grenada', 'Guatemala', 'Guyana', 'Haiti', 'Honduras', 'Jamaica', 'Mexico', 'Nicaragua', 'Panama', 'Paraguay', 'Peru', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Suriname', 'Trinidad and Tobago', 'United States', 'Uruguay', 'Venezuela'],
             'Africa': ['Algeria', 'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cameroon', 'Cape Verde', 'Central African Republic', 'Chad', 'Comoros', 'Congo', 'DR Congo', "Cote d'Ivoire", 'Djibouti', 'Egypt', 'Equatorial Guinea', 'Eritrea', 'Eswatini', 'Ethiopia', 'Gabon', 'Gambia', 'Ghana', 'Guinea', 'Guinea-Bissau', 'Kenya', 'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius', 'Morocco', 'Mozambique', 'Namibia', 'Niger', 'Nigeria', 'Rwanda', 'Sao Tome and Principe', 'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 'South Africa', 'South Sudan', 'Sudan', 'Tanzania', 'Togo', 'Tunisia', 'Uganda', 'Zambia', 'Zimbabwe'],
             'Oceania': ['Australia', 'Fiji', 'Kiribati', 'Marshall Islands', 'Micronesia', 'Nauru', 'New Zealand', 'Palau', 'Papua New Guinea', 'Samoa', 'Solomon Islands', 'Tonga', 'Tuvalu', 'Vanuatu']
-        };
-        
-        let allNames = new Set(this.allCountriesData.map(c => c.name));
-        
-        // Fallback list of country names if api_all_countries fails or is empty
-        if (allNames.size === 0) {
-            Object.values(regions).flat().forEach(c => allNames.add(c));
-        }
-        
         for (const [region, countries] of Object.entries(regions)) {
-            const available = countries.filter(c => allNames.has(c));
-            if (available.length > 0) {
-                const group = document.createElement('optgroup');
-                group.label = region;
-                for (const c of available.sort()) {
-                    const opt = document.createElement('option');
-                    opt.value = c;
-                    opt.textContent = c;
-                    group.appendChild(opt);
-                }
-                this.countrySelect.appendChild(group);
-            }
-        }
-        
-        const inRegions = new Set(Object.values(regions).flat());
-        const remaining = this.allCountriesData.filter(c => !inRegions.has(c.name));
-        if (remaining.length > 0) {
             const group = document.createElement('optgroup');
-            group.label = 'Other Countries';
-            for (const c of remaining.sort((a,b) => a.name.localeCompare(b.name))) {
+            group.label = region;
+            for (const c of countries.sort()) {
                 const opt = document.createElement('option');
-                opt.value = c.name;
-                opt.textContent = c.name;
+                opt.value = c;
+                opt.textContent = c;
                 group.appendChild(opt);
             }
             this.countrySelect.appendChild(group);

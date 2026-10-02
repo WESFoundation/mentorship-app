@@ -1071,8 +1071,10 @@ LOCATION_DATA = {
 
 @app.route("/api/location_data")
 def api_location_data():
-    """Return location data as JSON for cascading dropdowns."""
-    return jsonify(LOCATION_DATA)
+    """Return location data as JSON for cascading dropdowns with cache."""
+    res = jsonify(LOCATION_DATA)
+    res.headers["Cache-Control"] = "public, max-age=86400, immutable"
+    return res
 
 # Background Supabase Cloud Backup Sync (Disabled by request)
 # try:
@@ -16892,121 +16894,127 @@ def send_email_reminder(user_email, subject, html_content):
         print(f"❌ Error sending email to {user_email}: {str(e)}")
         return False
 
-def send_profile_completion_reminders(force_send=False):
-    """
-    Scheduled job to send profile completion reminders
-    
-    Args:
-        force_send (bool): If True, bypass "already sent today" check (for manual triggers)
-    """
+import threading
+
+def _run_profile_completion_reminders_worker(force_send=False):
+    """Worker executed in a background daemon thread to avoid blocking Gunicorn workers."""
     with app.app_context(), app.test_request_context():
-        print("\n🔔 Starting Profile Completion Reminder Job...")
-        if force_send:
-            print("   ⚡ FORCE MODE: Sending to all eligible users (bypassing daily limit)")
-        
-        # Check if reminders are enabled
-        settings = ReminderSettings.query.first()
-        if not settings or not settings.is_enabled:
-            print("⚠️ Profile completion reminders are disabled.")
-            return
-        
-        # Get all mentors and mentees
-        mentors = User.query.filter_by(user_type="1").all()
-        mentees = User.query.filter_by(user_type="2").all()
-        
-        print(f"📊 Found {len(mentors)} mentors and {len(mentees)} mentees")
-        
-        sent_count = 0
-        skipped_count = 0
-        
-        for user_group, user_type, group_name in [(mentors, "1", "mentors"), (mentees, "2", "mentees")]:
-            print(f"\n📧 Processing {group_name}...")
+        try:
+            print("\n🔔 Starting Profile Completion Reminder Job (Background Thread)...")
+            if force_send:
+                print("   ⚡ FORCE MODE: Sending to all eligible users (bypassing daily limit)")
             
-            for user in user_group:
-                try:
-                    # Check max reminders per user limit
-                    if settings.max_reminders_per_user:
-                        user_reminder_count = ProfileCompletionReminder.query.filter_by(
-                            user_id=user.id,
-                            user_type=user_type
-                        ).count()
-                        if user_reminder_count >= settings.max_reminders_per_user:
-                            print(f"      ⏭️  Reached max reminders limit ({settings.max_reminders_per_user}), skipping")
+            # Check if reminders are enabled
+            settings = ReminderSettings.query.first()
+            if not settings or not settings.is_enabled:
+                print("⚠️ Profile completion reminders are disabled.")
+                return
+            
+            # Get user IDs only to minimize RAM consumption and DB locks
+            mentor_ids = [u.id for u in User.query.filter_by(user_type="1").all()]
+            mentee_ids = [u.id for u in User.query.filter_by(user_type="2").all()]
+            
+            print(f"📊 Found {len(mentor_ids)} mentors and {len(mentee_ids)} mentees")
+            
+            sent_count = 0
+            skipped_count = 0
+            
+            for id_list, user_type, group_name in [(mentor_ids, "1", "mentors"), (mentee_ids, "2", "mentees")]:
+                for uid in id_list:
+                    try:
+                        user = User.query.get(uid)
+                        if not user:
+                            continue
+
+                        # Check max reminders per user limit
+                        if settings.max_reminders_per_user:
+                            user_reminder_count = ProfileCompletionReminder.query.filter_by(
+                                user_id=user.id,
+                                user_type=user_type
+                            ).count()
+                            if user_reminder_count >= settings.max_reminders_per_user:
+                                skipped_count += 1
+                                continue
+
+                        # Generate email
+                        email_data = generate_profile_completion_email(user.id, user_type)
+                        if not email_data:
                             skipped_count += 1
                             continue
 
-                    # Generate email
-                    email_data = generate_profile_completion_email(user.id, user_type)
-                    
-                    if not email_data:
-                        # 100% complete or error, skip
-                        skipped_count += 1
-                        continue
-
-                    # Check min completion percentage threshold
-                    min_comp = settings.min_completion_for_reminder or 0
-                    if email_data['completion_percentage'] < min_comp:
-                        print(f"      ⏭️  Below minimum completion threshold ({min_comp}%), skipping")
-                        skipped_count += 1
-                        continue
-                    
-                    print(f"   📨 {user.name} ({user.email}) - {email_data['completion_percentage']}% complete")
-                    
-                    # Skip "already sent today" check if force_send is True
-                    if not force_send:
-                        # Check if user already received reminder today
-                        today = datetime.utcnow().date()
-                        today_reminder = ProfileCompletionReminder.query.filter(
-                            ProfileCompletionReminder.user_id == user.id,
-                            ProfileCompletionReminder.user_type == user_type,
-                            db.func.date(ProfileCompletionReminder.sent_at) == today
-                        ).first()
+                        # Check min completion percentage threshold
+                        min_comp = settings.min_completion_for_reminder or 0
+                        if email_data['completion_percentage'] < min_comp:
+                            skipped_count += 1
+                            continue
                         
-                        if today_reminder:
-                            print(f"      ⏭️  Already sent today, skipping")
-                            skipped_count += 1
-                            continue
-                    
-                    # Send email
-                    success = send_email_reminder(
-                        user.email,
-                        email_data['subject'],
-                        email_data['html_content']
-                    )
-                    
-                    if success:
-                        # Save reminder log
-                        reminder = ProfileCompletionReminder(
-                            user_id=user.id,
-                            user_type=user_type,
-                            completion_percentage=email_data['completion_percentage'],
-                            completed_fields=email_data['completed_fields'],
-                            total_fields=email_data['total_fields'],
-                            missing_fields=json.dumps(email_data['missing_fields']),
-                            email_subject=email_data['subject'],
-                            email_style=email_data['email_style'],
-                            email_content=email_data['html_content'],
-                            previous_percentage=email_data['previous_percentage']
+                        # Skip "already sent today" check if force_send is True
+                        if not force_send:
+                            today = datetime.utcnow().date()
+                            today_reminder = ProfileCompletionReminder.query.filter(
+                                ProfileCompletionReminder.user_id == user.id,
+                                ProfileCompletionReminder.user_type == user_type,
+                                db.func.date(ProfileCompletionReminder.sent_at) == today
+                            ).first()
+                            
+                            if today_reminder:
+                                skipped_count += 1
+                                continue
+                        
+                        # Send email
+                        success = send_email_reminder(
+                            user.email,
+                            email_data['subject'],
+                            email_data['html_content']
                         )
-                        db.session.add(reminder)
-                        sent_count += 1
-                        print(f"      ✅ Email sent!")
-                    else:
-                        print(f"      ❌ Email sending failed")
+                        
+                        if success:
+                            reminder = ProfileCompletionReminder(
+                                user_id=user.id,
+                                user_type=user_type,
+                                completion_percentage=email_data['completion_percentage'],
+                                completed_fields=email_data['completed_fields'],
+                                total_fields=email_data['total_fields'],
+                                missing_fields=json.dumps(email_data['missing_fields']),
+                                email_subject=email_data['subject'],
+                                email_style=email_data['email_style'],
+                                email_content=email_data['html_content'],
+                                previous_percentage=email_data['previous_percentage']
+                            )
+                            db.session.add(reminder)
+                            db.session.commit()
+                            sent_count += 1
+                        else:
+                            skipped_count += 1
+                        
+                        # Yield CPU / DB connection to web requests
+                        time.sleep(0.1)
+
+                    except Exception as e:
+                        print(f"❌ Error processing user {uid}: {e}")
+                        db.session.rollback()
                         skipped_count += 1
-                except Exception as e:
-                    print(f"❌ Error processing user {user.id}: {str(e)}")
-                    import traceback
-                    traceback.print_exc()
-                    skipped_count += 1
             
-            db.session.commit()
-        
-        # Update last run timestamp
-        settings.last_run = datetime.utcnow()
-        db.session.commit()
-        
-        print(f"\n✅ Reminder job completed: {sent_count} sent, {skipped_count} skipped")
+            # Update last run timestamp
+            settings = ReminderSettings.query.first()
+            if settings:
+                settings.last_run = datetime.utcnow()
+                db.session.commit()
+            
+            print(f"✅ Reminder job completed: {sent_count} sent, {skipped_count} skipped")
+        except Exception as job_err:
+            print(f"⚠️ Reminder worker error: {job_err}")
+
+
+def send_profile_completion_reminders(force_send=False):
+    """Dispatch profile completion reminders in an asynchronous daemon thread so web traffic is not blocked."""
+    worker = threading.Thread(
+        target=_run_profile_completion_reminders_worker,
+        args=(force_send,),
+        daemon=True,
+        name="profile_completion_reminder_thread"
+    )
+    worker.start()
 
 # Initialize scheduler (will be started in a background worker in production)
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -17015,7 +17023,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 scheduler = BackgroundScheduler()
 
 def init_scheduler():
-    """Initialize and update the scheduler"""
+    """Initialize and update the scheduler safely"""
     try:
         with app.app_context():
             settings = ReminderSettings.query.first()
