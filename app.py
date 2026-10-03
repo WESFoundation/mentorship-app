@@ -90,6 +90,7 @@ UPLOAD_FOLDER = "static/uploads"
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "pdf"}  # Added PDF for criminal certificate
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB max upload size
 
 # Ensure folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -1071,8 +1072,10 @@ LOCATION_DATA = {
 
 @app.route("/api/location_data")
 def api_location_data():
-    """Return location data as JSON for cascading dropdowns."""
-    return jsonify(LOCATION_DATA)
+    """Return location data as JSON for cascading dropdowns with cache."""
+    res = jsonify(LOCATION_DATA)
+    res.headers["Cache-Control"] = "public, max-age=86400, immutable"
+    return res
 
 # Background Supabase Cloud Backup Sync (Disabled by request)
 # try:
@@ -2550,11 +2553,6 @@ def _get_request_current_user():
 @app.context_processor
 def inject_current_user():
     user = _get_request_current_user()
-    if user:
-        try:
-            refresh_user_corporate_status(user)
-        except Exception:
-            pass
     return dict(current_user=user)
 
 
@@ -3791,16 +3789,18 @@ def menteedashboard():
         mentee_profile = user.mentee_profile if user else None
         profile_complete = check_profile_complete(user.id, "2", profile_obj=mentee_profile) if user else False
         
-        # Auto-check corporate affiliation if linked to institution
-        refresh_user_corporate_status(user)
-
-        all_mentors = MentorProfile.query.options(joinedload(MentorProfile.user)).all()
+        mentor_filter_rows = MentorProfile.query.with_entities(
+            MentorProfile.profession,
+            MentorProfile.location,
+            MentorProfile.education,
+            MentorProfile.years_of_experience
+        ).distinct().all()
 
         # unique filter values from db
-        professions = sorted({row.profession for row in all_mentors if row.profession})
-        locations = sorted({row.location for row in all_mentors if row.location})
-        educations = sorted({row.education for row in all_mentors if row.education})
-        experiences = sorted({row.years_of_experience for row in all_mentors if row.years_of_experience})
+        professions = sorted({row[0] for row in mentor_filter_rows if row[0]})
+        locations = sorted({row[1] for row in mentor_filter_rows if row[1]})
+        educations = sorted({row[2] for row in mentor_filter_rows if row[2]})
+        experiences = sorted({row[3] for row in mentor_filter_rows if row[3]})
 
         career_goal = mentee_profile.goal if mentee_profile else None
         parent_consent_status = mentee_profile.parent_consent_status if mentee_profile else None
@@ -3922,7 +3922,20 @@ def menteedashboard():
 def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
     """Compute comparative analytics and leaderboards for the supervisor dashboard."""
     try:
-        users_by_id = {u.id: u for u in User.query.options(joinedload(User.mentor_profile), joinedload(User.mentee_profile)).all()}
+        users_by_id = {}
+        for m in mentors:
+            u = getattr(m, "user", None)
+            if u:
+                users_by_id[u.id] = u
+        for m in all_mentees:
+            u = getattr(m, "user", None)
+            if u:
+                users_by_id[u.id] = u
+        for r in all_requests:
+            if getattr(r, "mentor", None):
+                users_by_id[r.mentor.id] = r.mentor
+            if getattr(r, "mentee", None):
+                users_by_id[r.mentee.id] = r.mentee
         master_tasks_by_id = {mt.id: mt for mt in MasterTask.query.all()}
 
         # 1. Active Mentorships mapping
@@ -4025,6 +4038,12 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
             "anchor_count": anchor_count,
             "special_count": special_count
         }
+
+        # Fetch any remaining users referenced in tasks or ratings not already in users_by_id
+        needed_uids = (set(mentee_task_map.keys()) | set(mentor_task_map.keys()) | set(mentor_ratings_map.keys()) | set(mentor_mentees_map.keys())) - set(users_by_id.keys())
+        if needed_uids:
+            for u in User.query.filter(User.id.in_(needed_uids)).options(joinedload(User.mentor_profile), joinedload(User.mentee_profile)).all():
+                users_by_id[u.id] = u
 
         # 5. Leaderboard: Task Completion - Top Mentees
         lb_task_mentees = []
@@ -4233,12 +4252,18 @@ def supervisordashboard():
     for idx, m in enumerate(mentors, 1):
         m.serial = idx
 
-    all_raw_mentors = MentorProfile.query.all()
+    mentor_dropdown_rows = MentorProfile.query.with_entities(
+        MentorProfile.profession,
+        MentorProfile.location,
+        MentorProfile.education,
+        MentorProfile.years_of_experience
+    ).distinct().all()
+
     options = {
-        "professions": sorted({m.profession for m in all_raw_mentors if m.profession}),
-        "locations": sorted({m.location for m in all_raw_mentors if m.location}),
-        "educations": sorted({m.education for m in all_raw_mentors if m.education}),
-        "experiences": sorted({m.years_of_experience for m in all_raw_mentors if m.years_of_experience}),
+        "professions": sorted({r[0] for r in mentor_dropdown_rows if r[0]}),
+        "locations": sorted({r[1] for r in mentor_dropdown_rows if r[1]}),
+        "educations": sorted({r[2] for r in mentor_dropdown_rows if r[2]}),
+        "experiences": sorted({r[3] for r in mentor_dropdown_rows if r[3]}),
     }
 
     # ----------------- Mentees -----------------
@@ -4269,11 +4294,15 @@ def supervisordashboard():
     for idx, m in enumerate(all_mentees, 1):
         m.serial = idx
 
-    # ----------------- Mentee dropdowns -----------------
-    all_raw_mentees = MenteeProfile.query.all()
-    mentee_streams = sorted({m.stream for m in all_raw_mentees if m.stream})
-    mentee_schools = sorted({m.school_college_name for m in all_raw_mentees if m.school_college_name})
-    mentee_goals = sorted({m.goal for m in all_raw_mentees if m.goal})
+    # ----------------- Mentee dropdowns (efficient distinct query) -----------------
+    mentee_dropdown_rows = MenteeProfile.query.with_entities(
+        MenteeProfile.stream,
+        MenteeProfile.school_college_name,
+        MenteeProfile.goal
+    ).distinct().all()
+    mentee_streams = sorted({r[0] for r in mentee_dropdown_rows if r[0]})
+    mentee_schools = sorted({r[1] for r in mentee_dropdown_rows if r[1]})
+    mentee_goals = sorted({r[2] for r in mentee_dropdown_rows if r[2]})
 
     # ----------------- Requests -----------------
     all_requests = MentorshipRequest.query.options(
@@ -4315,29 +4344,30 @@ def institution():
     # Get all institutions
     institutions = Institution.query.order_by(Institution.id.asc()).all()
     
-    # Get institution statistics
+    # Pre-fetch user data and active mentorships in 2 fast batch queries instead of 3 queries per institution
+    users_data = db.session.query(User.user_type, User.institution_id, User.institution).filter(User.user_type.in_(["1", "2"])).all()
+    active_req_data = db.session.query(User.institution_id, User.institution).join(
+        MentorshipRequest, MentorshipRequest.mentee_id == User.id
+    ).filter(MentorshipRequest.final_status == "approved").all()
+
+    # Calculate institution statistics in memory
     institution_stats = []
     for inst in institutions:
-        # Count mentors in this institution
-        mentors_count = User.query.filter(
-            (User.user_type == "1") & 
-            ((User.institution_id == inst.id) | (User.institution == inst.name))
-        ).count()
-        
-        # Count mentees in this institution
-        mentees_count = User.query.filter(
-            (User.user_type == "2") & 
-            ((User.institution_id == inst.id) | (User.institution == inst.name))
-        ).count()
-        
-        # Count active mentorships
-        active_mentorships = MentorshipRequest.query\
-            .join(User, MentorshipRequest.mentee_id == User.id)\
-            .filter(
-                ((User.institution_id == inst.id) | (User.institution == inst.name)) &
-                (MentorshipRequest.final_status == "approved")
-            ).count()
-        
+        inst_name_norm = (inst.name or "").strip().lower()
+
+        mentors_count = sum(
+            1 for ut, iid, iname in users_data
+            if ut == "1" and (iid == inst.id or (iname and iname.strip().lower() == inst_name_norm))
+        )
+        mentees_count = sum(
+            1 for ut, iid, iname in users_data
+            if ut == "2" and (iid == inst.id or (iname and iname.strip().lower() == inst_name_norm))
+        )
+        active_mentorships = sum(
+            1 for iid, iname in active_req_data
+            if (iid == inst.id or (iname and iname.strip().lower() == inst_name_norm))
+        )
+
         institution_stats.append({
             'institution': inst,
             'mentors_count': mentors_count,
@@ -5002,9 +5032,6 @@ def institutiondashboard():
     user = User.query.filter_by(email=session["email"]).first()
     profile_complete = check_profile_complete(user.id, "3")
     
-    # Auto-check corporate affiliation if linked to institution
-    refresh_user_corporate_status(user)
-    
     institution, inst_id, institution_name, aliases = _get_institution_details(user)
     
     # Get all mentors and mentees who belong to this institution
@@ -5512,7 +5539,7 @@ def get_institution_tasks_data():
         if not mentor_obj:
             return False
         if mentor_obj.id not in mentor_corp_cache:
-            mentor_corp_cache[mentor_obj.id] = bool(mentor_obj.is_corporate or refresh_user_corporate_status(mentor_obj))
+            mentor_corp_cache[mentor_obj.id] = bool(getattr(mentor_obj, 'is_corporate', False))
         return mentor_corp_cache[mentor_obj.id]
 
     inst_id_val = institution_id or user.id
@@ -5893,6 +5920,15 @@ def editinstitutionprofile():
             if 'profile_picture' in request.files:
                 file = request.files['profile_picture']
                 if file and file.filename and allowed_file(file.filename):
+                    # Remove old profile picture file if it exists
+                    old_pic = institution_details.profile_picture if hasattr(institution_details, 'profile_picture') else None
+                    if old_pic:
+                        old_path = os.path.join(app.config['UPLOAD_FOLDER'], old_pic)
+                        if os.path.exists(old_path):
+                            try:
+                                os.remove(old_path)
+                            except OSError:
+                                pass
                     filename = secure_filename(f"institution_{institution_details.id}_{file.filename}")
                     file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
                     institution_details.profile_picture = filename
@@ -6068,7 +6104,7 @@ def find_mentor():
         mentor = type('MentorData', (), {})()
         mentor.name = user.name
         mentor.email = user.email
-        mentor.is_corporate = refresh_user_corporate_status(user)
+        mentor.is_corporate = bool(getattr(user, 'is_corporate', False))
         mentor.premium = bool(getattr(user, 'premium', False))
         
         if mentor_profile:
@@ -6627,21 +6663,21 @@ def supervisor_find_mentor():
     education = request.args.get("education")
     experience = request.args.get("experience")
 
-    # Fetch ALL mentors (including incomplete profiles)
-    all_users = User.query.filter_by(user_type="1").all()
-    
-    # Create enriched mentor objects with fallback data
+    # Single query: fetch all mentor-type users with their profiles eagerly loaded
+    all_users = User.query.filter_by(user_type="1").outerjoin(
+        MentorProfile, User.id == MentorProfile.user_id
+    ).options(joinedload(User.mentor_profile)).order_by(User.created_at.asc()).all()
+
+    # Build enriched mentor dicts from pre-loaded data (no extra queries)
     enriched_mentors = []
     for user in all_users:
-        profile = MentorProfile.query.filter_by(user_id=user.id).first()
-        
+        profile = user.mentor_profile
         if profile:
-            # Complete profile exists - use it
             enriched_mentor = {
                 'id': profile.id,
                 'user_id': user.id,
                 'user': user,
-                'is_corporate': refresh_user_corporate_status(user),
+                'is_corporate': getattr(user, 'is_corporate', False),
                 'profession': profile.profession,
                 'organisation': profile.organisation,
                 'location': profile.location,
@@ -6678,53 +6714,31 @@ def supervisor_find_mentor():
                 'is_profile_complete': True
             }
         else:
-            # No profile yet - create basic fallback object
             enriched_mentor = {
                 'id': user.id,
                 'user_id': user.id,
                 'user': user,
-                'is_corporate': refresh_user_corporate_status(user),
-                'profession': None,
-                'organisation': None,
-                'location': None,
-                'years_of_experience': None,
-                'profile_picture': None,
-                'education': None,
-                'language': None,
-                'preferred_communication': None,
-                'why_mentor': None,
-                'role': None,
-                'industry_sector': None,
-                'skills': None,
-                'availability': None,
-                'mentorship_topics': None,
-                'linkedin_link': None,
-                'github_link': None,
-                'portfolio_link': None,
-                'preferred_duration': None,
-                'mentorship_type_preference': None,
-                'connect_frequency': None,
-                'whatsapp': None,
-                'highest_qualification': None,
-                'degree_name': None,
-                'field_of_study': None,
-                'university_name': None,
-                'graduation_year': None,
-                'academic_status': None,
-                'certifications': None,
-                'research_work': None,
-                'mentorship_philosophy': None,
-                'mentorship_motto': None,
-                'other_social_link': None,
-                'criminal_certificate': None,
+                'is_corporate': getattr(user, 'is_corporate', False),
+                'profession': None, 'organisation': None, 'location': None,
+                'years_of_experience': None, 'profile_picture': None,
+                'education': None, 'language': None, 'preferred_communication': None,
+                'why_mentor': None, 'role': None, 'industry_sector': None,
+                'skills': None, 'availability': None, 'mentorship_topics': None,
+                'linkedin_link': None, 'github_link': None, 'portfolio_link': None,
+                'preferred_duration': None, 'mentorship_type_preference': None,
+                'connect_frequency': None, 'whatsapp': None,
+                'highest_qualification': None, 'degree_name': None,
+                'field_of_study': None, 'university_name': None,
+                'graduation_year': None, 'academic_status': None,
+                'certifications': None, 'research_work': None,
+                'mentorship_philosophy': None, 'mentorship_motto': None,
+                'other_social_link': None, 'criminal_certificate': None,
                 'is_profile_complete': False
             }
-        
         enriched_mentors.append(enriched_mentor)
 
-    # Apply filters to enriched mentors
+    # Apply filters
     filtered_mentors = enriched_mentors
-    
     if profession:
         filtered_mentors = [m for m in filtered_mentors if m.get('profession') == profession]
     if location:
@@ -6733,25 +6747,27 @@ def supervisor_find_mentor():
         filtered_mentors = [m for m in filtered_mentors if m.get('education') == education]
     if experience:
         filtered_mentors = [m for m in filtered_mentors if m.get('years_of_experience')]
-        if experience == "0-2":
-            filtered_mentors = [m for m in filtered_mentors if int(m.get('years_of_experience', 0)) <= 2]
-        elif experience == "3-5":
-            filtered_mentors = [m for m in filtered_mentors if 3 <= int(m.get('years_of_experience', 0)) <= 5]
-        elif experience == "6-10":
-            filtered_mentors = [m for m in filtered_mentors if 6 <= int(m.get('years_of_experience', 0)) <= 10]
-        elif experience == "10+":
-            filtered_mentors = [m for m in filtered_mentors if int(m.get('years_of_experience', 0)) >= 10]
+        try:
+            if experience == "0-2":
+                filtered_mentors = [m for m in filtered_mentors if int(m.get('years_of_experience', 0)) <= 2]
+            elif experience == "3-5":
+                filtered_mentors = [m for m in filtered_mentors if 3 <= int(m.get('years_of_experience', 0)) <= 5]
+            elif experience == "6-10":
+                filtered_mentors = [m for m in filtered_mentors if 6 <= int(m.get('years_of_experience', 0)) <= 10]
+            elif experience == "10+":
+                filtered_mentors = [m for m in filtered_mentors if int(m.get('years_of_experience', 0)) >= 10]
+        except (ValueError, TypeError):
+            pass
 
-    # Sort by user creation timestamp (oldest first) and add serial numbers
-    filtered_mentors.sort(key=lambda m: m['user'].created_at if m['user'].created_at else datetime.min)
+    # Add serial numbers (already sorted by created_at from the query)
     for idx, m in enumerate(filtered_mentors, 1):
         m['serial'] = idx
 
-    # Get unique filter options from all enriched mentors
-    professions = sorted({m.get('profession') for m in enriched_mentors if m.get('profession')})
-    locations = sorted({m.get('location') for m in enriched_mentors if m.get('location')})
-    educations = sorted({m.get('education') for m in enriched_mentors if m.get('education')})
-    experiences = sorted({m.get('years_of_experience') for m in enriched_mentors if m.get('years_of_experience')})
+    # Efficient distinct queries for filter dropdowns (no full table load)
+    professions = sorted({r[0] for r in MentorProfile.query.with_entities(MentorProfile.profession).distinct() if r[0]})
+    locations = sorted({r[0] for r in MentorProfile.query.with_entities(MentorProfile.location).distinct() if r[0]})
+    educations = sorted({r[0] for r in MentorProfile.query.with_entities(MentorProfile.education).distinct() if r[0]})
+    experiences = sorted({r[0] for r in MentorProfile.query.with_entities(MentorProfile.years_of_experience).distinct() if r[0]})
 
     return render_template(
         "supervisor/supervisor_find_mentor.html",
@@ -6769,7 +6785,7 @@ def supervisor_find_mentee():
     if "email" not in session or session.get("user_type") != "0":
         return redirect(url_for("signin"))
 
-    mentee_query = MenteeProfile.query.join(User, MenteeProfile.user_id == User.id)
+    mentee_query = MenteeProfile.query.options(joinedload(MenteeProfile.user)).join(User, MenteeProfile.user_id == User.id)
     search_query = request.args.get("search", "").lower()
     stream_filter = request.args.get("stream", "")
     school_filter = request.args.get("school", "")
@@ -6811,14 +6827,25 @@ def supervisor_find_mentee():
     for idx, m in enumerate(all_mentees, 1):
         m.serial = idx
 
-    mentee_streams = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.stream).distinct() if row[0]})
-    mentee_schools = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.school_college_name).distinct() if row[0]})
-    mentee_who_am_i = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.who_am_i).distinct() if row[0]})
+    # Batch distinct filter values in a single query
+    distinct_rows = MenteeProfile.query.with_entities(
+        MenteeProfile.stream,
+        MenteeProfile.school_college_name,
+        MenteeProfile.who_am_i,
+        MenteeProfile.city,
+        MenteeProfile.state,
+        MenteeProfile.govt_private,
+        MenteeProfile.education_level
+    ).distinct().all()
+
+    mentee_streams = sorted({row[0] for row in distinct_rows if row[0]})
+    mentee_schools = sorted({row[1] for row in distinct_rows if row[1]})
+    mentee_who_am_i = sorted({row[2] for row in distinct_rows if row[2]})
     mentee_consent_statuses = ["pending", "approved", "rejected"]
-    mentee_cities = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.city).distinct() if row[0]})
-    mentee_states = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.state).distinct() if row[0]})
-    mentee_govt_private = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.govt_private).distinct() if row[0]})
-    mentee_education_levels = sorted({row[0] for row in MenteeProfile.query.with_entities(MenteeProfile.education_level).distinct() if row[0]})
+    mentee_cities = sorted({row[3] for row in distinct_rows if row[3]})
+    mentee_states = sorted({row[4] for row in distinct_rows if row[4]})
+    mentee_govt_private = sorted({row[5] for row in distinct_rows if row[5]})
+    mentee_education_levels = sorted({row[6] for row in distinct_rows if row[6]})
 
     return render_template(
         "supervisor/supervisor_find_mentee.html",
@@ -10140,7 +10167,9 @@ def _send_meeting_link_email(meeting, meet_link, calendar_add_link, teams_calend
         # Build link section for email
         link_section = ""
         if meet_link:
-            link_section = f'<p><a href="{meet_link}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Join Meeting</a></p>'
+            btn_bg = "#6264a7" if platform == "teams" or (meet_link and "teams" in str(meet_link).lower()) else "#2563eb"
+            btn_text = "Join Microsoft Teams Meeting" if platform == "teams" or (meet_link and "teams" in str(meet_link).lower()) else "Join Meeting"
+            link_section = f'<p><a href="{meet_link}" style="display:inline-block;padding:12px 24px;background:{btn_bg};color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">{btn_text}</a></p>'
         elif platform == "teams" and teams_calendar_link:
             link_section = f'<p><a href="{teams_calendar_link}" style="display:inline-block;padding:12px 24px;background:#6264a7;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Create Meeting in Microsoft Teams</a></p>'
             link_section += '<p style="color:#64748b;font-size:12px;margin-top:8px;">Click above to open Teams and create your meeting. You can invite participants once created.</p>'
@@ -11585,7 +11614,7 @@ def get_supervisor_tasks_data():
             if not mentor_obj:
                 return False
             if mentor_obj.id not in mentor_corp_cache:
-                mentor_corp_cache[mentor_obj.id] = bool(mentor_obj.is_corporate or refresh_user_corporate_status(mentor_obj))
+                mentor_corp_cache[mentor_obj.id] = bool(getattr(mentor_obj, 'is_corporate', False))
             return mentor_corp_cache[mentor_obj.id]
 
         def _resolve_task_mentee_fb(ttype, tid, mid=None, master_tid=None):
@@ -12317,32 +12346,37 @@ def reschedule_meeting(meeting_id):
         meeting.rescheduled_by_id = mentor.id
         meeting.status = "rescheduled"
 
-        # Update Google Calendar event if exists
+        # Update calendar event if exists (Google Calendar or MS Teams)
         if meeting.gcal_event_id:
-            try:
-                service = get_calendar_service()
-                if service:
-                    # Calculate new start and end times
+            if meeting.meet_link and "teams" in str(meeting.meet_link).lower():
+                try:
                     new_start_datetime = datetime.combine(new_meeting_date, new_meeting_time)
-                    new_end_datetime = new_start_datetime + timedelta(minutes=meeting.meeting_duration)
-                    
-                    event_update = {
-                        "start": {"dateTime": new_start_datetime.isoformat(), "timeZone": MEETING_TIMEZONE},
-                        "end": {"dateTime": new_end_datetime.isoformat(), "timeZone": MEETING_TIMEZONE},
-                    }
-                    
-                    service.events().patch(
-                        calendarId=CALENDAR_ID,
-                        eventId=meeting.gcal_event_id,
-                        body=event_update,
-                        sendUpdates="all"
-                    ).execute()
+                    duration_mins = int(meeting.meeting_duration or 60)
+                    new_end_datetime = new_start_datetime + timedelta(minutes=duration_mins)
+                    try:
+                        from zoneinfo import ZoneInfo
+                        tzobj = ZoneInfo(MEETING_TIMEZONE)
+                    except Exception:
+                        tzobj = dt.timezone.utc
+                    new_start_utc = new_start_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
+                    new_end_utc = new_end_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
+                    update_teams_calendar_event(meeting.gcal_event_id, new_start_utc, new_end_utc)
+                    print(f"Microsoft Teams event updated for meeting {meeting_id}")
+                except Exception as e:
+                    print(f"Error updating Teams calendar event for meeting {meeting_id}: {str(e)}")
+            else:
+                try:
+                    new_start_datetime = datetime.combine(new_meeting_date, new_meeting_time)
+                    update_google_calendar_event(
+                        event_id=meeting.gcal_event_id,
+                        new_start_datetime=new_start_datetime,
+                        duration_minutes=meeting.meeting_duration or 60,
+                        timezone=MEETING_TIMEZONE
+                    )
                     print(f"Google Calendar event updated for meeting {meeting_id}")
-                else:
-                    print(f"Google Calendar service unavailable for meeting {meeting_id} - skipping calendar update")
-            except Exception as e:
-                print(f"Error updating Google Calendar for meeting {meeting_id}: {str(e)}")
-                # Continue even if calendar update fails
+                except Exception as e:
+                    print(f"Error updating Google Calendar for meeting {meeting_id}: {str(e)}")
+                    # Continue even if calendar update fails
 
         db.session.commit()
 
@@ -12390,16 +12424,18 @@ def cancel_meeting(meeting_id):
         meeting.rescheduled_by_id = user.id
 
         if meeting.gcal_event_id:
-            try:
-                service = get_calendar_service()
-                if service:
-                    service.events().delete(
-                        calendarId=CALENDAR_ID,
-                        eventId=meeting.gcal_event_id,
-                        sendUpdates="all"
-                    ).execute()
-            except Exception as e:
-                print(f"Error deleting Google Calendar event: {str(e)}")
+            if meeting.meet_link and "teams" in str(meeting.meet_link).lower():
+                try:
+                    delete_teams_calendar_event(meeting.gcal_event_id)
+                    print(f"Microsoft Teams event deleted for meeting {meeting_id}")
+                except Exception as e:
+                    print(f"Error deleting Teams calendar event: {str(e)}")
+            else:
+                try:
+                    delete_google_calendar_event(meeting.gcal_event_id)
+                    print(f"Google Calendar event deleted for meeting {meeting_id}")
+                except Exception as e:
+                    print(f"Error deleting Google Calendar event: {str(e)}")
 
         db.session.commit()
 
@@ -12431,11 +12467,15 @@ def supervisor_meeting_details():
     today = date.today()
     now = datetime.now()
 
+    # Pre-fetch all referenced users in 1 batch query instead of 2 queries per meeting
+    user_ids = {m.requester_id for m in meetings if m.requester_id} | {m.requested_to_id for m in meetings if m.requested_to_id}
+    users_by_id = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
+
     # Prepare formatted meeting data with mentee & mentor info
     meeting_data = []
     for meeting in meetings:
-        mentee = User.query.get(meeting.requester_id)
-        mentor = User.query.get(meeting.requested_to_id)
+        mentee = users_by_id.get(meeting.requester_id)
+        mentor = users_by_id.get(meeting.requested_to_id)
 
         # Calculate timing category
         meeting_datetime = datetime.combine(meeting.meeting_date, meeting.meeting_time)
@@ -13112,8 +13152,17 @@ def editmentorprofile():
 
         # Handle profile picture upload
         file = request.files.get("profile_picture")
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
+        if file and file.filename and allowed_file(file.filename):
+            # Remove old profile picture file if it exists
+            old_pic = profile.profile_picture
+            if old_pic:
+                old_path = os.path.join(app.config["UPLOAD_FOLDER"], old_pic)
+                if os.path.exists(old_path):
+                    try:
+                        os.remove(old_path)
+                    except OSError:
+                        pass  # Non-critical: old file cleanup failed
+            filename = secure_filename(f"mentor_{user.id}_{file.filename}")
             file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
             profile.profile_picture = filename
 
@@ -13410,33 +13459,42 @@ def editmenteeprofile():
         else:
             profile.institution_other = None
 
+        # Helper: for fields that appear in multiple sections (e.g. class_year,
+        # course_stream, favourite_subject), pick the first non-empty value.
+        def get_first_nonempty(field_name):
+            values = request.form.getlist(field_name)
+            for v in values:
+                if v and v.strip():
+                    return v.strip()
+            return request.form.get(field_name, "")
+
         # SCHOOL STUDENT fields
         if who_am_i == "school_student":
             profile.school_name = request.form.get("school_name")
-            profile.class_year = request.form.get("class_year")
+            profile.class_year = get_first_nonempty("class_year")
             profile.school_board = request.form.get("school_board")
-            profile.course_stream = request.form.get("course_stream")
-            profile.favourite_subject = request.form.get("favourite_subject")
-            profile.career_interest = request.form.get("career_interest")
+            profile.course_stream = get_first_nonempty("course_stream")
+            profile.favourite_subject = get_first_nonempty("favourite_subject")
+            profile.career_interest = get_first_nonempty("career_interest")
             profile.govt_private = request.form.get("govt_private")
 
         # UNIVERSITY STUDENT fields
         elif who_am_i == "university_student":
-            profile.institution_name = request.form.get("institution_name")
-            profile.education_level = request.form.get("education_level")
-            profile.course_stream = request.form.get("course_stream")
-            profile.class_year = request.form.get("class_year")
-            profile.favourite_subject = request.form.get("favourite_subject")
-            profile.career_interest = request.form.get("career_interest")
+            profile.institution_name = get_first_nonempty("institution_name")
+            profile.education_level = get_first_nonempty("education_level")
+            profile.course_stream = get_first_nonempty("course_stream")
+            profile.class_year = get_first_nonempty("class_year")
+            profile.favourite_subject = get_first_nonempty("favourite_subject")
+            profile.career_interest = get_first_nonempty("career_interest")
 
         # SEEKING INTERNSHIP fields
         elif who_am_i == "seeking_internship":
-            profile.education_level = request.form.get("education_level")
-            profile.course_stream = request.form.get("course_stream")
-            profile.institution_name = request.form.get("institution_name")
-            profile.career_interest = request.form.get("career_interest")
+            profile.education_level = get_first_nonempty("education_level")
+            profile.course_stream = get_first_nonempty("course_stream")
+            profile.institution_name = get_first_nonempty("institution_name")
+            profile.career_interest = get_first_nonempty("career_interest")
             profile.key_skills = request.form.get("key_skills")
-            profile.career_goal = request.form.get("career_goal")
+            profile.career_goal = get_first_nonempty("career_goal")
 
         # YOUNG PROFESSIONAL fields
         elif who_am_i == "young_professional":
@@ -13459,11 +13517,31 @@ def editmenteeprofile():
         if 'profile_picture' in request.files:
             file = request.files['profile_picture']
             if file and file.filename and allowed_file(file.filename):
+                # Flush to ensure profile.id is assigned for new profiles
+                db.session.flush()
+                # Remove old profile picture file if it exists
+                old_pic = profile.profile_picture
+                if old_pic:
+                    old_path = os.path.join(app.config["UPLOAD_FOLDER"], old_pic)
+                    if os.path.exists(old_path):
+                        try:
+                            os.remove(old_path)
+                        except OSError:
+                            pass  # Non-critical: old file cleanup failed
                 filename = secure_filename(f"mentee_{profile.id}_{file.filename}")
                 file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
                 profile.profile_picture = filename
 
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            error_msg = "An error occurred while saving your profile. Please try again."
+            print(f"❌ Mentee profile save error: {e}")
+            if is_ajax:
+                return jsonify({"success": False, "message": error_msg}), 500
+            flash(error_msg, "error")
+            return redirect(url_for("editmenteeprofile"))
         
         refresh_user_corporate_status(user)
         
@@ -14154,6 +14232,10 @@ def menteeprofile():
             last_role=profile.last_role if profile else "",
             restart_field=profile.restart_field if profile else "",
             support_expected=profile.support_expected if profile else "",
+            # Location & University Details
+            country=profile.country if profile else "",
+            state=profile.state if profile else "",
+            city=profile.city if profile else "",
             # Common fields
             mentorship_expectations=profile.mentorship_expectations if profile else "",
             comments=profile.comments if profile else "",
@@ -14284,7 +14366,27 @@ def view_mentee_profile(mentee_id):
         comments=profile.comments if profile else "",
         terms_agreement=profile.terms_agreement if profile else "",
         profile_picture=profile.profile_picture if profile else None,
-        institution_profile_picture=institution_profile_picture
+        institution_profile_picture=institution_profile_picture,
+        who_am_i=profile.who_am_i if profile else None,
+        country=profile.country if profile else "",
+        state=profile.state if profile else "",
+        city=profile.city if profile else "",
+        institution_name=profile.institution_name if profile else "",
+        education_level=profile.education_level if profile else "",
+        course_stream=profile.course_stream if profile else "",
+        school_name=profile.school_name if profile else "",
+        school_board=profile.school_board if profile else "",
+        career_interest=profile.career_interest if profile else "",
+        key_skills=profile.key_skills if profile else "",
+        career_goal=profile.career_goal if profile else "",
+        current_role=profile.current_role if profile else "",
+        industry=profile.industry if profile else "",
+        years_experience=profile.years_experience if profile else "",
+        current_organization=profile.current_organization if profile else "",
+        last_role=profile.last_role if profile else "",
+        restart_field=profile.restart_field if profile else "",
+        support_expected=profile.support_expected if profile else "",
+        mentorship_expectations=profile.mentorship_expectations if profile else ""
     )
 
 # API endpoint to fetch mentor/mentee profile data for modals
@@ -14813,22 +14915,131 @@ def get_calendar_service():
         app.logger.error(f"Could not initialize Google Calendar service: {e}")
         return None
 
-# ---------- Microsoft Graph API for Teams Meetings ----------
-MS_TENANT_ID = os.environ.get("MS_TENANT_ID", "")
-MS_CLIENT_ID = os.environ.get("MS_CLIENT_ID", "")
-MS_CLIENT_SECRET = os.environ.get("MS_CLIENT_SECRET", "")
-MS_USER_EMAIL = os.environ.get("MS_USER_EMAIL", "info@wazireducationsociety.com")
+def update_google_calendar_event(event_id, new_start_datetime, duration_minutes=60, timezone=None, title=None, description=None):
+    """
+    Updates the start/end times (and optionally summary/description) of a Google Calendar event.
+    Ensures RFC 3339 compliance with timezone offsets and tries CALENDAR_ID then 'primary'.
+    Returns True on success, False on failure.
+    """
+    if not event_id:
+        return False
+    service = get_calendar_service()
+    if not service:
+        app.logger.warning("Google Calendar service unavailable for event update")
+        return False
+
+    tz_name = timezone or MEETING_TIMEZONE or "Asia/Kolkata"
+    try:
+        from zoneinfo import ZoneInfo
+        tzobj = ZoneInfo(tz_name)
+    except Exception:
+        tzobj = dt.timezone.utc
+
+    try:
+        duration_mins = int(duration_minutes) if duration_minutes else 60
+        if duration_mins <= 0:
+            duration_mins = 60
+    except (ValueError, TypeError):
+        duration_mins = 60
+
+    new_end_datetime = new_start_datetime + timedelta(minutes=duration_mins)
+
+    # Attach timezone to ensure RFC 3339 formatted timestamps with offset
+    new_start_aware = new_start_datetime.replace(tzinfo=tzobj)
+    new_end_aware = new_end_datetime.replace(tzinfo=tzobj)
+
+    event_update = {
+        "start": {
+            "dateTime": new_start_aware.isoformat(),
+            "timeZone": tz_name
+        },
+        "end": {
+            "dateTime": new_end_aware.isoformat(),
+            "timeZone": tz_name
+        }
+    }
+    if title:
+        event_update["summary"] = title
+    if description:
+        event_update["description"] = description
+
+    try:
+        try:
+            service.events().patch(
+                calendarId=CALENDAR_ID,
+                eventId=event_id,
+                body=event_update,
+                sendUpdates="all"
+            ).execute()
+            app.logger.info(f"Google Calendar event {event_id} updated successfully on {CALENDAR_ID}")
+            return True
+        except Exception as e:
+            if ("404" in str(e) or "notFound" in str(e)) and CALENDAR_ID != "primary":
+                service.events().patch(
+                    calendarId="primary",
+                    eventId=event_id,
+                    body=event_update,
+                    sendUpdates="all"
+                ).execute()
+                app.logger.info(f"Google Calendar event {event_id} updated successfully on primary calendar")
+                return True
+            raise
+    except Exception as e:
+        app.logger.error(f"Error updating Google Calendar event {event_id}: {e}")
+        return False
+
+def delete_google_calendar_event(event_id):
+    """Delete a Google Calendar event by ID. Tries CALENDAR_ID then 'primary'."""
+    if not event_id:
+        return False
+    service = get_calendar_service()
+    if not service:
+        return False
+    try:
+        try:
+            service.events().delete(
+                calendarId=CALENDAR_ID,
+                eventId=event_id,
+                sendUpdates="all"
+            ).execute()
+            return True
+        except Exception as e:
+            if ("404" in str(e) or "notFound" in str(e)) and CALENDAR_ID != "primary":
+                service.events().delete(
+                    calendarId="primary",
+                    eventId=event_id,
+                    sendUpdates="all"
+                ).execute()
+                return True
+            raise
+    except Exception as e:
+        app.logger.error(f"Error deleting Google Calendar event {event_id}: {e}")
+        return False
+
+MS_GRAPH_TENANT_ID = os.environ.get("MS_GRAPH_TENANT_ID") or os.environ.get("MS_TENANT_ID")
+MS_GRAPH_CLIENT_ID = os.environ.get("MS_GRAPH_CLIENT_ID") or os.environ.get("MS_CLIENT_ID")
+MS_GRAPH_CLIENT_SECRET = os.environ.get("MS_GRAPH_CLIENT_SECRET") or os.environ.get("MS_CLIENT_SECRET")
+MS_GRAPH_ORGANIZER_EMAIL = os.environ.get("MS_GRAPH_ORGANIZER_EMAIL") or os.environ.get("MS_USER_EMAIL") or "info@wazireducationsociety.org"
+
+# Backward compatibility aliases
+MS_TENANT_ID = MS_GRAPH_TENANT_ID
+MS_CLIENT_ID = MS_GRAPH_CLIENT_ID
+MS_CLIENT_SECRET = MS_GRAPH_CLIENT_SECRET
+MS_USER_EMAIL = MS_GRAPH_ORGANIZER_EMAIL
 
 def get_ms_graph_token():
     """Obtain an OAuth2 access token for Microsoft Graph using client_credentials flow."""
-    if not MS_TENANT_ID or not MS_CLIENT_ID or not MS_CLIENT_SECRET:
+    tenant_id = MS_GRAPH_TENANT_ID
+    client_id = MS_GRAPH_CLIENT_ID
+    client_secret = MS_GRAPH_CLIENT_SECRET
+    if not tenant_id or not client_id or not client_secret:
         return None
     try:
-        token_url = f"https://login.microsoftonline.com/{MS_TENANT_ID}/oauth2/v2.0/token"
+        token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
         resp = http_requests.post(token_url, data={
             "grant_type": "client_credentials",
-            "client_id": MS_CLIENT_ID,
-            "client_secret": MS_CLIENT_SECRET,
+            "client_id": client_id,
+            "client_secret": client_secret,
             "scope": "https://graph.microsoft.com/.default"
         }, timeout=15)
         if resp.status_code == 200:
@@ -14838,38 +15049,118 @@ def get_ms_graph_token():
         app.logger.error(f"MS Graph token request failed: {e}")
     return None
 
-def create_teams_online_meeting(title, start_utc, end_utc, attendee_emails):
-    """Create a Microsoft Teams online meeting via Graph API and return the join URL.
-    Includes attendees so they receive calendar invitations."""
+def create_teams_calendar_event(title, start_utc, end_utc, attendee_emails, description=None):
+    """Create a calendar event with online MS Teams meeting via Microsoft Graph API.
+    Returns (join_url, event_id) tuple, or (None, None) on failure."""
     token = get_ms_graph_token()
     if not token:
-        return None
+        return None, None
     try:
-        url = f"https://graph.microsoft.com/v1.0/users/{MS_USER_EMAIL}/onlineMeetings"
-        attendees = [{"identity": {"user": {"id": email}}, "role": "presenter"} for email in attendee_emails]
+        url = f"https://graph.microsoft.com/v1.0/users/{MS_GRAPH_ORGANIZER_EMAIL}/events"
+        attendees = []
+        for email in attendee_emails:
+            if email and isinstance(email, str) and email.strip():
+                attendees.append({
+                    "emailAddress": {"address": email.strip()},
+                    "type": "required"
+                })
+
+        formatted_content = (description or title or "Mentorship Session").replace("\n", "<br>")
+
         body = {
             "subject": title,
-            "startDateTime": start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "endDateTime": end_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "participants": {
-                "attendees": attendees
+            "body": {
+                "contentType": "HTML",
+                "content": formatted_content
             },
-            "lobbyBypassSettings": {
-                "enabled": True,
-                "scope": "everyone"
-            }
+            "start": {
+                "dateTime": start_utc.strftime("%Y-%m-%dT%H:%M:%S"),
+                "timeZone": "UTC"
+            },
+            "end": {
+                "dateTime": end_utc.strftime("%Y-%m-%dT%H:%M:%S"),
+                "timeZone": "UTC"
+            },
+            "attendees": attendees,
+            "isOnlineMeeting": True,
+            "onlineMeetingProvider": "teamsForBusiness"
         }
+
         resp = http_requests.post(url, json=body, headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
         }, timeout=30)
         if resp.status_code in (200, 201):
-            meeting_data = resp.json()
-            return meeting_data.get("joinWebUrl")
+            event_data = resp.json()
+            event_id = event_data.get("id")
+            online_meeting = event_data.get("onlineMeeting") or {}
+            join_url = online_meeting.get("joinUrl") or event_data.get("onlineMeetingUrl")
+            return join_url, event_id
         app.logger.error(f"Teams meeting creation failed: {resp.status_code} {resp.text}")
     except Exception as e:
         app.logger.error(f"Teams meeting creation error: {e}")
-    return None
+    return None, None
+
+def create_teams_online_meeting(title, start_utc, end_utc, attendee_emails, description=None):
+    """Create a Microsoft Teams online meeting via Graph API and return the join URL."""
+    join_url, _ = create_teams_calendar_event(title, start_utc, end_utc, attendee_emails, description=description)
+    return join_url
+
+def update_teams_calendar_event(event_id, new_start_utc, new_end_utc, title=None, description=None):
+    """Update an existing Teams calendar event via Microsoft Graph API."""
+    if not event_id:
+        return False
+    token = get_ms_graph_token()
+    if not token:
+        return False
+    try:
+        url = f"https://graph.microsoft.com/v1.0/users/{MS_GRAPH_ORGANIZER_EMAIL}/events/{event_id}"
+        patch_body = {
+            "start": {
+                "dateTime": new_start_utc.strftime("%Y-%m-%dT%H:%M:%S"),
+                "timeZone": "UTC"
+            },
+            "end": {
+                "dateTime": new_end_utc.strftime("%Y-%m-%dT%H:%M:%S"),
+                "timeZone": "UTC"
+            }
+        }
+        if title:
+            patch_body["subject"] = title
+        if description:
+            patch_body["body"] = {
+                "contentType": "HTML",
+                "content": str(description).replace("\n", "<br>")
+            }
+        resp = http_requests.patch(url, json=patch_body, headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }, timeout=30)
+        if resp.status_code in (200, 201):
+            return True
+        app.logger.error(f"Teams event update failed: {resp.status_code} {resp.text}")
+    except Exception as e:
+        app.logger.error(f"Teams event update error: {e}")
+    return False
+
+def delete_teams_calendar_event(event_id):
+    """Delete a Teams calendar event via Microsoft Graph API."""
+    if not event_id:
+        return False
+    token = get_ms_graph_token()
+    if not token:
+        return False
+    try:
+        url = f"https://graph.microsoft.com/v1.0/users/{MS_GRAPH_ORGANIZER_EMAIL}/events/{event_id}"
+        resp = http_requests.delete(url, headers={
+            "Authorization": f"Bearer {token}"
+        }, timeout=30)
+        if resp.status_code in (200, 204):
+            return True
+        app.logger.error(f"Teams event delete failed: {resp.status_code} {resp.text}")
+    except Exception as e:
+        app.logger.error(f"Teams event delete error: {e}")
+    return False
 
 #-------------------creat meeting request---------------------------------
 @app.route("/mentee_create_meeting_request/<int:mentor_id>", methods=["GET"])
@@ -15122,8 +15413,13 @@ def create_meeting_ajax():
         return jsonify({"error": "Cannot create meeting for past or current date/time. Please select a future date and time."}), 400
 
     end_datetime = start_datetime + dt.timedelta(minutes=duration_minutes)
-    start_str = start_datetime.isoformat()
-    end_str = end_datetime.isoformat()
+    try:
+        from zoneinfo import ZoneInfo
+        tzobj = ZoneInfo(timezone)
+    except Exception:
+        tzobj = dt.timezone.utc
+    start_str = start_datetime.replace(tzinfo=tzobj).isoformat()
+    end_str = end_datetime.replace(tzinfo=tzobj).isoformat()
 
     # Build task context for description (must be before calendar event creation)
     task_context = ""
@@ -15192,12 +15488,23 @@ def create_meeting_ajax():
                     }
                 }
 
-                event = service.events().insert(
-                    calendarId=CALENDAR_ID,
-                    body=event,
-                    conferenceDataVersion=1,
-                    sendUpdates="all"
-                ).execute()
+                try:
+                    event = service.events().insert(
+                        calendarId=CALENDAR_ID,
+                        body=event,
+                        conferenceDataVersion=1,
+                        sendUpdates="all"
+                    ).execute()
+                except Exception as insert_err:
+                    if ("404" in str(insert_err) or "notFound" in str(insert_err)) and CALENDAR_ID != "primary":
+                        event = service.events().insert(
+                            calendarId="primary",
+                            body=event,
+                            conferenceDataVersion=1,
+                            sendUpdates="all"
+                        ).execute()
+                    else:
+                        raise
 
                 meet_link = event.get("hangoutLink")
                 gcal_event_id = event.get("id")
@@ -15248,9 +15555,18 @@ def create_meeting_ajax():
         if mentee_user and mentee_user.email not in all_emails_teams:
             all_emails_teams.append(mentee_user.email)
 
-        teams_meet_link = create_teams_online_meeting(title, start_utc, end_utc, all_emails_teams)
+        formatted_desc = f"Meeting scheduled by {'Admin' if supervisor.user_type == '0' else 'Coordinator' if supervisor.user_type == '3' else 'Mentor' if supervisor.user_type == '1' else 'Mentee'} {supervisor.name}.{task_context}"
+
+        teams_meet_link, teams_event_id = create_teams_calendar_event(
+            title=title,
+            start_utc=start_utc,
+            end_utc=end_utc,
+            attendee_emails=all_emails_teams,
+            description=formatted_desc
+        )
         if teams_meet_link:
             meet_link = teams_meet_link
+            gcal_event_id = teams_event_id
         else:
             teams_calendar_link = "https://teams.live.com/meet/create"
             calendar_warning = (
@@ -15447,6 +15763,33 @@ def update_meeting_ajax():
         # Update description while keeping the embedded participant tag
         new_desc = description if description else _clean_meeting_description(meeting.meeting_description)
         meeting.meeting_description = _embed_meeting_participants(new_desc, participants)
+
+        # Update calendar event if exists (Google Calendar or MS Teams)
+        if meeting.gcal_event_id:
+            if meeting.meet_link and "teams" in str(meeting.meet_link).lower():
+                try:
+                    try:
+                        from zoneinfo import ZoneInfo
+                        tzobj = ZoneInfo(timezone_val)
+                    except Exception:
+                        tzobj = dt.timezone.utc
+                    new_start_utc = new_dt.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
+                    new_end_utc = (new_dt + dt.timedelta(minutes=meeting_duration)).replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
+                    update_teams_calendar_event(meeting.gcal_event_id, new_start_utc, new_end_utc, title=title, description=new_desc)
+                except Exception as e:
+                    app.logger.error(f"Error updating Teams calendar event on edit: {e}")
+            else:
+                try:
+                    update_google_calendar_event(
+                        event_id=meeting.gcal_event_id,
+                        new_start_datetime=new_dt,
+                        duration_minutes=meeting_duration,
+                        timezone=timezone_val,
+                        title=title,
+                        description=new_desc
+                    )
+                except Exception as e:
+                    app.logger.error(f"Error updating Google Calendar event on edit: {e}")
 
         db.session.commit()
 
@@ -16701,121 +17044,127 @@ def send_email_reminder(user_email, subject, html_content):
         print(f"❌ Error sending email to {user_email}: {str(e)}")
         return False
 
-def send_profile_completion_reminders(force_send=False):
-    """
-    Scheduled job to send profile completion reminders
-    
-    Args:
-        force_send (bool): If True, bypass "already sent today" check (for manual triggers)
-    """
+import threading
+
+def _run_profile_completion_reminders_worker(force_send=False):
+    """Worker executed in a background daemon thread to avoid blocking Gunicorn workers."""
     with app.app_context(), app.test_request_context():
-        print("\n🔔 Starting Profile Completion Reminder Job...")
-        if force_send:
-            print("   ⚡ FORCE MODE: Sending to all eligible users (bypassing daily limit)")
-        
-        # Check if reminders are enabled
-        settings = ReminderSettings.query.first()
-        if not settings or not settings.is_enabled:
-            print("⚠️ Profile completion reminders are disabled.")
-            return
-        
-        # Get all mentors and mentees
-        mentors = User.query.filter_by(user_type="1").all()
-        mentees = User.query.filter_by(user_type="2").all()
-        
-        print(f"📊 Found {len(mentors)} mentors and {len(mentees)} mentees")
-        
-        sent_count = 0
-        skipped_count = 0
-        
-        for user_group, user_type, group_name in [(mentors, "1", "mentors"), (mentees, "2", "mentees")]:
-            print(f"\n📧 Processing {group_name}...")
+        try:
+            print("\n🔔 Starting Profile Completion Reminder Job (Background Thread)...")
+            if force_send:
+                print("   ⚡ FORCE MODE: Sending to all eligible users (bypassing daily limit)")
             
-            for user in user_group:
-                try:
-                    # Check max reminders per user limit
-                    if settings.max_reminders_per_user:
-                        user_reminder_count = ProfileCompletionReminder.query.filter_by(
-                            user_id=user.id,
-                            user_type=user_type
-                        ).count()
-                        if user_reminder_count >= settings.max_reminders_per_user:
-                            print(f"      ⏭️  Reached max reminders limit ({settings.max_reminders_per_user}), skipping")
+            # Check if reminders are enabled
+            settings = ReminderSettings.query.first()
+            if not settings or not settings.is_enabled:
+                print("⚠️ Profile completion reminders are disabled.")
+                return
+            
+            # Get user IDs only to minimize RAM consumption and DB locks
+            mentor_ids = [u.id for u in User.query.filter_by(user_type="1").all()]
+            mentee_ids = [u.id for u in User.query.filter_by(user_type="2").all()]
+            
+            print(f"📊 Found {len(mentor_ids)} mentors and {len(mentee_ids)} mentees")
+            
+            sent_count = 0
+            skipped_count = 0
+            
+            for id_list, user_type, group_name in [(mentor_ids, "1", "mentors"), (mentee_ids, "2", "mentees")]:
+                for uid in id_list:
+                    try:
+                        user = User.query.get(uid)
+                        if not user:
+                            continue
+
+                        # Check max reminders per user limit
+                        if settings.max_reminders_per_user:
+                            user_reminder_count = ProfileCompletionReminder.query.filter_by(
+                                user_id=user.id,
+                                user_type=user_type
+                            ).count()
+                            if user_reminder_count >= settings.max_reminders_per_user:
+                                skipped_count += 1
+                                continue
+
+                        # Generate email
+                        email_data = generate_profile_completion_email(user.id, user_type)
+                        if not email_data:
                             skipped_count += 1
                             continue
 
-                    # Generate email
-                    email_data = generate_profile_completion_email(user.id, user_type)
-                    
-                    if not email_data:
-                        # 100% complete or error, skip
-                        skipped_count += 1
-                        continue
-
-                    # Check min completion percentage threshold
-                    min_comp = settings.min_completion_for_reminder or 0
-                    if email_data['completion_percentage'] < min_comp:
-                        print(f"      ⏭️  Below minimum completion threshold ({min_comp}%), skipping")
-                        skipped_count += 1
-                        continue
-                    
-                    print(f"   📨 {user.name} ({user.email}) - {email_data['completion_percentage']}% complete")
-                    
-                    # Skip "already sent today" check if force_send is True
-                    if not force_send:
-                        # Check if user already received reminder today
-                        today = datetime.utcnow().date()
-                        today_reminder = ProfileCompletionReminder.query.filter(
-                            ProfileCompletionReminder.user_id == user.id,
-                            ProfileCompletionReminder.user_type == user_type,
-                            db.func.date(ProfileCompletionReminder.sent_at) == today
-                        ).first()
+                        # Check min completion percentage threshold
+                        min_comp = settings.min_completion_for_reminder or 0
+                        if email_data['completion_percentage'] < min_comp:
+                            skipped_count += 1
+                            continue
                         
-                        if today_reminder:
-                            print(f"      ⏭️  Already sent today, skipping")
-                            skipped_count += 1
-                            continue
-                    
-                    # Send email
-                    success = send_email_reminder(
-                        user.email,
-                        email_data['subject'],
-                        email_data['html_content']
-                    )
-                    
-                    if success:
-                        # Save reminder log
-                        reminder = ProfileCompletionReminder(
-                            user_id=user.id,
-                            user_type=user_type,
-                            completion_percentage=email_data['completion_percentage'],
-                            completed_fields=email_data['completed_fields'],
-                            total_fields=email_data['total_fields'],
-                            missing_fields=json.dumps(email_data['missing_fields']),
-                            email_subject=email_data['subject'],
-                            email_style=email_data['email_style'],
-                            email_content=email_data['html_content'],
-                            previous_percentage=email_data['previous_percentage']
+                        # Skip "already sent today" check if force_send is True
+                        if not force_send:
+                            today = datetime.utcnow().date()
+                            today_reminder = ProfileCompletionReminder.query.filter(
+                                ProfileCompletionReminder.user_id == user.id,
+                                ProfileCompletionReminder.user_type == user_type,
+                                db.func.date(ProfileCompletionReminder.sent_at) == today
+                            ).first()
+                            
+                            if today_reminder:
+                                skipped_count += 1
+                                continue
+                        
+                        # Send email
+                        success = send_email_reminder(
+                            user.email,
+                            email_data['subject'],
+                            email_data['html_content']
                         )
-                        db.session.add(reminder)
-                        sent_count += 1
-                        print(f"      ✅ Email sent!")
-                    else:
-                        print(f"      ❌ Email sending failed")
+                        
+                        if success:
+                            reminder = ProfileCompletionReminder(
+                                user_id=user.id,
+                                user_type=user_type,
+                                completion_percentage=email_data['completion_percentage'],
+                                completed_fields=email_data['completed_fields'],
+                                total_fields=email_data['total_fields'],
+                                missing_fields=json.dumps(email_data['missing_fields']),
+                                email_subject=email_data['subject'],
+                                email_style=email_data['email_style'],
+                                email_content=email_data['html_content'],
+                                previous_percentage=email_data['previous_percentage']
+                            )
+                            db.session.add(reminder)
+                            db.session.commit()
+                            sent_count += 1
+                        else:
+                            skipped_count += 1
+                        
+                        # Yield CPU / DB connection to web requests
+                        time.sleep(0.1)
+
+                    except Exception as e:
+                        print(f"❌ Error processing user {uid}: {e}")
+                        db.session.rollback()
                         skipped_count += 1
-                except Exception as e:
-                    print(f"❌ Error processing user {user.id}: {str(e)}")
-                    import traceback
-                    traceback.print_exc()
-                    skipped_count += 1
             
-            db.session.commit()
-        
-        # Update last run timestamp
-        settings.last_run = datetime.utcnow()
-        db.session.commit()
-        
-        print(f"\n✅ Reminder job completed: {sent_count} sent, {skipped_count} skipped")
+            # Update last run timestamp
+            settings = ReminderSettings.query.first()
+            if settings:
+                settings.last_run = datetime.utcnow()
+                db.session.commit()
+            
+            print(f"✅ Reminder job completed: {sent_count} sent, {skipped_count} skipped")
+        except Exception as job_err:
+            print(f"⚠️ Reminder worker error: {job_err}")
+
+
+def send_profile_completion_reminders(force_send=False):
+    """Dispatch profile completion reminders in an asynchronous daemon thread so web traffic is not blocked."""
+    worker = threading.Thread(
+        target=_run_profile_completion_reminders_worker,
+        args=(force_send,),
+        daemon=True,
+        name="profile_completion_reminder_thread"
+    )
+    worker.start()
 
 # Initialize scheduler (will be started in a background worker in production)
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -16824,7 +17173,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 scheduler = BackgroundScheduler()
 
 def init_scheduler():
-    """Initialize and update the scheduler"""
+    """Initialize and update the scheduler safely"""
     try:
         with app.app_context():
             settings = ReminderSettings.query.first()
@@ -17419,5 +17768,21 @@ if __name__ == '__main__':
             init_scheduler()
         except Exception as e:
             print(f"⚠️ Could not initialize scheduler: {e}")
-    
+
+    # Error handlers for friendly error messages
+    @app.errorhandler(413)
+    def file_too_large(e):
+        if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+            return jsonify({"success": False, "message": "File too large. Maximum upload size is 16 MB."}), 413
+        flash("File too large. Maximum upload size is 16 MB.", "error")
+        return redirect(request.referrer or url_for("signin")), 413
+
+    @app.errorhandler(500)
+    def internal_error(e):
+        db.session.rollback()
+        if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+            return jsonify({"success": False, "message": "An internal error occurred. Please try again."}), 500
+        flash("An internal error occurred. Please try again.", "error")
+        return redirect(request.referrer or url_for("signin")), 500
+
     app.run(debug=True, host='0.0.0.0', port=5000)

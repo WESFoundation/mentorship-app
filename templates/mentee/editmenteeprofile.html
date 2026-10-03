@@ -101,6 +101,9 @@
                     <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Country *</label>
                     <select name="country" id="country_select" class="block w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                         <option value="">Select Country</option>
+                        {% if country %}
+                        <option value="{{ country }}" selected>{{ country }}</option>
+                        {% endif %}
                     </select>
                 </div>
             </div>
@@ -147,6 +150,9 @@
                         <label class="block text-gray-700 font-semibold mb-1" id="state_label">State / Province *</label>
                         <select name="state" id="state_select" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Select State</option>
+                            {% if state %}
+                            <option value="{{ state }}" selected>{{ state }}</option>
+                            {% endif %}
                         </select>
                     </div>
 
@@ -155,6 +161,9 @@
                         <label class="block text-gray-700 font-semibold mb-1" id="city_label">District / City *</label>
                         <select name="city" id="city_select" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Select District / City</option>
+                            {% if city %}
+                            <option value="{{ city }}" selected>{{ city }}</option>
+                            {% endif %}
                         </select>
                     </div>
                 </div>
@@ -619,6 +628,15 @@
             // Get form elements
             const form = this;
             const formData = new FormData(form);
+
+            // Ensure cascading location fields and who_am_i are explicitly captured from DOM
+            const countryEl = document.getElementById('country_select');
+            const stateEl = document.getElementById('state_select');
+            const cityEl = document.getElementById('city_select');
+            if (countryEl && countryEl.value) formData.set('country', countryEl.value.trim());
+            if (stateEl && stateEl.value) formData.set('state', stateEl.value.trim());
+            if (cityEl && cityEl.value) formData.set('city', cityEl.value.trim());
+
             const submitBtn = document.getElementById('saveProfileBtn');
             const btnText = document.getElementById('btnText');
             const btnLoader = document.getElementById('btnLoader');
@@ -782,29 +800,49 @@
 
             console.log('Selected "Who am I":', whoAmI);
 
-            // Hide all sections
-            document.getElementById('school_student_section').classList.add('hidden');
-            document.getElementById('university_student_section').classList.add('hidden');
-            document.getElementById('seeking_internship_section').classList.add('hidden');
-            document.getElementById('young_professional_section').classList.add('hidden');
-            document.getElementById('exploring_section').classList.add('hidden');
+            // All section IDs
+            const sectionIds = [
+                'school_student_section',
+                'university_student_section',
+                'seeking_internship_section',
+                'young_professional_section',
+                'exploring_section'
+            ];
 
-            // Show relevant section based on selection
+            // Hide all sections and disable their inputs so duplicate field names
+            // don't send empty values that overwrite the active section's data
+            sectionIds.forEach(function(sectionId) {
+                var section = document.getElementById(sectionId);
+                if (section) {
+                    section.classList.add('hidden');
+                    var fields = section.querySelectorAll('input, select, textarea');
+                    fields.forEach(function(f) { f.disabled = true; });
+                }
+            });
+
+            // Show and enable the relevant section
+            var activeSection = null;
             if (whoAmI === 'school_student') {
-                document.getElementById('school_student_section').classList.remove('hidden');
+                activeSection = document.getElementById('school_student_section');
                 console.log('✓ Showing school student section');
             } else if (whoAmI === 'university_student') {
-                document.getElementById('university_student_section').classList.remove('hidden');
+                activeSection = document.getElementById('university_student_section');
                 console.log('✓ Showing university student section');
             } else if (whoAmI === 'seeking_internship') {
-                document.getElementById('seeking_internship_section').classList.remove('hidden');
+                activeSection = document.getElementById('seeking_internship_section');
                 console.log('✓ Showing seeking internship section');
             } else if (whoAmI === 'young_professional') {
-                document.getElementById('young_professional_section').classList.remove('hidden');
+                activeSection = document.getElementById('young_professional_section');
                 console.log('✓ Showing young professional section');
             } else if (whoAmI === 'exploring') {
-                document.getElementById('exploring_section').classList.remove('hidden');
+                activeSection = document.getElementById('exploring_section');
                 console.log('✓ Showing exploring section');
+            }
+
+            if (activeSection) {
+                activeSection.classList.remove('hidden');
+                var fields = activeSection.querySelectorAll('input, select, textarea');
+                fields.forEach(function(f) { f.disabled = false; });
             }
 
             // Update required attributes for visible fields
