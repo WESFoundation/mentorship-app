@@ -2613,7 +2613,7 @@ def check_profile_complete(user_id, user_type, profile_obj=None):
                 profile.why_mentor,
                 profile.mentorship_philosophy,
                 profile.mentorship_motto,
-                profile.profile_picture  # Profile picture is now mandatory
+                (profile.profile_picture or getattr(user, 'profile_picture_url', None))  # Profile picture or OAuth avatar
             ])
             return has_all_required
         return False
@@ -2629,7 +2629,7 @@ def check_profile_complete(user_id, user_type, profile_obj=None):
                 profile.mobile_number,
                 profile.mentorship_expectations,
                 profile.terms_agreement,
-                profile.profile_picture,
+                (profile.profile_picture or getattr(user, 'profile_picture_url', None)),
                 profile.who_am_i
             ])
             return has_all_required
@@ -2738,6 +2738,10 @@ def signin():
             return render_template("auth/signin.html")
 
         # Check password
+        if not user.password:
+            flash("This account was created with Google. Please use 'Sign in with Google' or use 'Forgot Password' to set a password.", "error")
+            return render_template("auth/signin.html")
+
         if not check_password_hash(user.password, password):
             flash("Incorrect password! Please try again.", "error")
             return render_template("auth/signin.html")
