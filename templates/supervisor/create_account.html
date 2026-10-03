@@ -52,6 +52,18 @@
             <input type="email" name="email" class="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" placeholder="Enter email address" required>
         </div>
 
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Work Email</label>
+                <input type="email" name="work_email" class="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" placeholder="Work email address">
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Personal Email</label>
+                <input type="email" name="personal_email" class="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" placeholder="Personal email address">
+            </div>
+        </div>
+        <p class="text-sm text-gray-500 -mt-4">Provide at least one of Work Email or Personal Email.</p>
+
         <div id="institution_field" style="display: none;">
             <label class="block text-gray-700 font-semibold mb-2">Institution *</label>
             <select name="institution" id="institution_select" class="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
@@ -184,6 +196,13 @@ function validateForm() {
     // Check email
     if (!email.trim()) {
         alert('Please provide an email address!');
+        return false;
+    }
+
+    const workEmail = document.querySelector('input[name="work_email"]').value;
+    const personalEmail = document.querySelector('input[name="personal_email"]').value;
+    if (!workEmail.trim() && !personalEmail.trim()) {
+        alert('Please provide at least one of Work Email or Personal Email!');
         return false;
     }
     

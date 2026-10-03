@@ -44,6 +44,18 @@
             <input type="email" name="email" value="{{ user.email }}" class="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" required>
         </div>
 
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Work Email</label>
+                <input type="email" name="work_email" value="{{ user.work_email or '' }}" class="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Personal Email</label>
+                <input type="email" name="personal_email" value="{{ user.personal_email or '' }}" class="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+            </div>
+        </div>
+        <p class="text-sm text-gray-500">Provide at least one of Work Email or Personal Email.</p>
+
         <div>
             <label class="block text-gray-700 font-semibold mb-2">Institution</label>
             <select name="institution" class="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200">

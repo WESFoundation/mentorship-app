@@ -94,6 +94,12 @@
 
 <div class="max-w-[90rem] mx-auto mt-8 p-6 bg-gradient-to-br from-gray-50 to-blue-50 rounded-2xl shadow-2xl">
     <form id="mentorProfileForm" action="{{ url_for('editmentorprofile') }}" method="POST" enctype="multipart/form-data" class="space-y-8" onsubmit="return validateForm()">
+        {% if not profile_picture %}
+        <div class="rounded-xl border-l-4 border-red-500 bg-red-50 p-4">
+            <p class="font-semibold text-red-800">Profile photo strongly recommended</p>
+            <p class="text-sm text-red-700 mt-1">Mentees are much more likely to trust and choose a mentor with a real profile photo. You can continue without one, but adding a photo is the fastest way to make your profile stand out.</p>
+        </div>
+        {% endif %}
         <!-- Profile Header -->
         <div class="flex flex-col items-center md:flex-row md:items-center md:justify-start space-y-6 md:space-y-0 md:space-x-8 mb-8 p-6 bg-white rounded-xl shadow-md">
             <!-- Profile Picture Upload -->
@@ -114,7 +120,7 @@
                 </div>
                 <div class="mt-4">
                     <label class="bg-blue-500 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-blue-600 transition duration-300 inline-block">
-                        <i class="fas fa-upload mr-2"></i>Upload Photo
+                        <i class="fas fa-upload mr-2"></i>Upload Photo (Recommended)
                         {% if profile_picture %}
                         <input type="file" name="profile_picture" class="hidden" onchange="previewImage(this)" accept="image/*">
                         {% else %}
@@ -125,7 +131,7 @@
                 {% if profile_picture %}
                 <p class="text-xs text-gray-500 mt-2">Leave empty to keep current picture</p>
                 {% else %}
-                <p class="text-xs text-red-500 mt-2">* Profile picture is</p>
+                <p class="text-sm text-red-600 mt-2 font-semibold">Profile photo missing — add one for much higher trust and more mentee requests. You can save without it, but mentees are far more likely to trust a profile with a real photo.</p>
                 {% endif %}
             </div>
 
@@ -139,6 +145,17 @@
                     <label class="block text-gray-700 font-bold text-lg mb-2">Email</label>
                     <input type="email" name="email" value="{{ email }}" class="w-full p-3 border-2 border-gray-200 rounded-xl bg-gray-50 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300" readonly>
                 </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-gray-700 font-bold text-lg mb-2">Work Email</label>
+                        <input type="email" name="work_email" value="{{ work_email or '' }}" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300" placeholder="work@example.com">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-bold text-lg mb-2">Personal Email</label>
+                        <input type="email" name="personal_email" value="{{ personal_email or '' }}" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300" placeholder="personal@example.com">
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500">Provide at least one of Work Email or Personal Email.</p>
             </div>
         </div>
 
@@ -1312,6 +1329,38 @@
                             <input type="checkbox" name="base_mentorship_topics" value="school_subjects" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'school_subjects' in base_topics_list %}checked{% endif %}>
                             <span class="text-sm font-medium text-gray-800">School Subjects</span>
                         </label>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'study_skills_exam_prep' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="school_student">
+                            <input type="checkbox" name="base_mentorship_topics" value="study_skills_exam_prep" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'study_skills_exam_prep' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Study Skills & Exam Prep</span>
+                        </label>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'science_math' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="school_student">
+                            <input type="checkbox" name="base_mentorship_topics" value="science_math" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'science_math' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Science & Mathematics</span>
+                        </label>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'language_arts_english' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="school_student">
+                            <input type="checkbox" name="base_mentorship_topics" value="language_arts_english" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'language_arts_english' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Language Arts & English</span>
+                        </label>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'homework_support' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="school_student">
+                            <input type="checkbox" name="base_mentorship_topics" value="homework_support" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'homework_support' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Homework Support</span>
+                        </label>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'college_career_readiness' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="school_student">
+                            <input type="checkbox" name="base_mentorship_topics" value="college_career_readiness" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'college_career_readiness' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">College & Career Readiness</span>
+                        </label>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'study_habits_time_management' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="school_student">
+                            <input type="checkbox" name="base_mentorship_topics" value="study_habits_time_management" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'study_habits_time_management' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Study Habits & Time Management</span>
+                        </label>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'stem_coding_beginners' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="school_student">
+                            <input type="checkbox" name="base_mentorship_topics" value="stem_coding_beginners" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'stem_coding_beginners' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">STEM & Coding for Beginners</span>
+                        </label>
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'public_speaking_confidence' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="school_student">
+                            <input type="checkbox" name="base_mentorship_topics" value="public_speaking_confidence" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'public_speaking_confidence' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Public Speaking & Confidence</span>
+                        </label>
                         <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'coding_basics' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="university_student,young_professional_career_explorer">
                             <input type="checkbox" name="base_mentorship_topics" value="coding_basics" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'coding_basics' in base_topics_list %}checked{% endif %}>
                             <span class="text-sm font-medium text-gray-800">Coding Basics</span>
@@ -1358,19 +1407,17 @@
                             <span class="text-sm font-medium text-gray-800">Seeking Internships</span>
                         </label>
                     </div>
-</div>
+                </div>
+
+                <!-- 3. Specific Mentorship Topics (Detailed) -->
+                <div class="space-y-4 pt-6 border-t border-gray-100">
+                    <label class="block text-gray-700 font-semibold mb-3">Specific Mentorship Topics (Detailed)</label>
+                    <p class="text-sm text-gray-500 mb-3">Enter specific topics you can mentor on in detail, separated by commas</p>
+                    <textarea name="mentorship_topics" class="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition duration-300" rows="5" placeholder="List specific topics you can mentor on, separated by commas (e.g., Python for Data Science, React.js Fundamentals, Career Planning for Fresh Graduates, Azure CI/CD Pipelines...)">{{ mentorship_topics }}</textarea>
+                    <p class="text-xs text-gray-400 mt-2">Enter specific topics separated by commas. These will be shown to mentees as your detailed areas of expertise.</p>
+                </div>
             </div>
         </div>
-
-        <!-- 3. Specific Mentorship Topics (Detailed) -->
-        <div class="space-y-4 pt-6 border-t border-gray-100">
-            <label class="block text-gray-700 font-semibold mb-3">Specific Mentorship Topics (Detailed)</label>
-            <p class="text-sm text-gray-500 mb-3">Enter specific topics you can mentor on in detail, separated by commas</p>
-            <textarea name="mentorship_topics" class="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition duration-300" rows="5" placeholder="List specific topics you can mentor on, separated by commas (e.g., Python for Data Science, React.js Fundamentals, Career Planning for Fresh Graduates, Azure CI/CD Pipelines...)">{{ mentorship_topics }}</textarea>
-            <p class="text-xs text-gray-400 mt-2">Enter specific topics separated by commas. These will be shown to mentees as your detailed areas of expertise.</p>
-        </div>
-    </div>
-</div>
 
         <!-- Mentor Philosophy (2 fields only) -->
         <div class="bg-white p-8 rounded-2xl shadow-lg border border-blue-100">
@@ -1656,6 +1703,13 @@ function validateForm() {
         }
     }
     
+    const workEmail = form.elements['work_email'] ? form.elements['work_email'].value.trim() : '';
+    const personalEmail = form.elements['personal_email'] ? form.elements['personal_email'].value.trim() : '';
+    if (!workEmail && !personalEmail) {
+        alert('❌ Please provide at least one of Work Email or Personal Email.');
+        return false;
+    }
+
     const fields = [
         { name: 'profession', label: 'Profession' },
         { name: 'skills', label: 'Skills' },
@@ -1718,6 +1772,15 @@ function validateForm() {
     if (emptyFields.length > 0) {
         alert('❌ Please fill all mandatory fields:\n\n' + emptyFields.join('\n'));
         return false;
+    }
+
+    // Encourage a profile photo, but do not make it mandatory
+    const profilePictureInput = form.querySelector('input[name="profile_picture"]');
+    const hasExistingPicture = !!document.querySelector('img[alt="Profile Picture"]');
+    if (!hasExistingPicture && profilePictureInput && (!profilePictureInput.files || profilePictureInput.files.length === 0)) {
+        if (!confirm('⚠️ A profile photo is missing. Profiles with a real photo are trusted much more by mentees.\n\nPress OK to continue saving without a photo, or Cancel to add a photo first.')) {
+            return false;
+        }
     }
 
     return true;
@@ -2302,7 +2365,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Mapping of target audience to base topics
     const audienceToTopics = {
-        'school_student': ['school_subjects', 'soft_skills'],
+        'school_student': ['school_subjects', 'study_skills_exam_prep', 'science_math', 'language_arts_english', 'homework_support', 'college_career_readiness', 'study_habits_time_management', 'stem_coding_beginners', 'public_speaking_confidence', 'soft_skills'],
         'university_student': ['coding_basics', 'career_guidance', 'azure_devops', 'cloud_computing', 'data_science', 'web_development', 'mobile_development', 'soft_skills', 'seeking_internships'],
         'young_professional_career_explorer': ['coding_basics', 'career_guidance', 'azure_devops', 'cloud_computing', 'web_development', 'mobile_development', 'soft_skills', 'leadership', 'seeking_internships'],
         'entrepreneur': ['career_guidance', 'soft_skills', 'leadership', 'entrepreneurship']

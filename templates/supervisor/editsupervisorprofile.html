@@ -51,6 +51,18 @@
                    class="w-full border p-2 rounded bg-gray-100 cursor-not-allowed">
         </div>
 
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-1">Work Email</label>
+                <input type="email" name="work_email" value="{{ work_email or '' }}" class="w-full border p-2 rounded" placeholder="work@example.com">
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-1">Personal Email</label>
+                <input type="email" name="personal_email" value="{{ personal_email or '' }}" class="w-full border p-2 rounded" placeholder="personal@example.com">
+            </div>
+            <p class="text-sm text-gray-500 md:col-span-2">Provide at least one of Work Email or Personal Email.</p>
+        </div>
+
         <!-- Organization -->
         <div>
             <label class="block text-gray-700 font-semibold mb-1">Organization / College</label>

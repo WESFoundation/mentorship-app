@@ -1306,6 +1306,8 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
+    work_email = db.Column(db.String(150), nullable=True)
+    personal_email = db.Column(db.String(150), nullable=True)
     password = db.Column(db.String(200), nullable=True)   # nullable for OAuth users
     user_type = db.Column(db.String(10), nullable=True)  # nullable until user selects type
     institution = db.Column(db.String(150), nullable=True)
@@ -4595,6 +4597,8 @@ def create_account():
     if request.method == "POST":
         name = request.form.get("name")
         email = (request.form.get("email") or "").strip().lower()
+        work_email = (request.form.get("work_email") or "").strip().lower()
+        personal_email = (request.form.get("personal_email") or "").strip().lower()
         password = request.form.get("password")
         confirm_password = request.form.get("confirm_password")
         user_type = request.form.get("user_type")
@@ -4614,6 +4618,10 @@ def create_account():
         # Validation
         if not all([name, email, password, confirm_password, user_type]):
             flash("Please fill all required fields!", "error")
+            return redirect(url_for("create_account"))
+        
+        if not work_email and not personal_email:
+            flash("Please provide at least one of Work Email or Personal Email!", "error")
             return redirect(url_for("create_account"))
         
         if len(password) < 6:
@@ -4653,6 +4661,8 @@ def create_account():
             new_user = User(
                 name=name,
                 email=email,
+                work_email=work_email,
+                personal_email=personal_email,
                 password=hashed_password,
                 user_type=user_type,
                 institution=institution_name if user_type != "3" else None,
@@ -4749,11 +4759,17 @@ def edit_user(user_id):
     if request.method == "POST":
         name = request.form.get("name")
         email = request.form.get("email")
+        work_email = (request.form.get("work_email") or "").strip().lower()
+        personal_email = (request.form.get("personal_email") or "").strip().lower()
         institution = request.form.get("institution")
         
         # Validation
         if not all([name, email]):
             flash("Please fill all required fields!", "error")
+            return redirect(url_for("edit_user", user_id=user_id))
+
+        if not work_email and not personal_email:
+            flash("Please provide at least one of Work Email or Personal Email!", "error")
             return redirect(url_for("edit_user", user_id=user_id))
         
         # Check if email is already taken by another user
@@ -4765,6 +4781,8 @@ def edit_user(user_id):
         try:
             user.name = name
             user.email = email
+            user.work_email = work_email
+            user.personal_email = personal_email
             user.institution = institution
             db.session.commit()
             
@@ -5809,6 +5827,12 @@ def editinstitutionprofile():
         institution_details = Institution.get_by_name(user.institution)
 
     if request.method == "POST":
+        work_email = (request.form.get("work_email") or "").strip().lower()
+        personal_email = (request.form.get("personal_email") or "").strip().lower()
+        if not work_email and not personal_email:
+            flash("Please provide at least one of Work Email or Personal Email!", "error")
+            return redirect(url_for("editinstitutionprofile"))
+
         try:
             # Validate only editable mandatory fields
             # Note: name and contact_email are read-only from signup_details, so they're not validated
@@ -5880,7 +5904,9 @@ def editinstitutionprofile():
                 user.department = request.form.get("department", "")
             if hasattr(user, 'phone'):
                 user.phone = request.form.get("official_phone", "")
-            
+            user.work_email = work_email
+            user.personal_email = personal_email
+
             # Update corporate status for all mentors under this institution
             if institution_details.email_domain:
                 institution_users = User.query.filter_by(institution_id=institution_details.id).all()
@@ -5919,6 +5945,8 @@ def editinstitutionprofile():
         show_sidebar=False,
         name=user.name,  # Institution name from signup_details.name
         email=user.email,  # Institution email from signup_details.email
+        work_email=user.work_email if hasattr(user, 'work_email') else '',
+        personal_email=user.personal_email if hasattr(user, 'personal_email') else '',
         institution_details=institution_details
     )
 
@@ -12949,6 +12977,12 @@ def editmentorprofile():
     institutions = Institution.query.filter_by(status="active").all()
 
     if request.method == "POST":
+        work_email = (request.form.get("work_email") or "").strip().lower()
+        personal_email = (request.form.get("personal_email") or "").strip().lower()
+        if not work_email and not personal_email:
+            flash("Please provide at least one of Work Email or Personal Email!", "error")
+            return redirect(url_for("editmentorprofile"))
+
         # Create profile if not exists
         if not profile:
             profile = MentorProfile(user_id=user.id)
@@ -13047,8 +13081,10 @@ def editmentorprofile():
         profile.why_mentor = request.form.get("why_mentor")
         profile.mentorship_philosophy = request.form.get("mentorship_philosophy")
         profile.mentorship_motto = request.form.get("mentorship_motto")
-        
         profile.additional_info = request.form.get("additional_info")
+
+        user.work_email = work_email
+        user.personal_email = personal_email
 
         # Educational Information
         profile.highest_qualification = request.form.get("highest_qualification")
@@ -13153,6 +13189,8 @@ def editmentorprofile():
         "mentor/editmentorprofile.html",
         full_name=user.name,
         email=user.email,
+        work_email=user.work_email if hasattr(user, 'work_email') else '',
+        personal_email=user.personal_email if hasattr(user, 'personal_email') else '',
         institution=form_data.get('institution') if form_data else user.institution,
         institutions=institutions,
         profession=form_data.get('profession') if form_data else (profile.profession if profile else ""),
@@ -13258,6 +13296,11 @@ def editmenteeprofile():
             if not value:
                 missing_fields.append(field.replace('_', ' ').title())
         
+        work_email = (request.form.get("work_email") or "").strip().lower()
+        personal_email = (request.form.get("personal_email") or "").strip().lower()
+        if not work_email and not personal_email:
+            missing_fields.append('Work Email or Personal Email')
+
         # Validate terms agreement
         if not request.form.get('terms_agreement'):
             missing_fields.append('Terms & Conditions Agreement')
@@ -13294,7 +13337,9 @@ def editmenteeprofile():
         # Save common fields
         profile.who_am_i = who_am_i
         profile.dob = request.form.get("dob")
-        
+        user.work_email = work_email
+        user.personal_email = personal_email
+        db.session.add(user)
         # Check if parent consent is needed (under 18 AND from Luxembourg)
         country = request.form.get("country", "")
         parent_email = request.form.get("parent_email", "").strip()
@@ -13450,6 +13495,8 @@ def editmenteeprofile():
         "mentee/editmenteeprofile.html",
         full_name=user.name,
         email=user.email,
+        work_email=user.work_email if hasattr(user, 'work_email') else '',
+        personal_email=user.personal_email if hasattr(user, 'personal_email') else '',
         institutions=institutions,
         dob=profile.dob if profile else "",
         mobile_number=profile.mobile_number if profile else "",
@@ -13530,6 +13577,9 @@ def editsupervisorprofile():
             profile = SupervisorProfile(user_id=user.id)
             db.session.add(profile)
 
+        work_email = (request.form.get("work_email") or "").strip().lower()
+        personal_email = (request.form.get("personal_email") or "").strip().lower()
+
         # Validate all mandatory fields
         mandatory_fields = {
             "organisation_or_college": request.form.get("organisation_or_college"),
@@ -13549,6 +13599,10 @@ def editsupervisorprofile():
             flash(f"Please fill all mandatory fields: {', '.join(missing_fields)}", "error")
             return redirect(url_for("editsupervisorprofile"))
 
+        if not work_email and not personal_email:
+            flash("Please provide at least one of Work Email or Personal Email!", "error")
+            return redirect(url_for("editsupervisorprofile"))
+
         # Update institution if changed
         new_institution = request.form.get("institution")
         if new_institution and new_institution != user.institution:
@@ -13560,6 +13614,9 @@ def editsupervisorprofile():
         profile.location = request.form.get("location")
         profile.role = request.form.get("role")
         profile.additional_info = request.form.get("additional_info")
+        user.work_email = work_email
+        user.personal_email = personal_email
+        db.session.add(user)
 
         # Profile picture handling
         file = request.files.get("profile_picture")
@@ -13580,6 +13637,8 @@ def editsupervisorprofile():
         "supervisor/editsupervisorprofile.html",
         full_name=user.name,
         email=user.email,
+        work_email=user.work_email if hasattr(user, 'work_email') else '',
+        personal_email=user.personal_email if hasattr(user, 'personal_email') else '',
         institution=user.institution,  # Pass current institution
         institutions=institutions,     # Pass institutions list
         organisation_or_college=profile.organisation if profile else "",

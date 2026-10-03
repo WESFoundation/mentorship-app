@@ -223,16 +223,28 @@
                             <div class="readonly-display-icon">
                                 <i class="fas fa-lock"></i>
                             </div>
-                        </div>
-                        <div class="form-hint readonly-hint">
-                            <i class="fas fa-info-circle"></i>
-                            <strong>Official Email:</strong> This is your institution's official email address as registered during account signup. 
-                            This email is used for all official communications and cannot be changed to maintain account security.
-                            <br><small>If you need to change this email, please contact your system administrator.</small>
-                        </div>
                     </div>
+                    <div class="form-hint readonly-hint">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Official Email:</strong> This is your institution's official email address as registered during account signup. 
+                        This email is used for all official communications and cannot be changed to maintain account security.
+                        <br><small>If you need to change this email, please contact your system administrator.</small>
+                    </div>
+                </div>
 
-                    <!-- Contact Phone -->
+                <!-- Work Email -->
+                <div class="form-group">
+                    <label for="work_email" class="form-label">Work Email</label>
+                    <input type="email" name="work_email" id="work_email" value="{{ work_email or '' }}" class="form-input" placeholder="work@institution.edu">
+                </div>
+
+                <!-- Personal Email -->
+                <div class="form-group">
+                    <label for="personal_email" class="form-label">Personal Email</label>
+                    <input type="email" name="personal_email" id="personal_email" value="{{ personal_email or '' }}" class="form-input" placeholder="personal@example.com">
+                </div>
+
+                <!-- Contact Phone -->
                     <div class="form-group">
                         <label for="contact_phone" class="form-label">Contact Phone</label>
                         <input type="tel" name="contact_phone" id="contact_phone" 
@@ -333,6 +345,12 @@ function validateInstitutionForm() {
             element.style.borderWidth = '';
         }
     });
+
+    const workEmail = form.elements['work_email'] ? form.elements['work_email'].value.trim() : '';
+    const personalEmail = form.elements['personal_email'] ? form.elements['personal_email'].value.trim() : '';
+    if (!workEmail && !personalEmail) {
+        emptyFields.push('Work Email or Personal Email');
+    }
 
     // Check institution type (radio buttons)
     const institutionTypeRadios = form.querySelectorAll('input[name="institution_type"]');
