@@ -86,7 +86,7 @@ else:
 app.permanent_session_lifetime = timedelta(days=10)
 
 # Image upload configuration
-UPLOAD_FOLDER = "static/uploads"
+UPLOAD_FOLDER = os.path.join(app.root_path, "static", "uploads")
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "pdf"}  # Added PDF for criminal certificate
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
@@ -283,7 +283,14 @@ def get_institution_logo_url(institution):
     if not institution:
         return None
     if institution.profile_picture:
-        return url_for('static', filename='img/institutions/' + institution.profile_picture)
+        pic = institution.profile_picture.strip()
+        upload_dir = app.config.get("UPLOAD_FOLDER", os.path.join(app.root_path, "static", "uploads"))
+        if os.path.exists(os.path.join(upload_dir, pic)):
+            return url_for('static', filename='uploads/' + pic)
+        img_inst_path = os.path.join(app.root_path, "static", "img", "institutions", pic)
+        if os.path.exists(img_inst_path):
+            return url_for('static', filename='img/institutions/' + pic)
+        return url_for('static', filename='uploads/' + pic)
     if institution.website:
         try:
             if institution.id in _institution_logo_cache:
@@ -12957,7 +12964,17 @@ def inject_user_profile_pic():
             profile = raw_profile[0] if raw_profile else None
         else:
             profile = raw_profile
-        profile_pic = getattr(profile, "profile_picture", None) if profile else None
+        
+        pic = getattr(profile, "profile_picture", None) if profile else None
+        if pic:
+            if pic.startswith("http://") or pic.startswith("https://"):
+                profile_pic = pic
+            else:
+                upload_dir = app.config.get("UPLOAD_FOLDER", os.path.join(app.root_path, "static", "uploads"))
+                if os.path.exists(os.path.join(upload_dir, pic)):
+                    profile_pic = url_for("static", filename="uploads/" + pic)
+        if not profile_pic and getattr(user, "profile_picture_url", None):
+            profile_pic = user.profile_picture_url
     return dict(current_user_profile_pic=profile_pic)
 
 @app.context_processor
@@ -13106,8 +13123,7 @@ def editmentorprofile():
         profile.other_social_link = request.form.get("other_social_link")
         
         # Mentorship preferences
-        mentorship_topics = request.form.getlist("mentorship_topics")
-        profile.mentorship_topics = ", ".join(mentorship_topics) if mentorship_topics else None
+        profile.mentorship_topics = request.form.get("mentorship_topics") or None
         
         mentorship_types = request.form.getlist("mentorship_type_preference")
         profile.mentorship_type_preference = ", ".join(mentorship_types) if mentorship_types else None
@@ -13120,8 +13136,20 @@ def editmentorprofile():
         # Mentor philosophy
         profile.why_mentor = request.form.get("why_mentor")
         profile.mentorship_philosophy = request.form.get("mentorship_philosophy")
-        profile.mentorship_motto = request.form.get("mentorship_motto")
+        # mentorship_motto merged into mentorship_philosophy — don't overwrite
         profile.additional_info = request.form.get("additional_info")
+
+        # Target audience (who mentor wants to mentor)
+        target_audiences = request.form.getlist("target_audience")
+        # Expand merged checkbox value into legacy individual values
+        if "young_professional_career_explorer" in target_audiences:
+            target_audiences.remove("young_professional_career_explorer")
+            target_audiences.extend(["young_professional", "seeking_internship", "exploring"])
+        profile.target_audience = ",".join(target_audiences) if target_audiences else None
+
+        # Base mentorship topics
+        base_topics = request.form.getlist("base_mentorship_topics")
+        profile.base_mentorship_topics = ",".join(base_topics) if base_topics else None
 
         user.work_email = work_email
         user.personal_email = personal_email
@@ -13182,14 +13210,16 @@ def editmentorprofile():
                 return redirect(url_for("editmentorprofile"))
 
         try:
-# Update corporate affiliation status if user has an institution
-            refresh_user_corporate_status(user)
-            
             db.session.commit()
             # Clear any saved form data from session on successful save
             session.pop('mentor_form_data', None)
             flash("✅ Profile updated successfully!", "success")
             print("✅ Database commit successful!")
+            # Update corporate status AFTER main commit succeeds
+            try:
+                refresh_user_corporate_status(user)
+            except Exception:
+                pass  # Non-critical, don't let it affect profile save
             return redirect(url_for("mentorprofile"))
         except Exception as e:
             db.session.rollback()
@@ -13274,7 +13304,11 @@ def editmentorprofile():
         mentorship_philosophy=form_data.get('mentorship_philosophy') if form_data else (profile.mentorship_philosophy if profile else ""),
         mentorship_motto=form_data.get('mentorship_motto') if form_data else (profile.mentorship_motto if profile else ""),
         additional_info=form_data.get('additional_info') if form_data else (profile.additional_info if profile else ""),
-        profile_picture=profile.profile_picture if profile else None,
+        profile_picture=(
+            profile.profile_picture
+            if profile and profile.profile_picture and os.path.exists(os.path.join(app.config["UPLOAD_FOLDER"], profile.profile_picture))
+            else (user.profile_picture_url if getattr(user, 'profile_picture_url', None) else None)
+        ),
         criminal_certificate=profile.criminal_certificate if profile else None,
         # Educational Information
         highest_qualification=form_data.get('highest_qualification') if form_data else (profile.highest_qualification if profile else ""),
@@ -13284,7 +13318,9 @@ def editmentorprofile():
         graduation_year=form_data.get('graduation_year') if form_data else (profile.graduation_year if profile else ""),
         academic_status=form_data.get('academic_status') if form_data else (profile.academic_status if profile else ""),
         certifications=form_data.get('certifications') if form_data else (profile.certifications if profile else ""),
-        research_work=form_data.get('research_work') if form_data else (profile.research_work if profile else "")
+        research_work=form_data.get('research_work') if form_data else (profile.research_work if profile else ""),
+        target_audience=form_data.get('target_audience') if form_data else (profile.target_audience if profile else ""),
+        base_mentorship_topics=form_data.get('base_mentorship_topics') if form_data else (profile.base_mentorship_topics if profile else "")
     )
 
 
@@ -13348,7 +13384,10 @@ def editmenteeprofile():
         work_email = (request.form.get("work_email") or "").strip().lower()
         personal_email = (request.form.get("personal_email") or "").strip().lower()
         if not work_email and not personal_email:
-            missing_fields.append('Work Email or Personal Email')
+            if user.email:
+                personal_email = user.email.strip().lower()
+            else:
+                missing_fields.append('Work Email or Personal Email')
 
         # Validate terms agreement
         if not request.form.get('terms_agreement'):
@@ -13358,8 +13397,12 @@ def editmenteeprofile():
         if not request.form.get('gdpr_agreement'):
             missing_fields.append('GDPR Agreement')
         
-        # Validate profile picture (only if no existing picture)
-        if not profile or not profile.profile_picture:
+        # Validate profile picture (only if no existing picture and no OAuth picture)
+        existing_pic_valid = bool(
+            (profile and profile.profile_picture and os.path.exists(os.path.join(app.config["UPLOAD_FOLDER"], profile.profile_picture)))
+            or getattr(user, 'profile_picture_url', None)
+        )
+        if not existing_pic_valid:
             if 'profile_picture' not in request.files or not request.files['profile_picture'].filename:
                 missing_fields.append('Profile Picture')
         
@@ -13528,7 +13571,7 @@ def editmenteeprofile():
                             os.remove(old_path)
                         except OSError:
                             pass  # Non-critical: old file cleanup failed
-                filename = secure_filename(f"mentee_{profile.id}_{file.filename}")
+                filename = secure_filename(f"mentee_{user.id}_{int(datetime.now().timestamp())}_{file.filename}")
                 file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
                 profile.profile_picture = filename
 
@@ -13573,8 +13616,8 @@ def editmenteeprofile():
         "mentee/editmenteeprofile.html",
         full_name=user.name,
         email=user.email,
-        work_email=user.work_email if hasattr(user, 'work_email') else '',
-        personal_email=user.personal_email if hasattr(user, 'personal_email') else '',
+        work_email=user.work_email if hasattr(user, 'work_email') and user.work_email else '',
+        personal_email=user.personal_email if hasattr(user, 'personal_email') and user.personal_email else (user.email or ''),
         institutions=institutions,
         dob=profile.dob if profile else "",
         mobile_number=profile.mobile_number if profile else "",
@@ -13636,7 +13679,11 @@ def editmenteeprofile():
         linkedin_link=profile.linkedin_link if profile else "",
         terms_agreement=profile.terms_agreement if profile else "",
         parent_consent_status=profile.parent_consent_status if profile else None,
-        profile_picture=profile.profile_picture if profile else None
+        profile_picture=(
+            profile.profile_picture
+            if profile and profile.profile_picture and os.path.exists(os.path.join(app.config["UPLOAD_FOLDER"], profile.profile_picture))
+            else (user.profile_picture_url if getattr(user, 'profile_picture_url', None) else None)
+        )
     )
 
 @app.route("/edit_supervisor_profile", methods=["GET", "POST"])
@@ -14140,7 +14187,11 @@ def mentorprofile():
             mentorship_philosophy=profile.mentorship_philosophy if profile else "",
             mentorship_motto=profile.mentorship_motto if profile else "",
             preferred_duration=profile.preferred_duration if profile else "",
-            profile_picture=profile.profile_picture if profile else None,
+            profile_picture=(
+                profile.profile_picture
+                if profile and profile.profile_picture and os.path.exists(os.path.join(app.config["UPLOAD_FOLDER"], profile.profile_picture))
+                else (user.profile_picture_url if getattr(user, 'profile_picture_url', None) else None)
+            ),
             criminal_certificate=profile.criminal_certificate if profile else None,
             institution_profile_picture=institution_profile_picture,
             # Educational Information
@@ -14193,7 +14244,11 @@ def menteeprofile():
             institution=user.institution,
             age=age,  # Pass age instead of dob
             dob=profile.dob if profile else "",  # Keep dob for edit form
-            profile_picture=profile.profile_picture if profile else None,
+            profile_picture=(
+                profile.profile_picture
+                if profile and profile.profile_picture and os.path.exists(os.path.join(app.config["UPLOAD_FOLDER"], profile.profile_picture))
+                else (user.profile_picture_url if getattr(user, 'profile_picture_url', None) else None)
+            ),
             institution_profile_picture=institution_profile_picture,
             # Who am I
             who_am_i=profile.who_am_i if profile else None,

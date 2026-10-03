@@ -64,8 +64,19 @@
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap max-w-[280px]">
               <div class="flex items-center">
                 {% if mentor.mentor_profile and mentor.mentor_profile.profile_picture %}
-                <img src="{{ url_for('static', filename='uploads/' ~ mentor.mentor_profile.profile_picture) }}" alt="{{ mentor.name }}"
-                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3">
+                  {% if mentor.mentor_profile.profile_picture.startswith('http') %}
+                  <img src="{{ mentor.mentor_profile.profile_picture }}" alt="{{ mentor.name }}"
+                    class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3"
+                    onerror="this.onerror=null; this.src='{{ mentor.profile_picture_url if mentor.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentor.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+                  {% else %}
+                  <img src="{{ url_for('static', filename='uploads/' ~ mentor.mentor_profile.profile_picture) }}" alt="{{ mentor.name }}"
+                    class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3"
+                    onerror="this.onerror=null; this.src='{{ mentor.profile_picture_url if mentor.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentor.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+                  {% endif %}
+                {% elif mentor.profile_picture_url %}
+                <img src="{{ mentor.profile_picture_url }}" alt="{{ mentor.name }}"
+                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3"
+                  onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ mentor.name|urlencode }}&background=2563eb&color=fff';">
                 {% else %}
                 <div
                   class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 mr-2 sm:mr-3">
@@ -708,7 +719,11 @@
     // ===== PROFILE PICTURE =====
     const profilePicElement = document.getElementById('modalProfilePic');
     if (mentor.profile_picture && mentor.profile_picture.trim()) {
-      profilePicElement.src = "/static/uploads/" + mentor.profile_picture;
+      if (mentor.profile_picture.startsWith('http')) {
+        profilePicElement.src = mentor.profile_picture;
+      } else {
+        profilePicElement.src = "/static/uploads/" + mentor.profile_picture;
+      }
     } else {
       const mentorName = mentor.name || '?';
       profilePicElement.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentorName) + "&background=blue&color=fff";

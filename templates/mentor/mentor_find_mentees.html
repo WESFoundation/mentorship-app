@@ -86,9 +86,22 @@
         <div class="mentee-card bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-md">
           <div class="flex items-center gap-4 mb-4">
             {% if mentee.profile_picture %}
+              {% if mentee.profile_picture.startswith('http') %}
+              <img src="{{ mentee.profile_picture }}" 
+                   alt="{{ mentee.user.name }}" 
+                   class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
+                   onerror="this.onerror=null; this.src='{{ mentee.user.profile_picture_url if mentee.user and mentee.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentee.user.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+              {% else %}
               <img src="{{ url_for('static', filename='uploads/' ~ mentee.profile_picture) }}" 
                    alt="{{ mentee.user.name }}" 
-                   class="w-16 h-16 rounded-full object-cover border-2 border-white shadow">
+                   class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
+                   onerror="this.onerror=null; this.src='{{ mentee.user.profile_picture_url if mentee.user and mentee.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentee.user.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+              {% endif %}
+            {% elif mentee.user and mentee.user.profile_picture_url %}
+              <img src="{{ mentee.user.profile_picture_url }}" 
+                   alt="{{ mentee.user.name }}" 
+                   class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
+                   onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ mentee.user.name|urlencode }}&background=2563eb&color=fff';">
             {% else %}
               <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 border-2 border-white shadow">
                 <span class="text-xl font-semibold">{{ mentee.user.name[0] if mentee.user.name else '?' }}</span>

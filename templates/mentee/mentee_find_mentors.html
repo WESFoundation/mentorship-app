@@ -228,7 +228,13 @@
               <!-- Avatar -->
               <div class="w-16 h-16 rounded-lg border-3 border-white shadow-lg bg-white -mt-8 mb-3 relative z-10 overflow-hidden">
                 {% if mentor.profile_picture %}
-                <img src="{{ url_for('static', filename='uploads/' ~ mentor.profile_picture) }}" alt="{{ mentor.user.name }}" class="w-full h-full object-cover">
+                  {% if mentor.profile_picture.startswith('http') %}
+                  <img src="{{ mentor.profile_picture }}" alt="{{ mentor.user.name }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='{{ mentor.user.profile_picture_url if mentor.user and mentor.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentor.user.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+                  {% else %}
+                  <img src="{{ url_for('static', filename='uploads/' ~ mentor.profile_picture) }}" alt="{{ mentor.user.name }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='{{ mentor.user.profile_picture_url if mentor.user and mentor.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentor.user.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+                  {% endif %}
+                {% elif mentor.user and mentor.user.profile_picture_url %}
+                  <img src="{{ mentor.user.profile_picture_url }}" alt="{{ mentor.user.name }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ mentor.user.name|urlencode }}&background=2563eb&color=fff';">
                 {% else %}
                 <div class="w-full h-full bg-gray-100 flex items-center justify-center text-blue-600 text-lg font-bold">
                   {{ mentor.user.name[0] if mentor.user.name else '?' }}
@@ -384,8 +390,14 @@
             <div
               class="w-16 h-16 rounded-lg border-3 border-white shadow-md bg-white -mt-8 mb-3 relative z-10 overflow-hidden">
               {% if mentor.profile_picture %}
-              <img src="{{ url_for('static', filename='uploads/' ~ mentor.profile_picture) }}"
-                alt="{{ mentor.user.name }}" class="w-full h-full object-cover">
+                {% if mentor.profile_picture.startswith('http') %}
+                <img src="{{ mentor.profile_picture }}" alt="{{ mentor.user.name }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='{{ mentor.user.profile_picture_url if mentor.user and mentor.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentor.user.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+                {% else %}
+                <img src="{{ url_for('static', filename='uploads/' ~ mentor.profile_picture) }}"
+                  alt="{{ mentor.user.name }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='{{ mentor.user.profile_picture_url if mentor.user and mentor.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentor.user.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+                {% endif %}
+              {% elif mentor.user and mentor.user.profile_picture_url %}
+                <img src="{{ mentor.user.profile_picture_url }}" alt="{{ mentor.user.name }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ mentor.user.name|urlencode }}&background=2563eb&color=fff';">
               {% else %}
               <div class="w-full h-full bg-gray-100 flex items-center justify-center text-gray-600 text-lg font-bold">
                 {{ mentor.user.name[0] if mentor.user.name else '?' }}
@@ -720,7 +732,8 @@
       <div class="flex flex-col md:flex-row items-center gap-4 sm:gap-6 mb-6 sm:mb-8">
         <div class="relative">
           <img id="modalProfilePic" src="" alt="Profile Picture"
-            class="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-4 border-blue-50 shadow-sm">
+            class="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-4 border-blue-50 shadow-sm"
+            onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent(document.getElementById('modalName')?.textContent || 'User') + '&background=2563eb&color=fff';">
           <div class="absolute -bottom-2 -right-2 bg-blue-600 text-white p-1.5 sm:p-2 rounded-full">
             <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
               xmlns="http://www.w3.org/2000/svg">
@@ -1320,7 +1333,13 @@
     const profilePicElement = document.getElementById('modalProfilePic');
     if (profilePicElement) {
       if (mentor.profile_picture && mentor.profile_picture.trim()) {
-        profilePicElement.src = "/static/uploads/" + mentor.profile_picture;
+        if (mentor.profile_picture.startsWith('http')) {
+          profilePicElement.src = mentor.profile_picture;
+        } else {
+          profilePicElement.src = "/static/uploads/" + mentor.profile_picture;
+        }
+      } else if (mentor.user && mentor.user.profile_picture_url) {
+        profilePicElement.src = mentor.user.profile_picture_url;
       } else {
         const mentorName = mentor.user?.name || '?';
         profilePicElement.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentorName) + "&background=blue&color=fff";

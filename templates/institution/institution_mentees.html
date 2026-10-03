@@ -56,8 +56,19 @@
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap max-w-[280px]">
               <div class="flex items-center">
                 {% if mentee.mentee_profile and mentee.mentee_profile.profile_picture %}
-                <img src="{{ url_for('static', filename='uploads/' ~ mentee.mentee_profile.profile_picture) }}" alt="{{ mentee.name }}"
-                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3">
+                  {% if mentee.mentee_profile.profile_picture.startswith('http') %}
+                  <img src="{{ mentee.mentee_profile.profile_picture }}" alt="{{ mentee.name }}"
+                    class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3"
+                    onerror="this.onerror=null; this.src='{{ mentee.profile_picture_url if mentee.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentee.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+                  {% else %}
+                  <img src="{{ url_for('static', filename='uploads/' ~ mentee.mentee_profile.profile_picture) }}" alt="{{ mentee.name }}"
+                    class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3"
+                    onerror="this.onerror=null; this.src='{{ mentee.profile_picture_url if mentee.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentee.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+                  {% endif %}
+                {% elif mentee.profile_picture_url %}
+                <img src="{{ mentee.profile_picture_url }}" alt="{{ mentee.name }}"
+                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3"
+                  onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ mentee.name|urlencode }}&background=2563eb&color=fff';">
                 {% else %}
                 <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 mr-2 sm:mr-3">
                   <span class="font-semibold">{{ mentee.name[0] if mentee.name else '?' }}</span>
@@ -102,7 +113,7 @@
                     "parentMobile": mentee.mentee_profile.parent_mobile if mentee.mentee_profile else "",
                     "parentMobileCountryCode": mentee.mentee_profile.parent_mobile_country_code if mentee.mentee_profile else "",
                     "comments": mentee.mentee_profile.comments if mentee.mentee_profile else "",
-                    "profilePic": mentee.mentee_profile.profile_picture if mentee.mentee_profile else "",
+                    "profilePic": (mentee.mentee_profile.profile_picture if mentee.mentee_profile and mentee.mentee_profile.profile_picture else (mentee.profile_picture_url or "")),
                     "classYear": mentee.mentee_profile.class_year if mentee.mentee_profile else "",
                     "favouriteSubject": mentee.mentee_profile.favourite_subject if mentee.mentee_profile else "",
                     "whoAmI": mentee.mentee_profile.who_am_i if mentee.mentee_profile else "",
@@ -184,7 +195,8 @@
     <div class="p-6">
       <div class="flex flex-col md:flex-row items-center gap-6 mb-8">
         <div class="relative">
-          <img id="menteeModalProfilePic" src="" alt="Profile Picture" class="w-24 h-24 rounded-full object-cover border-4 border-blue-50">
+          <img id="menteeModalProfilePic" src="" alt="Profile Picture" class="w-24 h-24 rounded-full object-cover border-4 border-blue-50"
+            onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent(document.getElementById('menteeModalName')?.textContent || 'Mentee') + '&background=2563eb&color=fff';">
         </div>
         <div class="text-center md:text-left">
           <h3 id="menteeModalName" class="text-2xl font-bold text-gray-800 mb-1"></h3>
@@ -596,7 +608,15 @@
     document.getElementById('menteeModalStream').innerText = mentee.stream || "Not specified";
     document.getElementById('menteeModalGoal').innerText = mentee.goal || "Not specified";
     document.getElementById('menteeModalEmail').innerText = mentee.email || "Not specified";
-    document.getElementById('menteeModalProfilePic').src = mentee.profilePic ? "/static/uploads/" + mentee.profilePic : "https://via.placeholder.com/100";
+    if (mentee.profilePic && mentee.profilePic.trim()) {
+      if (mentee.profilePic.startsWith('http')) {
+        document.getElementById('menteeModalProfilePic').src = mentee.profilePic;
+      } else {
+        document.getElementById('menteeModalProfilePic').src = "/static/uploads/" + mentee.profilePic;
+      }
+    } else {
+      document.getElementById('menteeModalProfilePic').src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentee.name || 'Mentee') + "&background=2563eb&color=fff";
+    }
 
     let hasProfessionalInfo = false;
     hasProfessionalInfo |= setField('currentRoleField', 'menteeModalCurrentRole', mentee.currentRole);
