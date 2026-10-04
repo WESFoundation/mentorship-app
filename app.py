@@ -11420,7 +11420,13 @@ def api_mentee_rating_simple(mentee_id):
         try:
             mp = MenteeProfile.query.filter_by(user_id=mentee_id).first()
             if mp:
-                goal_fields = [mp.goal, getattr(mp, 'career_aspirations', None)]
+                secondary_goal = (
+                    getattr(mp, 'career_goal', None)
+                    or getattr(mp, 'career_interest', None)
+                    or getattr(mp, 'mentorship_expectations', None)
+                    or getattr(mp, 'career_aspirations', None)
+                )
+                goal_fields = [mp.goal, secondary_goal]
                 filled = sum(1 for f in goal_fields if f and str(f).strip())
                 goal_stars = round(min(5, filled * 2.5), 1)
         except Exception:
@@ -16768,8 +16774,8 @@ def calculate_mentee_profile_completion(mentee_id, profile_obj=None):
         'Profile Photo': (profile.profile_picture or avatar_url),
         'Mobile Number': profile.mobile_number,
         'WhatsApp Number': profile.whatsapp_number,
-        'School/College Name': profile.school_college_name,
-        'Stream': profile.stream,
+        'School/College Name': (profile.school_college_name or profile.institution_name or profile.school_name),
+        'Stream': (profile.stream or profile.course_stream),
         'Goal': profile.goal,
         'City': profile.city,
         'Country': profile.country,
