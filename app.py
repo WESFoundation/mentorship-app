@@ -95,6 +95,13 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB max upload size
 # Ensure folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# Explicit route to serve uploaded files (ensures uploads work in production with Gunicorn)
+from flask import send_from_directory as _send_from_directory
+
+@app.route('/uploads/<path:filename>')
+def serve_uploaded_file(filename):
+    return _send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+
 # Helper function to calculate age from date of birth
 def calculate_age(dob_string):
     """
@@ -12974,9 +12981,7 @@ def inject_user_profile_pic():
             if pic.startswith("http://") or pic.startswith("https://"):
                 profile_pic = pic
             else:
-                upload_dir = app.config.get("UPLOAD_FOLDER", os.path.join(app.root_path, "static", "uploads"))
-                if os.path.exists(os.path.join(upload_dir, pic)):
-                    profile_pic = url_for("static", filename="uploads/" + pic)
+                profile_pic = url_for("static", filename="uploads/" + pic)
         if not profile_pic and getattr(user, "profile_picture_url", None):
             profile_pic = user.profile_picture_url
     return dict(current_user_profile_pic=profile_pic)
@@ -13310,7 +13315,7 @@ def editmentorprofile():
         additional_info=form_data.get('additional_info') if form_data else (profile.additional_info if profile else ""),
         profile_picture=(
             profile.profile_picture
-            if profile and profile.profile_picture and os.path.exists(os.path.join(app.config["UPLOAD_FOLDER"], profile.profile_picture))
+            if profile and profile.profile_picture
             else (user.profile_picture_url if getattr(user, 'profile_picture_url', None) else None)
         ),
         criminal_certificate=profile.criminal_certificate if profile else None,
@@ -13403,7 +13408,7 @@ def editmenteeprofile():
         
         # Validate profile picture (only if no existing picture and no OAuth picture)
         existing_pic_valid = bool(
-            (profile and profile.profile_picture and os.path.exists(os.path.join(app.config["UPLOAD_FOLDER"], profile.profile_picture)))
+            (profile and profile.profile_picture)
             or getattr(user, 'profile_picture_url', None)
         )
         if not existing_pic_valid:
@@ -13685,7 +13690,7 @@ def editmenteeprofile():
         parent_consent_status=profile.parent_consent_status if profile else None,
         profile_picture=(
             profile.profile_picture
-            if profile and profile.profile_picture and os.path.exists(os.path.join(app.config["UPLOAD_FOLDER"], profile.profile_picture))
+            if profile and profile.profile_picture
             else (user.profile_picture_url if getattr(user, 'profile_picture_url', None) else None)
         )
     )
@@ -14193,7 +14198,7 @@ def mentorprofile():
             preferred_duration=profile.preferred_duration if profile else "",
             profile_picture=(
                 profile.profile_picture
-                if profile and profile.profile_picture and os.path.exists(os.path.join(app.config["UPLOAD_FOLDER"], profile.profile_picture))
+                if profile and profile.profile_picture
                 else (user.profile_picture_url if getattr(user, 'profile_picture_url', None) else None)
             ),
             criminal_certificate=profile.criminal_certificate if profile else None,
@@ -14250,7 +14255,7 @@ def menteeprofile():
             dob=profile.dob if profile else "",  # Keep dob for edit form
             profile_picture=(
                 profile.profile_picture
-                if profile and profile.profile_picture and os.path.exists(os.path.join(app.config["UPLOAD_FOLDER"], profile.profile_picture))
+                if profile and profile.profile_picture
                 else (user.profile_picture_url if getattr(user, 'profile_picture_url', None) else None)
             ),
             institution_profile_picture=institution_profile_picture,
