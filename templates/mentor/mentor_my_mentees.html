@@ -46,13 +46,22 @@
       {% set profile = mentee_data.profile %}
       <div class="bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-md">
         <div class="flex items-center gap-4 mb-4">
-          {% if profile.profile_picture %}
-            <img src="{{ url_for('static', filename='uploads/' ~ profile.profile_picture) }}" 
+          {% set mentee_pic = (profile.profile_picture if profile else None) or (mentee.profile_picture_url if mentee else None) %}
+          {% if mentee_pic %}
+            {% if mentee_pic.startswith('http') %}
+            <img src="{{ mentee_pic }}" 
                  alt="{{ mentee.name }}" 
-                 class="w-16 h-16 rounded-full object-cover border-2 border-white shadow">
+                 class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
+                 onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((mentee.name if mentee else 'Mentee')|urlencode) }}&background=2563eb&color=fff';">
+            {% else %}
+            <img src="{{ url_for('static', filename='uploads/' ~ mentee_pic) }}" 
+                 alt="{{ mentee.name }}" 
+                 class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
+                 onerror="this.onerror=null; this.src='{{ mentee.profile_picture_url if mentee and mentee.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (((mentee.name if mentee else 'Mentee')|urlencode)) ~ '&background=2563eb&color=fff' }}';">
+            {% endif %}
           {% else %}
             <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 border-2 border-white shadow">
-              <span class="text-xl font-semibold">{{ mentee.name[0] if mentee.name else '?' }}</span>
+              <span class="text-xl font-semibold">{{ mentee.name[0] if mentee and mentee.name else '?' }}</span>
             </div>
           {% endif %}
           <div>
@@ -239,7 +248,8 @@
       <div class="flex flex-col md:flex-row items-center gap-6 mb-8">
         <div class="relative">
           <img id="menteeModalProfilePic" src="" alt="Profile Picture"
-            class="w-24 h-24 rounded-full object-cover border-4 border-blue-50">
+            class="w-24 h-24 rounded-full object-cover border-4 border-blue-50"
+            onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent(document.getElementById('menteeModalName')?.textContent || 'Mentee') + '&background=2563eb&color=fff';">
         </div>
         <div class="text-center md:text-left">
           <h3 id="menteeModalName" class="text-2xl font-bold text-gray-800 mb-1"></h3>
@@ -637,7 +647,16 @@ function openMenteeProfileModal(mentee) {
     document.getElementById('menteeModalStream').innerText = mentee.stream || "Not specified";
     document.getElementById('menteeModalGoal').innerText = mentee.goal || "Not specified";
     document.getElementById('menteeModalEmail').innerText = mentee.email || "Not specified";
-    document.getElementById('menteeModalProfilePic').src = mentee.profilePic ? "/static/uploads/" + mentee.profilePic : "https://via.placeholder.com/100";
+    const modalPic = document.getElementById('menteeModalProfilePic');
+    modalPic.onerror = function() {
+      this.onerror = null;
+      this.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentee.name || 'Mentee') + "&background=2563eb&color=fff";
+    };
+    if (mentee.profilePic && mentee.profilePic.trim()) {
+      modalPic.src = mentee.profilePic.startsWith('http') ? mentee.profilePic : "/static/uploads/" + mentee.profilePic;
+    } else {
+      modalPic.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentee.name || 'Mentee') + "&background=2563eb&color=fff";
+    }
 
     // Hide all sections initially
     document.getElementById('professionalInfoSection').style.display = 'none';
@@ -859,18 +878,14 @@ function closeMenteeProfileModal() {
 
 // Attach click listener to all "View Profile" buttons
 document.addEventListener("DOMContentLoaded", function() {
-    // ===== LOAD MENTEE RATINGS (dynamic 5-criteria from API) =====
-    document.querySelectorAll('.mentee-rating-container').forEach(function(el) {
-        var mid = el.dataset.menteeId;
-        fetch('/api/mentee_rating_simple/' + mid).then(function(r){return r.json()}).then(function(data){
-            if (!data.success || !data.rating) return;
-            var r = data.rating;
-            var fs = r.final_rating || 0;
-            var full = Math.floor(fs);
-            var half = (fs - full) >= 0.5;
-            var starsEl = document.getElementById('rating-stars-' + mid);
-            var numEl = document.getElementById('rating-num-' + mid);
-            if (!starsEl || !numEl) return;
+    // ===== LOAD MENTEE RATINGS (dynamic 5-criteria from API with localStorage preload) =====
+    function renderMenteeRatingDom(mid, r) {
+        var fs = r.final_rating || 0;
+        var full = Math.floor(fs);
+        var half = (fs - full) >= 0.5;
+        var starsEl = document.getElementById('rating-stars-' + mid);
+        var numEl = document.getElementById('rating-num-' + mid);
+        if (starsEl) {
             var html = '';
             for (var i = 1; i <= 5; i++) {
                 if (i <= full) html += '<span>&#9733;</span>';
@@ -878,25 +893,71 @@ document.addEventListener("DOMContentLoaded", function() {
                 else html += '<span class="text-gray-300">&#9733;</span>';
             }
             starsEl.innerHTML = html;
+        }
+        if (numEl) {
             numEl.textContent = fs > 0 ? fs.toFixed(1) : '--';
             if (fs > 0) { numEl.classList.remove('text-gray-500'); numEl.classList.add('text-yellow-600'); }
-            // Breakdown tooltips — show "Not rated yet" for 0 values
-            var pc = document.getElementById('tip-pc-' + mid);
-            var gc = document.getElementById('tip-gc-' + mid);
-            var tc = document.getElementById('tip-tc-' + mid);
-            var mf = document.getElementById('tip-mf-' + mid);
-            var me = document.getElementById('tip-me-' + mid);
-            var fr = document.getElementById('tip-fr-' + mid);
-            if (pc) pc.textContent = r.profile_complete > 0 ? r.profile_complete.toFixed(1) + ' / 5.0' : 'Not rated yet';
-            if (gc) gc.textContent = r.goal_clarity > 0 ? r.goal_clarity.toFixed(1) + ' / 5.0' : 'Not rated yet';
-            if (tc) tc.textContent = r.has_task_data ? r.task_completion.toFixed(1) + ' / 5.0' : 'Not rated yet';
-            if (mf) mf.textContent = r.has_mentor_feedback ? r.mentor_feedback.toFixed(1) + ' / 5.0' : 'Not rated yet';
-            if (me) me.textContent = r.has_mentorship_experience ? r.mentorship_experience.toFixed(1) + ' / 5.0' : 'Not rated yet';
-            if (fr) fr.textContent = fs > 0 ? fs.toFixed(1) + ' / 5.0' : 'Not rated yet';
-            // Store rating on element for modal use
-            el.dataset.ratingData = JSON.stringify(r);
-        }).catch(function(){});
+        }
+        var pc = document.getElementById('tip-pc-' + mid);
+        var gc = document.getElementById('tip-gc-' + mid);
+        var tc = document.getElementById('tip-tc-' + mid);
+        var mf = document.getElementById('tip-mf-' + mid);
+        var me = document.getElementById('tip-me-' + mid);
+        var fr = document.getElementById('tip-fr-' + mid);
+        if (pc) pc.textContent = r.profile_complete > 0 ? r.profile_complete.toFixed(1) + ' / 5.0' : 'Not rated yet';
+        if (gc) gc.textContent = r.goal_clarity > 0 ? r.goal_clarity.toFixed(1) + ' / 5.0' : 'Not rated yet';
+        if (tc) tc.textContent = r.has_task_data ? r.task_completion.toFixed(1) + ' / 5.0' : 'Not rated yet';
+        if (mf) mf.textContent = r.has_mentor_feedback ? r.mentor_feedback.toFixed(1) + ' / 5.0' : 'Not rated yet';
+        if (me) me.textContent = r.has_mentorship_experience ? r.mentorship_experience.toFixed(1) + ' / 5.0' : 'Not rated yet';
+        if (fr) fr.textContent = fs > 0 ? fs.toFixed(1) + ' / 5.0' : 'Not rated yet';
+
+        var container = document.querySelector('.mentee-rating-container[data-mentee-id="' + mid + '"]');
+        if (container) container.dataset.ratingData = JSON.stringify(r);
+    }
+
+    var containers = document.querySelectorAll('.mentee-rating-container');
+    var ids = [];
+    containers.forEach(function(el) {
+        var mid = el.dataset.menteeId;
+        if (!mid) return;
+        ids.push(mid);
+        try {
+            var cached = localStorage.getItem('mentee_rating_' + mid);
+            if (cached) {
+                var parsed = JSON.parse(cached);
+                if (parsed && typeof parsed.final_rating === 'number') {
+                    renderMenteeRatingDom(mid, parsed);
+                }
+            }
+        } catch(e) {}
     });
+
+    // Batch fetch
+    if (ids.length > 0) {
+        fetch('/api/mentee_ratings_batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_ids: ids.map(function(id){ return parseInt(id, 10); }) })
+        }).then(function(r){ return r.json(); }).then(function(data) {
+            if (data.success && data.ratings) {
+                for (var uid in data.ratings) {
+                    var r = data.ratings[uid];
+                    try { localStorage.setItem('mentee_rating_' + uid, JSON.stringify(r)); } catch(e){}
+                    renderMenteeRatingDom(uid, r);
+                }
+            }
+        }).catch(function() {
+            // fallback
+            ids.forEach(function(mid) {
+                fetch('/api/mentee_rating_simple/' + mid).then(function(r){return r.json()}).then(function(data){
+                    if (data.success && data.rating) {
+                        try { localStorage.setItem('mentee_rating_' + mid, JSON.stringify(data.rating)); } catch(e){}
+                        renderMenteeRatingDom(mid, data.rating);
+                    }
+                }).catch(function(){});
+            });
+        });
+    }
 
     // Attach click listener to all "View Profile" buttons
     document.querySelectorAll(".view-profile-btn").forEach(btn => {

@@ -53,13 +53,22 @@
     {% if request.mentee and request.mentee.mentee_profile %}
       {% set mentee_profile = request.mentee.mentee_profile %}
       
-      {% if mentee_profile.profile_picture %}
-        <img src="{{ url_for('static', filename='uploads/' ~ mentee_profile.profile_picture) }}" 
+      {% set mentee_pic = (mentee_profile.profile_picture if mentee_profile else None) or (request.mentee.profile_picture_url if request.mentee else None) %}
+      {% if mentee_pic %}
+        {% if mentee_pic.startswith('http') %}
+        <img src="{{ mentee_pic }}" 
              alt="{{ request.mentee.name }}" 
-             class="w-16 h-16 rounded-full object-cover border-2 border-white shadow">
+             class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
+             onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((request.mentee.name if request.mentee else 'Mentee')|urlencode) }}&background=2563eb&color=fff';">
+        {% else %}
+        <img src="{{ url_for('static', filename='uploads/' ~ mentee_pic) }}" 
+             alt="{{ request.mentee.name }}" 
+             class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
+             onerror="this.onerror=null; this.src='{{ request.mentee.profile_picture_url if request.mentee and request.mentee.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (((request.mentee.name if request.mentee else 'Mentee')|urlencode)) ~ '&background=2563eb&color=fff' }}';">
+        {% endif %}
       {% else %}
         <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 border-2 border-white shadow">
-          <span class="text-xl font-semibold">{{ request.mentee.name[0] }}</span>
+          <span class="text-xl font-semibold">{{ request.mentee.name[0] if request.mentee and request.mentee.name else '?' }}</span>
         </div>
       {% endif %}
       
@@ -287,7 +296,8 @@
     <div class="p-8">
       <!-- Profile Picture + Basic Info -->
       <div class="flex flex-col md:flex-row items-center gap-6 mb-8">
-        <img id="menteeProfilePic" src="" alt="Profile" class="w-32 h-32 rounded-full object-cover border-4 border-blue-50 shadow-sm">
+        <img id="menteeProfilePic" src="" alt="Profile" class="w-32 h-32 rounded-full object-cover border-4 border-blue-50 shadow-sm"
+             onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent(document.getElementById('menteeName')?.textContent || 'Mentee') + '&background=2563eb&color=fff';">
         <div class="text-center md:text-left">
           <h3 id="menteeName" class="text-3xl font-bold text-gray-800 mb-2"></h3>
           <p id="menteeEmail" class="text-lg text-gray-600 mb-2"></p>
@@ -911,10 +921,14 @@ function openMenteeProfileModal(menteeData) {
   
   // Profile Picture
   const profilePic = document.getElementById('menteeProfilePic');
+  profilePic.onerror = function() {
+    this.onerror = null;
+    this.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(menteeData.name || 'Mentee') + '&background=2563eb&color=fff';
+  };
   if (hasValue(menteeData.profile_picture)) {
-    profilePic.src = '/static/uploads/' + menteeData.profile_picture;
+    profilePic.src = menteeData.profile_picture.startsWith('http') ? menteeData.profile_picture : ('/static/uploads/' + menteeData.profile_picture);
   } else {
-    profilePic.src = 'https://via.placeholder.com/128?text=' + encodeURIComponent((menteeData.name || '?').charAt(0));
+    profilePic.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(menteeData.name || 'Mentee') + '&background=2563eb&color=fff';
   }
   
   document.getElementById('menteeProfileModal').classList.remove('hidden');

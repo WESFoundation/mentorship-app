@@ -267,12 +267,20 @@
               <div class="flex items-center">
                 <!-- Mentee -->
                 <div class="flex items-center">
-                  {% if req.mentee and req.mentee.mentee_profile and req.mentee.mentee_profile.profile_picture %}
-                  <img src="{{ url_for('static', filename='uploads/' ~ req.mentee.mentee_profile.profile_picture) }}"
-                    alt="{{ req.mentee.name }}" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3 mentee-avatar">
+                  {% set req_mentee_pic = (req.mentee.mentee_profile.profile_picture if req.mentee and req.mentee.mentee_profile else None) or (req.mentee.profile_picture_url if req.mentee else None) %}
+                  {% if req_mentee_pic %}
+                    {% if req_mentee_pic.startswith('http') %}
+                    <img src="{{ req_mentee_pic }}"
+                      alt="{{ req.mentee.name }}" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3 mentee-avatar"
+                      onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((req.mentee.name if req.mentee else 'Mentee')|urlencode) }}&background=2563eb&color=fff';">
+                    {% else %}
+                    <img src="{{ url_for('static', filename='uploads/' ~ req_mentee_pic) }}"
+                      alt="{{ req.mentee.name }}" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3 mentee-avatar"
+                      onerror="this.onerror=null; this.src='{{ req.mentee.profile_picture_url if req.mentee and req.mentee.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (((req.mentee.name if req.mentee else 'Mentee')|urlencode)) ~ '&background=2563eb&color=fff' }}';">
+                    {% endif %}
                   {% else %}
                   <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-2 sm:mr-3">
-                    <span class="text-sm font-semibold">{{ req.mentee.name[0] if req.mentee.name else '?' }}</span>
+                    <span class="text-sm font-semibold">{{ req.mentee.name[0] if req.mentee and req.mentee.name else '?' }}</span>
                   </div>
                   {% endif %}
                   <div>
@@ -296,12 +304,20 @@
                      </p>
                     <p class="text-xs text-gray-500">Mentor</p>
                   </div>
-                  {% if req.mentor and req.mentor.mentor_profile and req.mentor.mentor_profile.profile_picture %}
-                  <img src="{{ url_for('static', filename='uploads/' ~ req.mentor.mentor_profile.profile_picture) }}"
-                    alt="{{ req.mentor.name }}" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover ml-3 mentor-avatar">
+                  {% set req_mentor_pic = (req.mentor.mentor_profile.profile_picture if req.mentor and req.mentor.mentor_profile else None) or (req.mentor.profile_picture_url if req.mentor else None) %}
+                  {% if req_mentor_pic %}
+                    {% if req_mentor_pic.startswith('http') %}
+                    <img src="{{ req_mentor_pic }}"
+                      alt="{{ req.mentor.name }}" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover ml-3 mentor-avatar"
+                      onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((req.mentor.name if req.mentor else 'Mentor')|urlencode) }}&background=2563eb&color=fff';">
+                    {% else %}
+                    <img src="{{ url_for('static', filename='uploads/' ~ req_mentor_pic) }}"
+                      alt="{{ req.mentor.name }}" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover ml-3 mentor-avatar"
+                      onerror="this.onerror=null; this.src='{{ req.mentor.profile_picture_url if req.mentor and req.mentor.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (((req.mentor.name if req.mentor else 'Mentor')|urlencode)) ~ '&background=2563eb&color=fff' }}';">
+                    {% endif %}
                   {% else %}
                   <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 ml-3">
-                    <span class="text-sm font-semibold">{{ req.mentor.name[0] if req.mentor.name else '?' }}</span>
+                    <span class="text-sm font-semibold">{{ req.mentor.name[0] if req.mentor and req.mentor.name else '?' }}</span>
                   </div>
                   {% endif %}
                 </div>
@@ -450,7 +466,8 @@
       <div class="flex flex-col md:flex-row items-center gap-6 mb-8">
         <div class="relative">
           <img id="menteeModalProfilePic" src="" alt="Profile Picture"
-            class="w-24 h-24 rounded-full object-cover border-4 border-blue-50">
+            class="w-24 h-24 rounded-full object-cover border-4 border-blue-50"
+            onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent(document.getElementById('menteeModalName').innerText || 'Mentee') + '&background=2563eb&color=fff';">
         </div>
         <div class="text-center md:text-left">
           <h3 id="menteeModalName" class="text-2xl font-bold text-gray-800 mb-1"></h3>
@@ -716,7 +733,8 @@
       <!-- Profile Picture + Basic Info -->
       <div class="flex flex-col md:flex-row items-center gap-6 mb-8">
         <img id="mentorProfilePic" src="" alt="Profile"
-          class="w-28 h-28 rounded-full object-cover border-4 border-green-50 shadow-sm">
+          class="w-28 h-28 rounded-full object-cover border-4 border-green-50 shadow-sm"
+          onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent(document.getElementById('mentorName').innerText || 'Mentor') + '&background=10b981&color=fff';">
         <div class="text-center md:text-left">
           <h3 id="mentorName" class="text-2xl font-bold text-gray-800 mb-1"></h3>
           <p id="mentorEmail" class="text-sm text-gray-600 mb-3"></p>
@@ -1079,10 +1097,11 @@
 
     // Profile picture
     const profilePic = document.getElementById('menteeModalProfilePic');
+    const menteeAvatar = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(mentee.name || 'Mentee') + '&background=2563eb&color=fff';
     if (mentee.profile_picture) {
-      profilePic.src = "/static/uploads/" + mentee.profile_picture;
+      profilePic.src = mentee.profile_picture.startsWith('http') ? mentee.profile_picture : '/static/uploads/' + mentee.profile_picture;
     } else {
-      profilePic.src = "https://via.placeholder.com/96?text=" + (mentee.name ? mentee.name.charAt(0) : "?");
+      profilePic.src = menteeAvatar;
     }
 
     // Hide all sections initially
@@ -1299,10 +1318,11 @@
 
     // Profile Picture
     const profilePic = document.getElementById('mentorProfilePic');
+    const mentorAvatar = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(mentorData.name || 'Mentor') + '&background=10b981&color=fff';
     if (mentorData.profile_picture) {
-      profilePic.src = '/static/uploads/' + mentorData.profile_picture;
+      profilePic.src = mentorData.profile_picture.startsWith('http') ? mentorData.profile_picture : '/static/uploads/' + mentorData.profile_picture;
     } else {
-      profilePic.src = 'https://via.placeholder.com/112?text=' + encodeURIComponent((mentorData.name || '?').charAt(0));
+      profilePic.src = mentorAvatar;
     }
 
     document.getElementById('mentorProfileModal').classList.remove('hidden');

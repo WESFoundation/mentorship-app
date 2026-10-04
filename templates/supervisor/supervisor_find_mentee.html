@@ -200,13 +200,21 @@
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm font-mono text-gray-500">{{ mentee.serial }}</td>
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap max-w-[220px]">
               <div class="flex items-center">
-                {% if mentee.profile_picture %}
-                <img src="{{ url_for('static', filename='uploads/' ~ mentee.profile_picture) }}" alt="{{ mentee.user.name }}"
-                  class="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover mr-1.5 sm:mr-2">
+                {% set mentee_pic = mentee.profile_picture or (mentee.user.profile_picture_url if mentee.user else None) %}
+                {% if mentee_pic %}
+                  {% if mentee_pic.startswith('http') %}
+                  <img src="{{ mentee_pic }}" alt="{{ mentee.user.name }}"
+                    class="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover mr-1.5 sm:mr-2"
+                    onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((mentee.user.name if mentee.user else 'Mentee')|urlencode) }}&background=2563eb&color=fff';">
+                  {% else %}
+                  <img src="{{ url_for('static', filename='uploads/' ~ mentee_pic) }}" alt="{{ mentee.user.name }}"
+                    class="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover mr-1.5 sm:mr-2"
+                    onerror="this.onerror=null; this.src='{{ mentee.user.profile_picture_url if mentee.user and mentee.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (((mentee.user.name if mentee.user else 'Mentee')|urlencode)) ~ '&background=2563eb&color=fff' }}';">
+                  {% endif %}
                 {% else %}
                 <div
                   class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 mr-1.5 sm:mr-2">
-                  <span class="font-semibold text-xs">{{ mentee.user.name[0] if mentee.user.name else '?' }}</span>
+                  <span class="font-semibold text-xs">{{ mentee.user.name[0] if mentee.user and mentee.user.name else '?' }}</span>
                 </div>
                 {% endif %}
                 <div>
@@ -261,7 +269,7 @@
                         "parentMobile": mentee.parent_mobile or "",
                         "parentMobileCountryCode": mentee.parent_mobile_country_code or "",
                         "comments": mentee.comments or "",
-                        "profilePic": mentee.profile_picture or "",
+                        "profilePic": (mentee.profile_picture or (mentee.user.profile_picture_url if mentee.user else "")) or "",
                         "classYear": mentee.class_year or "",
                         "favouriteSubject": mentee.favourite_subject or "",
                         "whoAmI": mentee.who_am_i or "",
@@ -843,7 +851,14 @@
     document.getElementById('menteeModalStream').innerText = mentee.stream || "Not specified";
     document.getElementById('menteeModalGoal').innerText = mentee.goal || "Not specified";
     document.getElementById('menteeModalEmail').innerText = mentee.email || "Not specified";
-    document.getElementById('menteeModalProfilePic').src = mentee.profilePic ? "/static/uploads/" + mentee.profilePic : "https://via.placeholder.com/100";
+    const modalPic = document.getElementById('menteeModalProfilePic');
+    const fallbackModalAvatar = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentee.name || 'Mentee') + "&background=2563eb&color=fff";
+    modalPic.onerror = function() { this.onerror = null; this.src = fallbackModalAvatar; };
+    if (mentee.profilePic && mentee.profilePic.trim()) {
+      modalPic.src = mentee.profilePic.startsWith('http') ? mentee.profilePic : "/static/uploads/" + mentee.profilePic;
+    } else {
+      modalPic.src = fallbackModalAvatar;
+    }
 
     // Check each field and show only if data exists
     let hasProfessionalInfo = false;
@@ -987,7 +1002,7 @@
   function renderStarsHtml(rating) {
     const full = Math.floor(rating);
     const half = rating - full >= 0.3 && rating - full < 0.8;
-    const empty = 5 - full - (half ? 1 : 0);
+    const empty = Math.max(0, 5 - full - (half ? 1 : 0));
     let html = '';
     for (let i = 0; i < full; i++) html += '<span class="text-yellow-400">&#9733;</span>';
     if (half) html += '<span class="text-yellow-400" style="opacity:0.8">&#9733;</span>';
@@ -995,15 +1010,40 @@
     return html;
   }
 
+  function displayMenteeRatingInRow(uid, rating) {
+    if (!rating || rating.final_rating == null) return;
+    const starsEl = document.getElementById('sup-mentee-stars-' + uid);
+    if (starsEl) starsEl.innerHTML = renderStarsHtml(rating.final_rating);
+    const numEl = document.getElementById('sup-mentee-num-' + uid);
+    if (numEl) numEl.textContent = Number(rating.final_rating).toFixed(1);
+  }
+
+  // Preload instantly from previous session (< 50ms)
+  function preloadMenteeRatingsFromStorage() {
+    const containers = document.querySelectorAll('.sup-mentee-rating-container[data-mentee-uid]');
+    containers.forEach(c => {
+      const uid = c.getAttribute('data-mentee-uid');
+      if (!uid) return;
+      try {
+        const stored = localStorage.getItem('mentee_rating_' + uid);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          menteeRatingCache[uid] = parsed;
+          displayMenteeRatingInRow(uid, parsed);
+        }
+      } catch (e) {}
+    });
+  }
+
   async function fetchMenteeRating(menteeId) {
     if (!menteeId) return null;
-    if (menteeRatingCache[menteeId]) return menteeRatingCache[menteeId];
     try {
       const res = await fetch('/api/mentee_rating_simple/' + menteeId);
       if (!res.ok) return null;
       const data = await res.json();
       if (data && data.success && data.rating) {
         menteeRatingCache[menteeId] = data.rating;
+        try { localStorage.setItem('mentee_rating_' + menteeId, JSON.stringify(data.rating)); } catch (e) {}
         return data.rating;
       }
     } catch (e) {
@@ -1012,47 +1052,100 @@
     return null;
   }
 
+  // Recalculates in background while previous ratings are visible
   async function loadAllSupervisorMenteeRatings() {
+    preloadMenteeRatingsFromStorage();
     const containers = document.querySelectorAll('.sup-mentee-rating-container[data-mentee-uid]');
     const ids = [...new Set([...containers].map(c => c.getAttribute('data-mentee-uid')))].filter(Boolean);
-    for (const uid of ids) {
-      const rating = await fetchMenteeRating(uid);
-      if (!rating) continue;
-      const starsEl = document.getElementById('sup-mentee-stars-' + uid);
-      if (starsEl) starsEl.innerHTML = renderStarsHtml(rating.final_rating);
-      const numEl = document.getElementById('sup-mentee-num-' + uid);
-      if (numEl) numEl.textContent = rating.final_rating.toFixed(1);
+    if (ids.length === 0) return;
+
+    // Fast batch endpoint
+    try {
+      const bRes = await fetch('/api/mentee_ratings_batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: ids })
+      });
+      if (bRes.ok) {
+        const bData = await bRes.json();
+        if (bData && bData.success && bData.ratings) {
+          for (const uid of ids) {
+            const r = bData.ratings[uid];
+            if (r) {
+              menteeRatingCache[uid] = r;
+              try { localStorage.setItem('mentee_rating_' + uid, JSON.stringify(r)); } catch (e) {}
+              displayMenteeRatingInRow(uid, r);
+            }
+          }
+          return;
+        }
+      }
+    } catch (e) {}
+
+    // Fallback: parallel chunks
+    const CHUNK_SIZE = 10;
+    for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+      const chunk = ids.slice(i, i + CHUNK_SIZE);
+      await Promise.all(chunk.map(async (uid) => {
+        const rating = await fetchMenteeRating(uid);
+        if (rating) displayMenteeRatingInRow(uid, rating);
+      }));
     }
+  }
+
+  function fillMenteePopup(rating) {
+    if (!rating) return;
+    const finalEl = document.getElementById('popupMenteeFinalRating');
+    if (finalEl) finalEl.textContent = Number(rating.final_rating).toFixed(1);
+    const starsEl = document.getElementById('popupMenteeStars');
+    if (starsEl) starsEl.innerHTML = renderStarsHtml(rating.final_rating);
+    const pcEl = document.getElementById('popupMenteePc');
+    if (pcEl) pcEl.textContent = rating.profile_complete != null ? Number(rating.profile_complete).toFixed(1) + ' / 5.0' : 'N/A';
+    const gcEl = document.getElementById('popupMenteeGc');
+    if (gcEl) gcEl.textContent = rating.goal_clarity != null ? Number(rating.goal_clarity).toFixed(1) + ' / 5.0' : 'N/A';
+    const meEl = document.getElementById('popupMenteeMe');
+    if (meEl) meEl.textContent = rating.has_mentorship_experience ? Number(rating.mentorship_experience).toFixed(1) + ' / 5.0' : 'N/A';
+    const tcEl = document.getElementById('popupMenteeTc');
+    if (tcEl) tcEl.textContent = rating.has_task_data ? Number(rating.task_completion).toFixed(1) + ' / 5.0' : 'N/A';
+    const mfEl = document.getElementById('popupMenteeMf');
+    if (mfEl) mfEl.textContent = rating.has_mentor_feedback ? Number(rating.mentor_feedback).toFixed(1) + ' / 5.0' : 'N/A';
   }
 
   async function openMenteeRatingPopup(uid, name) {
     const popup = document.getElementById('menteeRatingPopup');
     if (!popup) return;
     document.getElementById('popupMenteeName').textContent = name || 'Mentee';
-    document.getElementById('popupMenteeFinalRating').textContent = '--';
-    document.getElementById('popupMenteeStars').innerHTML = '';
-    document.getElementById('popupMenteePc').textContent = '--';
-    document.getElementById('popupMenteeGc').textContent = '--';
-    document.getElementById('popupMenteeMe').textContent = '--';
-    document.getElementById('popupMenteeTc').textContent = '--';
-    document.getElementById('popupMenteeMf').textContent = '--';
+
+    // Instant previous rating display
+    let cached = menteeRatingCache[uid];
+    if (!cached) {
+      try {
+        const stored = localStorage.getItem('mentee_rating_' + uid);
+        if (stored) cached = JSON.parse(stored);
+      } catch (e) {}
+    }
+
+    if (cached) {
+      fillMenteePopup(cached);
+    } else {
+      document.getElementById('popupMenteeFinalRating').textContent = '--';
+      document.getElementById('popupMenteeStars').innerHTML = '';
+      document.getElementById('popupMenteePc').textContent = '--';
+      document.getElementById('popupMenteeGc').textContent = '--';
+      document.getElementById('popupMenteeMe').textContent = '--';
+      document.getElementById('popupMenteeTc').textContent = '--';
+      document.getElementById('popupMenteeMf').textContent = '--';
+    }
 
     popup.classList.remove('hidden');
     popup.classList.add('flex');
 
     const rating = await fetchMenteeRating(uid);
-    if (!rating) {
+    if (rating) {
+      fillMenteePopup(rating);
+    } else if (!cached) {
       document.getElementById('popupMenteeFinalRating').textContent = 'N/A';
-      return;
     }
-
-    document.getElementById('popupMenteeFinalRating').textContent = rating.final_rating.toFixed(1);
-    document.getElementById('popupMenteeStars').innerHTML = renderStarsHtml(rating.final_rating);
-    document.getElementById('popupMenteePc').textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
-    document.getElementById('popupMenteeGc').textContent = rating.goal_clarity != null ? rating.goal_clarity.toFixed(1) + ' / 5.0' : 'N/A';
-    document.getElementById('popupMenteeMe').textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
-    document.getElementById('popupMenteeTc').textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
-    document.getElementById('popupMenteeMf').textContent = rating.has_mentor_feedback ? rating.mentor_feedback.toFixed(1) + ' / 5.0' : 'N/A';
   }
 
   function closeMenteeRatingPopup() {

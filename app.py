@@ -11182,6 +11182,10 @@ def api_mentor_skills_percentile(mentor_id):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+# In-memory simple rating cache to make ratings load in under 2 seconds and allow background recalculation
+_SIMPLE_RATING_CACHE = {}  # (type, id) -> (timestamp, data_dict)
+_SIMPLE_RATING_TTL = 180  # 3 minutes
+
 @app.route("/api/mentor_rating_simple/<int:mentor_id>")
 def api_mentor_rating_simple(mentor_id):
     """Simple 5-criteria star rating for a mentor. Returns breakdown with 0-5 stars each.
@@ -11189,6 +11193,11 @@ def api_mentor_rating_simple(mentor_id):
     Final rating = average of criteria that have data."""
     if "email" not in session:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    cache_key = ("mentor", mentor_id)
+    cached = _SIMPLE_RATING_CACHE.get(cache_key)
+    if cached and (time.time() - cached[0] < _SIMPLE_RATING_TTL):
+        return jsonify(cached[1])
 
     try:
         mentor = db.session.get(User, mentor_id)
@@ -11352,7 +11361,7 @@ def api_mentor_rating_simple(mentor_id):
         final_rating = round(sum(rated_criteria) / len(rated_criteria), 1) if rated_criteria else 0
         final_rating = min(5, max(0, final_rating))
 
-        return jsonify({
+        res_data = {
             "success": True,
             "mentor_id": mentor_id,
             "rating": {
@@ -11369,7 +11378,9 @@ def api_mentor_rating_simple(mentor_id):
                 "has_mentee_feedback": has_mentee_feedback,
                 "has_mentorship_experience": has_mentorship_experience
             }
-        })
+        }
+        _SIMPLE_RATING_CACHE[cache_key] = (time.time(), res_data)
+        return jsonify(res_data)
     except Exception as e:
         app.logger.error(f"Error in api_mentor_rating_simple: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
@@ -11382,6 +11393,11 @@ def api_mentee_rating_simple(mentee_id):
     Final rating = average of criteria that have data."""
     if "email" not in session:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    cache_key = ("mentee", mentee_id)
+    cached = _SIMPLE_RATING_CACHE.get(cache_key)
+    if cached and (time.time() - cached[0] < _SIMPLE_RATING_TTL):
+        return jsonify(cached[1])
 
     try:
         mentee = db.session.get(User, mentee_id)
@@ -11524,7 +11540,7 @@ def api_mentee_rating_simple(mentee_id):
         final_rating = round(sum(rated_criteria) / len(rated_criteria), 1) if rated_criteria else 0
         final_rating = min(5, max(0, final_rating))
 
-        return jsonify({
+        res_data = {
             "success": True,
             "mentee_id": mentee_id,
             "rating": {
@@ -11541,10 +11557,60 @@ def api_mentee_rating_simple(mentee_id):
                 "has_mentor_feedback": has_mentor_feedback,
                 "has_mentorship_experience": has_mentorship_experience
             }
-        })
+        }
+        _SIMPLE_RATING_CACHE[cache_key] = (time.time(), res_data)
+        return jsonify(res_data)
     except Exception as e:
         app.logger.error(f"Error in api_mentee_rating_simple: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/mentee_ratings_batch", methods=["POST"])
+def api_mentee_ratings_batch():
+    """Batch API to fetch multiple mentee ratings in a single fast call."""
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    ids = (request.get_json() or {}).get("ids", [])
+    results = {}
+    for uid in ids:
+        try:
+            uid_int = int(uid)
+            cached = _SIMPLE_RATING_CACHE.get(("mentee", uid_int))
+            if cached and (time.time() - cached[0] < _SIMPLE_RATING_TTL):
+                results[str(uid_int)] = cached[1].get("rating")
+            else:
+                resp = api_mentee_rating_simple(uid_int)
+                if hasattr(resp, "get_json"):
+                    d = resp.get_json()
+                    if d and d.get("success") and d.get("rating"):
+                        results[str(uid_int)] = d.get("rating")
+        except Exception:
+            continue
+    return jsonify({"success": True, "ratings": results})
+
+
+@app.route("/api/mentor_ratings_batch", methods=["POST"])
+def api_mentor_ratings_batch():
+    """Batch API to fetch multiple mentor ratings in a single fast call."""
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    ids = (request.get_json() or {}).get("ids", [])
+    results = {}
+    for uid in ids:
+        try:
+            uid_int = int(uid)
+            cached = _SIMPLE_RATING_CACHE.get(("mentor", uid_int))
+            if cached and (time.time() - cached[0] < _SIMPLE_RATING_TTL):
+                results[str(uid_int)] = cached[1].get("rating")
+            else:
+                resp = api_mentor_rating_simple(uid_int)
+                if hasattr(resp, "get_json"):
+                    d = resp.get_json()
+                    if d and d.get("success") and d.get("rating"):
+                        results[str(uid_int)] = d.get("rating")
+        except Exception:
+            continue
+    return jsonify({"success": True, "ratings": results})
 
 
 @app.route("/api/set_supervisor_rating", methods=["POST"])
@@ -11575,6 +11641,7 @@ def api_set_supervisor_rating():
 
         profile.supervisor_rating = round(rating, 1)
         db.session.commit()
+        _SIMPLE_RATING_CACHE.pop(("mentor", int(mentor_user_id)), None)
 
         return jsonify({
             "success": True,

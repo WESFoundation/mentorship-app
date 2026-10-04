@@ -756,6 +756,17 @@
     return html;
   }
 
+  function applyMenteeRatingDom(uid, rating) {
+    if (!rating) return;
+    const finalScore = rating.final_rating != null ? rating.final_rating : 0;
+    document.querySelectorAll('.inst-mentee-stars-' + uid).forEach(el => {
+      el.innerHTML = renderStarsHtml(finalScore);
+    });
+    document.querySelectorAll('.inst-mentee-num-' + uid).forEach(el => {
+      el.textContent = finalScore > 0 ? (finalScore.toFixed(1) + ' / 5.0') : '--';
+    });
+  }
+
   async function fetchMenteeRating(menteeId) {
     if (!menteeId) return null;
     if (menteeRatingCache[menteeId]) return menteeRatingCache[menteeId];
@@ -765,6 +776,7 @@
       const data = await res.json();
       if (data && data.success && data.rating) {
         menteeRatingCache[menteeId] = data.rating;
+        try { localStorage.setItem('mentee_rating_' + menteeId, JSON.stringify(data.rating)); } catch(e){}
         return data.rating;
       }
     } catch(e) {
@@ -776,15 +788,52 @@
   async function loadAllInstitutionMenteeRatings() {
     const containers = document.querySelectorAll('[data-mentee-uid]');
     const ids = [...new Set([...containers].map(c => c.getAttribute('data-mentee-uid')))].filter(Boolean);
-    for (const uid of ids) {
-      const rating = await fetchMenteeRating(uid);
-      if (!rating) continue;
-      document.querySelectorAll('.inst-mentee-stars-' + uid).forEach(el => {
-        el.innerHTML = renderStarsHtml(rating.final_rating);
+
+    // Step 1: Instant load from localStorage
+    ids.forEach(uid => {
+      try {
+        const cached = localStorage.getItem('mentee_rating_' + uid);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed.final_rating === 'number') {
+            menteeRatingCache[uid] = parsed;
+            applyMenteeRatingDom(uid, parsed);
+          }
+        }
+      } catch (e) {}
+    });
+
+    // Step 2: Fetch via batch endpoint
+    try {
+      const res = await fetch('/api/mentee_ratings_batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_ids: ids.map(id => parseInt(id, 10)) })
       });
-      document.querySelectorAll('.inst-mentee-num-' + uid).forEach(el => {
-        el.textContent = rating.final_rating.toFixed(1) + ' / 5.0';
-      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.ratings) {
+          for (const uid in data.ratings) {
+            const r = data.ratings[uid];
+            menteeRatingCache[uid] = r;
+            try { localStorage.setItem('mentee_rating_' + uid, JSON.stringify(r)); } catch(e){}
+            applyMenteeRatingDom(uid, r);
+          }
+          return;
+        }
+      }
+    } catch(e) {
+      console.warn('Batch mentee rating fetch failed, falling back to chunked fetch', e);
+    }
+
+    // Step 3: Chunked fallback
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+      const batch = ids.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(async (uid) => {
+        const rating = await fetchMenteeRating(uid);
+        if (rating) applyMenteeRatingDom(uid, rating);
+      }));
     }
   }
 
@@ -799,13 +848,27 @@
     document.getElementById('popupMenteeMe').textContent = '--';
     document.getElementById('popupMenteeTc').textContent = '--';
     document.getElementById('popupMenteeMf').textContent = '--';
+
+    // Show cached rating immediately if available
+    const cached = menteeRatingCache[uid] || (function() {
+      try { return JSON.parse(localStorage.getItem('mentee_rating_' + uid)); } catch(e){ return null; }
+    })();
+    if (cached) {
+      document.getElementById('popupMenteeFinalRating').textContent = (cached.final_rating || 0).toFixed(1);
+      document.getElementById('popupMenteeStars').innerHTML = renderStarsHtml(cached.final_rating || 0);
+      document.getElementById('popupMenteePc').textContent = cached.profile_complete != null ? cached.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupMenteeGc').textContent = cached.goal_clarity != null ? cached.goal_clarity.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupMenteeMe').textContent = cached.has_mentorship_experience ? cached.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupMenteeTc').textContent = cached.has_task_data ? cached.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupMenteeMf').textContent = cached.has_mentor_feedback ? cached.mentor_feedback.toFixed(1) + ' / 5.0' : 'N/A';
+    }
     
     popup.classList.remove('hidden');
     popup.classList.add('flex');
 
     const rating = await fetchMenteeRating(uid);
     if (!rating) {
-      document.getElementById('popupMenteeFinalRating').textContent = 'N/A';
+      if (!cached) document.getElementById('popupMenteeFinalRating').textContent = 'N/A';
       return;
     }
 

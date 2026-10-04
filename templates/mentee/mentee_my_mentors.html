@@ -67,13 +67,22 @@
       {% set mentor_user = m.user %}
       <div class="bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-md">
         <div class="flex items-center gap-4 mb-4">
-          {% if mentor.profile_picture %}
-            <img src="{{ url_for('static', filename='uploads/' ~ mentor.profile_picture) }}" 
+          {% set mentor_pic = (mentor.profile_picture if mentor else None) or (mentor_user.profile_picture_url if mentor_user else None) %}
+          {% if mentor_pic %}
+            {% if mentor_pic.startswith('http') %}
+            <img src="{{ mentor_pic }}" 
                  alt="{{ mentor_user.name }}" 
-                 class="w-16 h-16 rounded-full object-cover border-2 border-white shadow">
+                 class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
+                 onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((mentor_user.name if mentor_user else 'Mentor')|urlencode) }}&background=2563eb&color=fff';">
+            {% else %}
+            <img src="{{ url_for('static', filename='uploads/' ~ mentor_pic) }}" 
+                 alt="{{ mentor_user.name }}" 
+                 class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
+                 onerror="this.onerror=null; this.src='{{ mentor_user.profile_picture_url if mentor_user and mentor_user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (((mentor_user.name if mentor_user else 'Mentor')|urlencode)) ~ '&background=2563eb&color=fff' }}';">
+            {% endif %}
           {% else %}
             <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 border-2 border-white shadow">
-              <span class="text-xl font-semibold">{{ mentor_user.name[0] if mentor_user.name else '?' }}</span>
+              <span class="text-xl font-semibold">{{ mentor_user.name[0] if mentor_user and mentor_user.name else '?' }}</span>
             </div>
           {% endif %}
           <div>
@@ -223,7 +232,8 @@
       <!-- Profile Picture + Basic Info -->
       <div class="flex flex-col md:flex-row items-center gap-4 sm:gap-6 mb-6 sm:mb-8">
         <div class="relative">
-          <img id="modalProfilePic" src="" alt="Profile Picture" class="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-4 border-blue-50 shadow-sm">
+          <img id="modalProfilePic" src="" alt="Profile Picture" class="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-4 border-blue-50 shadow-sm"
+               onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent(document.getElementById('modalName')?.textContent || 'Mentor') + '&background=2563eb&color=fff';">
           <div class="absolute -bottom-2 -right-2 bg-blue-600 text-white p-1.5 sm:p-2 rounded-full">
             <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
@@ -684,10 +694,14 @@ function openProfileModal(
   
   // ===== PROFILE PICTURE =====
   const profilePicElement = document.getElementById('modalProfilePic');
+  profilePicElement.onerror = function() {
+    this.onerror = null;
+    this.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(name || 'Mentor') + "&background=2563eb&color=fff";
+  };
   if (profilePic && profilePic.trim()) {
-    profilePicElement.src = "/static/uploads/" + profilePic;
+    profilePicElement.src = profilePic.startsWith('http') ? profilePic : "/static/uploads/" + profilePic;
   } else {
-    profilePicElement.src = "https://via.placeholder.com/112?text=" + encodeURIComponent(name ? name.charAt(0) : '?');
+    profilePicElement.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(name || 'Mentor') + "&background=2563eb&color=fff";
   }
 
   // Show the modal
@@ -820,27 +834,72 @@ function submitMentorshipRating() {
     container.innerHTML = html;
   }
 
+  function mmApplyRatingDom(mentorId, r) {
+    if (!r) return;
+    mmRenderStars('mm-stars-' + mentorId, r.final_rating);
+    const numEl = document.getElementById('mm-num-' + mentorId);
+    if (numEl) numEl.textContent = r.final_rating != null ? r.final_rating.toFixed(1) : '--';
+    const tipPc = document.getElementById('mm-tip-pc-' + mentorId);
+    if (tipPc) tipPc.textContent = r.profile_complete != null ? r.profile_complete.toFixed(1) + ' / 5.0' : '--';
+    const tipSk = document.getElementById('mm-tip-sk-' + mentorId);
+    if (tipSk) tipSk.textContent = r.useful_skills != null ? r.useful_skills.toFixed(1) + ' / 5.0' : '--';
+    const tipMe = document.getElementById('mm-tip-me-' + mentorId);
+    if (tipMe) tipMe.textContent = r.mentorship_experience != null ? r.mentorship_experience.toFixed(1) + ' / 5.0' : '--';
+    const tipTe = document.getElementById('mm-tip-te-' + mentorId);
+    if (tipTe) tipTe.textContent = r.task_completion != null ? r.task_completion.toFixed(1) + ' / 5.0' : '--';
+    const tipMf = document.getElementById('mm-tip-mf-' + mentorId);
+    if (tipMf) tipMf.textContent = r.mentee_feedback != null ? r.mentee_feedback.toFixed(1) + ' / 5.0' : '--';
+    const tipFr = document.getElementById('mm-tip-fr-' + mentorId);
+    if (tipFr) tipFr.textContent = r.final_rating != null ? r.final_rating.toFixed(1) + ' / 5.0' : '--';
+  }
+
   async function mmFetchRating(mentorId) {
     try {
       const res = await fetch('/api/mentor_rating_simple/' + mentorId);
       const data = await res.json();
-      if (!data.success) return;
+      if (!data.success || !data.rating) return;
       const r = data.rating;
-      mmRenderStars('mm-stars-' + mentorId, r.final_rating);
-      document.getElementById('mm-num-' + mentorId).textContent = r.final_rating.toFixed(1);
-      document.getElementById('mm-tip-pc-' + mentorId).textContent = r.profile_complete.toFixed(1) + ' / 5.0';
-      document.getElementById('mm-tip-sk-' + mentorId).textContent = r.useful_skills.toFixed(1) + ' / 5.0';
-      document.getElementById('mm-tip-me-' + mentorId).textContent = r.mentorship_experience.toFixed(1) + ' / 5.0';
-      document.getElementById('mm-tip-te-' + mentorId).textContent = r.task_completion.toFixed(1) + ' / 5.0';
-      document.getElementById('mm-tip-mf-' + mentorId).textContent = r.mentee_feedback != null ? r.mentee_feedback.toFixed(1) + ' / 5.0' : '--';
-      document.getElementById('mm-tip-fr-' + mentorId).textContent = r.final_rating.toFixed(1) + ' / 5.0';
+      try { localStorage.setItem('mentor_rating_' + mentorId, JSON.stringify(r)); } catch(e){}
+      mmApplyRatingDom(mentorId, r);
     } catch(e) { console.error('Rating load error:', e); }
   }
 
   document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.my-mentor-rating[data-mentor-id]').forEach(function(el) {
-      mmFetchRating(el.dataset.mentorId);
+    const containers = document.querySelectorAll('.my-mentor-rating[data-mentor-id]');
+    const ids = [];
+    containers.forEach(function(el) {
+      const mentorId = el.dataset.mentorId;
+      if (!mentorId) return;
+      ids.push(mentorId);
+      try {
+        const cached = localStorage.getItem('mentor_rating_' + mentorId);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed.final_rating === 'number') {
+            mmApplyRatingDom(mentorId, parsed);
+          }
+        }
+      } catch(e){}
     });
+
+    if (ids.length > 0) {
+      fetch('/api/mentor_ratings_batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_ids: ids.map(id => parseInt(id, 10)) })
+      }).then(r => r.json()).then(data => {
+        if (data.success && data.ratings) {
+          for (const uid in data.ratings) {
+            const r = data.ratings[uid];
+            try { localStorage.setItem('mentor_rating_' + uid, JSON.stringify(r)); } catch(e){}
+            mmApplyRatingDom(uid, r);
+          }
+        }
+      }).catch(() => {
+        ids.forEach(id => mmFetchRating(id));
+      });
+    }
+
     document.addEventListener('click', function(e) {
       const clickedRating = e.target.closest('.my-mentor-rating');
       document.querySelectorAll('.my-mentor-rating.open').forEach(c => {

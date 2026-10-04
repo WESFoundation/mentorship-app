@@ -401,13 +401,21 @@
           <div class="p-4 bg-white rounded-xl border border-slate-100 shadow-sm">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2">
               <div class="flex items-center gap-3 min-w-0">
-                {% if request.mentee.mentee_profile and request.mentee.mentee_profile.profile_picture %}
-                <img src="{{ url_for('static', filename='uploads/' ~ request.mentee.mentee_profile.profile_picture) }}"
-                  alt="{{ request.mentee.name }}" class="w-10 h-10 rounded-full object-cover ring-2 ring-primary/20 shrink-0">
+                {% set req_pic = (request.mentee.mentee_profile.profile_picture if request.mentee and request.mentee.mentee_profile else None) or (request.mentee.profile_picture_url if request.mentee else None) %}
+                {% if req_pic %}
+                  {% if req_pic.startswith('http') %}
+                  <img src="{{ req_pic }}"
+                    alt="{{ request.mentee.name }}" class="w-10 h-10 rounded-full object-cover ring-2 ring-primary/20 shrink-0"
+                    onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((request.mentee.name if request.mentee else 'Mentee')|urlencode) }}&background=2563eb&color=fff';">
+                  {% else %}
+                  <img src="{{ url_for('static', filename='uploads/' ~ req_pic) }}"
+                    alt="{{ request.mentee.name }}" class="w-10 h-10 rounded-full object-cover ring-2 ring-primary/20 shrink-0"
+                    onerror="this.onerror=null; this.src='{{ request.mentee.profile_picture_url if request.mentee and request.mentee.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (((request.mentee.name if request.mentee else 'Mentee')|urlencode)) ~ '&background=2563eb&color=fff' }}';">
+                  {% endif %}
                 {% else %}
                 <div
                   class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center text-primary font-bold ring-2 ring-primary/20 shrink-0">
-                  {{ request.mentee.name[0] if request.mentee.name else '?' }}
+                  {{ request.mentee.name[0] if request.mentee and request.mentee.name else '?' }}
                 </div>
                 {% endif %}
                 <div class="min-w-0">

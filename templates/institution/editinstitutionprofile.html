@@ -14,9 +14,17 @@
             <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 15px;">
                 <div style="flex-shrink: 0;">
                     {% if institution_details and institution_details.profile_picture %}
+                        {% if institution_details.profile_picture.startswith('http') %}
+                        <img src="{{ institution_details.profile_picture }}" 
+                             alt="Institution Logo" 
+                             style="width: 80px; height: 80px; border-radius: 12px; object-fit: cover; border: 3px solid white; box-shadow: 0 4px 8px rgba(0,0,0,0.2);"
+                             onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ (institution_name if institution_name else 'Institution')|urlencode }}&background=2563eb&color=fff';">
+                        {% else %}
                         <img src="{{ url_for('static', filename='uploads/' + institution_details.profile_picture) }}" 
                              alt="Institution Logo" 
-                             style="width: 80px; height: 80px; border-radius: 12px; object-fit: cover; border: 3px solid white; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                             style="width: 80px; height: 80px; border-radius: 12px; object-fit: cover; border: 3px solid white; box-shadow: 0 4px 8px rgba(0,0,0,0.2);"
+                             onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ (institution_name if institution_name else 'Institution')|urlencode }}&background=2563eb&color=fff';">
+                        {% endif %}
                     {% else %}
                         <div style="width: 80px; height: 80px; border-radius: 12px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; border: 3px solid white;">
                             <i class="fas fa-university" style="font-size: 2em; color: white;"></i>
@@ -117,8 +125,15 @@
                         {% if institution_details and institution_details.profile_picture %}
                             <div class="current-picture" style="margin-bottom: 15px;">
                                 <p style="font-size: 12px; color: #666; margin-bottom: 8px;">Current Logo:</p>
+                                {% if institution_details.profile_picture.startswith('http') %}
+                                <img id="instProfilePreview" src="{{ institution_details.profile_picture }}" 
+                                     alt="Institution Logo" style="max-width: 200px; max-height: 200px; border-radius: 8px;"
+                                     onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ (institution_name if institution_name else 'Institution')|urlencode }}&background=2563eb&color=fff';">
+                                {% else %}
                                 <img id="instProfilePreview" src="{{ url_for('static', filename='uploads/' + institution_details.profile_picture) }}" 
-                                     alt="Institution Logo" style="max-width: 200px; max-height: 200px; border-radius: 8px;">
+                                     alt="Institution Logo" style="max-width: 200px; max-height: 200px; border-radius: 8px;"
+                                     onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ (institution_name if institution_name else 'Institution')|urlencode }}&background=2563eb&color=fff';">
+                                {% endif %}
                             </div>
                             <input type="file" name="profile_picture" id="profile_picture" accept="image/*" 
                                    class="form-input" placeholder="Choose image" onchange="previewInstPhoto(this)">

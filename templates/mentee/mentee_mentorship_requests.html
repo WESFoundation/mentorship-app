@@ -58,10 +58,19 @@
         <!-- Top Row: Mentor Avatar & Status -->
         <div class="flex items-start justify-between gap-3 mb-4">
           <div class="flex items-center gap-3">
-            {% if mp and mp.profile_picture %}
-            <img src="{{ url_for('static', filename='uploads/' ~ mp.profile_picture) }}" 
-                 alt="{{ mentor.name if mentor else 'Mentor' }}" 
-                 class="w-14 h-14 rounded-full object-cover border-2 border-blue-50 shadow-sm flex-shrink-0">
+            {% set req_mentor_pic = (mp.profile_picture if mp else None) or (mentor.profile_picture_url if mentor else None) %}
+            {% if req_mentor_pic %}
+              {% if req_mentor_pic.startswith('http') %}
+              <img src="{{ req_mentor_pic }}" 
+                   alt="{{ mentor.name if mentor else 'Mentor' }}" 
+                   class="w-14 h-14 rounded-full object-cover border-2 border-blue-50 shadow-sm flex-shrink-0"
+                   onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ (((mentor.name if mentor else 'Mentor'))|urlencode) }}&background=2563eb&color=fff';">
+              {% else %}
+              <img src="{{ url_for('static', filename='uploads/' ~ req_mentor_pic) }}" 
+                   alt="{{ mentor.name if mentor else 'Mentor' }}" 
+                   class="w-14 h-14 rounded-full object-cover border-2 border-blue-50 shadow-sm flex-shrink-0"
+                   onerror="this.onerror=null; this.src='{{ mentor.profile_picture_url if mentor and mentor.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ ((((mentor.name if mentor else 'Mentor'))|urlencode)) ~ '&background=2563eb&color=fff' }}';">
+              {% endif %}
             {% else %}
             <div class="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-sm flex-shrink-0">
               {{ (mentor.name[0] if mentor and mentor.name else 'M')|upper }}

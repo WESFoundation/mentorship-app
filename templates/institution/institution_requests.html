@@ -184,14 +184,27 @@
               <!-- Mentee -->
               <div class="flex items-center">
           {% if request.mentee.mentee_profile and request.mentee.mentee_profile.profile_picture %}
+                {% if request.mentee.mentee_profile.profile_picture.startswith('http') %}
+                <img src="{{ request.mentee.mentee_profile.profile_picture }}"
+                     alt="{{ request.mentee.name }}"
+                     class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3 mentee-avatar"
+                     onerror="this.onerror=null; this.src='{{ request.mentee.profile_picture_url if request.mentee.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (request.mentee.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+                {% else %}
                 <img src="{{ url_for('static', filename='uploads/' ~ request.mentee.mentee_profile.profile_picture) }}"
                      alt="{{ request.mentee.name }}"
-                     class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3 mentee-avatar">
-                {% else %}
+                     class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3 mentee-avatar"
+                     onerror="this.onerror=null; this.src='{{ request.mentee.profile_picture_url if request.mentee.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (request.mentee.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+                {% endif %}
+          {% elif request.mentee and request.mentee.profile_picture_url %}
+                <img src="{{ request.mentee.profile_picture_url }}"
+                     alt="{{ request.mentee.name }}"
+                     class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3 mentee-avatar"
+                     onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ request.mentee.name|urlencode }}&background=2563eb&color=fff';">
+          {% else %}
                 <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-2 sm:mr-3">
                   <span class="text-sm font-semibold">{{ request.mentee.name[0] if request.mentee and request.mentee.name else '?' }}</span>
                 </div>
-                {% endif %}
+          {% endif %}
                 <div>
                   <div class="flex items-center gap-1.5 flex-wrap">
                     <button type="button" class="font-semibold text-gray-800 text-sm hover:underline hover:text-blue-600 cursor-pointer text-left"
@@ -236,9 +249,22 @@
                   <p class="text-xs text-gray-500">Mentor</p>
                 </div>
                 {% if request.mentor.mentor_profile and request.mentor.mentor_profile.profile_picture %}
-                <img src="{{ url_for('static', filename='uploads/' ~ request.mentor.mentor_profile.profile_picture) }}"
+                  {% if request.mentor.mentor_profile.profile_picture.startswith('http') %}
+                  <img src="{{ request.mentor.mentor_profile.profile_picture }}"
+                       alt="{{ request.mentor.name }}"
+                       class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover ml-3 mentor-avatar"
+                       onerror="this.onerror=null; this.src='{{ request.mentor.profile_picture_url if request.mentor.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (request.mentor.name|urlencode) ~ '&background=16a34a&color=fff' }}';">
+                  {% else %}
+                  <img src="{{ url_for('static', filename='uploads/' ~ request.mentor.mentor_profile.profile_picture) }}"
+                       alt="{{ request.mentor.name }}"
+                       class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover ml-3 mentor-avatar"
+                       onerror="this.onerror=null; this.src='{{ request.mentor.profile_picture_url if request.mentor.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (request.mentor.name|urlencode) ~ '&background=16a34a&color=fff' }}';">
+                  {% endif %}
+                {% elif request.mentor and request.mentor.profile_picture_url %}
+                <img src="{{ request.mentor.profile_picture_url }}"
                      alt="{{ request.mentor.name }}"
-                     class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover ml-3 mentor-avatar">
+                     class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover ml-3 mentor-avatar"
+                     onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ request.mentor.name|urlencode }}&background=16a34a&color=fff';">
                 {% else %}
                 <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 ml-3">
                   <span class="text-sm font-semibold">{{ request.mentor.name[0] if request.mentor and request.mentor.name else '?' }}</span>
@@ -448,7 +474,8 @@
     </div>
     <div class="p-6">
       <div class="flex flex-col md:flex-row items-center gap-6 mb-8">
-        <img id="menteeModalProfilePic" src="" alt="Profile Picture" class="w-24 h-24 rounded-full object-cover border-4 border-blue-50">
+        <img id="menteeModalProfilePic" src="" alt="Profile Picture" class="w-24 h-24 rounded-full object-cover border-4 border-blue-50"
+          onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent(document.getElementById('menteeModalName')?.textContent || 'Mentee') + '&background=2563eb&color=fff';">
         <div class="text-center md:text-left">
           <h3 id="menteeModalName" class="text-2xl font-bold text-gray-800 mb-1"></h3>
           <p id="menteeModalEmail" class="text-sm text-gray-600 mb-3"></p>
@@ -600,8 +627,12 @@ function openMenteeProfileModal(m) {
   }
 
   const profilePic = document.getElementById('menteeModalProfilePic');
+  profilePic.onerror = function() {
+    this.onerror = null;
+    this.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(name) + '&background=2563eb&color=fff';
+  };
   if (m.picture && m.picture.trim()) {
-    profilePic.src = '/static/uploads/' + m.picture;
+    profilePic.src = m.picture.startsWith('http') ? m.picture : '/static/uploads/' + m.picture;
   } else {
     profilePic.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(name) + '&background=2563eb&color=fff';
   }
@@ -728,9 +759,9 @@ function openMentorProfileModal(m) {
   // Header
   const header = document.createElement('div');
   header.className = 'flex flex-col md:flex-row items-center gap-6 mb-8';
-  const avatarUrl = (picture && picture.trim()) ? ('/static/uploads/' + picture) : ('https://ui-avatars.com/api/?name=' + encodeURIComponent(name) + '&background=16a34a&color=fff');
+  const avatarUrl = (picture && picture.trim()) ? (picture.startsWith('http') ? picture : '/static/uploads/' + picture) : ('https://ui-avatars.com/api/?name=' + encodeURIComponent(name) + '&background=16a34a&color=fff');
   header.innerHTML = `
-    <img src="${avatarUrl}" alt="Profile" class="w-24 h-24 rounded-full object-cover border-4 border-green-50 shadow-sm">
+    <img src="${avatarUrl}" alt="Profile" class="w-24 h-24 rounded-full object-cover border-4 border-green-50 shadow-sm" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=16a34a&color=fff';">
     <div class="text-center md:text-left">
       <h3 class="text-2xl font-bold text-gray-800 mb-1">${safeText(name)}</h3>
       <p class="text-sm text-gray-600 mb-2">${safeText(email)}</p>
@@ -910,6 +941,7 @@ async function fetchMentorRating(mentorId) {
     const data = await res.json();
     if (data && data.success && data.rating) {
       mentorRatingCache[mentorId] = data.rating;
+      try { localStorage.setItem('mentor_rating_' + mentorId, JSON.stringify(data.rating)); } catch(e){}
       return data.rating;
     }
   } catch(e) {
@@ -927,6 +959,7 @@ async function fetchMenteeRating(menteeId) {
     const data = await res.json();
     if (data && data.success && data.rating) {
       menteeRatingCache[menteeId] = data.rating;
+      try { localStorage.setItem('mentee_rating_' + menteeId, JSON.stringify(data.rating)); } catch(e){}
       return data.rating;
     }
   } catch(e) {
@@ -935,34 +968,105 @@ async function fetchMenteeRating(menteeId) {
   return null;
 }
 
+function applyInstReqMentorRating(uid, rating) {
+  const score = (rating && rating.final_rating != null) ? rating.final_rating : 0;
+  document.querySelectorAll('.inst-req-mentor-pill-' + uid).forEach(el => {
+    el.textContent = score > 0 ? score.toFixed(1) : (rating ? '0.0' : 'N/A');
+  });
+}
+
+function applyInstReqMenteeRating(uid, rating) {
+  const score = (rating && rating.final_rating != null) ? rating.final_rating : 0;
+  document.querySelectorAll('.inst-req-mentee-pill-' + uid).forEach(el => {
+    el.textContent = score > 0 ? score.toFixed(1) : (rating ? '0.0' : 'N/A');
+  });
+}
+
 async function loadAllInstitutionRatings() {
   // 1. Mentor Ratings
   const mentorContainers = document.querySelectorAll('[data-mentor-uid]');
   const mentorIds = [...new Set([...mentorContainers].map(c => c.getAttribute('data-mentor-uid')))].filter(Boolean);
-  const BATCH_SIZE = 10;
-  for (let i = 0; i < mentorIds.length; i += BATCH_SIZE) {
-    const batch = mentorIds.slice(i, i + BATCH_SIZE);
-    await Promise.all(batch.map(async (uid) => {
-      const rating = await fetchMentorRating(uid);
-      const score = (rating && rating.final_rating != null) ? rating.final_rating : 0;
-      document.querySelectorAll('.inst-req-mentor-pill-' + uid).forEach(el => {
-        el.textContent = score > 0 ? score.toFixed(1) : (rating ? '0.0' : 'N/A');
-      });
-    }));
+
+  mentorIds.forEach(uid => {
+    try {
+      const cached = localStorage.getItem('mentor_rating_' + uid);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed.final_rating === 'number') {
+          mentorRatingCache[uid] = parsed;
+          applyInstReqMentorRating(uid, parsed);
+        }
+      }
+    } catch(e) {}
+  });
+
+  if (mentorIds.length > 0) {
+    fetch('/api/mentor_ratings_batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_ids: mentorIds.map(id => parseInt(id, 10)) })
+    }).then(r => r.json()).then(data => {
+      if (data.success && data.ratings) {
+        for (const uid in data.ratings) {
+          const r = data.ratings[uid];
+          mentorRatingCache[uid] = r;
+          try { localStorage.setItem('mentor_rating_' + uid, JSON.stringify(r)); } catch(e){}
+          applyInstReqMentorRating(uid, r);
+        }
+      }
+    }).catch(async () => {
+      const BATCH_SIZE = 10;
+      for (let i = 0; i < mentorIds.length; i += BATCH_SIZE) {
+        const batch = mentorIds.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(async (uid) => {
+          const rating = await fetchMentorRating(uid);
+          if (rating) applyInstReqMentorRating(uid, rating);
+        }));
+      }
+    });
   }
 
   // 2. Mentee Ratings
   const menteeContainers = document.querySelectorAll('[data-mentee-uid]');
   const menteeIds = [...new Set([...menteeContainers].map(c => c.getAttribute('data-mentee-uid')))].filter(Boolean);
-  for (let i = 0; i < menteeIds.length; i += BATCH_SIZE) {
-    const batch = menteeIds.slice(i, i + BATCH_SIZE);
-    await Promise.all(batch.map(async (uid) => {
-      const rating = await fetchMenteeRating(uid);
-      const score = (rating && rating.final_rating != null) ? rating.final_rating : 0;
-      document.querySelectorAll('.inst-req-mentee-pill-' + uid).forEach(el => {
-        el.textContent = score > 0 ? score.toFixed(1) : (rating ? '0.0' : 'N/A');
-      });
-    }));
+
+  menteeIds.forEach(uid => {
+    try {
+      const cached = localStorage.getItem('mentee_rating_' + uid);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed.final_rating === 'number') {
+          menteeRatingCache[uid] = parsed;
+          applyInstReqMenteeRating(uid, parsed);
+        }
+      }
+    } catch(e) {}
+  });
+
+  if (menteeIds.length > 0) {
+    fetch('/api/mentee_ratings_batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_ids: menteeIds.map(id => parseInt(id, 10)) })
+    }).then(r => r.json()).then(data => {
+      if (data.success && data.ratings) {
+        for (const uid in data.ratings) {
+          const r = data.ratings[uid];
+          menteeRatingCache[uid] = r;
+          try { localStorage.setItem('mentee_rating_' + uid, JSON.stringify(r)); } catch(e){}
+          applyInstReqMenteeRating(uid, r);
+        }
+      }
+    }).catch(async () => {
+      const BATCH_SIZE = 10;
+      for (let i = 0; i < menteeIds.length; i += BATCH_SIZE) {
+        const batch = menteeIds.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(async (uid) => {
+          const rating = await fetchMenteeRating(uid);
+          if (rating) applyInstReqMenteeRating(uid, rating);
+        }));
+      }
+    });
   }
 }
 
@@ -977,13 +1081,26 @@ async function openRatingPopup(uid, name) {
   document.getElementById('popupMe').textContent = '--';
   document.getElementById('popupTe').textContent = '--';
   document.getElementById('popupSup').textContent = '--';
+
+  const cached = mentorRatingCache[uid] || (function() {
+    try { return JSON.parse(localStorage.getItem('mentor_rating_' + uid)); } catch(e){ return null; }
+  })();
+  if (cached) {
+    document.getElementById('popupFinalRating').textContent = (cached.final_rating || 0).toFixed(1);
+    document.getElementById('popupStars').innerHTML = renderStarsHtml(cached.final_rating || 0);
+    document.getElementById('popupPc').textContent = cached.profile_complete != null ? cached.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupSk').textContent = cached.useful_skills != null ? cached.useful_skills.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupMe').textContent = cached.has_mentee_feedback ? cached.mentee_feedback.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupTe').textContent = cached.has_task_data ? cached.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupSup').textContent = cached.has_mentorship_experience ? cached.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
+  }
   
   popup.classList.remove('hidden');
   popup.classList.add('flex');
 
   const rating = await fetchMentorRating(uid);
   if (!rating) {
-    document.getElementById('popupFinalRating').textContent = 'N/A';
+    if (!cached) document.getElementById('popupFinalRating').textContent = 'N/A';
     return;
   }
 
@@ -1015,12 +1132,25 @@ async function openMenteeRatingPopup(uid, name) {
   document.getElementById('popupMenteeTc').textContent = '--';
   document.getElementById('popupMenteeMf').textContent = '--';
 
+  const cached = menteeRatingCache[uid] || (function() {
+    try { return JSON.parse(localStorage.getItem('mentee_rating_' + uid)); } catch(e){ return null; }
+  })();
+  if (cached) {
+    document.getElementById('popupMenteeFinalRating').textContent = (cached.final_rating || 0).toFixed(1);
+    document.getElementById('popupMenteeStars').innerHTML = renderStarsHtml(cached.final_rating || 0);
+    document.getElementById('popupMenteePc').textContent = cached.profile_complete != null ? cached.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupMenteeGc').textContent = cached.goal_clarity != null ? cached.goal_clarity.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupMenteeMe').textContent = cached.has_mentorship_experience ? cached.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupMenteeTc').textContent = cached.has_task_data ? cached.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupMenteeMf').textContent = cached.has_mentor_feedback ? cached.mentor_feedback.toFixed(1) + ' / 5.0' : 'N/A';
+  }
+
   popup.classList.remove('hidden');
   popup.classList.add('flex');
 
   const rating = await fetchMenteeRating(uid);
   if (!rating) {
-    document.getElementById('popupMenteeFinalRating').textContent = 'N/A';
+    if (!cached) document.getElementById('popupMenteeFinalRating').textContent = 'N/A';
     return;
   }
 

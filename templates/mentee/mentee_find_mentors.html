@@ -1332,6 +1332,10 @@
     // ===== PROFILE PICTURE =====
     const profilePicElement = document.getElementById('modalProfilePic');
     if (profilePicElement) {
+      profilePicElement.onerror = function() {
+        this.onerror = null;
+        this.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentor.user?.name || mentor.name || 'Mentor') + "&background=2563eb&color=fff";
+      };
       if (mentor.profile_picture && mentor.profile_picture.trim()) {
         if (mentor.profile_picture.startsWith('http')) {
           profilePicElement.src = mentor.profile_picture;
@@ -1341,8 +1345,8 @@
       } else if (mentor.user && mentor.user.profile_picture_url) {
         profilePicElement.src = mentor.user.profile_picture_url;
       } else {
-        const mentorName = mentor.user?.name || '?';
-        profilePicElement.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentorName) + "&background=blue&color=fff";
+        const mentorName = mentor.user?.name || mentor.name || '?';
+        profilePicElement.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentorName) + "&background=2563eb&color=fff";
       }
     }
 
@@ -1783,8 +1787,9 @@
     container.innerHTML = filtered.map(inst => {
       const isSelected = selectedInstitutionsList.some(s => s.name.toLowerCase() === inst.name.toLowerCase());
       const initial = (inst.name || '?').charAt(0).toUpperCase();
-      const avatarHtml = inst.profile_picture 
-        ? `<img src="/static/uploads/${inst.profile_picture}" alt="" class="w-6 h-6 rounded-full object-cover border border-gray-200 shrink-0">`
+      const instPicUrl = inst.profile_picture ? (inst.profile_picture.startsWith('http') ? inst.profile_picture : `/static/uploads/${inst.profile_picture}`) : '';
+      const avatarHtml = instPicUrl 
+        ? `<img src="${instPicUrl}" alt="" class="w-6 h-6 rounded-full object-cover border border-gray-200 shrink-0" onerror="this.onerror=null; this.outerHTML='<div class=\\'w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xs flex items-center justify-center font-bold shrink-0\\'>${initial}</div>';">`
         : `<div class="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xs flex items-center justify-center font-bold shrink-0">${initial}</div>`;
       
       const safeName = (inst.name || '').replace(/'/g, "\\'");
@@ -2062,6 +2067,26 @@
   }
 
   const ratingCache = {};
+
+  function applyMentorRatingDom(uid, rating) {
+    if (!rating) return;
+    renderStars('rating-stars-' + uid, rating.final_rating != null ? rating.final_rating : 0);
+    const numEl = document.getElementById('rating-num-' + uid);
+    if (numEl) numEl.textContent = rating.final_rating != null ? rating.final_rating.toFixed(1) : '--';
+    const tipPc = document.getElementById('tip-pc-' + uid);
+    if (tipPc) tipPc.textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) : '--';
+    const tipSk = document.getElementById('tip-sk-' + uid);
+    if (tipSk) tipSk.textContent = rating.useful_skills != null ? rating.useful_skills.toFixed(1) : '--';
+    const tipMe = document.getElementById('tip-me-' + uid);
+    if (tipMe) tipMe.textContent = rating.mentorship_experience != null ? rating.mentorship_experience.toFixed(1) : '--';
+    const tipTe = document.getElementById('tip-te-' + uid);
+    if (tipTe) tipTe.textContent = rating.task_completion != null ? rating.task_completion.toFixed(1) : '--';
+    const tipMf = document.getElementById('tip-mf-' + uid);
+    if (tipMf) tipMf.textContent = rating.mentee_feedback != null ? rating.mentee_feedback.toFixed(1) : '--';
+    const tipFr = document.getElementById('tip-fr-' + uid);
+    if (tipFr) tipFr.textContent = (rating.final_rating != null ? rating.final_rating.toFixed(1) : '--') + ' / 5.0';
+  }
+
   async function fetchMentorRating(mentorUserId) {
     if (!mentorUserId) return null;
     if (ratingCache[mentorUserId]) return ratingCache[mentorUserId];
@@ -2071,6 +2096,7 @@
       const data = await res.json();
       if (data && data.success && data.rating) {
         ratingCache[mentorUserId] = data.rating;
+        try { localStorage.setItem('mentor_rating_' + mentorUserId, JSON.stringify(data.rating)); } catch(e){}
         return data.rating;
       }
     } catch(e) {
@@ -2082,24 +2108,52 @@
   async function loadAllRatings() {
     const containers = document.querySelectorAll('.rating-container[data-mentor-id]');
     const ids = [...new Set([...containers].map(c => c.getAttribute('data-mentor-id')))].filter(Boolean);
-    for (const uid of ids) {
-      const rating = await fetchMentorRating(uid);
-      if (!rating) continue;
-      renderStars('rating-stars-' + uid, rating.final_rating != null ? rating.final_rating : 0);
-      const numEl = document.getElementById('rating-num-' + uid);
-      if (numEl) numEl.textContent = rating.final_rating != null ? rating.final_rating.toFixed(1) : '--';
-      const tipPc = document.getElementById('tip-pc-' + uid);
-      if (tipPc) tipPc.textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) : '--';
-      const tipSk = document.getElementById('tip-sk-' + uid);
-      if (tipSk) tipSk.textContent = rating.useful_skills != null ? rating.useful_skills.toFixed(1) : '--';
-      const tipMe = document.getElementById('tip-me-' + uid);
-      if (tipMe) tipMe.textContent = rating.mentorship_experience != null ? rating.mentorship_experience.toFixed(1) : '--';
-      const tipTe = document.getElementById('tip-te-' + uid);
-      if (tipTe) tipTe.textContent = rating.task_completion != null ? rating.task_completion.toFixed(1) : '--';
-      const tipMf = document.getElementById('tip-mf-' + uid);
-      if (tipMf) tipMf.textContent = rating.mentee_feedback != null ? rating.mentee_feedback.toFixed(1) : '--';
-      const tipFr = document.getElementById('tip-fr-' + uid);
-      if (tipFr) tipFr.textContent = (rating.final_rating != null ? rating.final_rating.toFixed(1) : '--') + ' / 5.0';
+
+    // Step 1: Instant load from localStorage
+    ids.forEach(uid => {
+      try {
+        const cached = localStorage.getItem('mentor_rating_' + uid);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed.final_rating === 'number') {
+            ratingCache[uid] = parsed;
+            applyMentorRatingDom(uid, parsed);
+          }
+        }
+      } catch(e) {}
+    });
+
+    // Step 2: Batch fetch
+    try {
+      const res = await fetch('/api/mentor_ratings_batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_ids: ids.map(id => parseInt(id, 10)) })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.ratings) {
+          for (const uid in data.ratings) {
+            const r = data.ratings[uid];
+            ratingCache[uid] = r;
+            try { localStorage.setItem('mentor_rating_' + uid, JSON.stringify(r)); } catch(e){}
+            applyMentorRatingDom(uid, r);
+          }
+          return;
+        }
+      }
+    } catch(e) {
+      console.warn('Batch mentor rating fetch failed, falling back to chunked fetch', e);
+    }
+
+    // Step 3: Chunked fallback
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+      const batch = ids.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(async (uid) => {
+        const rating = await fetchMentorRating(uid);
+        if (rating) applyMentorRatingDom(uid, rating);
+      }));
     }
   }
 
@@ -2129,13 +2183,28 @@
     const taskStarsEl = document.getElementById('modalTaskStars');
     const feedbackStarsEl = document.getElementById('modalFeedbackStars');
 
-    if (finalRatingEl) finalRatingEl.textContent = '--';
-    renderModalStars('modalStars', 0);
-    if (profileStarsEl) profileStarsEl.textContent = 'Loading...';
-    if (skillsStarsEl) skillsStarsEl.textContent = 'Loading...';
-    if (expStarsEl) expStarsEl.textContent = 'Loading...';
-    if (taskStarsEl) taskStarsEl.textContent = 'Loading...';
-    if (feedbackStarsEl) feedbackStarsEl.textContent = 'Loading...';
+    // Instant display from cache if present
+    const cached = ratingCache[uid] || (function() {
+      try { return JSON.parse(localStorage.getItem('mentor_rating_' + uid)); } catch(e){ return null; }
+    })();
+
+    if (cached) {
+      if (finalRatingEl) finalRatingEl.textContent = cached.final_rating != null ? cached.final_rating.toFixed(1) : '0.0';
+      renderModalStars('modalStars', cached.final_rating || 0);
+      if (profileStarsEl) profileStarsEl.textContent = (cached.profile_complete != null ? cached.profile_complete.toFixed(1) : '0.0') + ' / 5.0';
+      if (skillsStarsEl) skillsStarsEl.textContent = (cached.useful_skills != null ? cached.useful_skills.toFixed(1) : '0.0') + ' / 5.0';
+      if (expStarsEl) expStarsEl.textContent = (cached.mentorship_experience != null ? cached.mentorship_experience.toFixed(1) : '0.0') + ' / 5.0';
+      if (taskStarsEl) taskStarsEl.textContent = (cached.task_completion != null ? cached.task_completion.toFixed(1) : '0.0') + ' / 5.0';
+      if (feedbackStarsEl) feedbackStarsEl.textContent = (cached.mentee_feedback != null ? cached.mentee_feedback.toFixed(1) : '0.0') + ' / 5.0';
+    } else {
+      if (finalRatingEl) finalRatingEl.textContent = '--';
+      renderModalStars('modalStars', 0);
+      if (profileStarsEl) profileStarsEl.textContent = 'Loading...';
+      if (skillsStarsEl) skillsStarsEl.textContent = 'Loading...';
+      if (expStarsEl) expStarsEl.textContent = 'Loading...';
+      if (taskStarsEl) taskStarsEl.textContent = 'Loading...';
+      if (feedbackStarsEl) feedbackStarsEl.textContent = 'Loading...';
+    }
 
     if (!uid) {
       if (finalRatingEl) finalRatingEl.textContent = '0.0';
@@ -2149,13 +2218,15 @@
 
     fetchMentorRating(uid).then(rating => {
       if (!rating) {
-        if (finalRatingEl) finalRatingEl.textContent = '0.0';
-        renderModalStars('modalStars', 0);
-        if (profileStarsEl) profileStarsEl.textContent = '0.0 / 5.0';
-        if (skillsStarsEl) skillsStarsEl.textContent = '0.0 / 5.0';
-        if (expStarsEl) expStarsEl.textContent = '0.0 / 5.0';
-        if (taskStarsEl) taskStarsEl.textContent = '0.0 / 5.0';
-        if (feedbackStarsEl) feedbackStarsEl.textContent = '0.0 / 5.0';
+        if (!cached) {
+          if (finalRatingEl) finalRatingEl.textContent = '0.0';
+          renderModalStars('modalStars', 0);
+          if (profileStarsEl) profileStarsEl.textContent = '0.0 / 5.0';
+          if (skillsStarsEl) skillsStarsEl.textContent = '0.0 / 5.0';
+          if (expStarsEl) expStarsEl.textContent = '0.0 / 5.0';
+          if (taskStarsEl) taskStarsEl.textContent = '0.0 / 5.0';
+          if (feedbackStarsEl) feedbackStarsEl.textContent = '0.0 / 5.0';
+        }
         return;
       }
       if (finalRatingEl) finalRatingEl.textContent = rating.final_rating != null ? rating.final_rating.toFixed(1) : '0.0';

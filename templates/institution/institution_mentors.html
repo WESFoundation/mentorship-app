@@ -190,7 +190,8 @@
       <div class="flex flex-col md:flex-row items-center gap-6 mb-8">
         <div class="relative">
           <img id="modalProfilePic" src="" alt="Profile Picture"
-            class="w-24 h-24 rounded-full object-cover border-4 border-blue-50">
+            class="w-24 h-24 rounded-full object-cover border-4 border-blue-50"
+            onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent(document.getElementById('modalName')?.textContent || 'Mentor') + '&background=2563eb&color=fff';">
         </div>
         <div class="text-center md:text-left">
           <h3 id="modalName" class="text-2xl font-bold text-gray-800 mb-1"></h3>
@@ -718,6 +719,10 @@
 
     // ===== PROFILE PICTURE =====
     const profilePicElement = document.getElementById('modalProfilePic');
+    profilePicElement.onerror = function() {
+      this.onerror = null;
+      this.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentor.name || 'Mentor') + "&background=2563eb&color=fff";
+    };
     if (mentor.profile_picture && mentor.profile_picture.trim()) {
       if (mentor.profile_picture.startsWith('http')) {
         profilePicElement.src = mentor.profile_picture;
@@ -726,7 +731,7 @@
       }
     } else {
       const mentorName = mentor.name || '?';
-      profilePicElement.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentorName) + "&background=blue&color=fff";
+      profilePicElement.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentorName) + "&background=2563eb&color=fff";
     }
 
     // Show the modal
@@ -753,6 +758,17 @@
     return html;
   }
 
+  function applyMentorRatingDom(uid, rating) {
+    if (!rating) return;
+    const finalScore = rating.final_rating != null ? rating.final_rating : 0;
+    document.querySelectorAll('.inst-stars-' + uid).forEach(el => {
+      el.innerHTML = renderStarsHtml(finalScore);
+    });
+    document.querySelectorAll('.inst-num-' + uid).forEach(el => {
+      el.textContent = finalScore > 0 ? (finalScore.toFixed(1) + ' / 5.0') : '--';
+    });
+  }
+
   async function fetchMentorRating(mentorId) {
     if (!mentorId) return null;
     if (mentorRatingCache[mentorId]) return mentorRatingCache[mentorId];
@@ -762,6 +778,7 @@
       const data = await res.json();
       if (data && data.success && data.rating) {
         mentorRatingCache[mentorId] = data.rating;
+        try { localStorage.setItem('mentor_rating_' + mentorId, JSON.stringify(data.rating)); } catch(e){}
         return data.rating;
       }
     } catch(e) {
@@ -773,18 +790,51 @@
   async function loadAllInstitutionMentorRatings() {
     const containers = document.querySelectorAll('[data-mentor-uid]');
     const ids = [...new Set([...containers].map(c => c.getAttribute('data-mentor-uid')))].filter(Boolean);
+
+    // Step 1: Instant load from localStorage
+    ids.forEach(uid => {
+      try {
+        const cached = localStorage.getItem('mentor_rating_' + uid);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed.final_rating === 'number') {
+            mentorRatingCache[uid] = parsed;
+            applyMentorRatingDom(uid, parsed);
+          }
+        }
+      } catch (e) {}
+    });
+
+    // Step 2: Fetch via batch endpoint
+    try {
+      const res = await fetch('/api/mentor_ratings_batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_ids: ids.map(id => parseInt(id, 10)) })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.ratings) {
+          for (const uid in data.ratings) {
+            const r = data.ratings[uid];
+            mentorRatingCache[uid] = r;
+            try { localStorage.setItem('mentor_rating_' + uid, JSON.stringify(r)); } catch(e){}
+            applyMentorRatingDom(uid, r);
+          }
+          return;
+        }
+      }
+    } catch(e) {
+      console.warn('Batch mentor rating fetch failed, falling back to chunked fetch', e);
+    }
+
+    // Step 3: Chunked fallback
     const BATCH_SIZE = 10;
     for (let i = 0; i < ids.length; i += BATCH_SIZE) {
       const batch = ids.slice(i, i + BATCH_SIZE);
       await Promise.all(batch.map(async (uid) => {
         const rating = await fetchMentorRating(uid);
-        if (!rating) return;
-        document.querySelectorAll('.inst-stars-' + uid).forEach(el => {
-          el.innerHTML = renderStarsHtml(rating.final_rating);
-        });
-        document.querySelectorAll('.inst-num-' + uid).forEach(el => {
-          el.textContent = rating.final_rating.toFixed(1) + ' / 5.0';
-        });
+        if (rating) applyMentorRatingDom(uid, rating);
       }));
     }
   }
@@ -800,13 +850,27 @@
     document.getElementById('popupMe').textContent = '--';
     document.getElementById('popupTe').textContent = '--';
     document.getElementById('popupSup').textContent = '--';
+
+    // Show cached rating immediately if available
+    const cached = mentorRatingCache[uid] || (function() {
+      try { return JSON.parse(localStorage.getItem('mentor_rating_' + uid)); } catch(e){ return null; }
+    })();
+    if (cached) {
+      document.getElementById('popupFinalRating').textContent = (cached.final_rating || 0).toFixed(1);
+      document.getElementById('popupStars').innerHTML = renderStarsHtml(cached.final_rating || 0);
+      document.getElementById('popupPc').textContent = cached.profile_complete != null ? cached.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupSk').textContent = cached.useful_skills != null ? cached.useful_skills.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupMe').textContent = cached.has_mentee_feedback ? cached.mentee_feedback.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupTe').textContent = cached.has_task_data ? cached.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupSup').textContent = cached.has_mentorship_experience ? cached.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
+    }
     
     popup.classList.remove('hidden');
     popup.classList.add('flex');
 
     const rating = await fetchMentorRating(uid);
     if (!rating) {
-      document.getElementById('popupFinalRating').textContent = 'N/A';
+      if (!cached) document.getElementById('popupFinalRating').textContent = 'N/A';
       return;
     }
 

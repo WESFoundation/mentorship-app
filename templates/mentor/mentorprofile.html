@@ -132,7 +132,11 @@
                             </p>
                             {% if institution_profile_picture %}
                             <div class="flex items-center space-x-2 mt-2">
-                                <img src="{{ url_for('static', filename='uploads/' + institution_profile_picture) }}" alt="Institution Logo" class="w-8 h-8 object-cover rounded-full shadow-md">
+                                {% if institution_profile_picture.startswith('http') %}
+                                <img src="{{ institution_profile_picture }}" alt="Institution Logo" class="w-8 h-8 object-cover rounded-full shadow-md" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ (institution if institution else 'Institution')|urlencode }}&background=2563eb&color=fff';">
+                                {% else %}
+                                <img src="{{ url_for('static', filename='uploads/' + institution_profile_picture) }}" alt="Institution Logo" class="w-8 h-8 object-cover rounded-full shadow-md" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ (institution if institution else 'Institution')|urlencode }}&background=2563eb&color=fff';">
+                                {% endif %}
                                 <p class="text-gray-600 text-sm">Associated Institution</p>
                             </div>
                             {% elif institution %}
