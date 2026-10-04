@@ -3918,7 +3918,7 @@ def menteedashboard():
 
         return render_template(
             "mentee/menteedashboard.html",
-            all_mentors=all_mentors,
+            all_mentors=[],
             my_mentors=my_mentors,
             professions=professions,
             locations=locations,
