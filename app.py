@@ -2594,6 +2594,9 @@ def check_profile_complete(user_id, user_type, profile_obj=None):
     Check if user profile is FULLY complete with ALL mandatory fields
     Returns True only if ALL required fields are filled, False otherwise
     """
+    user = getattr(profile_obj, "user", None) or (db.session.get(User, user_id) if user_id else None)
+    avatar_url = getattr(user, "profile_picture_url", None) if user else None
+
     if user_type == "1":  # Mentor
         profile = profile_obj if profile_obj is not None else MentorProfile.query.filter_by(user_id=user_id).first()
         if profile:
@@ -2620,7 +2623,7 @@ def check_profile_complete(user_id, user_type, profile_obj=None):
                 profile.why_mentor,
                 profile.mentorship_philosophy,
                 profile.mentorship_motto,
-                (profile.profile_picture or getattr(user, 'profile_picture_url', None))  # Profile picture or OAuth avatar
+                (profile.profile_picture or avatar_url)  # Profile picture or OAuth avatar
             ])
             return has_all_required
         return False
@@ -2636,7 +2639,7 @@ def check_profile_complete(user_id, user_type, profile_obj=None):
                 profile.mobile_number,
                 profile.mentorship_expectations,
                 profile.terms_agreement,
-                (profile.profile_picture or getattr(user, 'profile_picture_url', None)),
+                (profile.profile_picture or avatar_url),
                 profile.who_am_i
             ])
             return has_all_required
@@ -2651,7 +2654,7 @@ def check_profile_complete(user_id, user_type, profile_obj=None):
                 profile.location,
                 profile.role,
                 profile.additional_info,
-                profile.profile_picture
+                (profile.profile_picture or avatar_url)
             ])
             return has_all_required
         return False
@@ -3476,11 +3479,13 @@ def calculate_mentor_profile_completion(mentor_id, profile_obj=None):
     }
     """
     profile = profile_obj if profile_obj is not None else MentorProfile.query.filter_by(user_id=mentor_id).first()
+    user = getattr(profile, "user", None) or (db.session.get(User, mentor_id) if mentor_id else None)
+    avatar_url = getattr(user, "profile_picture_url", None) if user else None
     
     # Define all profile fields for completion calculation
     all_fields = {
         # Personal & Professional Details
-        'Profile Photo': profile.profile_picture if profile else None,
+        'Profile Photo': (profile.profile_picture or avatar_url) if profile else None,
         'Profession': profile.profession if profile else None,
         'Skills': profile.skills if profile else None,
         'Job Role': profile.role if profile else None,
@@ -13780,7 +13785,7 @@ def editsupervisorprofile():
         location=profile.location if profile else "",
         role=profile.role if profile else "",
         additional_info=profile.additional_info if profile else "",
-        profile_picture=profile.profile_picture if profile else None
+        profile_picture=(profile.profile_picture if profile and profile.profile_picture else getattr(user, "profile_picture_url", None))
     )
 
 # Remove duplicate code below
@@ -14333,7 +14338,7 @@ def supervisorprofile():
         location=profile.location if profile else "",
         role=profile.role if profile else "",
         additional_info=profile.additional_info if profile else "",
-        profile_picture=profile.profile_picture if profile else None
+        profile_picture=(profile.profile_picture if profile and profile.profile_picture else getattr(user, "profile_picture_url", None))
     )
 
 # View Mentor Profile (for institution admin)
@@ -16680,6 +16685,8 @@ def calculate_mentee_profile_completion(mentee_id, profile_obj=None):
     Calculate profile completion percentage for mentees - tracks meaningful profile fields
     """
     profile = profile_obj if profile_obj is not None else MenteeProfile.query.filter_by(user_id=mentee_id).first()
+    user = getattr(profile, "user", None) or (db.session.get(User, mentee_id) if mentee_id else None)
+    avatar_url = getattr(user, "profile_picture_url", None) if user else None
     
     if not profile:
         return {
@@ -16691,7 +16698,7 @@ def calculate_mentee_profile_completion(mentee_id, profile_obj=None):
     
     # Define meaningful profile fields for mentee completion
     all_fields = {
-        'Profile Photo': profile.profile_picture,
+        'Profile Photo': (profile.profile_picture or avatar_url),
         'Mobile Number': profile.mobile_number,
         'WhatsApp Number': profile.whatsapp_number,
         'School/College Name': profile.school_college_name,
