@@ -72,9 +72,11 @@ load_env_file()
 PRODUCTION = os.environ.get("PRODUCTION", "false").lower() in ("1", "true", "yes")
 
 from werkzeug.middleware.proxy_fix import ProxyFix
+from flask_cors import CORS
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Secret key - USE A STRONG RANDOM KEY IN PRODUCTION!
 # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
@@ -95,12 +97,30 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB max upload size
 # Ensure folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Explicit route to serve uploaded files (ensures uploads work in production with Gunicorn)
 from flask import send_from_directory as _send_from_directory
+import storage_service
 
 @app.route('/uploads/<path:filename>')
 def serve_uploaded_file(filename):
     return _send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+
+@app.route('/api/upload', methods=['POST'])
+def api_upload_file():
+    """Endpoint for mobile app and web clients to upload files directly to cloud bucket."""
+    if 'email' not in session and 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    file = request.files.get('file') or request.files.get('profile_picture')
+    if not file or not file.filename:
+        return jsonify({'success': False, 'message': 'No file provided'}), 400
+    folder = request.form.get('folder', 'profiles')
+    file_url, stored_name = storage_service.upload_file(file, folder_prefix=folder)
+    if not file_url:
+        return jsonify({'success': False, 'message': 'Upload failed'}), 500
+    return jsonify({
+        'success': True,
+        'url': file_url,
+        'filename': stored_name
+    })
 
 # Helper function to calculate age from date of birth
 def calculate_age(dob_string):
@@ -2418,6 +2438,13 @@ def ensure_schema_on_request():
     global _schema_migrated
     if not _schema_migrated:
         auto_migrate_schema()
+
+# Register Mobile REST API Blueprint
+from mobile_api import register_mobile_api
+register_mobile_api(
+    app, db, User, MentorProfile, MenteeProfile, Institution,
+    SupervisorProfile, MenteeTask, MentorshipRequest, MeetingRequest, Notification
+)
 
 
 def is_anchor_mentorship(req):
@@ -5943,18 +5970,16 @@ def editinstitutionprofile():
             if 'profile_picture' in request.files:
                 file = request.files['profile_picture']
                 if file and file.filename and allowed_file(file.filename):
-                    # Remove old profile picture file if it exists
                     old_pic = institution_details.profile_picture if hasattr(institution_details, 'profile_picture') else None
                     if old_pic:
-                        old_path = os.path.join(app.config['UPLOAD_FOLDER'], old_pic)
-                        if os.path.exists(old_path):
-                            try:
-                                os.remove(old_path)
-                            except OSError:
-                                pass
-                    filename = secure_filename(f"institution_{institution_details.id}_{file.filename}")
-                    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-                    institution_details.profile_picture = filename
+                        storage_service.delete_file(old_pic)
+                    pic_url, stored_name = storage_service.upload_file(
+                        file,
+                        folder_prefix=f"institutions/{institution_details.id}",
+                        custom_filename=secure_filename(f"institution_{institution_details.id}_{file.filename}")
+                    )
+                    if pic_url:
+                        institution_details.profile_picture = pic_url
             
             # Update user details
             if hasattr(user, 'designation'):
@@ -13268,30 +13293,34 @@ def editmentorprofile():
         # Handle profile picture upload
         file = request.files.get("profile_picture")
         if file and file.filename and allowed_file(file.filename):
-            # Remove old profile picture file if it exists
             old_pic = profile.profile_picture
             if old_pic:
-                old_path = os.path.join(app.config["UPLOAD_FOLDER"], old_pic)
-                if os.path.exists(old_path):
-                    try:
-                        os.remove(old_path)
-                    except OSError:
-                        pass  # Non-critical: old file cleanup failed
-            filename = secure_filename(f"mentor_{user.id}_{file.filename}")
-            file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
-            profile.profile_picture = filename
+                storage_service.delete_file(old_pic)
+            pic_url, stored_name = storage_service.upload_file(
+                file,
+                folder_prefix=f"mentors/{user.id}",
+                custom_filename=secure_filename(f"mentor_{user.id}_{int(datetime.now().timestamp())}_{file.filename}")
+            )
+            if pic_url:
+                profile.profile_picture = pic_url
 
         # Handle criminal certificate upload (PDF only)
         criminal_cert_file = request.files.get("criminal_certificate")
         if criminal_cert_file and criminal_cert_file.filename:
             if criminal_cert_file.filename.lower().endswith('.pdf'):
-                cert_filename = secure_filename(criminal_cert_file.filename)
-                # Add timestamp to avoid filename conflicts
+                old_cert = profile.criminal_certificate
+                if old_cert:
+                    storage_service.delete_file(old_cert)
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                cert_filename = f"criminal_cert_{user.id}_{timestamp}_{cert_filename}"
-                criminal_cert_file.save(os.path.join(app.config["UPLOAD_FOLDER"], cert_filename))
-                profile.criminal_certificate = cert_filename
-                print(f"✅ Criminal certificate uploaded: {cert_filename}")
+                cert_name = secure_filename(f"criminal_cert_{user.id}_{timestamp}_{criminal_cert_file.filename}")
+                cert_url, _ = storage_service.upload_file(
+                    criminal_cert_file,
+                    folder_prefix=f"mentors/{user.id}",
+                    custom_filename=cert_name
+                )
+                if cert_url:
+                    profile.criminal_certificate = cert_url
+                print(f"✅ Criminal certificate uploaded: {profile.criminal_certificate}")
             else:
                 flash("Criminal Certificate must be a PDF file", "error")
                 return redirect(url_for("editmentorprofile"))
@@ -13647,20 +13676,17 @@ def editmenteeprofile():
         if 'profile_picture' in request.files:
             file = request.files['profile_picture']
             if file and file.filename and allowed_file(file.filename):
-                # Flush to ensure profile.id is assigned for new profiles
                 db.session.flush()
-                # Remove old profile picture file if it exists
                 old_pic = profile.profile_picture
                 if old_pic:
-                    old_path = os.path.join(app.config["UPLOAD_FOLDER"], old_pic)
-                    if os.path.exists(old_path):
-                        try:
-                            os.remove(old_path)
-                        except OSError:
-                            pass  # Non-critical: old file cleanup failed
-                filename = secure_filename(f"mentee_{user.id}_{int(datetime.now().timestamp())}_{file.filename}")
-                file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
-                profile.profile_picture = filename
+                    storage_service.delete_file(old_pic)
+                pic_url, stored_name = storage_service.upload_file(
+                    file,
+                    folder_prefix=f"mentees/{user.id}",
+                    custom_filename=secure_filename(f"mentee_{user.id}_{int(datetime.now().timestamp())}_{file.filename}")
+                )
+                if pic_url:
+                    profile.profile_picture = pic_url
 
         try:
             db.session.commit()
@@ -13833,9 +13859,16 @@ def editsupervisorprofile():
         # Profile picture handling
         file = request.files.get("profile_picture")
         if file and allowed_file(file.filename):
-            filename = f"{user.id}_{int(datetime.now().timestamp())}{secure_filename(file.filename)}"
-            file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
-            profile.profile_picture = filename
+            old_pic = profile.profile_picture
+            if old_pic:
+                storage_service.delete_file(old_pic)
+            pic_url, stored_name = storage_service.upload_file(
+                file,
+                folder_prefix=f"supervisors/{user.id}",
+                custom_filename=secure_filename(f"supervisor_{user.id}_{int(datetime.now().timestamp())}_{file.filename}")
+            )
+            if pic_url:
+                profile.profile_picture = pic_url
             
         db.session.add(profile)
         db.session.commit()
