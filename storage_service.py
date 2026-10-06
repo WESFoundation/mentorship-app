@@ -163,8 +163,15 @@ def get_drive_root_folder_id(service):
                 _root_folder_id = env_folder_id
                 logger.info("Using configured GDRIVE_FOLDER_ID: %s (%s)", _root_folder_id, folder.get("name"))
                 return _root_folder_id
-        except Exception as e:
-            logger.warning("Configured GDRIVE_FOLDER_ID '%s' not accessible (%s). Searching for 'WES LUX Uploads'...", env_folder_id, e)
+        except Exception:
+            try:
+                drive_info = service.drives().get(driveId=env_folder_id).execute()
+                if drive_info:
+                    _root_folder_id = env_folder_id
+                    logger.info("Using configured Google Shared Drive: %s (%s)", _root_folder_id, drive_info.get("name"))
+                    return _root_folder_id
+            except Exception as e:
+                logger.warning("Configured GDRIVE_FOLDER_ID '%s' not accessible (%s). Searching for 'WES LUX Uploads'...", env_folder_id, e)
 
     # Search for 'WES LUX Uploads' folder
     try:
