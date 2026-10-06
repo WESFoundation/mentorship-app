@@ -451,7 +451,10 @@ def delete_file(file_identifier):
         try:
             if "drive.google.com" in file_str and "id=" in file_str:
                 file_id = file_str.split("id=")[1].split("&")[0]
-                service.files().delete(fileId=file_id, supportsAllDrives=True).execute()
+                try:
+                    service.files().delete(fileId=file_id, supportsAllDrives=True).execute()
+                except Exception:
+                    service.files().update(fileId=file_id, body={'trashed': True}, supportsAllDrives=True).execute()
                 logger.info("Deleted Google Drive file by ID: %s", file_id)
             elif clean_filename:
                 query = f"name = '{clean_filename}' and trashed = false"
@@ -462,7 +465,10 @@ def delete_file(file_identifier):
                     includeItemsFromAllDrives=True
                 ).execute()
                 for f in res.get("files", []):
-                    service.files().delete(fileId=f["id"], supportsAllDrives=True).execute()
+                    try:
+                        service.files().delete(fileId=f["id"], supportsAllDrives=True).execute()
+                    except Exception:
+                        service.files().update(fileId=f["id"], body={'trashed': True}, supportsAllDrives=True).execute()
                     logger.info("Deleted Google Drive file by name: %s (%s)", clean_filename, f["id"])
         except Exception as e:
             logger.warning("Failed deleting Google Drive file: %s", e)
