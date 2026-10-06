@@ -74,7 +74,18 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    transition: transform 0.1s ease, filter 0.1s ease;
 }
+.calendar-event:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+}
+
+/* Mentoring Type Distinct Colors */
+.calendar-event.type-anchor { background: #4f46e5 !important; color: white !important; border-left: 3px solid #312e81 !important; }
+.calendar-event.type-special { background: #9333ea !important; color: white !important; border-left: 3px solid #581c87 !important; }
+.calendar-event.type-sgm { background: #059669 !important; color: white !important; border-left: 3px solid #064e3b !important; font-weight: 600; }
+.calendar-event.type-standard { background: #0284c7 !important; color: white !important; border-left: 3px solid #0c4a6e !important; }
 
 .time-slot {
     height: 60px;
@@ -127,6 +138,33 @@
                 </button>
             </div>
         </div>
+    <!-- Mentoring Type Color Legend & Type Filter -->
+    <div class="bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-xl px-4 py-3 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-sm">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="font-bold text-slate-700 uppercase tracking-wider text-[11px] mr-1">Mentoring Types:</span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200 font-semibold">
+          <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span> Anchor Mentoring
+        </span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-200 font-semibold">
+          <span class="w-2.5 h-2.5 rounded-full bg-purple-600"></span> Special Mentoring
+        </span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> SGM (Small Group)
+        </span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-100 text-sky-800 border border-sky-200 font-semibold">
+          <span class="w-2.5 h-2.5 rounded-full bg-sky-600"></span> 1-on-1 Mentoring
+        </span>
+      </div>
+      <div class="flex items-center gap-2 self-start md:self-auto">
+        <label for="institutionTypeFilter" class="text-slate-600 font-semibold whitespace-nowrap">Filter Type:</label>
+        <select id="institutionTypeFilter" onchange="filterByType(this.value)" class="px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white text-slate-700 font-medium text-xs focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer">
+          <option value="all">All Mentoring Types</option>
+          <option value="anchor">Anchor Mentoring</option>
+          <option value="special">Special Mentoring</option>
+          <option value="sgm">SGM (Small Group)</option>
+          <option value="standard">1-on-1 Mentoring</option>
+        </select>
+      </div>
     </div>
 
     <!-- Current Date Display -->
@@ -683,6 +721,7 @@
 let currentDate = new Date();
 let meetings = {{ meetings|tojson|safe }};
 let currentView = 'month';
+let currentTypeFilter = 'all';
 let scheduleViewMode = 'mentee';
 let menteeToMentors = {{ mentee_to_mentors|tojson|safe }};
 let mentorToMentees = {{ mentor_to_mentees|tojson|safe }};
@@ -699,6 +738,11 @@ document.addEventListener('DOMContentLoaded', function() {
     updateStats();
     setupEventListeners();
 });
+
+function filterByType(type) {
+    currentTypeFilter = type;
+    renderCalendar();
+}
 
 function initializeCalendar() {
     updateCurrentDateDisplay();
@@ -945,9 +989,12 @@ function renderMonthView() {
             
             dayEvents.forEach(event => {
                 const eventElement = document.createElement('div');
-                const statusColor = getStatusColor(event.status);
-                eventElement.className = `calendar-event bg-${statusColor}-100 text-${statusColor}-800 border-l-2 border-${statusColor}-500`;
-                eventElement.textContent = `${formatMeetingTime(event)} - ${event.title}`;
+                const mtype = event.meeting_type || 'standard';
+                eventElement.className = `calendar-event type-${mtype}`;
+                if (event.hex_color) eventElement.style.backgroundColor = event.hex_color;
+                const prefix = mtype === 'sgm' ? 'SGM' : mtype === 'anchor' ? 'ANCHOR' : mtype === 'special' ? 'SPEC' : '1:1';
+                eventElement.innerHTML = `<span class="opacity-90 font-bold mr-1 text-[10px] uppercase">[${prefix}]</span><span>${formatMeetingTime(event)}</span> - ${event.title}`;
+                eventElement.title = `${event.title} - ${event.type || 'Mentoring Session'}`;
                 eventElement.addEventListener('click', () => openMeetingModal(event));
                 dayElement.appendChild(eventElement);
             });
@@ -1006,12 +1053,15 @@ function renderWeekView() {
             const hourEvents = getMeetingsForDateAndHour(day, hour);
             hourEvents.forEach(event => {
                 const eventElement = document.createElement('div');
-                const statusColor = getStatusColor(event.status);
-                eventElement.className = `calendar-event bg-${statusColor}-100 text-${statusColor}-800 border-l-2 border-${statusColor}-500 shadow-sm`;
+                const mtype = event.meeting_type || 'standard';
+                eventElement.className = `calendar-event type-${mtype} shadow-sm`;
+                if (event.hex_color) eventElement.style.backgroundColor = event.hex_color;
+                const prefix = mtype === 'sgm' ? 'SGM' : mtype === 'anchor' ? 'ANCHOR' : mtype === 'special' ? 'SPEC' : '1:1';
                 eventElement.innerHTML = `
-                    <div class="text-xs font-medium truncate">${event.title}</div>
+                    <div class="text-xs font-medium truncate"><span class="font-bold opacity-90">[${prefix}]</span> ${event.title}</div>
                     <div class="text-xs truncate opacity-75">${formatMeetingTime(event)}</div>
                 `;
+                eventElement.title = `${event.title} - ${event.type || 'Mentoring Session'}`;
                 eventElement.addEventListener('click', () => openMeetingModal(event));
                 daySlot.appendChild(eventElement);
             });
@@ -1053,7 +1103,12 @@ function renderDayView() {
         eventElement.innerHTML = `
             <div class="flex items-start justify-between">
                 <div class="flex-1">
-                    <h4 class="font-semibold text-gray-800">${event.title}</h4>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${event.badge_bg || 'bg-sky-100'} ${event.badge_text || 'text-sky-800'} border ${event.badge_border || 'border-sky-300'}">
+                            ${event.type || '1-on-1 Mentoring'}
+                        </span>
+                        <h4 class="font-semibold text-gray-800">${event.title}</h4>
+                    </div>
                     <p class="text-sm text-gray-600 mt-1">${formatMeetingTime(event)} • ${event.duration} minutes</p>
                     <p class="text-sm text-gray-700 mt-2">${event.description || 'No description provided'}</p>
                     <div class="flex items-center mt-2 space-x-4 text-sm text-gray-600">
@@ -1077,28 +1132,36 @@ function renderListView() {
     const listGrid = document.getElementById('listGrid');
     listGrid.innerHTML = '';
     
-    if (meetings.length === 0) {
+    let filteredMeetings = meetings;
+    if (currentTypeFilter && currentTypeFilter !== 'all') {
+        filteredMeetings = filteredMeetings.filter(m => (m.meeting_type || 'standard') === currentTypeFilter);
+    }
+
+    if (filteredMeetings.length === 0) {
         listGrid.innerHTML = `
             <div class="p-8 text-center text-gray-500">
                 <svg class="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <p>No meetings found</p>
+                <p>No matching meetings found</p>
             </div>
         `;
         return;
     }
     
-    meetings.sort((a, b) => parseMeetingDate(b.date) - parseMeetingDate(a.date));
+    filteredMeetings.slice().sort((a, b) => parseMeetingDate(b.date) - parseMeetingDate(a.date));
     
-    meetings.forEach(meeting => {
+    filteredMeetings.forEach(meeting => {
         const meetingElement = document.createElement('div');
         meetingElement.className = 'p-6 hover:bg-gray-50 cursor-pointer border-b border-gray-200 last:border-b-0';
         meetingElement.addEventListener('click', () => openMeetingModal(meeting));
         meetingElement.innerHTML = `
             <div class="flex items-start justify-between">
                 <div class="flex-1">
-                    <div class="flex items-center space-x-3 mb-2">
+                    <div class="flex items-center space-x-3 mb-2 flex-wrap gap-y-1">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold ${meeting.badge_bg || 'bg-sky-100'} ${meeting.badge_text || 'text-sky-800'} border ${meeting.badge_border || 'border-sky-300'}">
+                            ${meeting.type || '1-on-1 Mentoring'}
+                        </span>
                         <h4 class="text-lg font-semibold text-gray-800">${meeting.title}</h4>
                         <span class="px-2 py-1 rounded-full text-xs font-medium
                             ${meeting.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
@@ -1131,6 +1194,9 @@ function renderListView() {
 
 function getMeetingsForDate(date) {
     return meetings.filter(meeting => {
+        if (currentTypeFilter && currentTypeFilter !== 'all') {
+            if ((meeting.meeting_type || 'standard') !== currentTypeFilter) return false;
+        }
         const meetingDate = parseMeetingDate(meeting.date);
         return meetingDate.getDate() === date.getDate() &&
                meetingDate.getMonth() === date.getMonth() &&
@@ -1140,6 +1206,9 @@ function getMeetingsForDate(date) {
 
 function getMeetingsForDateAndHour(date, hour) {
     return meetings.filter(meeting => {
+        if (currentTypeFilter && currentTypeFilter !== 'all') {
+            if ((meeting.meeting_type || 'standard') !== currentTypeFilter) return false;
+        }
         const meetingDate = parseMeetingDate(meeting.date);
         return meetingDate.getDate() === date.getDate() &&
                meetingDate.getMonth() === date.getMonth() &&
@@ -1177,12 +1246,17 @@ function openMeetingModal(meeting) {
                     <h4 class="text-xl font-bold text-gray-800">${meeting.title}</h4>
                     <p class="text-gray-600 mt-1">${formatMeetingDateTime(meeting.date)} • ${meeting.duration} minutes</p>
                 </div>
-                <span class="px-3 py-1 rounded-full text-sm font-medium
-                    ${meeting.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
-                      meeting.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      'bg-red-100 text-red-800'}">
-                    ${meeting.status ? meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1) : ''}
-                </span>
+                <div class="flex items-center gap-2">
+                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold ${meeting.badge_bg || 'bg-sky-100'} ${meeting.badge_text || 'text-sky-800'} border ${meeting.badge_border || 'border-sky-300'}">
+                        ${meeting.type || '1-on-1 Mentoring'}
+                    </span>
+                    <span class="px-3 py-1 rounded-full text-sm font-medium
+                        ${meeting.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
+                          meeting.status === 'completed' ? 'bg-green-100 text-green-800' :
+                          'bg-red-100 text-red-800'}">
+                        ${meeting.status ? meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1) : ''}
+                    </span>
+                </div>
             </div>
             
             <div>

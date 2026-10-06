@@ -117,24 +117,39 @@
   }
   
   .event {
-    background: #8b5cf6;
+    background: #0284c7;
     color: white;
     border-radius: 4px;
     padding: 2px 6px;
-    font-size: 12px;
+    font-size: 11px;
     margin-bottom: 2px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: pointer;
+    font-weight: 500;
+    transition: transform 0.1s ease, filter 0.1s ease;
+  }
+  .event:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
   }
   
+  /* Mentoring Type Distinct Colors */
+  .event.type-anchor { background: #4f46e5 !important; border-left: 3px solid #312e81; }
+  .event.type-special { background: #9333ea !important; border-left: 3px solid #581c87; }
+  .event.type-sgm { background: #059669 !important; border-left: 3px solid #064e3b; font-weight: 600; }
+  .event.type-standard { background: #0284c7 !important; border-left: 3px solid #0c4a6e; }
+
   .event.upcoming {
-    background: #3b82f6;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   }
-  
   .event.completed {
-    background: #10b981;
+    opacity: 0.85;
+  }
+  .event.cancelled {
+    opacity: 0.5;
+    text-decoration: line-through;
   }
   
 
@@ -241,21 +256,33 @@
     </div>
     </div>
     
-    <!-- Legend -->
-    <div class="mt-6 flex flex-wrap gap-4 text-sm">
-      <div class="flex items-center">
-        <div class="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
-        <span>Upcoming Sessions</span>
+    <!-- Mentoring Type Color Legend & Type Filter -->
+    <div class="bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-xl px-4 py-3 mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-sm">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="font-bold text-slate-700 uppercase tracking-wider text-[11px] mr-1">Mentoring Types:</span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200 font-semibold">
+          <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span> Anchor Mentoring
+        </span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-200 font-semibold">
+          <span class="w-2.5 h-2.5 rounded-full bg-purple-600"></span> Special Mentoring
+        </span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> SGM (Small Group)
+        </span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-100 text-sky-800 border border-sky-200 font-semibold">
+          <span class="w-2.5 h-2.5 rounded-full bg-sky-600"></span> 1-on-1 Mentoring
+        </span>
       </div>
-      <div class="flex items-center">
-        <div class="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-        <span>Completed Sessions</span>
+      <div class="flex items-center gap-2 self-start md:self-auto">
+        <label for="mentorTypeFilter" class="text-slate-600 font-semibold whitespace-nowrap">Filter Type:</label>
+        <select id="mentorTypeFilter" onchange="filterByType(this.value)" class="px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white text-slate-700 font-medium text-xs focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer">
+          <option value="all">All Mentoring Types</option>
+          <option value="anchor">Anchor Mentoring</option>
+          <option value="special">Special Mentoring</option>
+          <option value="sgm">SGM (Small Group)</option>
+          <option value="standard">1-on-1 Mentoring</option>
+        </select>
       </div>
-      <div class="flex items-center">
-        <div class="w-3 h-3 bg-purple-500 rounded-full mr-2"></div>
-        <span>Regular Sessions</span>
-      </div>
-
     </div>
     
     <!-- Quick Actions -->
@@ -369,6 +396,7 @@
 let currentDate = new Date();
 let events = [];
 let currentFilter = 'all';
+let currentTypeFilter = 'all';
 
 // Initialize events from database data passed via Jinja
 function initializeEvents() {
@@ -383,6 +411,13 @@ function initializeEvents() {
       mentee: {{ (meeting.mentee or '') | tojson }},
       mentee_email: {{ (meeting.mentee_email or '') | tojson }},
       type: {{ (meeting.type or '') | tojson }},
+      meeting_type: {{ (meeting.meeting_type or 'standard') | tojson }},
+      type_color: {{ (meeting.type_color or 'sky') | tojson }},
+      badge_bg: {{ (meeting.badge_bg or 'bg-sky-100') | tojson }},
+      badge_text: {{ (meeting.badge_text or 'text-sky-800') | tojson }},
+      badge_border: {{ (meeting.badge_border or 'border-sky-300') | tojson }},
+      card_bg: {{ (meeting.card_bg or '#0284c7') | tojson }},
+      hex_color: {{ (meeting.hex_color or '#0284c7') | tojson }},
       status: {{ (meeting.status or '') | tojson }},
       description: {{ (meeting.description or '') | tojson }},
       meet_link: {{ (meeting.meet_link or '') | tojson }}
@@ -396,12 +431,21 @@ function initializeEvents() {
   }
 }
 
-// Filter events based on current filter
+// Filter events based on status and mentoring type
 function getFilteredEvents() {
-  if (currentFilter === 'all') {
-    return events;
+  let filtered = events;
+  if (currentTypeFilter && currentTypeFilter !== 'all') {
+    filtered = filtered.filter(event => (event.meeting_type || 'standard') === currentTypeFilter);
   }
-  return events.filter(event => event.status === currentFilter);
+  if (currentFilter === 'all') {
+    return filtered;
+  }
+  return filtered.filter(event => event.status === currentFilter);
+}
+
+function filterByType(type) {
+  currentTypeFilter = type;
+  renderCalendar();
 }
 
 // Calendar rendering functions
@@ -461,14 +505,21 @@ function renderCalendar() {
     
     dayEvents.forEach(event => {
       const eventElement = document.createElement('div');
-      eventElement.className = `event ${event.status}`;
-      eventElement.textContent = `${event.date.getHours()}:${event.date.getMinutes().toString().padStart(2, '0')} - ${event.title}`;
+      const mtype = event.meeting_type || 'standard';
+      eventElement.className = `event ${event.status} type-${mtype}`;
+      if (event.hex_color) {
+        eventElement.style.backgroundColor = event.hex_color;
+      }
+      const timeStr = `${event.date.getHours().toString().padStart(2, '0')}:${event.date.getMinutes().toString().padStart(2, '0')}`;
+      const prefix = mtype === 'sgm' ? 'SGM' : mtype === 'anchor' ? 'ANCHOR' : mtype === 'special' ? 'SPEC' : '1:1';
+      eventElement.innerHTML = `<span class="opacity-90 font-bold mr-1 text-[10px] uppercase">[${prefix}]</span><span>${timeStr}</span> ${event.title}`;
+      eventElement.title = `${event.title} - ${event.type || 'Mentoring Session'}`;
       eventElement.addEventListener('click', () => showEventDetails(event));
       dayElement.appendChild(eventElement);
     });
     
     // Show empty state if no events after filtering
-    if (currentFilter !== 'all' && dayEvents.length === 0) {
+    if ((currentFilter !== 'all' || currentTypeFilter !== 'all') && dayEvents.length === 0) {
       dayElement.style.opacity = '0.5';
     }
     
@@ -489,14 +540,14 @@ function renderCalendar() {
   }
   
   // Show empty state if no events match the filter
-  if (filteredEvents.length === 0 && currentFilter !== 'all') {
+  if (filteredEvents.length === 0 && (currentFilter !== 'all' || currentTypeFilter !== 'all')) {
     const emptyState = document.createElement('div');
     emptyState.className = 'col-span-7 empty-state';
     emptyState.innerHTML = `
       <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
       </svg>
-      <p>No ${currentFilter} sessions found for this month.</p>
+      <p>No matching sessions found for this month.</p>
     `;
     calendarDays.appendChild(emptyState);
   }
@@ -512,7 +563,14 @@ function showEventDetails(event) {
   document.getElementById('event-datetime').textContent = 
     `${eventDate.toLocaleDateString()} at ${eventDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
   document.getElementById('event-duration').textContent = `${event.duration} minutes`;
-  document.getElementById('event-type').textContent = event.type;
+  
+  // Type styling
+  const typeEl = document.getElementById('event-type');
+  if (typeEl) {
+    typeEl.textContent = event.type || '1-on-1 Mentoring';
+    typeEl.className = `inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${event.badge_bg || 'bg-sky-100'} ${event.badge_text || 'text-sky-800'} border ${event.badge_border || 'border-sky-300'}`;
+  }
+
   document.getElementById('event-status').textContent = event.status.charAt(0).toUpperCase() + event.status.slice(1);
   document.getElementById('event-description').textContent = event.description;
   

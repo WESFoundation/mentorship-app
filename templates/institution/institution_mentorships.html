@@ -605,6 +605,14 @@
                 const topicList = topics.split(',').filter(t => t.trim());
                 const topicLabels = {
                   'school_subjects': 'School Subjects',
+                  'study_skills_exam_prep': 'Study Skills & Exam Prep',
+                  'science_math': 'Science & Mathematics',
+                  'language_arts_english': 'Language Arts & English',
+                  'homework_support': 'Homework Support',
+                  'college_career_readiness': 'College & Career Readiness',
+                  'study_habits_time_management': 'Study Habits & Time Management',
+                  'stem_coding_beginners': 'STEM & Coding for Beginners',
+                  'public_speaking_confidence': 'Public Speaking & Confidence',
                   'coding_basics': 'Coding Basics',
                   'career_guidance': 'Career Guidance',
                   'azure_devops': 'Azure DevOps',
@@ -614,7 +622,15 @@
                   'mobile_development': 'Mobile Development',
                   'soft_skills': 'Soft Skills',
                   'leadership': 'Leadership',
-                  'entrepreneurship': 'Entrepreneurship'
+                  'entrepreneurship': 'Entrepreneurship',
+                  'seeking_internships': 'Seeking Internships',
+                  'job_search_applications': 'Job Search & Applications',
+                  'resume_linkedin_review': 'Resume & LinkedIn Review',
+                  'interview_preparation': 'Interview Prep & Mock Interviews',
+                  'higher_studies_guidance': 'Higher Studies & Grad School Guidance',
+                  'career_transition_growth': 'Career Transition & Growth Strategy',
+                  'salary_negotiation': 'Salary Negotiation & Compensation',
+                  'workplace_navigation': 'Workplace Navigation & Leadership'
                 };
                 if (topicList.length === 0) {
                   return '<span class="text-xs text-gray-400 italic">Not specified</span>';
@@ -1134,6 +1150,14 @@
         const topicList = userData.base_mentorship_topics.split(',').filter(t => t.trim());
         const topicLabels = {
           'school_subjects': 'School Subjects',
+          'study_skills_exam_prep': 'Study Skills & Exam Prep',
+          'science_math': 'Science & Mathematics',
+          'language_arts_english': 'Language Arts & English',
+          'homework_support': 'Homework Support',
+          'college_career_readiness': 'College & Career Readiness',
+          'study_habits_time_management': 'Study Habits & Time Management',
+          'stem_coding_beginners': 'STEM & Coding for Beginners',
+          'public_speaking_confidence': 'Public Speaking & Confidence',
           'coding_basics': 'Coding Basics',
           'career_guidance': 'Career Guidance',
           'azure_devops': 'Azure DevOps',
@@ -1143,7 +1167,15 @@
           'mobile_development': 'Mobile Development',
           'soft_skills': 'Soft Skills',
           'leadership': 'Leadership',
-          'entrepreneurship': 'Entrepreneurship'
+          'entrepreneurship': 'Entrepreneurship',
+          'seeking_internships': 'Seeking Internships',
+          'job_search_applications': 'Job Search & Applications',
+          'resume_linkedin_review': 'Resume & LinkedIn Review',
+          'interview_preparation': 'Interview Prep & Mock Interviews',
+          'higher_studies_guidance': 'Higher Studies & Grad School Guidance',
+          'career_transition_growth': 'Career Transition & Growth Strategy',
+          'salary_negotiation': 'Salary Negotiation & Compensation',
+          'workplace_navigation': 'Workplace Navigation & Leadership'
         };
         baseTopicsContainer.innerHTML = topicList.map(t => {
           const label = topicLabels[t.trim()] || t.trim();

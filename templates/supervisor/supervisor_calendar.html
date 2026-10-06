@@ -130,24 +130,40 @@
   }
   
   .event {
-    background: #8b5cf6;
+    background: #0284c7;
     color: white;
     border-radius: 4px;
     padding: 2px 6px;
-    font-size: 12px;
+    font-size: 11px;
     margin-bottom: 2px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: pointer;
+    font-weight: 500;
+    transition: transform 0.1s ease, filter 0.1s ease;
+  }
+  .event:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
   }
   
+  /* Mentoring Type Distinct Colors */
+  .event.type-anchor { background: #4f46e5 !important; border-left: 3px solid #312e81; }
+  .event.type-special { background: #9333ea !important; border-left: 3px solid #581c87; }
+  .event.type-sgm { background: #059669 !important; border-left: 3px solid #064e3b; font-weight: 600; }
+  .event.type-standard { background: #0284c7 !important; border-left: 3px solid #0c4a6e; }
+
   .event.upcoming {
-    background: #3b82f6;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   }
   
   .event.completed {
-    background: #10b981;
+    opacity: 0.85;
+  }
+  .event.cancelled {
+    opacity: 0.5;
+    text-decoration: line-through;
   }
   
 
@@ -252,11 +268,16 @@
       </div>
       <div class="flex items-center gap-2 flex-wrap">
         <button onclick="openScheduleMeetingModal()"
-          class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition">
+          class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
           Schedule Meeting
         </button>
-        <a href="{{ url_for('supervisor_meeting_details') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition">
+        <button onclick="openScheduleSgmModal()"
+          class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition shadow-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+          Schedule SGM Meeting
+        </button>
+        <a href="{{ url_for('supervisor_meeting_details') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-700 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition">
           View All Meetings
         </a>
       </div>
@@ -275,6 +296,35 @@
       <div class="stat-card stat-completed">
         <div class="stat-number" id="completed-meetings">0</div>
         <div class="stat-label">Completed</div>
+      </div>
+    </div>
+
+    <!-- Mentoring Type Color Legend & Type Filter -->
+    <div class="bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-xl px-4 py-3 mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-sm">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="font-bold text-slate-700 uppercase tracking-wider text-[11px] mr-1">Mentoring Types:</span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200 font-semibold">
+          <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span> Anchor Mentoring
+        </span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-200 font-semibold">
+          <span class="w-2.5 h-2.5 rounded-full bg-purple-600"></span> Special Mentoring
+        </span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> SGM (Small Group)
+        </span>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-100 text-sky-800 border border-sky-200 font-semibold">
+          <span class="w-2.5 h-2.5 rounded-full bg-sky-600"></span> 1-on-1 Mentoring
+        </span>
+      </div>
+      <div class="flex items-center gap-2 self-start md:self-auto">
+        <label for="mentoringTypeFilter" class="text-slate-600 font-semibold whitespace-nowrap">Filter Type:</label>
+        <select id="mentoringTypeFilter" onchange="filterByType(this.value)" class="px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white text-slate-700 font-medium text-xs focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer">
+          <option value="all">All Mentoring Types</option>
+          <option value="anchor">Anchor Mentoring</option>
+          <option value="special">Special Mentoring</option>
+          <option value="sgm">SGM (Small Group)</option>
+          <option value="standard">1-on-1 Mentoring</option>
+        </select>
       </div>
     </div>
 
@@ -651,11 +701,174 @@
   </div>
 </div>
 
+<!-- Schedule SGM Meeting Modal (Small Group Mentoring - Supervisor Only) -->
+<div id="schedule-sgm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[70] hidden transition-opacity duration-300">
+  <div class="bg-white rounded-2xl p-4 sm:p-7 w-full max-w-sm sm:max-w-md md:max-w-2xl mx-4 shadow-2xl max-h-[92vh] overflow-y-auto">
+    <div class="flex justify-between items-start mb-5 pb-4 border-b border-gray-100">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+        </div>
+        <div>
+          <h3 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+            Schedule SGM Meeting
+            <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">Small Group</span>
+          </h3>
+          <p class="text-xs text-slate-500 mt-0.5">Assign 1 Mentor to conduct a group session with multiple Mentees (Supervisor Only)</p>
+        </div>
+      </div>
+      <button onclick="closeScheduleSgmModal()" class="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-50 rounded-full transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+      </button>
+    </div>
+
+    <form id="schedule-sgm-form" novalidate class="space-y-4">
+      <!-- Status Alert -->
+      <div id="sgm-status-top" class="hidden text-sm p-3 rounded-lg border"></div>
+
+      <!-- Mentor Selection -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">
+          Select Lead Mentor <span class="text-red-500">*</span>
+        </label>
+        <select id="sgm-mentor" name="mentor_id" required
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm">
+          <option value="">Choose mentor to lead the small group...</option>
+          {% for mentor in mentors %}
+          <option value="{{ mentor.id }}">{{ mentor.name }} ({{ mentor.email }}){% if mentor.institution %} — {{ mentor.institution }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Mentees Multi-Select -->
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="block text-sm font-semibold text-gray-700">
+            Select Mentees in Small Group <span class="text-red-500">*</span>
+          </label>
+          <span id="sgm-selected-badge" class="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+            0 Mentees Selected
+          </span>
+        </div>
+        
+        <!-- Search & Quick Selection -->
+        <div class="flex items-center gap-2 mb-2">
+          <div class="relative flex-1">
+            <svg class="w-4 h-4 text-gray-400 absolute left-3 top-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" id="sgm-mentee-filter" oninput="filterSgmMenteesList(this.value)" placeholder="Search mentees by name or email..." class="w-full pl-9 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+          </div>
+          <button type="button" onclick="toggleAllSgmMentees(true)" class="px-2.5 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100">Select All</button>
+          <button type="button" onclick="toggleAllSgmMentees(false)" class="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100">Clear</button>
+        </div>
+
+        <!-- Scrollable Checklist -->
+        <div id="sgm-mentees-checklist" class="max-h-44 overflow-y-auto border border-gray-200 rounded-xl p-2 bg-gray-50 space-y-1">
+          {% for mentee in mentees %}
+          <label class="sgm-mentee-row flex items-center justify-between p-2 rounded-lg hover:bg-white cursor-pointer transition text-xs border border-transparent hover:border-gray-200" data-name="{{ (mentee.name or '') | lower }}" data-email="{{ (mentee.email or '') | lower }}">
+            <div class="flex items-center gap-2.5">
+              <input type="checkbox" value="{{ mentee.id }}" onchange="updateSgmSelectedCount()" class="sgm-mentee-cb rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4">
+              <div>
+                <p class="font-semibold text-gray-800">{{ mentee.name }}</p>
+                <p class="text-[11px] text-gray-500">{{ mentee.email }}</p>
+              </div>
+            </div>
+            {% if mentee.institution %}
+            <span class="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded">{{ mentee.institution }}</span>
+            {% endif %}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Meeting Title -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">SGM Session Title <span class="text-red-500">*</span></label>
+        <input type="text" id="sgm-title" name="title" required maxlength="200"
+          value="SGM: Group Mentoring & Discussion"
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm">
+      </div>
+
+      <!-- SGM Topic / Agenda -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Group Mentoring Agenda & Topics</label>
+        <textarea id="sgm-description" rows="2"
+          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
+          placeholder="Outline the session agenda, discussion goals, questions..."></textarea>
+      </div>
+
+      <!-- Date & Time -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Date <span class="text-red-500">*</span></label>
+          <input type="date" id="sgm-date" required
+            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Start Time <span class="text-red-500">*</span></label>
+          <div class="flex gap-2">
+            <select id="sgm-hour" class="flex-1 px-2.5 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm">
+              <option value="">Hr</option>
+              <option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option>
+              <option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option>
+              <option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option>
+            </select>
+            <select id="sgm-minute" class="flex-1 px-2.5 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm">
+              <option value="">Min</option>
+              <option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option>
+            </select>
+            <select id="sgm-ampm" class="flex-1 px-2.5 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm">
+              <option value="AM">AM</option>
+              <option value="PM" selected>PM</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Duration & Platform -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Duration <span class="text-red-500">*</span></label>
+          <select id="sgm-duration" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm">
+            <option value="45">45 minutes</option>
+            <option value="60" selected>60 minutes (Standard SGM)</option>
+            <option value="90">90 minutes</option>
+            <option value="120">2 hours</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Platform</label>
+          <select id="sgm-platform" onchange="toggleSgmCustomLink(this.value)" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm">
+            <option value="google" selected>Google Meet (Auto-generated)</option>
+            <option value="teams">Microsoft Teams</option>
+            <option value="custom">Other / Custom URL</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Custom Link -->
+      <div id="sgm-custom-link-wrap" class="hidden">
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Custom Meeting Link</label>
+        <input type="url" id="sgm-custom-link" placeholder="https://..." class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm">
+      </div>
+
+      <!-- Submit & Cancel -->
+      <div class="flex justify-end gap-3 pt-3 border-t border-gray-100">
+        <button type="button" onclick="closeScheduleSgmModal()" class="px-5 py-2.5 text-gray-600 hover:text-gray-800 font-medium">Cancel</button>
+        <button type="submit" id="sgm-submit-btn" class="px-6 py-2.5 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 transition shadow-lg shadow-emerald-500/20 flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          Schedule SGM Meeting
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 // Calendar data and functionality
 let currentDate = new Date();
 let events = [];
 let currentFilter = 'all';
+let currentTypeFilter = 'all';
 
 // Initialize events from database data passed via Jinja
 function initializeEvents() {
@@ -672,6 +885,13 @@ function initializeEvents() {
       mentor: {{ (meeting.mentor or '') | tojson }},
       mentor_email: {{ (meeting.mentor_email or '') | tojson }},
       type: {{ (meeting.type or '') | tojson }},
+      meeting_type: {{ (meeting.meeting_type or 'standard') | tojson }},
+      type_color: {{ (meeting.type_color or 'sky') | tojson }},
+      badge_bg: {{ (meeting.badge_bg or 'bg-sky-100') | tojson }},
+      badge_text: {{ (meeting.badge_text or 'text-sky-800') | tojson }},
+      badge_border: {{ (meeting.badge_border or 'border-sky-300') | tojson }},
+      card_bg: {{ (meeting.card_bg or '#0284c7') | tojson }},
+      hex_color: {{ (meeting.hex_color or '#0284c7') | tojson }},
       status: {{ (meeting.status or '') | tojson }},
       description: {{ (meeting.description or '') | tojson }},
       meet_link: {{ (meeting.meet_link or '') | tojson }},
@@ -700,8 +920,16 @@ function updateStatistics() {
   document.getElementById('completed-meetings').textContent = completed;
 }
 
-// Filter events based on current filter
+// Filter events based on current status and mentoring type filter
 function getFilteredEvents() {
+  let filtered = events;
+
+  // 1. Mentoring Type Filter
+  if (currentTypeFilter && currentTypeFilter !== 'all') {
+    filtered = filtered.filter(event => (event.meeting_type || 'standard') === currentTypeFilter);
+  }
+
+  // 2. Status / Date Filter
   const now = new Date();
   const startOfWeek = new Date(now);
   startOfWeek.setDate(now.getDate() - now.getDay());
@@ -718,20 +946,25 @@ function getFilteredEvents() {
   endOfToday.setHours(23, 59, 59, 999);
 
   if (currentFilter === 'all') {
-    return events;
+    return filtered;
   } else if (currentFilter === 'today') {
-    return events.filter(event => {
+    return filtered.filter(event => {
       const eventDate = new Date(event.date);
       return eventDate >= startOfToday && eventDate <= endOfToday;
     });
   } else if (currentFilter === 'this_week') {
-    return events.filter(event => {
+    return filtered.filter(event => {
       const eventDate = new Date(event.date);
       return eventDate >= startOfWeek && eventDate <= endOfWeek;
     });
   } else {
-    return events.filter(event => event.status === currentFilter);
+    return filtered.filter(event => event.status === currentFilter);
   }
+}
+
+function filterByType(type) {
+  currentTypeFilter = type;
+  renderCalendar();
 }
 
 // Calendar rendering functions
@@ -791,14 +1024,21 @@ function renderCalendar() {
     
     dayEvents.forEach(event => {
       const eventElement = document.createElement('div');
-      eventElement.className = `event ${event.status}`;
-      eventElement.textContent = `${event.date.getHours()}:${event.date.getMinutes().toString().padStart(2, '0')} - ${event.title}`;
+      const mtype = event.meeting_type || 'standard';
+      eventElement.className = `event ${event.status} type-${mtype}`;
+      if (event.hex_color) {
+        eventElement.style.backgroundColor = event.hex_color;
+      }
+      const timeStr = `${event.date.getHours().toString().padStart(2, '0')}:${event.date.getMinutes().toString().padStart(2, '0')}`;
+      const prefix = mtype === 'sgm' ? 'SGM' : mtype === 'anchor' ? 'ANCHOR' : mtype === 'special' ? 'SPEC' : '1:1';
+      eventElement.innerHTML = `<span class="opacity-90 font-bold mr-1 text-[10px] uppercase">[${prefix}]</span><span>${timeStr}</span> ${event.title}`;
+      eventElement.title = `${event.title} - ${event.type || 'Mentoring Session'}`;
       eventElement.addEventListener('click', () => showEventDetails(event));
       dayElement.appendChild(eventElement);
     });
     
     // Show empty state if no events after filtering
-    if (currentFilter !== 'all' && dayEvents.length === 0) {
+    if ((currentFilter !== 'all' || currentTypeFilter !== 'all') && dayEvents.length === 0) {
       dayElement.style.opacity = '0.5';
     }
     
@@ -819,14 +1059,14 @@ function renderCalendar() {
   }
   
   // Show empty state if no events match the filter
-  if (filteredEvents.length === 0 && currentFilter !== 'all') {
+  if (filteredEvents.length === 0 && (currentFilter !== 'all' || currentTypeFilter !== 'all')) {
     const emptyState = document.createElement('div');
     emptyState.className = 'col-span-7 empty-state';
     emptyState.innerHTML = `
       <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
       </svg>
-      <p>No ${currentFilter} sessions found for this month.</p>
+      <p>No matching sessions found for this month.</p>
     `;
     calendarDays.appendChild(emptyState);
   }
@@ -845,7 +1085,14 @@ function showEventDetails(event) {
   document.getElementById('event-datetime').textContent = 
     `${eventDate.toLocaleDateString()} at ${eventDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
   document.getElementById('event-duration').textContent = `${event.duration} minutes`;
-  document.getElementById('event-type').textContent = event.type;
+  
+  // Type badge styling
+  const typeEl = document.getElementById('event-type');
+  if (typeEl) {
+    typeEl.textContent = event.type || '1-on-1 Mentoring';
+    typeEl.className = `inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${event.badge_bg || 'bg-sky-100'} ${event.badge_text || 'text-sky-800'} border ${event.badge_border || 'border-sky-300'}`;
+  }
+
   document.getElementById('event-status').textContent = event.status.charAt(0).toUpperCase() + event.status.slice(1);
   document.getElementById('event-created').textContent = createdDate.toLocaleDateString();
   document.getElementById('event-description').textContent = event.description;
@@ -880,7 +1127,7 @@ function showEventDetails(event) {
     joinBtn.style.display = 'none';
   }
   
-  // View details button - could link to supervisor meeting details page
+  // View details button
   viewDetailsBtn.onclick = function() {
     window.location.href = "{{ url_for('supervisor_meeting_details') }}";
   };
@@ -891,6 +1138,160 @@ function showEventDetails(event) {
 function filterEvents(type) {
   currentFilter = type;
   renderCalendar();
+}
+
+// ===== SGM Helper Functions =====
+function openScheduleSgmModal() {
+  const modal = document.getElementById('schedule-sgm-modal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    const todayStr = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('sgm-date');
+    if (dateInput) {
+      dateInput.min = todayStr;
+      if (!dateInput.value) dateInput.value = todayStr;
+    }
+    updateSgmSelectedCount();
+  }
+}
+
+function closeScheduleSgmModal() {
+  const modal = document.getElementById('schedule-sgm-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function toggleSgmCustomLink(val) {
+  const wrap = document.getElementById('sgm-custom-link-wrap');
+  if (wrap) {
+    if (val === 'custom') wrap.classList.remove('hidden');
+    else wrap.classList.add('hidden');
+  }
+}
+
+function filterSgmMenteesList(query) {
+  const q = (query || '').toLowerCase().trim();
+  document.querySelectorAll('.sgm-mentee-row').forEach(row => {
+    const name = row.getAttribute('data-name') || '';
+    const email = row.getAttribute('data-email') || '';
+    if (!q || name.includes(q) || email.includes(q)) {
+      row.style.display = 'flex';
+    } else {
+      row.style.display = 'none';
+    }
+  });
+}
+
+function toggleAllSgmMentees(check) {
+  document.querySelectorAll('.sgm-mentee-row').forEach(row => {
+    if (row.style.display !== 'none') {
+      const cb = row.querySelector('.sgm-mentee-cb');
+      if (cb) cb.checked = check;
+    }
+  });
+  updateSgmSelectedCount();
+}
+
+function updateSgmSelectedCount() {
+  const selected = document.querySelectorAll('.sgm-mentee-cb:checked').length;
+  const badge = document.getElementById('sgm-selected-badge');
+  if (badge) {
+    badge.textContent = `${selected} Mentee${selected === 1 ? '' : 's'} Selected`;
+    if (selected > 0) {
+      badge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
+    } else {
+      badge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200';
+    }
+  }
+}
+
+async function handleScheduleSgm(e) {
+  if (e) e.preventDefault();
+  const submitBtn = document.getElementById('sgm-submit-btn');
+  
+  const mentorId = document.getElementById('sgm-mentor').value;
+  const selectedCheckboxes = document.querySelectorAll('.sgm-mentee-cb:checked');
+  const menteeIds = Array.from(selectedCheckboxes).map(cb => parseInt(cb.value));
+  const title = document.getElementById('sgm-title').value.trim();
+  const description = document.getElementById('sgm-description').value.trim();
+  const date = document.getElementById('sgm-date').value;
+  const hour = document.getElementById('sgm-hour').value;
+  const min = document.getElementById('sgm-minute').value;
+  const ampm = document.getElementById('sgm-ampm').value;
+  const duration = document.getElementById('sgm-duration').value;
+  const platform = document.getElementById('sgm-platform').value;
+  const customLink = document.getElementById('sgm-custom-link') ? document.getElementById('sgm-custom-link').value.trim() : '';
+
+  if (!mentorId) {
+    showSgmStatus('Please select a lead mentor for the group session.', 'error');
+    return;
+  }
+  if (menteeIds.length === 0) {
+    showSgmStatus('Please select at least one mentee for the small group session.', 'error');
+    return;
+  }
+  if (!title) {
+    showSgmStatus('Meeting Title is required.', 'error');
+    return;
+  }
+  if (!date || !hour || !min || !ampm) {
+    showSgmStatus('Please fill in both Date and complete Start Time.', 'error');
+    return;
+  }
+
+  let h = parseInt(hour, 10);
+  if (ampm === 'PM' && h !== 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
+  const startTime24 = `${String(h).padStart(2, '0')}:${min}`;
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> Scheduling SGM...';
+
+  try {
+    const resp = await fetch('{{ url_for("supervisor_schedule_sgm_ajax") }}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mentor_id: parseInt(mentorId),
+        mentee_ids: menteeIds,
+        title: title,
+        description: description,
+        date: date,
+        start_time: startTime24,
+        duration: parseInt(duration),
+        platform: platform,
+        custom_link: customLink
+      })
+    });
+
+    const res = await resp.json();
+    if (resp.ok && res.success) {
+      showSgmStatus(res.message || 'SGM Meeting scheduled successfully!', 'success');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1200);
+    } else {
+      showSgmStatus(res.error || 'Failed to schedule SGM meeting.', 'error');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = 'Schedule SGM Meeting';
+    }
+  } catch (err) {
+    showSgmStatus('Network or server error. Please try again.', 'error');
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = 'Schedule SGM Meeting';
+  }
+}
+
+function showSgmStatus(msg, type) {
+  const statusTop = document.getElementById('sgm-status-top');
+  if (!statusTop) return;
+  statusTop.classList.remove('hidden', 'bg-red-50', 'text-red-700', 'border-red-200', 'bg-emerald-50', 'text-emerald-700', 'border-emerald-200');
+  if (type === 'error') {
+    statusTop.classList.add('bg-red-50', 'text-red-700', 'border-red-200');
+  } else {
+    statusTop.classList.add('bg-emerald-50', 'text-emerald-700', 'border-emerald-200');
+  }
+  statusTop.textContent = msg;
+  statusTop.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 // Event listeners
@@ -942,6 +1343,19 @@ document.addEventListener('DOMContentLoaded', function() {
       this.style.display = 'none';
     }
   });
+
+  const sgmModal = document.getElementById('schedule-sgm-modal');
+  if (sgmModal) {
+    sgmModal.addEventListener('click', function(e) {
+      if (e.target === this) closeScheduleSgmModal();
+    });
+  }
+
+  // SGM form submit
+  const sgmForm = document.getElementById('schedule-sgm-form');
+  if (sgmForm) {
+    sgmForm.addEventListener('submit', handleScheduleSgm);
+  }
 
   // Schedule Meeting form submit
   document.getElementById('schedule-meeting-form').addEventListener('submit', function(e) {

@@ -1921,6 +1921,7 @@ class MeetingRequest(db.Model):
     meeting_date = db.Column(db.Date, nullable=False)
     meeting_time = db.Column(db.Time, nullable=False)   # start time
     meeting_duration = db.Column(db.Integer, default=60)  # in minutes
+    meeting_type = db.Column(db.String(50), default="standard", nullable=True)  # 'anchor', 'special', 'sgm', 'standard'
 
     # Google Calendar info
     meet_link = db.Column(db.String(500), nullable=True)
@@ -7647,7 +7648,7 @@ def mentee_calendar():
     all_participants = _get_all_meeting_participants()
     extra_meeting_ids = []
     for mid, pdata in all_participants.items():
-        if pdata.get("mentee_id") == mentee.id:
+        if pdata.get("mentee_id") == mentee.id or (pdata.get("mentee_ids") and mentee.id in pdata.get("mentee_ids")):
             extra_meeting_ids.append(mid)
 
     extra_meetings = []
@@ -7682,15 +7683,23 @@ def mentee_calendar():
         else:
             status = "upcoming"
         
+        tinfo = _resolve_meeting_type(meeting, pdata)
         calendar_meetings.append({
             "id": meeting.id,
             "title": meeting.meeting_title,
             "date": meeting_datetime,
             "duration": meeting.meeting_duration,
             "mentor": mentor.name if mentor else "Unknown Mentor",
-            "type": "Video Call",  # You can add this field to your MeetingRequest model if needed
+            "type": tinfo["label"],
+            "meeting_type": tinfo["type"],
+            "type_color": tinfo["color_code"],
+            "badge_bg": tinfo["badge_bg"],
+            "badge_text": tinfo["badge_text"],
+            "badge_border": tinfo["badge_border"],
+            "card_bg": tinfo["card_bg"],
+            "hex_color": tinfo["hex_color"],
             "status": status,
-            "description": meeting.meeting_description or "No description provided",
+            "description": _clean_meeting_description(meeting.meeting_description) or "No description provided",
             "meet_link": meeting.meet_link
         })
     
@@ -7767,16 +7776,32 @@ def mentor_calendar():
         else:
             status = "upcoming"
         
+        mentee_display = mentee.name if mentee else "Unknown Mentee"
+        mentee_email_display = mentee.email if mentee else ""
+        if pdata and pdata.get("mentee_ids"):
+            m_users = User.query.filter(User.id.in_(pdata["mentee_ids"])).all()
+            if m_users:
+                mentee_display = f"Small Group ({len(m_users)} mentees): " + ", ".join([u.name for u in m_users[:3]]) + ("..." if len(m_users) > 3 else "")
+                mentee_email_display = ", ".join([u.email for u in m_users[:3]])
+
+        tinfo = _resolve_meeting_type(meeting, pdata)
         calendar_meetings.append({
             "id": meeting.id,
             "title": meeting.meeting_title,
             "date": meeting_datetime,
             "duration": meeting.meeting_duration,
-            "mentee": mentee.name if mentee else "Unknown Mentee",
-            "mentee_email": mentee.email if mentee else "",
-            "type": "Video Call",
+            "mentee": mentee_display,
+            "mentee_email": mentee_email_display,
+            "type": tinfo["label"],
+            "meeting_type": tinfo["type"],
+            "type_color": tinfo["color_code"],
+            "badge_bg": tinfo["badge_bg"],
+            "badge_text": tinfo["badge_text"],
+            "badge_border": tinfo["badge_border"],
+            "card_bg": tinfo["card_bg"],
+            "hex_color": tinfo["hex_color"],
             "status": status,
-            "description": meeting.meeting_description or "No description provided",
+            "description": _clean_meeting_description(meeting.meeting_description) or "No description provided",
             "meet_link": meeting.meet_link
         })
     
@@ -7823,18 +7848,47 @@ def supervisor_calendar():
         else:
             status = "upcoming"
         
+        pdata = _get_meeting_participants(meeting.id)
+        if pdata and pdata.get("mentee_ids"):
+            m_users = User.query.filter(User.id.in_(pdata["mentee_ids"])).all()
+            mentee_display = f"Small Group ({len(m_users)} mentees): " + ", ".join([u.name for u in m_users[:3]]) + ("..." if len(m_users) > 3 else "")
+            mentee_email_display = ", ".join([u.email for u in m_users[:3]])
+        elif pdata and pdata.get("mentee_id"):
+            m_user = User.query.get(pdata["mentee_id"])
+            mentee_display = m_user.name if m_user else (mentee.name if mentee else "Unknown Mentee")
+            mentee_email_display = m_user.email if m_user else (mentee.email if mentee else "")
+        else:
+            mentee_display = mentee.name if mentee else "Unknown Mentee"
+            mentee_email_display = mentee.email if mentee else ""
+
+        if pdata and pdata.get("mentor_id"):
+            mentor_user = User.query.get(pdata["mentor_id"])
+            mentor_display = mentor_user.name if mentor_user else (mentor.name if mentor else "Unknown Mentor")
+            mentor_email_display = mentor_user.email if mentor_user else (mentor.email if mentor else "")
+        else:
+            mentor_display = mentor.name if mentor else "Unknown Mentor"
+            mentor_email_display = mentor.email if mentor else ""
+
+        tinfo = _resolve_meeting_type(meeting, pdata)
         calendar_meetings.append({
             "id": meeting.id,
             "title": meeting.meeting_title,
             "date": meeting_datetime,
             "duration": meeting.meeting_duration,
-            "mentee": mentee.name if mentee else "Unknown Mentee",
-            "mentee_email": mentee.email if mentee else "",
-            "mentor": mentor.name if mentor else "Unknown Mentor",
-            "mentor_email": mentor.email if mentor else "",
-            "type": "Video Call",
+            "mentee": mentee_display,
+            "mentee_email": mentee_email_display,
+            "mentor": mentor_display,
+            "mentor_email": mentor_email_display,
+            "type": tinfo["label"],
+            "meeting_type": tinfo["type"],
+            "type_color": tinfo["color_code"],
+            "badge_bg": tinfo["badge_bg"],
+            "badge_text": tinfo["badge_text"],
+            "badge_border": tinfo["badge_border"],
+            "card_bg": tinfo["card_bg"],
+            "hex_color": tinfo["hex_color"],
             "status": status,
-            "description": meeting.meeting_description or "No description provided",
+            "description": _clean_meeting_description(meeting.meeting_description) or "No description provided",
             "meet_link": meeting.meet_link,
             "created_at": meeting.created_at
         })
@@ -9887,6 +9941,118 @@ def _resolve_meeting_participants(meeting):
         mentor = requested_to
 
     return mentor, mentee, participants_info
+
+
+def _resolve_meeting_type(meeting, participants_info=None):
+    """
+    Resolve mentoring type for a meeting: 'anchor', 'special', 'sgm', or 'standard'.
+    Returns a dict with:
+      type: 'anchor' | 'special' | 'sgm' | 'standard'
+      label: 'Anchor Mentoring' | 'Special Mentoring' | 'SGM (Small Group)' | '1-on-1 Mentoring'
+      color_code: 'indigo' | 'purple' | 'emerald' | 'sky'
+      badge_bg: Tailwind bg class
+      badge_text: Tailwind text class
+      badge_border: Tailwind border class
+      hex_color: hex string for calendar chip
+    """
+    if not meeting:
+        return {
+            "type": "standard",
+            "label": "1-on-1 Mentoring",
+            "color_code": "sky",
+            "hex_color": "#0284c7",
+            "badge_bg": "bg-sky-100",
+            "badge_text": "text-sky-800",
+            "badge_border": "border-sky-300",
+            "card_bg": "#0284c7",
+            "light_bg": "#f0f9ff"
+        }
+
+    pdata = participants_info or (_get_meeting_participants(meeting.id) if getattr(meeting, "id", None) else {})
+    
+    # 1. Explicit meeting_type attribute
+    raw_type = getattr(meeting, "meeting_type", None)
+    if raw_type and str(raw_type).strip().lower() in ("anchor", "special", "sgm", "standard"):
+        mtype = str(raw_type).strip().lower()
+    elif pdata and pdata.get("meeting_type") and str(pdata["meeting_type"]).strip().lower() in ("anchor", "special", "sgm", "standard"):
+        mtype = str(pdata["meeting_type"]).strip().lower()
+    elif pdata and (pdata.get("is_sgm") or pdata.get("mentee_ids")):
+        mtype = "sgm"
+    else:
+        # Check title and description
+        title = (meeting.meeting_title or "").lower()
+        desc = (meeting.meeting_description or "").lower()
+        if "sgm" in title or "small group" in title or "sgm" in desc or "small group" in desc:
+            mtype = "sgm"
+        elif "anchor" in title or "anchor" in desc or pdata.get("task_id"):
+            mtype = "anchor"
+        elif "special" in title or "special" in desc:
+            mtype = "special"
+        else:
+            # Check associated mentorship request
+            req_user = getattr(meeting, "requester", None)
+            rec_user = getattr(meeting, "requested_to", None)
+            mentee_id = pdata.get("mentee_id") or (meeting.requester_id if req_user and str(req_user.user_type) == "2" else (meeting.requested_to_id if rec_user and str(rec_user.user_type) == "2" else None))
+            mentor_id = pdata.get("mentor_id") or (meeting.requested_to_id if rec_user and str(rec_user.user_type) == "1" else (meeting.requester_id if req_user and str(req_user.user_type) == "1" else None))
+            mtype = "standard"
+            if mentee_id and mentor_id:
+                try:
+                    mr = MentorshipRequest.query.filter_by(mentee_id=mentee_id, mentor_id=mentor_id, final_status="approved").first()
+                    if mr and mr.mentor_type:
+                        if "anchor" in mr.mentor_type.lower():
+                            mtype = "anchor"
+                        elif "special" in mr.mentor_type.lower():
+                            mtype = "special"
+                except Exception:
+                    pass
+
+    TYPE_META = {
+        "anchor": {
+            "type": "anchor",
+            "label": "Anchor Mentoring",
+            "color_code": "indigo",
+            "hex_color": "#4f46e5",
+            "badge_bg": "bg-indigo-100",
+            "badge_text": "text-indigo-800",
+            "badge_border": "border-indigo-300",
+            "card_bg": "#4f46e5",
+            "light_bg": "#eef2ff"
+        },
+        "special": {
+            "type": "special",
+            "label": "Special Mentoring",
+            "color_code": "purple",
+            "hex_color": "#9333ea",
+            "badge_bg": "bg-purple-100",
+            "badge_text": "text-purple-800",
+            "badge_border": "border-purple-300",
+            "card_bg": "#9333ea",
+            "light_bg": "#faf5ff"
+        },
+        "sgm": {
+            "type": "sgm",
+            "label": "SGM (Small Group)",
+            "color_code": "emerald",
+            "hex_color": "#059669",
+            "badge_bg": "bg-emerald-100",
+            "badge_text": "text-emerald-800",
+            "badge_border": "border-emerald-300",
+            "card_bg": "#059669",
+            "light_bg": "#ecfdf5"
+        },
+        "standard": {
+            "type": "standard",
+            "label": "1-on-1 Mentoring",
+            "color_code": "sky",
+            "hex_color": "#0284c7",
+            "badge_bg": "bg-sky-100",
+            "badge_text": "text-sky-800",
+            "badge_border": "border-sky-300",
+            "card_bg": "#0284c7",
+            "light_bg": "#f0f9ff"
+        }
+    }
+    return TYPE_META.get(mtype, TYPE_META["standard"])
 
 
 # ===== 4-STAGE TASK PROGRESS (computed, no DB changes) =====
@@ -12233,6 +12399,7 @@ def institution_calendar():
         else:
             status = "upcoming"
         
+        tinfo = _resolve_meeting_type(meeting, participants_info)
         calendar_meetings.append({
             "id": meeting.id,
             "title": meeting.meeting_title,
@@ -12245,7 +12412,14 @@ def institution_calendar():
             "mentor": mentor.name if mentor else "Unknown Mentor",
             "mentor_id": mentor.id if mentor else (participants_info.get("mentor_id") if participants_info else None),
             "mentor_email": mentor.email if mentor else "",
-            "type": "Video Call",
+            "type": tinfo["label"],
+            "meeting_type": tinfo["type"],
+            "type_color": tinfo["color_code"],
+            "badge_bg": tinfo["badge_bg"],
+            "badge_text": tinfo["badge_text"],
+            "badge_border": tinfo["badge_border"],
+            "card_bg": tinfo["card_bg"],
+            "hex_color": tinfo["hex_color"],
             "status": status,
             "description": _clean_meeting_description(meeting.meeting_description) or "No description provided",
             "meet_link": meeting.meet_link,
@@ -15798,7 +15972,8 @@ def create_meeting_ajax():
                 meeting_duration=duration_minutes,
                 meet_link=meet_link,
                 gcal_event_id=gcal_event_id,
-                status="pending"
+                status="pending",
+                meeting_type=data.get("meeting_type") or "standard"
         )
 
         db.session.add(meeting)
@@ -15877,6 +16052,225 @@ def create_meeting_ajax():
     if calendar_warning:
         payload["warning"] = calendar_warning
     return jsonify(payload)
+
+
+@app.route("/supervisor/schedule_sgm_ajax", methods=["POST"])
+def supervisor_schedule_sgm_ajax():
+    """Supervisor-only endpoint to schedule a Small Group Mentoring (SGM) session with 1 Mentor and Multiple Mentees."""
+    if "email" not in session or str(session.get("user_type", "")) not in ("0", "admin", "supervisor"):
+        return jsonify({"error": "Unauthorized. Only supervisors can schedule Small Group Mentoring (SGM) sessions."}), 403
+
+    supervisor = User.query.filter_by(email=session["email"]).first()
+    if not supervisor:
+        return jsonify({"error": "Supervisor user session not found. Please log in again."}), 404
+
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "").strip()
+    mentor_id = data.get("mentor_id")
+    raw_mentee_ids = data.get("mentee_ids") or []
+    date_str = (data.get("date") or "").strip()
+    start_time_str = (data.get("start_time") or "").strip()
+    duration = data.get("duration")
+    timezone = (data.get("timezone") or "Asia/Kolkata").strip()
+    platform = (data.get("platform") or "google").strip().lower()
+    custom_link = (data.get("custom_link") or "").strip()
+    description = (data.get("description") or "").strip()
+
+    # Field validations
+    if not title:
+        return jsonify({"error": "Meeting Title is required."}), 400
+    if not mentor_id:
+        return jsonify({"error": "Please select a Mentor for this SGM session."}), 400
+
+    # Parse mentee_ids (can be list or comma-separated string)
+    mentee_ids = []
+    if isinstance(raw_mentee_ids, list):
+        for mid in raw_mentee_ids:
+            try:
+                mentee_ids.append(int(mid))
+            except (ValueError, TypeError):
+                pass
+    elif isinstance(raw_mentee_ids, str):
+        for mid in raw_mentee_ids.split(","):
+            if mid.strip().isdigit():
+                mentee_ids.append(int(mid.strip()))
+
+    if not mentee_ids:
+        return jsonify({"error": "Please select at least one mentee for this Small Group Mentoring session."}), 400
+
+    try:
+        mentor_id_int = int(mentor_id)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid Mentor ID."}), 400
+
+    mentor = db.session.get(User, mentor_id_int)
+    if not mentor or str(mentor.user_type) != "1":
+        return jsonify({"error": "Selected mentor is invalid or not registered as a mentor."}), 400
+
+    mentees = User.query.filter(User.id.in_(mentee_ids), User.user_type == "2").all()
+    if not mentees:
+        return jsonify({"error": "No valid mentees were found for the selected IDs."}), 400
+
+    if not date_str or not start_time_str:
+        return jsonify({"error": "Date and Start Time are required."}), 400
+
+    import datetime as dt
+    try:
+        start_datetime = dt.datetime.strptime(f"{date_str} {start_time_str}", "%Y-%m-%d %H:%M")
+    except Exception:
+        return jsonify({"error": "Invalid Date or Time format. Please check your selection."}), 400
+
+    if start_datetime <= dt.datetime.now():
+        return jsonify({"error": "Cannot schedule meeting for past or current time. Please select a future date and time."}), 400
+
+    try:
+        duration_minutes = int(duration or 60)
+        if duration_minutes <= 0:
+            duration_minutes = 60
+    except Exception:
+        duration_minutes = 60
+
+    end_datetime = start_datetime + dt.timedelta(minutes=duration_minutes)
+
+    try:
+        from zoneinfo import ZoneInfo
+        tzobj = ZoneInfo(timezone)
+    except Exception:
+        tzobj = dt.timezone.utc
+    start_str = start_datetime.replace(tzinfo=tzobj).isoformat()
+    end_str = end_datetime.replace(tzinfo=tzobj).isoformat()
+
+    # Link generation
+    meet_link = None
+    gcal_event_id = None
+    attendee_emails = [supervisor.email, mentor.email] + [m.email for m in mentees if m.email]
+
+    if platform == "custom":
+        meet_link = custom_link or f"https://meet.google.com/new"
+    elif platform == "teams":
+        try:
+            teams_meet_link, teams_event_id = create_teams_calendar_event(
+                title=f"SGM: {title}",
+                start_utc=start_datetime.astimezone(dt.timezone.utc).isoformat() if hasattr(start_datetime, 'astimezone') else start_datetime.isoformat(),
+                end_utc=end_datetime.astimezone(dt.timezone.utc).isoformat() if hasattr(end_datetime, 'astimezone') else end_datetime.isoformat(),
+                attendee_emails=attendee_emails,
+                description=description or f"Small Group Mentoring session scheduled by Supervisor {supervisor.name}"
+            )
+            if teams_meet_link:
+                meet_link = teams_meet_link
+                gcal_event_id = teams_event_id
+            else:
+                meet_link = "https://teams.live.com/meet/create"
+        except Exception as e:
+            app.logger.warning(f"SGM Teams link creation failed: {e}")
+            meet_link = "https://teams.live.com/meet/create"
+    else:  # Google Meet
+        try:
+            service = get_calendar_service()
+            if service:
+                event_body = {
+                    "summary": f"SGM: {title}",
+                    "description": f"Small Group Mentoring session scheduled by Supervisor {supervisor.name}.\nMentor: {mentor.name}\nMentees: {', '.join([m.name for m in mentees])}\n\n{description}",
+                    "start": {"dateTime": start_str, "timeZone": timezone},
+                    "end": {"dateTime": end_str, "timeZone": timezone},
+                    "attendees": [{"email": em} for em in attendee_emails if em],
+                    "conferenceData": {
+                        "createRequest": {
+                            "requestId": f"sgm-{int(time.time())}-{mentor.id}",
+                            "conferenceSolutionKey": {"type": "hangoutsMeet"}
+                        }
+                    }
+                }
+                event = service.events().insert(
+                    calendarId="primary",
+                    body=event_body,
+                    conferenceDataVersion=1
+                ).execute()
+                meet_link = event.get("hangoutLink")
+                gcal_event_id = event.get("id")
+        except Exception as e:
+            app.logger.warning(f"SGM Google Calendar creation failed: {e}")
+            meet_link = f"https://meet.google.com/lookup/sgm-{int(time.time())}"
+
+    if not meet_link:
+        meet_link = f"https://meet.google.com/lookup/sgm-{int(time.time())}"
+
+    # Build description and embed participants metadata
+    mentee_names_str = ", ".join([m.name for m in mentees])
+    full_description = f"Small Group Mentoring (SGM) session scheduled by Supervisor {supervisor.name}.\nMentor: {mentor.name}\nMentees ({len(mentees)}): {mentee_names_str}"
+    if description:
+        full_description += f"\n\nAgenda / Notes:\n{description}"
+
+    try:
+        meeting = MeetingRequest(
+            requester_id=supervisor.id,
+            requested_to_id=mentor.id,
+            meeting_title=f"SGM: {title}" if not title.upper().startswith("SGM") else title,
+            meeting_description=full_description,
+            meeting_date=start_datetime.date(),
+            meeting_time=start_datetime.time(),
+            meeting_duration=duration_minutes,
+            meet_link=meet_link,
+            gcal_event_id=gcal_event_id,
+            status="pending",
+            meeting_type="sgm"
+        )
+        db.session.add(meeting)
+        db.session.commit()
+
+        participants_data = {
+            "mentor_id": mentor.id,
+            "mentor_name": mentor.name,
+            "mentee_ids": [m.id for m in mentees],
+            "mentee_names": [m.name for m in mentees],
+            "is_sgm": True,
+            "meeting_type": "sgm",
+            "created_by": supervisor.id,
+            "created_by_name": supervisor.name,
+            "scheduled_by": "supervisor"
+        }
+        _save_meeting_participants(meeting.id, participants_data)
+
+        # Send email notifications to mentor and all participating mentees
+        try:
+            for recipient in [mentor] + mentees:
+                if recipient.email:
+                    subj = f"New SGM Session Scheduled: {meeting.meeting_title}"
+                    body_html = f"""
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+                        <h2 style="color: #059669; margin-top: 0;">Small Group Mentoring (SGM) Session</h2>
+                        <p>Hello <strong>{recipient.name}</strong>,</p>
+                        <p>Supervisor <strong>{supervisor.name}</strong> has scheduled a Small Group Mentoring session with mentor <strong>{mentor.name}</strong>.</p>
+                        <div style="background: #ecfdf5; padding: 15px; border-left: 4px solid #059669; border-radius: 6px; margin: 20px 0;">
+                            <p style="margin: 4px 0;"><strong>Topic:</strong> {meeting.meeting_title}</p>
+                            <p style="margin: 4px 0;"><strong>Date:</strong> {meeting.meeting_date.strftime('%B %d, %Y')}</p>
+                            <p style="margin: 4px 0;"><strong>Time:</strong> {meeting.meeting_time.strftime('%I:%M %p')}</p>
+                            <p style="margin: 4px 0;"><strong>Duration:</strong> {duration_minutes} minutes</p>
+                            <p style="margin: 4px 0;"><strong>Mentor:</strong> {mentor.name}</p>
+                            <p style="margin: 4px 0;"><strong>Mentees in Group ({len(mentees)}):</strong> {mentee_names_str}</p>
+                        </div>
+                        <div style="text-align: center; margin: 25px 0;">
+                            <a href="{meet_link}" style="background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Video Call</a>
+                        </div>
+                        <p style="color: #64748b; font-size: 13px;">Please make sure to join on time from your dashboard or calendar.</p>
+                    </div>
+                    """
+                    send_email_reminder(recipient.email, subj, body_html)
+        except Exception as e:
+            app.logger.warning(f"Error sending SGM meeting notification emails: {e}")
+
+        return jsonify({
+            "success": True,
+            "message": f"SGM meeting scheduled successfully with {mentor.name} and {len(mentees)} mentee(s)!",
+            "meeting_id": meeting.id,
+            "meet_link": meet_link,
+            "title": meeting.meeting_title
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Failed to schedule SGM meeting: {e}")
+        return jsonify({"error": f"Failed to schedule SGM meeting: {str(e)}"}), 500
 
 
 @app.route("/update_meeting_ajax", methods=["POST"])

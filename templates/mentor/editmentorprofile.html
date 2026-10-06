@@ -128,13 +128,16 @@
                 </div>
                 <div class="mt-4">
                     <label class="bg-blue-500 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-blue-600 transition duration-300 inline-block">
-                        <i class="fas fa-upload mr-2"></i>Upload Photo (Recommended)
+                        <i class="fas fa-upload mr-2"></i>Upload Photo
                         {% if profile_picture %}
                         <input type="file" name="profile_picture" class="hidden" onchange="previewImage(this)" accept="image/*">
                         {% else %}
                         <input type="file" name="profile_picture" class="hidden" onchange="previewImage(this)" accept="image/*">
                         {% endif %}
                     </label>
+                    <div class="mt-1.5">
+                        <span class="inline-block text-xs font-bold text-red-600 tracking-wide uppercase bg-red-50 px-2.5 py-0.5 rounded border border-red-200 shadow-sm">Highly Recommended</span>
+                    </div>
                 </div>
                 {% if profile_picture %}
                 <p class="text-xs text-gray-500 mt-2">Leave empty to keep current picture</p>
@@ -1414,6 +1417,41 @@
                             <input type="checkbox" name="base_mentorship_topics" value="seeking_internships" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'seeking_internships' in base_topics_list %}checked{% endif %}>
                             <span class="text-sm font-medium text-gray-800">Seeking Internships</span>
                         </label>
+                        <!-- Job Search & Applications (Seeking Job) -->
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'job_search_applications' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="university_student,young_professional_career_explorer">
+                            <input type="checkbox" name="base_mentorship_topics" value="job_search_applications" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'job_search_applications' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Job Search & Applications (Seeking Job)</span>
+                        </label>
+                        <!-- Resume & LinkedIn Review -->
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'resume_linkedin_review' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="university_student,young_professional_career_explorer">
+                            <input type="checkbox" name="base_mentorship_topics" value="resume_linkedin_review" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'resume_linkedin_review' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Resume & LinkedIn Review</span>
+                        </label>
+                        <!-- Interview Preparation & Mock Interviews -->
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'interview_preparation' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="university_student,young_professional_career_explorer">
+                            <input type="checkbox" name="base_mentorship_topics" value="interview_preparation" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'interview_preparation' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Interview Prep & Mock Interviews</span>
+                        </label>
+                        <!-- Higher Studies Guidance (University Students) -->
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'higher_studies_guidance' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="university_student">
+                            <input type="checkbox" name="base_mentorship_topics" value="higher_studies_guidance" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'higher_studies_guidance' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Higher Studies & Grad School Guidance</span>
+                        </label>
+                        <!-- Career Transition & Growth Strategy (Young Professionals) -->
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'career_transition_growth' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="young_professional_career_explorer">
+                            <input type="checkbox" name="base_mentorship_topics" value="career_transition_growth" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'career_transition_growth' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Career Transition & Growth Strategy</span>
+                        </label>
+                        <!-- Salary Negotiation & Compensation (Young Professionals) -->
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'salary_negotiation' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="young_professional_career_explorer">
+                            <input type="checkbox" name="base_mentorship_topics" value="salary_negotiation" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'salary_negotiation' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Salary Negotiation & Compensation</span>
+                        </label>
+                        <!-- Workplace Navigation & Leadership (Young Professionals) -->
+                        <label class="base-topic-label flex items-center gap-2 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-green-300 hover:bg-green-50 transition duration-200 {% if 'workplace_navigation' in base_topics_list %}border-green-500 bg-green-50{% endif %}" data-target-audience="young_professional_career_explorer">
+                            <input type="checkbox" name="base_mentorship_topics" value="workplace_navigation" class="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-200 base-topic-checkbox" {% if 'workplace_navigation' in base_topics_list %}checked{% endif %}>
+                            <span class="text-sm font-medium text-gray-800">Workplace Navigation & Leadership</span>
+                        </label>
                     </div>
                 </div>
 
@@ -2370,8 +2408,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Mapping of target audience to base topics
     const audienceToTopics = {
         'school_student': ['school_subjects', 'study_skills_exam_prep', 'science_math', 'language_arts_english', 'homework_support', 'college_career_readiness', 'study_habits_time_management', 'stem_coding_beginners', 'public_speaking_confidence', 'soft_skills'],
-        'university_student': ['coding_basics', 'career_guidance', 'azure_devops', 'cloud_computing', 'data_science', 'web_development', 'mobile_development', 'soft_skills', 'seeking_internships'],
-        'young_professional_career_explorer': ['coding_basics', 'career_guidance', 'azure_devops', 'cloud_computing', 'web_development', 'mobile_development', 'soft_skills', 'leadership', 'seeking_internships'],
+        'university_student': ['coding_basics', 'career_guidance', 'azure_devops', 'cloud_computing', 'data_science', 'web_development', 'mobile_development', 'soft_skills', 'seeking_internships', 'job_search_applications', 'resume_linkedin_review', 'interview_preparation', 'higher_studies_guidance'],
+        'young_professional_career_explorer': ['coding_basics', 'career_guidance', 'azure_devops', 'cloud_computing', 'web_development', 'mobile_development', 'soft_skills', 'leadership', 'seeking_internships', 'job_search_applications', 'resume_linkedin_review', 'interview_preparation', 'career_transition_growth', 'salary_negotiation', 'workplace_navigation'],
         'entrepreneur': ['career_guidance', 'soft_skills', 'leadership', 'entrepreneurship']
     };
     
