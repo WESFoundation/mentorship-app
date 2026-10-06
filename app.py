@@ -100,9 +100,37 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 from flask import send_from_directory as _send_from_directory
 import storage_service
 
+@app.route('/static/uploads/<path:filename>')
 @app.route('/uploads/<path:filename>')
 def serve_uploaded_file(filename):
-    return _send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+    if not filename:
+        return redirect('https://ui-avatars.com/api/?name=User&background=2563eb&color=fff', code=302)
+
+    clean_name = filename.strip()
+    for pfx in ['/static/uploads/', 'static/uploads/', '/uploads/', 'uploads/']:
+        while clean_name.startswith(pfx):
+            clean_name = clean_name[len(pfx):]
+
+    # Handle cloud URLs (such as Google Drive) accidentally wrapped in static path by templates
+    if clean_name.startswith('http:/') or clean_name.startswith('https:/') or clean_name.startswith('http://') or clean_name.startswith('https://'):
+        if clean_name.startswith('https:/') and not clean_name.startswith('https://'):
+            clean_url = 'https://' + clean_name[len('https:/'):]
+        elif clean_name.startswith('http:/') and not clean_name.startswith('http://'):
+            clean_url = 'http://' + clean_name[len('http:/'):]
+        else:
+            clean_url = clean_name
+
+        if request.query_string:
+            qs = request.query_string.decode('utf-8', errors='ignore')
+            clean_url += ('&' if '?' in clean_url else '?') + qs
+
+        return redirect(clean_url, code=302)
+
+    local_path = os.path.join(app.config["UPLOAD_FOLDER"], clean_name)
+    if os.path.exists(local_path):
+        return _send_from_directory(app.config["UPLOAD_FOLDER"], clean_name)
+
+    return redirect('https://ui-avatars.com/api/?name=User&background=2563eb&color=fff', code=302)
 
 @app.route('/api/upload', methods=['POST'])
 def api_upload_file():
@@ -116,9 +144,10 @@ def api_upload_file():
     file_url, stored_name = storage_service.upload_file(file, folder_prefix=folder)
     if not file_url:
         return jsonify({'success': False, 'message': 'Upload failed'}), 500
+    res_url = file_url if file_url.startswith('http') else f"/static/uploads/{stored_name}"
     return jsonify({
         'success': True,
-        'url': file_url,
+        'url': res_url,
         'filename': stored_name
     })
 
