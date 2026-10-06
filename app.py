@@ -130,6 +130,11 @@ def serve_uploaded_file(filename):
     if os.path.exists(local_path):
         return _send_from_directory(app.config["UPLOAD_FOLDER"], clean_name)
 
+    # If file not found locally on disk, attempt to restore it on the fly from Google Drive cloud backup
+    if storage_service.download_file_from_drive(clean_name, local_path):
+        if os.path.exists(local_path):
+            return _send_from_directory(app.config["UPLOAD_FOLDER"], clean_name)
+
     return redirect('https://ui-avatars.com/api/?name=User&background=2563eb&color=fff', code=302)
 
 @app.route('/api/upload', methods=['POST'])

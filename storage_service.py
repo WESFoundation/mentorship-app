@@ -337,15 +337,54 @@ def upload_to_drive(file_storage, folder_prefix=None, custom_filename=None):
         return None
 
 
+def download_file_from_drive(filename, target_local_path):
+    """
+    Search for a file with the given filename in Google Drive,
+    and download it to target_local_path.
+    Returns True if downloaded successfully, False otherwise.
+    """
+    service = get_drive_service()
+    if not service:
+        return False
+
+    clean_name = os.path.basename(filename)
+    try:
+        from googleapiclient.http import MediaIoBaseDownload
+        query = f"name = '{clean_name}' and trashed = false"
+        res = service.files().list(
+            q=query,
+            fields="files(id, name, mimeType)",
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True
+        ).execute()
+        files = res.get("files", [])
+        if not files:
+            return False
+
+        file_id = files[0]["id"]
+        os.makedirs(os.path.dirname(target_local_path), exist_ok=True)
+        req = service.files().get_media(fileId=file_id)
+        with open(target_local_path, "wb") as f:
+            downloader = MediaIoBaseDownload(f, req)
+            done = False
+            while not done:
+                status, done = downloader.next_chunk()
+        logger.info("Successfully fetched %s from Google Drive (ID: %s) to local cache.", clean_name, file_id)
+        return True
+    except Exception as e:
+        logger.warning("Could not download %s from Google Drive: %s", clean_name, e)
+        return False
+
+
 def upload_file(file_storage, folder_prefix="profiles", custom_filename=None, make_public=True):
     """
-    Upload a file either to Google Drive, or falls back to local disk.
+    Upload a file:
+    1. Saves locally to static/uploads/<stored_name> (ensuring zero-latency rendering without CORS blocks).
+    2. Uploads to Google Drive under WES LUX Uploads / {folder_prefix} / <stored_name> (persistent cloud backup).
     
     Returns:
-        tuple (file_url, stored_name):
-            - file_url: Full HTTPS Google Drive URL (if uploaded to Drive),
-                        or local filename stored_name (if saved locally).
-            - stored_name: The clean filename.
+        tuple (stored_name, stored_name):
+            - Clean filename for database storage, ensuring all Flask templates construct valid URLs.
     """
     if not file_storage or not getattr(file_storage, "filename", None):
         return None, None
@@ -358,55 +397,78 @@ def upload_file(file_storage, folder_prefix="profiles", custom_filename=None, ma
         unique_id = uuid.uuid4().hex[:12]
         stored_name = f"{unique_id}_{orig_name}"
 
-    # 1. Try Google Drive first
-    service = get_drive_service()
-    if service:
-        drive_url = upload_to_drive(file_storage, folder_prefix=folder_prefix, custom_filename=stored_name)
-        if drive_url:
-            return drive_url, stored_name
-
-    # 2. Local Disk Fallback
+    # 1. Save local copy first
     try:
-        from flask import current_app
-        upload_folder = current_app.config.get("UPLOAD_FOLDER", os.path.join(current_app.root_path, "static", "uploads"))
+        try:
+            from flask import current_app
+            upload_folder = current_app.config.get("UPLOAD_FOLDER", os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "uploads"))
+        except Exception:
+            upload_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "uploads")
+
         os.makedirs(upload_folder, exist_ok=True)
         local_path = os.path.join(upload_folder, stored_name)
         file_storage.seek(0)
-        file_storage.save(local_path)
-        logger.info("Saved file locally at %s", local_path)
-        # Return clean stored_name so templates construct /static/uploads/<stored_name>
-        return stored_name, stored_name
+        if hasattr(file_storage, "save"):
+            file_storage.save(local_path)
+        else:
+            with open(local_path, "wb") as f:
+                f.write(file_storage.read())
+        file_storage.seek(0)
+        logger.info("Saved local file at %s", local_path)
     except Exception as e:
-        logger.error("Local save failed: %s", e)
-        return None, None
+        logger.warning("Local save failed: %s", e)
+
+    # 2. Upload to Google Drive for persistent cloud storage
+    try:
+        file_storage.seek(0)
+        drive_url = upload_to_drive(file_storage, folder_prefix=folder_prefix, custom_filename=stored_name)
+        if drive_url:
+            logger.info("File %s uploaded to Google Drive: %s", stored_name, drive_url)
+    except Exception as e:
+        logger.warning("Google Drive upload failed: %s", e)
+
+    return stored_name, stored_name
 
 
 def delete_file(file_identifier):
-    """Remove obsolete file from cloud or local disk."""
+    """Remove obsolete file from cloud and local disk."""
     if not file_identifier or str(file_identifier).strip() == "":
         return
 
     file_str = str(file_identifier).strip()
+    clean_filename = os.path.basename(file_str)
 
-    # If it's a Drive URL containing file ID
-    if "drive.google.com" in file_str and "id=" in file_str:
+    # 1. Delete from Google Drive
+    service = get_drive_service()
+    if service:
         try:
-            service = get_drive_service()
-            if service:
+            if "drive.google.com" in file_str and "id=" in file_str:
                 file_id = file_str.split("id=")[1].split("&")[0]
                 service.files().delete(fileId=file_id, supportsAllDrives=True).execute()
-                logger.info("Deleted Google Drive file ID: %s", file_id)
-                return
+                logger.info("Deleted Google Drive file by ID: %s", file_id)
+            elif clean_filename:
+                query = f"name = '{clean_filename}' and trashed = false"
+                res = service.files().list(
+                    q=query,
+                    fields="files(id)",
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True
+                ).execute()
+                for f in res.get("files", []):
+                    service.files().delete(fileId=f["id"], supportsAllDrives=True).execute()
+                    logger.info("Deleted Google Drive file by name: %s (%s)", clean_filename, f["id"])
         except Exception as e:
             logger.warning("Failed deleting Google Drive file: %s", e)
 
-    # Local file deletion
+    # 2. Local file deletion
     try:
-        from flask import current_app
-        # Strip any leading /static/uploads/
-        local_filename = os.path.basename(file_str)
-        upload_folder = current_app.config.get("UPLOAD_FOLDER", os.path.join(current_app.root_path, "static", "uploads"))
-        target_path = os.path.join(upload_folder, local_filename)
+        try:
+            from flask import current_app
+            upload_folder = current_app.config.get("UPLOAD_FOLDER", os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "uploads"))
+        except Exception:
+            upload_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "uploads")
+
+        target_path = os.path.join(upload_folder, clean_filename)
         if os.path.exists(target_path):
             os.remove(target_path)
             logger.info("Deleted local file: %s", target_path)
