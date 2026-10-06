@@ -72,11 +72,15 @@ load_env_file()
 PRODUCTION = os.environ.get("PRODUCTION", "false").lower() in ("1", "true", "yes")
 
 from werkzeug.middleware.proxy_fix import ProxyFix
-from flask_cors import CORS
+try:
+    from flask_cors import CORS
+except ImportError:
+    CORS = None
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+if CORS:
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Secret key - USE A STRONG RANDOM KEY IN PRODUCTION!
 # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
