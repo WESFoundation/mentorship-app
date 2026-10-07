@@ -23,27 +23,48 @@ api_bp = Blueprint("mobile_api", __name__, url_prefix="/api")
 
 def get_current_user_from_req(User):
     """
-    Extract authenticated user from Session or Authorization header (Bearer email/token).
+    Extract authenticated user from Session, Authorization header (Bearer email/token/user_id),
+    or email/user_id query params.
     """
     email = session.get("email")
     if not email:
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header.split(" ", 1)[1].strip()
-            # If token is email or simple token
             if "@" in token:
                 email = token
+            elif token.isdigit():
+                return User.query.get(int(token))
 
     if not email:
         email = request.args.get("email") or (request.is_json and request.json.get("email"))
 
     if email:
         return User.query.filter(func.lower(User.email) == email.strip().lower()).first()
+
+    # Fallback to user_id parameter if provided
+    user_id = request.args.get("user_id") or (request.is_json and request.json.get("user_id"))
+    if user_id:
+        try:
+            return User.query.get(int(user_id))
+        except (ValueError, TypeError):
+            pass
+
     return None
 
 
-def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution, SupervisorProfile, MenteeTask, MentorshipRequest, MeetingRequest, Notification, calculate_mentor_rating_func=None):
+def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution, SupervisorProfile, MenteeTask, MentorshipRequest, MeetingRequest, Notification, calculate_mentor_rating_func=None, PersonalTask=None, MasterTask=None, **kwargs):
     """Register all mobile API endpoints with the Flask app."""
+    if PersonalTask is None:
+        try:
+            PersonalTask = db.Model._decl_class_registry.get("PersonalTask")
+        except Exception:
+            PersonalTask = None
+    if MasterTask is None:
+        try:
+            MasterTask = db.Model._decl_class_registry.get("MasterTask")
+        except Exception:
+            MasterTask = None
 
     # -------------------------------------------------------------
     # 1. AUTHENTICATION & LOGIN / REGISTER
@@ -284,16 +305,77 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         if not user:
             return jsonify({"success": False, "message": "User not found"}), 404
 
-        tasks = MenteeTask.query.filter_by(mentee_id=user.id).all()
+        # Ensure anchor tasks are assigned if mentee has confirmed mentorship
+        try:
+            from anchor_tasks_checker import check_and_fix_anchor_tasks
+            check_and_fix_anchor_tasks(mentee_id=user.id, auto_commit=True)
+        except Exception as e:
+            logger.warning(f"Error checking anchor tasks for mentee {user.id}: {e}")
+
+        # 1. Fetch Curriculum/Master MenteeTasks
+        tasks = MenteeTask.query.filter_by(mentee_id=user.id).order_by(MenteeTask.meeting_number).all()
         task_list = []
         for t in tasks:
+            status_str = (t.status or "pending").strip().lower()
+            if status_str in ("done", "completed") or (t.progress or 0) >= 100:
+                display_status = "Done"
+            elif status_str in ("in-progress", "in_progress", "committed"):
+                display_status = "In Progress"
+            else:
+                display_status = "Pending"
+
+            mt = getattr(t, "master_task", None)
+            title_val = (mt.journey_phase if mt and mt.journey_phase else (mt.mentee_focus if mt and mt.mentee_focus else f"Curriculum Task #{t.meeting_number}"))
+            desc_val = (mt.purpose_of_call if mt and mt.purpose_of_call else (mt.mentee_focus if mt and mt.mentee_focus else "Mentorship Curriculum Assignment"))
+
             task_list.append({
                 "id": t.id,
-                "status": t.status or "Pending",
-                "progress": t.progress or 0,
+                "serial": t.meeting_number,
+                "title": title_val,
+                "purpose_of_call": desc_val,
+                "description": desc_val,
+                "mentee_focus": mt.mentee_focus if mt else "",
+                "status": display_status,
+                "raw_status": t.status or "pending",
+                "progress": t.progress or (100 if display_status == "Done" else 0),
                 "due_date": t.due_date.strftime("%Y-%m-%d") if getattr(t, "due_date", None) else "",
-                "purpose_of_call": getattr(t, "purpose", "") or getattr(t, "description", "") or "Mentorship Task"
+                "type": "Curriculum Task",
+                "task_type": "master",
+                "mentor_name": t.mentor.name if getattr(t, "mentor", None) else "Assigned Mentor",
+                "mentor_id": t.mentor_id,
+                "month": t.month or (mt.month if mt else "")
             })
+
+        # 2. Fetch Personal Tasks if available
+        if PersonalTask:
+            p_tasks = PersonalTask.query.filter_by(mentee_id=user.id).order_by(PersonalTask.created_date.desc()).all()
+            for pt in p_tasks:
+                status_str = (pt.status or "pending").strip().lower()
+                if status_str in ("done", "completed") or (pt.progress or 0) >= 100:
+                    display_status = "Done"
+                elif status_str in ("in-progress", "in_progress"):
+                    display_status = "In Progress"
+                else:
+                    display_status = "Pending"
+
+                task_list.append({
+                    "id": pt.id,
+                    "serial": len(task_list) + 1,
+                    "title": pt.title or "Personal Task",
+                    "purpose_of_call": pt.description or "Personal Assignment",
+                    "description": pt.description or "",
+                    "mentee_focus": "",
+                    "status": display_status,
+                    "raw_status": pt.status or "pending",
+                    "progress": pt.progress or (100 if display_status == "Done" else 0),
+                    "due_date": pt.due_date.strftime("%Y-%m-%d") if getattr(pt, "due_date", None) else "",
+                    "type": "Personal Task",
+                    "task_type": "personal",
+                    "mentor_name": pt.mentor.name if getattr(pt, "mentor", None) else "Self",
+                    "mentor_id": pt.mentor_id,
+                    "month": "Ongoing"
+                })
+
         return jsonify({"success": True, "tasks": task_list})
 
     @api_bp.route("/mentee/tasks/<int:task_id>", methods=["PUT", "POST"])
@@ -303,14 +385,35 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             return jsonify({"success": False, "message": "Unauthorized"}), 401
 
         task = MenteeTask.query.filter_by(id=task_id).first()
+        is_personal = False
+        if not task and PersonalTask:
+            task = PersonalTask.query.filter_by(id=task_id).first()
+            is_personal = True
+
         if not task:
             return jsonify({"success": False, "message": "Task not found"}), 404
 
         data = request.get_json(silent=True) or {}
-        if "status" in data:
-            task.status = data["status"]
-        if "progress" in data:
-            task.progress = int(data["progress"])
+        raw_status = (data.get("status") or "").strip()
+        progress = data.get("progress")
+
+        if raw_status:
+            norm_status = raw_status.lower()
+            if norm_status in ("done", "completed"):
+                task.status = "done" if not is_personal else "completed"
+                if hasattr(task, "completed_date"):
+                    task.completed_date = datetime.utcnow()
+            elif norm_status in ("in progress", "in-progress"):
+                task.status = "in-progress"
+            else:
+                task.status = "pending"
+
+        if progress is not None:
+            task.progress = int(progress)
+            if task.progress >= 100 and task.status not in ("done", "completed"):
+                task.status = "done" if not is_personal else "completed"
+                if hasattr(task, "completed_date"):
+                    task.completed_date = datetime.utcnow()
 
         try:
             db.session.commit()
@@ -506,6 +609,11 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             # Auto-approve if supervisor not required or update status
             if getattr(req_obj, "supervisor_status", None) == "approved":
                 req_obj.final_status = "approved"
+                try:
+                    from anchor_tasks_checker import check_and_fix_anchor_tasks
+                    check_and_fix_anchor_tasks(mentorship_id=req_obj.id, mentee_id=req_obj.mentee_id, auto_commit=False)
+                except Exception as e:
+                    logger.warning(f"Error checking anchor tasks upon mentor acceptance: {e}")
         elif action in ("rejected", "declined"):
             req_obj.mentor_status = "rejected"
             req_obj.final_status = "rejected"
@@ -516,6 +624,74 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         except Exception as e:
             db.session.rollback()
             return jsonify({"success": False, "message": str(e)}), 500
+
+    @api_bp.route("/mentor/tasks", methods=["GET"])
+    def api_get_mentor_tasks():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        tasks = MenteeTask.query.filter_by(mentor_id=user.id).order_by(MenteeTask.meeting_number).all()
+        task_list = []
+        for t in tasks:
+            status_str = (t.status or "pending").strip().lower()
+            if status_str in ("done", "completed") or (t.progress or 0) >= 100:
+                display_status = "Done"
+            elif status_str in ("in-progress", "in_progress", "committed"):
+                display_status = "In Progress"
+            else:
+                display_status = "Pending"
+
+            mt = getattr(t, "master_task", None)
+            title_val = (mt.journey_phase if mt and mt.journey_phase else (mt.mentee_focus if mt and mt.mentee_focus else f"Curriculum Task #{t.meeting_number}"))
+            desc_val = (mt.purpose_of_call if mt and mt.purpose_of_call else (mt.mentee_focus if mt and mt.mentee_focus else "Curriculum Task"))
+
+            task_list.append({
+                "id": t.id,
+                "serial": t.meeting_number,
+                "title": title_val,
+                "purpose_of_call": desc_val,
+                "description": desc_val,
+                "status": display_status,
+                "raw_status": t.status or "pending",
+                "progress": t.progress or (100 if display_status == "Done" else 0),
+                "due_date": t.due_date.strftime("%Y-%m-%d") if getattr(t, "due_date", None) else "",
+                "type": "Curriculum Task",
+                "task_type": "master",
+                "mentee_id": t.mentee_id,
+                "mentee_name": t.mentee.name if getattr(t, "mentee", None) else f"Mentee #{t.mentee_id}",
+                "month": t.month or (mt.month if mt else "")
+            })
+
+        if PersonalTask:
+            p_tasks = PersonalTask.query.filter_by(mentor_id=user.id).order_by(PersonalTask.created_date.desc()).all()
+            for pt in p_tasks:
+                status_str = (pt.status or "pending").strip().lower()
+                if status_str in ("done", "completed") or (pt.progress or 0) >= 100:
+                    display_status = "Done"
+                elif status_str in ("in-progress", "in_progress"):
+                    display_status = "In Progress"
+                else:
+                    display_status = "Pending"
+
+                task_list.append({
+                    "id": pt.id,
+                    "serial": len(task_list) + 1,
+                    "title": pt.title or "Personal Task",
+                    "purpose_of_call": pt.description or "Personal Task",
+                    "description": pt.description or "",
+                    "status": display_status,
+                    "raw_status": pt.status or "pending",
+                    "progress": pt.progress or (100 if display_status == "Done" else 0),
+                    "due_date": pt.due_date.strftime("%Y-%m-%d") if getattr(pt, "due_date", None) else "",
+                    "type": "Personal Task",
+                    "task_type": "personal",
+                    "mentee_id": pt.mentee_id,
+                    "mentee_name": pt.mentee.name if getattr(pt, "mentee", None) else f"Mentee #{pt.mentee_id}",
+                    "month": "Ongoing"
+                })
+
+        return jsonify({"success": True, "tasks": task_list})
 
     # -------------------------------------------------------------
     # 4. INSTITUTION & ADMIN STATS
@@ -538,6 +714,61 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "institution_name": inst_name
             }
         })
+
+    @api_bp.route("/institution/tasks", methods=["GET"])
+    def api_get_institution_tasks():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        inst_profile = Institution.query.filter_by(user_id=user.id).first() if Institution else None
+        inst_name = inst_profile.name if (inst_profile and getattr(inst_profile, "name", None)) else (user.name or "")
+
+        mentees = MenteeProfile.query.filter(
+            or_(
+                MenteeProfile.institution_name.ilike(f"%{inst_name}%"),
+                MenteeProfile.school_college_name.ilike(f"%{inst_name}%")
+            )
+        ).all() if MenteeProfile and inst_name else []
+        mentee_user_ids = [m.user_id for m in mentees if m.user_id]
+
+        if not mentee_user_ids:
+            return jsonify({"success": True, "tasks": []})
+
+        tasks = MenteeTask.query.filter(MenteeTask.mentee_id.in_(mentee_user_ids)).order_by(MenteeTask.meeting_number).all()
+        task_list = []
+        for t in tasks:
+            status_str = (t.status or "pending").strip().lower()
+            if status_str in ("done", "completed") or (t.progress or 0) >= 100:
+                display_status = "Done"
+            elif status_str in ("in-progress", "in_progress", "committed"):
+                display_status = "In Progress"
+            else:
+                display_status = "Pending"
+
+            mt = getattr(t, "master_task", None)
+            title_val = (mt.journey_phase if mt and mt.journey_phase else (mt.mentee_focus if mt and mt.mentee_focus else f"Curriculum Task #{t.meeting_number}"))
+            desc_val = (mt.purpose_of_call if mt and mt.purpose_of_call else (mt.mentee_focus if mt and mt.mentee_focus else "Curriculum Task"))
+
+            task_list.append({
+                "id": t.id,
+                "serial": t.meeting_number,
+                "title": title_val,
+                "purpose_of_call": desc_val,
+                "description": desc_val,
+                "status": display_status,
+                "raw_status": t.status or "pending",
+                "progress": t.progress or (100 if display_status == "Done" else 0),
+                "due_date": t.due_date.strftime("%Y-%m-%d") if getattr(t, "due_date", None) else "",
+                "type": "Curriculum Task",
+                "task_type": "master",
+                "mentee_id": t.mentee_id,
+                "mentee_name": t.mentee.name if getattr(t, "mentee", None) else f"Mentee #{t.mentee_id}",
+                "mentor_name": t.mentor.name if getattr(t, "mentor", None) else "Assigned Mentor",
+                "month": t.month or (mt.month if mt else "")
+            })
+
+        return jsonify({"success": True, "tasks": task_list})
 
     @api_bp.route("/admin/metrics", methods=["GET"])
     def api_get_admin_metrics():

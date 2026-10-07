@@ -2529,7 +2529,8 @@ def ensure_schema_on_request():
 from mobile_api import register_mobile_api
 register_mobile_api(
     app, db, User, MentorProfile, MenteeProfile, Institution,
-    SupervisorProfile, MenteeTask, MentorshipRequest, MeetingRequest, Notification
+    SupervisorProfile, MenteeTask, MentorshipRequest, MeetingRequest, Notification,
+    PersonalTask=PersonalTask, MasterTask=MasterTask
 )
 
 
