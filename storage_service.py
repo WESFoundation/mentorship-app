@@ -263,45 +263,71 @@ def get_or_create_path(service, root_folder_id, folder_path):
 def resolve_drive_folder_prefix(folder_prefix=None, filename=None):
     """
     Ensure all uploads are neatly arranged under structured subfolders:
-      profiles/mentor
-      profiles/mentee
-      profiles/supervisor
-      profiles/institution
-      profiles/mentor/certificates
+      profiles/mentor/{id}
+      profiles/mentee/{id}
+      profiles/supervisor/{id}
+      profiles/institution/{id}
+      profiles/mentor/{id}/certificates
       profiles/general
     """
+    import re
+
     folder = (folder_prefix or "").strip().lower().replace("\\", "/")
     fname = (filename or "").strip().lower()
 
+    # Try to extract ID from folder_prefix (e.g. 'mentors/123' or 'profiles/mentor/123')
+    segments = [s.strip() for s in folder.split("/") if s.strip()]
+    extracted_id = None
+    for seg in reversed(segments):
+        if seg.isdigit() or (seg != "profiles" and seg not in {
+            "mentor", "mentors", "mentee", "mentees", "supervisor", "supervisors",
+            "institution", "institutions", "certificates", "general", "unassigned"
+        }):
+            extracted_id = seg
+            break
+
+    # If no ID in folder_prefix, try to extract from filename (e.g. 'mentor_123_...', 'mentee_456_...')
+    if not extracted_id and fname:
+        m = re.search(r'^(?:mentor|mentee|supervisor|institution|criminal_cert)_([a-zA-Z0-9]+)_', fname)
+        if m and m.group(1).lower() != "none":
+            extracted_id = m.group(1)
+        elif fname.startswith("201_"):
+            extracted_id = "201"
+
     # Certificates check
     if "cert" in folder or "criminal" in folder or "cert" in fname or "criminal" in fname or fname.endswith(".pdf"):
+        if extracted_id:
+            return f"profiles/mentor/{extracted_id}/certificates"
         return "profiles/mentor/certificates"
 
     # Mentors check
     if "mentor" in folder or fname.startswith("mentor_"):
-        return "profiles/mentor"
+        if extracted_id:
+            return f"profiles/mentor/{extracted_id}"
+        return "profiles/mentor/general"
 
     # Mentees check
     if "mentee" in folder or fname.startswith("mentee_"):
-        return "profiles/mentee"
+        if extracted_id:
+            return f"profiles/mentee/{extracted_id}"
+        return "profiles/mentee/general"
 
     # Supervisors check
-    if "supervisor" in folder or fname.startswith("supervisor_"):
-        return "profiles/supervisor"
+    if "supervisor" in folder or fname.startswith("supervisor_") or (fname.startswith("201_") and extracted_id == "201"):
+        if extracted_id:
+            return f"profiles/supervisor/{extracted_id}"
+        return "profiles/supervisor/general"
 
     # Institutions check
     if "institution" in folder or fname.startswith("institution_"):
-        return "profiles/institution"
+        if extracted_id:
+            return f"profiles/institution/{extracted_id}"
+        return "profiles/institution/general"
 
-    # Default to profiles/general if unspecified or generic 'profiles'
-    if not folder or folder == "profiles":
-        return "profiles/general"
-
-    # If it's already a clean path starting with profiles/
-    if folder.startswith("profiles/"):
-        return folder
-
-    return f"profiles/{folder}"
+    # Default
+    if extracted_id:
+        return f"profiles/general/{extracted_id}"
+    return "profiles/general"
 
 
 def upload_to_drive(file_storage, folder_prefix=None, custom_filename=None):

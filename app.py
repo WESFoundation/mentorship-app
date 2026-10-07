@@ -185,15 +185,17 @@ def api_upload_file():
     if not file or not file.filename:
         return jsonify({'success': False, 'message': 'No file provided'}), 400
     user_role = session.get('role') or session.get('user_type')
+    user_id = session.get('user_id') or session.get('id')
+    uid_str = f"/{user_id}" if user_id else ""
     default_folder = 'profiles'
     if user_role in ('1', 1, 'mentor'):
-        default_folder = 'profiles/mentor'
+        default_folder = f"profiles/mentor{uid_str}"
     elif user_role in ('2', 2, 'mentee'):
-        default_folder = 'profiles/mentee'
+        default_folder = f"profiles/mentee{uid_str}"
     elif user_role in ('0', 0, 'supervisor'):
-        default_folder = 'profiles/supervisor'
+        default_folder = f"profiles/supervisor{uid_str}"
     elif user_role in ('3', 3, 'institution'):
-        default_folder = 'profiles/institution'
+        default_folder = f"profiles/institution{uid_str}"
     folder = request.form.get('folder') or default_folder
     file_url, stored_name = storage_service.upload_file(file, folder_prefix=folder)
     if not file_url:
@@ -6068,7 +6070,7 @@ def editinstitutionprofile():
                         storage_service.delete_file(old_pic)
                     pic_url, stored_name = storage_service.upload_file(
                         file,
-                        folder_prefix="profiles/institution",
+                        folder_prefix=f"profiles/institution/{institution_details.id}",
                         custom_filename=secure_filename(f"institution_{institution_details.id}_{file.filename}")
                     )
                     if pic_url:
@@ -13686,7 +13688,7 @@ def editmentorprofile():
                 storage_service.delete_file(old_pic)
             pic_url, stored_name = storage_service.upload_file(
                 file,
-                folder_prefix="profiles/mentor",
+                folder_prefix=f"profiles/mentor/{user.id}",
                 custom_filename=secure_filename(f"mentor_{user.id}_{int(datetime.now().timestamp())}_{file.filename}")
             )
             if pic_url:
@@ -13703,7 +13705,7 @@ def editmentorprofile():
                 cert_name = secure_filename(f"criminal_cert_{user.id}_{timestamp}_{criminal_cert_file.filename}")
                 cert_url, _ = storage_service.upload_file(
                     criminal_cert_file,
-                    folder_prefix="profiles/mentor/certificates",
+                    folder_prefix=f"profiles/mentor/{user.id}/certificates",
                     custom_filename=cert_name
                 )
                 if cert_url:
@@ -14070,7 +14072,7 @@ def editmenteeprofile():
                     storage_service.delete_file(old_pic)
                 pic_url, stored_name = storage_service.upload_file(
                     file,
-                    folder_prefix="profiles/mentee",
+                    folder_prefix=f"profiles/mentee/{user.id}",
                     custom_filename=secure_filename(f"mentee_{user.id}_{int(datetime.now().timestamp())}_{file.filename}")
                 )
                 if pic_url:
@@ -14252,7 +14254,7 @@ def editsupervisorprofile():
                 storage_service.delete_file(old_pic)
             pic_url, stored_name = storage_service.upload_file(
                 file,
-                folder_prefix="profiles/supervisor",
+                folder_prefix=f"profiles/supervisor/{user.id}",
                 custom_filename=secure_filename(f"supervisor_{user.id}_{int(datetime.now().timestamp())}_{file.filename}")
             )
             if pic_url:
