@@ -69,3 +69,7 @@ instance/
 # Meeting participants data (now stored purely in database)
 meeting_participants_data/
 
+# Upload backups & cache
+static/uploads/_orig_backup/
+static/uploads/.cache/
+scratch/

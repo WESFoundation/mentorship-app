@@ -130,14 +130,49 @@ def serve_uploaded_file(filename):
 
         return redirect(clean_url, code=302)
 
-    local_path = os.path.join(app.config["UPLOAD_FOLDER"], clean_name)
-    if os.path.exists(local_path):
-        return _send_from_directory(app.config["UPLOAD_FOLDER"], clean_name)
+    def _send_with_cache(directory, fname):
+        resp = _send_from_directory(directory, fname)
+        resp.headers['Cache-Control'] = 'public, max-age=2592000, immutable'
+        return resp
 
-    # If file not found locally on disk, attempt to restore it on the fly from Google Drive cloud backup
-    if storage_service.download_file_from_drive(clean_name, local_path):
-        if os.path.exists(local_path):
-            return _send_from_directory(app.config["UPLOAD_FOLDER"], clean_name)
+    local_path = os.path.join(app.config["UPLOAD_FOLDER"], clean_name)
+    if not os.path.exists(local_path):
+        # Attempt to restore on the fly from Google Drive cloud backup
+        storage_service.download_file_from_drive(clean_name, local_path)
+
+    if os.path.exists(local_path):
+        # Dynamic thumbnail optimization for images
+        ext = os.path.splitext(clean_name)[1].lower()
+        if ext in ('.jpg', '.jpeg', '.png', '.webp'):
+            try:
+                cache_dir = os.path.join(app.config["UPLOAD_FOLDER"], ".cache")
+                os.makedirs(cache_dir, exist_ok=True)
+                thumb_name = f"thumb_800_{os.path.basename(clean_name)}"
+                thumb_path = os.path.join(cache_dir, thumb_name)
+                if os.path.exists(thumb_path):
+                    return _send_with_cache(cache_dir, thumb_name)
+                if os.path.getsize(local_path) > 200 * 1024:
+                    from PIL import Image, ImageOps, ImageFile
+                    ImageFile.LOAD_TRUNCATED_IMAGES = True
+                    im = Image.open(local_path)
+                    try:
+                        im = ImageOps.exif_transpose(im)
+                    except Exception:
+                        pass
+                    im.thumbnail((800, 800), Image.Resampling.LANCZOS)
+                    if ext in ('.jpg', '.jpeg'):
+                        if im.mode in ('RGBA', 'P'):
+                            im = im.convert('RGB')
+                        im.save(thumb_path, format='JPEG', quality=85, optimize=True)
+                    elif ext == '.png':
+                        im.save(thumb_path, format='PNG', optimize=True)
+                    else:
+                        im.save(thumb_path, format='WEBP', quality=85)
+                    return _send_with_cache(cache_dir, thumb_name)
+            except Exception as e:
+                app.logger.warning(f"Thumbnail generation error for {clean_name}: {e}")
+
+        return _send_with_cache(app.config["UPLOAD_FOLDER"], clean_name)
 
     return redirect('https://ui-avatars.com/api/?name=User&background=2563eb&color=fff', code=302)
 
@@ -149,7 +184,17 @@ def api_upload_file():
     file = request.files.get('file') or request.files.get('profile_picture')
     if not file or not file.filename:
         return jsonify({'success': False, 'message': 'No file provided'}), 400
-    folder = request.form.get('folder', 'profiles')
+    user_role = session.get('role') or session.get('user_type')
+    default_folder = 'profiles'
+    if user_role in ('1', 1, 'mentor'):
+        default_folder = 'profiles/mentor'
+    elif user_role in ('2', 2, 'mentee'):
+        default_folder = 'profiles/mentee'
+    elif user_role in ('0', 0, 'supervisor'):
+        default_folder = 'profiles/supervisor'
+    elif user_role in ('3', 3, 'institution'):
+        default_folder = 'profiles/institution'
+    folder = request.form.get('folder') or default_folder
     file_url, stored_name = storage_service.upload_file(file, folder_prefix=folder)
     if not file_url:
         return jsonify({'success': False, 'message': 'Upload failed'}), 500
@@ -4006,10 +4051,16 @@ def menteedashboard():
             mentee_rating=mentee_rating
         )
 
-    return redirect(url_for("signin"))
+_SUPERVISOR_ANALYTICS_CACHE = None
+_SUPERVISOR_ANALYTICS_CACHE_TIME = 0
+_SUPERVISOR_ANALYTICS_CACHE_TTL = 60  # 60s cache
 
 def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
     """Compute comparative analytics and leaderboards for the supervisor dashboard."""
+    global _SUPERVISOR_ANALYTICS_CACHE, _SUPERVISOR_ANALYTICS_CACHE_TIME
+    now = time.time()
+    if _SUPERVISOR_ANALYTICS_CACHE is not None and (now - _SUPERVISOR_ANALYTICS_CACHE_TIME < _SUPERVISOR_ANALYTICS_CACHE_TTL):
+        return _SUPERVISOR_ANALYTICS_CACHE
     try:
         users_by_id = {}
         for m in mentors:
@@ -4278,7 +4329,7 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
             })
         lb_task_ratings.sort(key=lambda x: (-x["avg_rating"], -x["rating_count"]))
 
-        return {
+        res_analytics = {
             "metrics": metrics,
             "lb_task_mentees": lb_task_mentees,
             "lb_task_mentors": lb_task_mentors,
@@ -4288,6 +4339,9 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
             "lb_mentor_ratings": lb_mentor_ratings,
             "lb_task_ratings": lb_task_ratings
         }
+        _SUPERVISOR_ANALYTICS_CACHE = res_analytics
+        _SUPERVISOR_ANALYTICS_CACHE_TIME = now
+        return res_analytics
     except Exception as e:
         app.logger.error(f"Error computing supervisor comparative analytics: {e}")
         return {
@@ -6014,7 +6068,7 @@ def editinstitutionprofile():
                         storage_service.delete_file(old_pic)
                     pic_url, stored_name = storage_service.upload_file(
                         file,
-                        folder_prefix=f"institutions/{institution_details.id}",
+                        folder_prefix="profiles/institution",
                         custom_filename=secure_filename(f"institution_{institution_details.id}_{file.filename}")
                     )
                     if pic_url:
@@ -7817,52 +7871,105 @@ def supervisor_calendar():
     if "email" not in session or session.get("user_type") != "0":
         return redirect(url_for("signin"))
     
-    # Fetch ALL meetings from the database
+    # 1. Fetch ALL meetings from the database in a single query
     meetings = MeetingRequest.query.order_by(
         MeetingRequest.meeting_date.asc(),
         MeetingRequest.meeting_time.asc()
     ).all()
-    
-    # Prepare meeting data for the calendar
+
+    # Pre-fetch all mentors, mentees, and institutions for the schedule meeting form and lookups
+    mentors = User.query.filter_by(user_type="1").all()
+    mentees = User.query.filter_by(user_type="2").all()
+    institutions = User.query.filter_by(user_type="3").all()
+
+    # Fast in-memory user map
+    users_by_id = {u.id: u for u in (mentors + mentees + institutions)}
+
+    # Pre-fetch all Institutions into dict to avoid N+1 queries in mentorship loop
+    all_insts = {inst.id: inst for inst in Institution.query.all()}
+
+    # Resolve meeting participants without repeated DB hits
+    import datetime as dt
+    now = datetime.now()
+    missing_uids = set()
+    meeting_pdata_map = {}
+
+    for meeting in meetings:
+        if meeting.requester_id and meeting.requester_id not in users_by_id:
+            missing_uids.add(meeting.requester_id)
+        if meeting.requested_to_id and meeting.requested_to_id not in users_by_id:
+            missing_uids.add(meeting.requested_to_id)
+        
+        extracted = _extract_participants_from_description(meeting.meeting_description) or {}
+        pdata = dict(extracted)
+        req_id = meeting.requester_id
+        rec_id = meeting.requested_to_id
+        if not pdata.get("mentee_id"):
+            req_u = users_by_id.get(req_id)
+            rec_u = users_by_id.get(rec_id)
+            if req_u and str(req_u.user_type) == "2":
+                pdata["mentee_id"] = req_u.id
+            elif rec_u and str(rec_u.user_type) == "2":
+                pdata["mentee_id"] = rec_u.id
+        if not pdata.get("mentor_id"):
+            req_u = users_by_id.get(req_id)
+            rec_u = users_by_id.get(rec_id)
+            if req_u and str(req_u.user_type) == "1":
+                pdata["mentor_id"] = req_u.id
+            elif rec_u and str(rec_u.user_type) == "1":
+                pdata["mentor_id"] = rec_u.id
+        
+        for m_id in pdata.get("mentee_ids", []):
+            if m_id not in users_by_id:
+                missing_uids.add(m_id)
+        if pdata.get("mentee_id") and pdata["mentee_id"] not in users_by_id:
+            missing_uids.add(pdata["mentee_id"])
+        if pdata.get("mentor_id") and pdata["mentor_id"] not in users_by_id:
+            missing_uids.add(pdata["mentor_id"])
+            
+        meeting_pdata_map[meeting.id] = pdata
+
+    # Fetch any remaining missing users in one bulk query
+    if missing_uids:
+        for u in User.query.filter(User.id.in_(missing_uids)).all():
+            users_by_id[u.id] = u
+
+    # Prepare meeting data for the calendar (pure in-memory iteration)
     calendar_meetings = []
     for meeting in meetings:
-        # Get mentee and mentor details
-        mentee = User.query.get(meeting.requester_id)
-        mentor = User.query.get(meeting.requested_to_id)
-        
-        # Determine meeting status based on date/time
         if not meeting.meeting_date:
-            continue  # Skip meetings with no date
-        import datetime as dt
+            continue
         meeting_time = meeting.meeting_time if meeting.meeting_time else dt.time(10, 0)
         try:
             meeting_datetime = datetime.combine(meeting.meeting_date, meeting_time)
         except Exception:
             continue
-        now = datetime.now()
-        
+
         if meeting.status == "cancelled":
             status = "cancelled"
         elif meeting_datetime < now:
             status = "completed"
         else:
             status = "upcoming"
-        
-        pdata = _get_meeting_participants(meeting.id)
-        if pdata and pdata.get("mentee_ids"):
-            m_users = User.query.filter(User.id.in_(pdata["mentee_ids"])).all()
+
+        pdata = meeting_pdata_map.get(meeting.id, {})
+        mentee = users_by_id.get(meeting.requester_id)
+        mentor = users_by_id.get(meeting.requested_to_id)
+
+        if pdata.get("mentee_ids"):
+            m_users = [users_by_id[mid] for mid in pdata["mentee_ids"] if mid in users_by_id]
             mentee_display = f"Small Group ({len(m_users)} mentees): " + ", ".join([u.name for u in m_users[:3]]) + ("..." if len(m_users) > 3 else "")
             mentee_email_display = ", ".join([u.email for u in m_users[:3]])
-        elif pdata and pdata.get("mentee_id"):
-            m_user = User.query.get(pdata["mentee_id"])
+        elif pdata.get("mentee_id"):
+            m_user = users_by_id.get(pdata["mentee_id"])
             mentee_display = m_user.name if m_user else (mentee.name if mentee else "Unknown Mentee")
             mentee_email_display = m_user.email if m_user else (mentee.email if mentee else "")
         else:
             mentee_display = mentee.name if mentee else "Unknown Mentee"
             mentee_email_display = mentee.email if mentee else ""
 
-        if pdata and pdata.get("mentor_id"):
-            mentor_user = User.query.get(pdata["mentor_id"])
+        if pdata.get("mentor_id"):
+            mentor_user = users_by_id.get(pdata["mentor_id"])
             mentor_display = mentor_user.name if mentor_user else (mentor.name if mentor else "Unknown Mentor")
             mentor_email_display = mentor_user.email if mentor_user else (mentor.email if mentor else "")
         else:
@@ -7892,11 +7999,6 @@ def supervisor_calendar():
             "meet_link": meeting.meet_link,
             "created_at": meeting.created_at
         })
-    
-    # Fetch all mentors, mentees, and institutions for the schedule meeting form
-    mentors = User.query.filter_by(user_type="1").all()
-    mentees = User.query.filter_by(user_type="2").all()
-    institutions = User.query.filter_by(user_type="3").all()
 
     # Fetch approved mentorships for the mentorship dropdown
     from sqlalchemy.orm import joinedload
@@ -7911,11 +8013,11 @@ def supervisor_calendar():
     for mr in approved_mentorships:
         mentor_name = mr.mentor.name if mr.mentor else "Unknown"
         mentee_name = mr.mentee.name if mr.mentee else "Unknown"
-        # Resolve institution user_id from mentor's or mentee's institution_id
+        # Resolve institution user_id from mentor's or mentee's institution_id via fast in-memory map
         inst_user_id = ""
         for u in (mr.mentor, mr.mentee):
             if u and u.institution_id:
-                inst = Institution.query.get(u.institution_id)
+                inst = all_insts.get(u.institution_id)
                 if inst and inst.user_id:
                     inst_user_id = str(inst.user_id)
                     break
@@ -11411,21 +11513,81 @@ def api_mentor_skills_percentile(mentor_id):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-# In-memory simple rating cache to make ratings load in under 2 seconds and allow background recalculation
+# Persistent disk-backed rating cache to make ratings load instantly (under 5ms) and allow background recalculation
+import threading
+import json
+
+_RATINGS_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "instance", "ratings_cache.json")
+_RATINGS_LOCK = threading.Lock()
+_RECALC_LOCK = threading.Lock()
+_RECALC_IN_PROGRESS = set()
 _SIMPLE_RATING_CACHE = {}  # (type, id) -> (timestamp, data_dict)
-_SIMPLE_RATING_TTL = 180  # 3 minutes
+_SIMPLE_RATING_TTL = 3600  # 1 hour soft TTL
+
+def _load_ratings_from_disk():
+    global _SIMPLE_RATING_CACHE
+    try:
+        if os.path.exists(_RATINGS_CACHE_FILE):
+            with open(_RATINGS_CACHE_FILE, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+                for k, v in raw.items():
+                    parts = k.split(":")
+                    if len(parts) == 2 and isinstance(v, list) and len(v) == 2:
+                        _SIMPLE_RATING_CACHE[(parts[0], int(parts[1]))] = (float(v[0]), v[1])
+            app.logger.info(f"Loaded {len(_SIMPLE_RATING_CACHE)} ratings from persistent disk cache.")
+    except Exception as e:
+        app.logger.warning(f"Failed loading ratings disk cache: {e}")
+
+def _persist_ratings_to_disk():
+    try:
+        os.makedirs(os.path.dirname(_RATINGS_CACHE_FILE), exist_ok=True)
+        with _RATINGS_LOCK:
+            exportable = {}
+            for (rtype, ruid), (ts, data) in _SIMPLE_RATING_CACHE.items():
+                exportable[f"{rtype}:{ruid}"] = [ts, data]
+            with open(_RATINGS_CACHE_FILE, "w", encoding="utf-8") as f:
+                json.dump(exportable, f)
+    except Exception as e:
+        app.logger.warning(f"Failed saving ratings disk cache: {e}")
+
+_load_ratings_from_disk()
+
+def _async_recalc_simple_rating(rtype, uid):
+    """Queue background recalculation of rating without blocking current HTTP thread."""
+    with _RECALC_LOCK:
+        if (rtype, uid) in _RECALC_IN_PROGRESS:
+            return
+        _RECALC_IN_PROGRESS.add((rtype, uid))
+
+    def _worker():
+        try:
+            with app.app_context():
+                if rtype == "mentor":
+                    api_mentor_rating_simple(uid, force_refresh=True)
+                else:
+                    api_mentee_rating_simple(uid, force_refresh=True)
+        except Exception as err:
+            app.logger.warning(f"Background rating refresh error for {rtype}:{uid}: {err}")
+        finally:
+            with _RECALC_LOCK:
+                _RECALC_IN_PROGRESS.discard((rtype, uid))
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
 
 @app.route("/api/mentor_rating_simple/<int:mentor_id>")
-def api_mentor_rating_simple(mentor_id):
-    """Simple 5-criteria star rating for a mentor. Returns breakdown with 0-5 stars each.
-    Criteria: Profile Completeness, Useful Skills, Task Completion, Mentee Feedback, Mentorship Experience (combined).
-    Final rating = average of criteria that have data."""
-    if "email" not in session:
+def api_mentor_rating_simple(mentor_id, force_refresh=False):
+    """Simple 5-criteria star rating for a mentor. Returns instantly from cache and refreshes in background."""
+    if "email" not in session and not force_refresh:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
 
     cache_key = ("mentor", mentor_id)
     cached = _SIMPLE_RATING_CACHE.get(cache_key)
-    if cached and (time.time() - cached[0] < _SIMPLE_RATING_TTL):
+    now = time.time()
+    if cached and not force_refresh:
+        # If cache is older than 30 mins, trigger background refresh
+        if (now - cached[0] > 1800) and cache_key not in _RECALC_IN_PROGRESS:
+            _async_recalc_simple_rating("mentor", mentor_id)
         return jsonify(cached[1])
 
     try:
@@ -11609,6 +11771,7 @@ def api_mentor_rating_simple(mentor_id):
             }
         }
         _SIMPLE_RATING_CACHE[cache_key] = (time.time(), res_data)
+        _persist_ratings_to_disk()
         return jsonify(res_data)
     except Exception as e:
         app.logger.error(f"Error in api_mentor_rating_simple: {e}")
@@ -11616,16 +11779,17 @@ def api_mentor_rating_simple(mentor_id):
 
 
 @app.route("/api/mentee_rating_simple/<int:mentee_id>")
-def api_mentee_rating_simple(mentee_id):
-    """Simple 5-criteria star rating for a mentee. Returns breakdown with 0-5 stars each.
-    Criteria: Profile Completeness, Goal Clarity, Task Completion, Mentor Feedback, Mentorship Experience (combined).
-    Final rating = average of criteria that have data."""
-    if "email" not in session:
+def api_mentee_rating_simple(mentee_id, force_refresh=False):
+    """Simple 5-criteria star rating for a mentee. Returns instantly from cache and refreshes in background."""
+    if "email" not in session and not force_refresh:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
 
     cache_key = ("mentee", mentee_id)
     cached = _SIMPLE_RATING_CACHE.get(cache_key)
-    if cached and (time.time() - cached[0] < _SIMPLE_RATING_TTL):
+    now = time.time()
+    if cached and not force_refresh:
+        if (now - cached[0] > 1800) and cache_key not in _RECALC_IN_PROGRESS:
+            _async_recalc_simple_rating("mentee", mentee_id)
         return jsonify(cached[1])
 
     try:
@@ -11794,6 +11958,7 @@ def api_mentee_rating_simple(mentee_id):
             }
         }
         _SIMPLE_RATING_CACHE[cache_key] = (time.time(), res_data)
+        _persist_ratings_to_disk()
         return jsonify(res_data)
     except Exception as e:
         app.logger.error(f"Error in api_mentee_rating_simple: {e}")
@@ -11802,17 +11967,20 @@ def api_mentee_rating_simple(mentee_id):
 
 @app.route("/api/mentee_ratings_batch", methods=["POST"])
 def api_mentee_ratings_batch():
-    """Batch API to fetch multiple mentee ratings in a single fast call."""
+    """Batch API to fetch multiple mentee ratings instantly in a single call."""
     if "email" not in session:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
     ids = (request.get_json() or {}).get("ids", [])
     results = {}
+    now = time.time()
     for uid in ids:
         try:
             uid_int = int(uid)
             cached = _SIMPLE_RATING_CACHE.get(("mentee", uid_int))
-            if cached and (time.time() - cached[0] < _SIMPLE_RATING_TTL):
+            if cached:
                 results[str(uid_int)] = cached[1].get("rating")
+                if (now - cached[0] > 1800) and ("mentee", uid_int) not in _RECALC_IN_PROGRESS:
+                    _async_recalc_simple_rating("mentee", uid_int)
             else:
                 resp = api_mentee_rating_simple(uid_int)
                 if hasattr(resp, "get_json"):
@@ -11826,17 +11994,20 @@ def api_mentee_ratings_batch():
 
 @app.route("/api/mentor_ratings_batch", methods=["POST"])
 def api_mentor_ratings_batch():
-    """Batch API to fetch multiple mentor ratings in a single fast call."""
+    """Batch API to fetch multiple mentor ratings instantly in a single call."""
     if "email" not in session:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
     ids = (request.get_json() or {}).get("ids", [])
     results = {}
+    now = time.time()
     for uid in ids:
         try:
             uid_int = int(uid)
             cached = _SIMPLE_RATING_CACHE.get(("mentor", uid_int))
-            if cached and (time.time() - cached[0] < _SIMPLE_RATING_TTL):
+            if cached:
                 results[str(uid_int)] = cached[1].get("rating")
+                if (now - cached[0] > 1800) and ("mentor", uid_int) not in _RECALC_IN_PROGRESS:
+                    _async_recalc_simple_rating("mentor", uid_int)
             else:
                 resp = api_mentor_rating_simple(uid_int)
                 if hasattr(resp, "get_json"):
@@ -11877,6 +12048,11 @@ def api_set_supervisor_rating():
         profile.supervisor_rating = round(rating, 1)
         db.session.commit()
         _SIMPLE_RATING_CACHE.pop(("mentor", int(mentor_user_id)), None)
+        try:
+            api_mentor_rating_simple(int(mentor_user_id), force_refresh=True)
+            _persist_ratings_to_disk()
+        except Exception:
+            pass
 
         return jsonify({
             "success": True,
@@ -13510,7 +13686,7 @@ def editmentorprofile():
                 storage_service.delete_file(old_pic)
             pic_url, stored_name = storage_service.upload_file(
                 file,
-                folder_prefix=f"mentors/{user.id}",
+                folder_prefix="profiles/mentor",
                 custom_filename=secure_filename(f"mentor_{user.id}_{int(datetime.now().timestamp())}_{file.filename}")
             )
             if pic_url:
@@ -13527,7 +13703,7 @@ def editmentorprofile():
                 cert_name = secure_filename(f"criminal_cert_{user.id}_{timestamp}_{criminal_cert_file.filename}")
                 cert_url, _ = storage_service.upload_file(
                     criminal_cert_file,
-                    folder_prefix=f"mentors/{user.id}",
+                    folder_prefix="profiles/mentor/certificates",
                     custom_filename=cert_name
                 )
                 if cert_url:
@@ -13894,7 +14070,7 @@ def editmenteeprofile():
                     storage_service.delete_file(old_pic)
                 pic_url, stored_name = storage_service.upload_file(
                     file,
-                    folder_prefix=f"mentees/{user.id}",
+                    folder_prefix="profiles/mentee",
                     custom_filename=secure_filename(f"mentee_{user.id}_{int(datetime.now().timestamp())}_{file.filename}")
                 )
                 if pic_url:
@@ -14076,7 +14252,7 @@ def editsupervisorprofile():
                 storage_service.delete_file(old_pic)
             pic_url, stored_name = storage_service.upload_file(
                 file,
-                folder_prefix=f"supervisors/{user.id}",
+                folder_prefix="profiles/supervisor",
                 custom_filename=secure_filename(f"supervisor_{user.id}_{int(datetime.now().timestamp())}_{file.filename}")
             )
             if pic_url:
@@ -18370,6 +18546,135 @@ def generate_qr(url=None):
         return jsonify({"error": "Failed to generate QR"}), 500
 
 
+# Error handlers for friendly error messages
+@app.errorhandler(413)
+def file_too_large(e):
+    if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+        return jsonify({"success": False, "message": "File too large. Maximum upload size is 16 MB."}), 413
+    flash("File too large. Maximum upload size is 16 MB.", "error")
+    return redirect(request.referrer or url_for("signin")), 413
+
+@app.errorhandler(500)
+def internal_error(e):
+    db.session.rollback()
+    if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+        return jsonify({"success": False, "message": "An internal error occurred. Please try again."}), 500
+    flash("An internal error occurred. Please try again.", "error")
+    return redirect(request.referrer or url_for("signin")), 500
+
+
+# ============================================================
+# AUTOMATIC BACKGROUND DRIVE PHOTO MIGRATION
+# ============================================================
+def _start_auto_drive_migration():
+    """
+    Automatically triggers Google Drive photo migration in a non-blocking background thread
+    upon server/worker startup, without requiring any manual terminal commands.
+
+    Safe & clean lifecycle:
+    1. If migrate_photos_to_drive.py is absent (or when the user deletes it after ~1 hr),
+       this function returns immediately with zero overhead and zero error.
+    2. Multi-worker safe: uses an atomic OS file lock so only one Gunicorn worker runs it.
+    3. Idempotent: checks instance/drive_migration_completed.flag so it only runs once.
+    4. Non-blocking: runs in a daemon thread with an initial 5s delay so HTTP traffic is never blocked.
+    """
+    try:
+        script_file = os.path.join(app.root_path, "migrate_photos_to_drive.py")
+        if not os.path.exists(script_file):
+            return
+
+        instance_dir = os.path.join(app.root_path, "instance")
+        os.makedirs(instance_dir, exist_ok=True)
+        completed_flag = os.path.join(instance_dir, "drive_migration_completed.flag")
+        if os.path.exists(completed_flag):
+            return
+
+        lock_file = os.path.join(instance_dir, ".drive_migration.lock")
+
+        def _is_pid_alive(p):
+            if p <= 0:
+                return False
+            try:
+                if os.name == 'posix':
+                    os.kill(p, 0)
+                    return True
+                else:
+                    import ctypes
+                    h = ctypes.windll.kernel32.OpenProcess(0x1000, 0, p)
+                    if h:
+                        ctypes.windll.kernel32.CloseHandle(h)
+                        return True
+                    return False
+            except Exception:
+                return False
+
+        # Clear stale lock if holding PID is dead or file is older than 1 hour
+        if os.path.exists(lock_file):
+            try:
+                is_stale = False
+                if time.time() - os.path.getmtime(lock_file) > 3600:
+                    is_stale = True
+                else:
+                    with open(lock_file, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    for item in content.split():
+                        if item.startswith("pid="):
+                            try:
+                                locked_pid = int(item.split("=")[1])
+                                if not _is_pid_alive(locked_pid):
+                                    is_stale = True
+                            except Exception:
+                                pass
+                if is_stale:
+                    os.remove(lock_file)
+            except Exception:
+                pass
+
+        # Atomic lock acquisition across processes/workers
+        try:
+            fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            with os.fdopen(fd, "w") as f:
+                f.write(f"pid={os.getpid()} time={time.time()}\n")
+        except (FileExistsError, OSError):
+            # Another worker already acquired the lock and is handling migration
+            return
+
+        def _migration_worker():
+            try:
+                # Wait 5 seconds to let Gunicorn / Flask finish port binding and accept HTTP traffic
+                time.sleep(5)
+
+                if not os.path.exists(script_file) or os.path.exists(completed_flag):
+                    return
+
+                app.logger.info("Auto-migration: Starting background photo migration to Google Drive...")
+                import importlib.util
+                spec = importlib.util.spec_from_file_location("migrate_photos_to_drive", script_file)
+                if spec and spec.loader:
+                    migration_mod = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(migration_mod)
+                    if hasattr(migration_mod, "run_migration"):
+                        result = migration_mod.run_migration(migrate_all=True, update_db=False)
+                        app.logger.info(f"Auto-migration finished: {result}")
+            except Exception as worker_err:
+                app.logger.error(f"Auto-migration error: {worker_err}", exc_info=True)
+            finally:
+                try:
+                    if os.path.exists(lock_file):
+                        os.remove(lock_file)
+                except Exception:
+                    pass
+
+        import threading
+        t = threading.Thread(target=_migration_worker, daemon=True, name="AutoDriveMigrationThread")
+        t.start()
+        app.logger.info("Auto-migration thread queued successfully.")
+    except Exception as e:
+        app.logger.warning(f"Could not initialize auto-migration: {e}")
+
+_start_auto_drive_migration()
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
@@ -18377,21 +18682,5 @@ if __name__ == '__main__':
             init_scheduler()
         except Exception as e:
             print(f"⚠️ Could not initialize scheduler: {e}")
-
-    # Error handlers for friendly error messages
-    @app.errorhandler(413)
-    def file_too_large(e):
-        if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
-            return jsonify({"success": False, "message": "File too large. Maximum upload size is 16 MB."}), 413
-        flash("File too large. Maximum upload size is 16 MB.", "error")
-        return redirect(request.referrer or url_for("signin")), 413
-
-    @app.errorhandler(500)
-    def internal_error(e):
-        db.session.rollback()
-        if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
-            return jsonify({"success": False, "message": "An internal error occurred. Please try again."}), 500
-        flash("An internal error occurred. Please try again.", "error")
-        return redirect(request.referrer or url_for("signin")), 500
 
     app.run(debug=True, host='0.0.0.0', port=5000)

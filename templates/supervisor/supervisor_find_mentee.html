@@ -203,11 +203,11 @@
                 {% set mentee_pic = mentee.profile_picture or (mentee.user.profile_picture_url if mentee.user else None) %}
                 {% if mentee_pic %}
                   {% if mentee_pic.startswith('http') %}
-                  <img src="{{ mentee_pic }}" alt="{{ mentee.user.name }}"
+                  <img src="{{ mentee_pic }}" alt="{{ mentee.user.name }}" loading="lazy" decoding="async"
                     class="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover mr-1.5 sm:mr-2"
                     onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((mentee.user.name if mentee.user else 'Mentee')|urlencode) }}&background=2563eb&color=fff';">
                   {% else %}
-                  <img src="{{ url_for('static', filename='uploads/' ~ mentee_pic) }}" alt="{{ mentee.user.name }}"
+                  <img src="{{ url_for('static', filename='uploads/' ~ mentee_pic) }}" alt="{{ mentee.user.name }}" loading="lazy" decoding="async"
                     class="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover mr-1.5 sm:mr-2"
                     onerror="this.onerror=null; this.src='{{ mentee.user.profile_picture_url if mentee.user and mentee.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (((mentee.user.name if mentee.user else 'Mentee')|urlencode)) ~ '&background=2563eb&color=fff' }}';">
                   {% endif %}

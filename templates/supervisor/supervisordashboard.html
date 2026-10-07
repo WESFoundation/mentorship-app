@@ -719,11 +719,11 @@
             {% set mentor_pic = mentor.profile_picture or (mentor.user.profile_picture_url if mentor.user else None) %}
             {% if mentor_pic %}
               {% if mentor_pic.startswith('http') %}
-              <img src="{{ mentor_pic }}"
+              <img src="{{ mentor_pic }}" loading="lazy" decoding="async"
                 alt="{{ mentor.user.name }}" class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
                 onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((mentor.user.name if mentor.user else 'Mentor')|urlencode) }}&background=2563eb&color=fff';">
               {% else %}
-              <img src="{{ url_for('static', filename='uploads/' ~ mentor_pic) }}"
+              <img src="{{ url_for('static', filename='uploads/' ~ mentor_pic) }}" loading="lazy" decoding="async"
                 alt="{{ mentor.user.name }}" class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
                 onerror="this.onerror=null; this.src='{{ mentor.user.profile_picture_url if mentor.user and mentor.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (((mentor.user.name if mentor.user else 'Mentor')|urlencode)) ~ '&background=2563eb&color=fff' }}';">
               {% endif %}
@@ -857,11 +857,11 @@
             {% set mentee_pic = mentee.profile_picture or (mentee.user.profile_picture_url if mentee.user else None) %}
             {% if mentee_pic %}
               {% if mentee_pic.startswith('http') %}
-              <img src="{{ mentee_pic }}"
+              <img src="{{ mentee_pic }}" loading="lazy" decoding="async"
                 alt="{{ mentee.user.name }}" class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
                 onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((mentee.user.name if mentee.user else 'Mentee')|urlencode) }}&background=2563eb&color=fff';">
               {% else %}
-              <img src="{{ url_for('static', filename='uploads/' ~ mentee_pic) }}"
+              <img src="{{ url_for('static', filename='uploads/' ~ mentee_pic) }}" loading="lazy" decoding="async"
                 alt="{{ mentee.user.name }}" class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
                 onerror="this.onerror=null; this.src='{{ mentee.user.profile_picture_url if mentee.user and mentee.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (((mentee.user.name if mentee.user else 'Mentee')|urlencode)) ~ '&background=2563eb&color=fff' }}';">
               {% endif %}
@@ -987,11 +987,11 @@
             {% set req_mentee_pic = (request.mentee.mentee_profile.profile_picture if request.mentee and request.mentee.mentee_profile else None) or (request.mentee.profile_picture_url if request.mentee else None) %}
             {% if req_mentee_pic %}
               {% if req_mentee_pic.startswith('http') %}
-              <img src="{{ req_mentee_pic }}"
+              <img src="{{ req_mentee_pic }}" loading="lazy" decoding="async"
                 alt="{{ request.mentee.name }}" class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
                 onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((request.mentee.name if request.mentee else 'Mentee')|urlencode) }}&background=2563eb&color=fff';">
               {% else %}
-              <img src="{{ url_for('static', filename='uploads/' ~ req_mentee_pic) }}"
+              <img src="{{ url_for('static', filename='uploads/' ~ req_mentee_pic) }}" loading="lazy" decoding="async"
                 alt="{{ request.mentee.name }}" class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
                 onerror="this.onerror=null; this.src='{{ request.mentee.profile_picture_url if request.mentee and request.mentee.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (((request.mentee.name if request.mentee else 'Mentee')|urlencode)) ~ '&background=2563eb&color=fff' }}';">
               {% endif %}
@@ -1013,11 +1013,11 @@
             {% set req_mentor_pic = (request.mentor.mentor_profile.profile_picture if request.mentor and request.mentor.mentor_profile else None) or (request.mentor.profile_picture_url if request.mentor else None) %}
             {% if req_mentor_pic %}
               {% if req_mentor_pic.startswith('http') %}
-              <img src="{{ req_mentor_pic }}"
+              <img src="{{ req_mentor_pic }}" loading="lazy" decoding="async"
                 alt="{{ request.mentor.name }}" class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
                 onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((request.mentor.name if request.mentor else 'Mentor')|urlencode) }}&background=2563eb&color=fff';">
               {% else %}
-              <img src="{{ url_for('static', filename='uploads/' ~ req_mentor_pic) }}"
+              <img src="{{ url_for('static', filename='uploads/' ~ req_mentor_pic) }}" loading="lazy" decoding="async"
                 alt="{{ request.mentor.name }}" class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
                 onerror="this.onerror=null; this.src='{{ request.mentor.profile_picture_url if request.mentor and request.mentor.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (((request.mentor.name if request.mentor else 'Mentor')|urlencode)) ~ '&background=2563eb&color=fff' }}';">
               {% endif %}

@@ -260,10 +260,54 @@ def get_or_create_path(service, root_folder_id, folder_path):
     return current_parent
 
 
+def resolve_drive_folder_prefix(folder_prefix=None, filename=None):
+    """
+    Ensure all uploads are neatly arranged under structured subfolders:
+      profiles/mentor
+      profiles/mentee
+      profiles/supervisor
+      profiles/institution
+      profiles/mentor/certificates
+      profiles/general
+    """
+    folder = (folder_prefix or "").strip().lower().replace("\\", "/")
+    fname = (filename or "").strip().lower()
+
+    # Certificates check
+    if "cert" in folder or "criminal" in folder or "cert" in fname or "criminal" in fname or fname.endswith(".pdf"):
+        return "profiles/mentor/certificates"
+
+    # Mentors check
+    if "mentor" in folder or fname.startswith("mentor_"):
+        return "profiles/mentor"
+
+    # Mentees check
+    if "mentee" in folder or fname.startswith("mentee_"):
+        return "profiles/mentee"
+
+    # Supervisors check
+    if "supervisor" in folder or fname.startswith("supervisor_"):
+        return "profiles/supervisor"
+
+    # Institutions check
+    if "institution" in folder or fname.startswith("institution_"):
+        return "profiles/institution"
+
+    # Default to profiles/general if unspecified or generic 'profiles'
+    if not folder or folder == "profiles":
+        return "profiles/general"
+
+    # If it's already a clean path starting with profiles/
+    if folder.startswith("profiles/"):
+        return folder
+
+    return f"profiles/{folder}"
+
+
 def upload_to_drive(file_storage, folder_prefix=None, custom_filename=None):
     """
     Upload a file to Google Drive folder using authenticated service.
-    Places files inside nested subfolders (e.g. mentors/{id}/).
+    Places files inside structured subfolders (e.g. profiles/mentor, profiles/mentee).
     Sets public read permissions and returns direct downloadable HTTPS URL.
     """
     service = get_drive_service()
@@ -277,9 +321,10 @@ def upload_to_drive(file_storage, folder_prefix=None, custom_filename=None):
     try:
         from googleapiclient.http import MediaIoBaseUpload
 
-        target_folder_id = get_or_create_path(service, root_folder_id, folder_prefix)
-
         orig_name = secure_filename(file_storage.filename)
+        effective_folder = resolve_drive_folder_prefix(folder_prefix, custom_filename or orig_name)
+        target_folder_id = get_or_create_path(service, root_folder_id, effective_folder)
+
         ext = orig_name.rsplit(".", 1)[1].lower() if "." in orig_name else "jpg"
 
         if custom_filename:
@@ -370,7 +415,7 @@ def download_file_from_drive(filename, target_local_path):
 
         file_id = files[0]["id"]
         os.makedirs(os.path.dirname(target_local_path), exist_ok=True)
-        req = service.files().get_media(fileId=file_id)
+        req = service.files().get_media(fileId=file_id, supportsAllDrives=True)
         with open(target_local_path, "wb") as f:
             downloader = MediaIoBaseDownload(f, req)
             done = False
@@ -381,6 +426,73 @@ def download_file_from_drive(filename, target_local_path):
     except Exception as e:
         logger.warning("Could not download %s from Google Drive: %s", clean_name, e)
         return False
+
+
+def compress_image_stream(file_storage, max_size=(800, 800), quality=85):
+    """
+    Compress image to max_size (preserving aspect ratio) and quality 85.
+    If the file is not an image or compression is not beneficial, returns the original file_storage.
+    """
+    if not file_storage or not getattr(file_storage, "filename", None):
+        return file_storage
+
+    ext = file_storage.filename.rsplit(".", 1)[1].lower() if "." in file_storage.filename else ""
+    if ext not in {"jpg", "jpeg", "png", "webp"}:
+        return file_storage
+
+    try:
+        from PIL import Image, ImageOps, ImageFile
+        from werkzeug.datastructures import FileStorage
+        ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+        file_storage.seek(0)
+        orig_bytes = file_storage.read()
+        file_storage.seek(0)
+
+        if not orig_bytes or len(orig_bytes) < 100 * 1024:
+            # Under 100 KB, no need to compress
+            return file_storage
+
+        im = Image.open(io.BytesIO(orig_bytes))
+        try:
+            im = ImageOps.exif_transpose(im)
+        except Exception:
+            pass
+
+        im.thumbnail(max_size, Image.Resampling.LANCZOS)
+        out_buf = io.BytesIO()
+
+        if ext in {"jpg", "jpeg"}:
+            if im.mode in ("RGBA", "P"):
+                im = im.convert("RGB")
+            im.save(out_buf, format="JPEG", quality=quality, optimize=True)
+            mimetype = "image/jpeg"
+        elif ext == "png":
+            im.save(out_buf, format="PNG", optimize=True)
+            mimetype = "image/png"
+        elif ext == "webp":
+            im.save(out_buf, format="WEBP", quality=quality)
+            mimetype = "image/webp"
+        else:
+            if im.mode in ("RGBA", "P"):
+                im = im.convert("RGB")
+            im.save(out_buf, format="JPEG", quality=quality, optimize=True)
+            mimetype = "image/jpeg"
+
+        compressed_bytes = out_buf.getvalue()
+        if len(compressed_bytes) < len(orig_bytes):
+            compressed_storage = FileStorage(
+                stream=io.BytesIO(compressed_bytes),
+                filename=file_storage.filename,
+                content_type=mimetype,
+                content_length=len(compressed_bytes)
+            )
+            return compressed_storage
+    except Exception as err:
+        logger.warning("Image compression skipped due to: %s", err)
+
+    file_storage.seek(0)
+    return file_storage
 
 
 def upload_file(file_storage, folder_prefix="profiles", custom_filename=None, make_public=True):
@@ -396,6 +508,7 @@ def upload_file(file_storage, folder_prefix="profiles", custom_filename=None, ma
     if not file_storage or not getattr(file_storage, "filename", None):
         return None, None
 
+    file_storage = compress_image_stream(file_storage)
     orig_name = secure_filename(file_storage.filename)
 
     if custom_filename:

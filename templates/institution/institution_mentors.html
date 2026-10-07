@@ -603,6 +603,7 @@
     if (mentor.base_mentorship_topics && mentor.base_mentorship_topics.trim()) {
       const topicList = mentor.base_mentorship_topics.split(',').filter(t => t.trim());
       const topicLabels = {
+        // School Students
         'school_subjects': 'School Subjects',
         'study_skills_exam_prep': 'Study Skills & Exam Prep',
         'science_math': 'Science & Mathematics',
@@ -612,24 +613,61 @@
         'study_habits_time_management': 'Study Habits & Time Management',
         'stem_coding_beginners': 'STEM & Coding for Beginners',
         'public_speaking_confidence': 'Public Speaking & Confidence',
-        'coding_basics': 'Coding Basics',
-        'career_guidance': 'Career Guidance',
-        'azure_devops': 'Azure DevOps',
-        'cloud_computing': 'Cloud Computing',
-        'data_science': 'Data Science',
+
+        // University Students (Distinct)
+        'seeking_internships': 'Finding Internships & Co-ops',
+        'campus_to_corporate': 'Campus-to-Corporate Transition',
+        'student_resume_portfolio': 'Student Resume & Portfolio Building',
+        'entry_level_interview_prep': 'Entry-Level & Graduate Interview Prep',
+        'higher_studies_guidance': 'Higher Studies & Graduate School (Masters/PhD)',
+        'scholarships_study_abroad': 'Scholarships & Study Abroad Guidance',
+        'academic_major_guidance': 'Academic Major & Coursework Planning',
+        'coding_basics': 'Coding Fundamentals & Academic Projects',
+        'hackathons_open_source': 'Hackathons, Competitions & Open Source',
+        'career_path_exploration': 'Tech & Industry Career Path Exploration',
+        'student_networking_linkedin': 'Student Networking & LinkedIn Basics',
+        'student_time_stress_management': 'Academic Workload & Exam Stress Management',
+
+        // Young Professionals & Career Explorers (Distinct)
+        'career_transition_growth': 'Career Transition & Domain Switching (Career Pivots)',
+        'promotion_advancement': 'Promotion Strategy & Career Progression',
+        'salary_negotiation': 'Salary, Bonus & Equity Negotiation',
+        'workplace_navigation': 'Workplace Dynamics & Stakeholder Management',
+        'performance_reviews_kpis': 'Performance Reviews & KPI Mastery',
+        'first_time_management': 'First-Time People Management & Team Leadership',
+        'executive_presence_branding': 'Personal Branding & Executive Presence',
+        'experienced_job_search': 'Mid-Senior Job Search & Recruiter Strategy',
+        'cross_functional_influence': 'Cross-Functional Collaboration & Influence',
+        'system_design_tech_leadership': 'System Architecture & Senior Tech Practices',
+        'burnout_work_life_harmony': 'Burnout Prevention & Work-Life Harmony',
+        'freelancing_consulting_transition': 'Freelancing & Consulting Career Transitions',
+
+        // Entrepreneurs (Expanded)
+        'entrepreneurship': 'Entrepreneurship Fundamentals & Ideation',
+        'idea_validation_mvp': 'Idea Validation & MVP Development',
+        'business_model_strategy': 'Business Model & Monetization Strategy',
+        'fundraising_pitching': 'Fundraising, Pitch Decks & Investor Pitching',
+        'bootstrapping_lean_startup': 'Bootstrapping & Lean Startup Methods',
+        'product_market_fit': 'Product-Market Fit & Customer Discovery',
+        'go_to_market_marketing': 'Go-to-Market (GTM) & Growth Marketing',
+        'sales_business_development': 'B2B/B2C Sales Pipelines & Business Development',
+        'financial_planning_cashflow': 'Financial Planning, Pricing & Cash Flow Management',
+        'startup_scaling_operations': 'Startup Operations, Scaling & Core Hiring',
+        'legal_ip_incorporation': 'Startup Legal, IP Protection & Incorporation',
+        'founder_mindset_resilience': 'Founder Mindset, Resilience & Decision-Making',
+
+        // Shared / Legacy
+        'soft_skills': 'Soft Skills & Communication',
+        'leadership': 'Leadership & Strategic Decision-Making',
+        'career_guidance': 'General Career Guidance',
+        'azure_devops': 'DevOps & CI/CD Pipelines',
+        'cloud_computing': 'Cloud Computing & Architecture',
+        'data_science': 'Data Science & AI/ML',
         'web_development': 'Web Development',
         'mobile_development': 'Mobile Development',
-        'soft_skills': 'Soft Skills',
-        'leadership': 'Leadership',
-        'entrepreneurship': 'Entrepreneurship',
-        'seeking_internships': 'Seeking Internships',
         'job_search_applications': 'Job Search & Applications',
         'resume_linkedin_review': 'Resume & LinkedIn Review',
-        'interview_preparation': 'Interview Prep & Mock Interviews',
-        'higher_studies_guidance': 'Higher Studies & Grad School Guidance',
-        'career_transition_growth': 'Career Transition & Growth Strategy',
-        'salary_negotiation': 'Salary Negotiation & Compensation',
-        'workplace_navigation': 'Workplace Navigation & Leadership'
+        'interview_preparation': 'Interview Prep & Mock Interviews'
       };
       baseTopicsContainer.innerHTML = topicList.map(t => {
         const label = topicLabels[t.trim()] || t.trim();

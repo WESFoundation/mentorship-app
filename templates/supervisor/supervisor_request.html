@@ -270,11 +270,11 @@
                   {% set req_mentee_pic = (req.mentee.mentee_profile.profile_picture if req.mentee and req.mentee.mentee_profile else None) or (req.mentee.profile_picture_url if req.mentee else None) %}
                   {% if req_mentee_pic %}
                     {% if req_mentee_pic.startswith('http') %}
-                    <img src="{{ req_mentee_pic }}"
+                    <img src="{{ req_mentee_pic }}" loading="lazy" decoding="async"
                       alt="{{ req.mentee.name }}" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3 mentee-avatar"
                       onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((req.mentee.name if req.mentee else 'Mentee')|urlencode) }}&background=2563eb&color=fff';">
                     {% else %}
-                    <img src="{{ url_for('static', filename='uploads/' ~ req_mentee_pic) }}"
+                    <img src="{{ url_for('static', filename='uploads/' ~ req_mentee_pic) }}" loading="lazy" decoding="async"
                       alt="{{ req.mentee.name }}" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3 mentee-avatar"
                       onerror="this.onerror=null; this.src='{{ req.mentee.profile_picture_url if req.mentee and req.mentee.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (((req.mentee.name if req.mentee else 'Mentee')|urlencode)) ~ '&background=2563eb&color=fff' }}';">
                     {% endif %}
@@ -307,11 +307,11 @@
                   {% set req_mentor_pic = (req.mentor.mentor_profile.profile_picture if req.mentor and req.mentor.mentor_profile else None) or (req.mentor.profile_picture_url if req.mentor else None) %}
                   {% if req_mentor_pic %}
                     {% if req_mentor_pic.startswith('http') %}
-                    <img src="{{ req_mentor_pic }}"
+                    <img src="{{ req_mentor_pic }}" loading="lazy" decoding="async"
                       alt="{{ req.mentor.name }}" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover ml-3 mentor-avatar"
                       onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((req.mentor.name if req.mentor else 'Mentor')|urlencode) }}&background=2563eb&color=fff';">
                     {% else %}
-                    <img src="{{ url_for('static', filename='uploads/' ~ req_mentor_pic) }}"
+                    <img src="{{ url_for('static', filename='uploads/' ~ req_mentor_pic) }}" loading="lazy" decoding="async"
                       alt="{{ req.mentor.name }}" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover ml-3 mentor-avatar"
                       onerror="this.onerror=null; this.src='{{ req.mentor.profile_picture_url if req.mentor and req.mentor.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (((req.mentor.name if req.mentor else 'Mentor')|urlencode)) ~ '&background=2563eb&color=fff' }}';">
                     {% endif %}
