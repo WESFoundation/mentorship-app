@@ -86,9 +86,22 @@
         <div class="mentee-card bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-md">
           <div class="flex items-center gap-4 mb-4">
             {% if mentee.profile_picture %}
+              {% if mentee.profile_picture.startswith('http') %}
+              <img src="{{ mentee.profile_picture }}" 
+                   alt="{{ mentee.user.name }}" 
+                   class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
+                   onerror="this.onerror=null; this.src='{{ mentee.user.profile_picture_url if mentee.user and mentee.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentee.user.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+              {% else %}
               <img src="{{ url_for('static', filename='uploads/' ~ mentee.profile_picture) }}" 
                    alt="{{ mentee.user.name }}" 
-                   class="w-16 h-16 rounded-full object-cover border-2 border-white shadow">
+                   class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
+                   onerror="this.onerror=null; this.src='{{ mentee.user.profile_picture_url if mentee.user and mentee.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentee.user.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+              {% endif %}
+            {% elif mentee.user and mentee.user.profile_picture_url %}
+              <img src="{{ mentee.user.profile_picture_url }}" 
+                   alt="{{ mentee.user.name }}" 
+                   class="w-16 h-16 rounded-full object-cover border-2 border-white shadow"
+                   onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ mentee.user.name|urlencode }}&background=2563eb&color=fff';">
             {% else %}
               <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 border-2 border-white shadow">
                 <span class="text-xl font-semibold">{{ mentee.user.name[0] if mentee.user.name else '?' }}</span>
@@ -248,7 +261,8 @@
         <div class="flex flex-col md:flex-row items-center gap-6">
           <div class="relative">
             <img id="menteeModalProfilePic" src="" alt="Profile Picture" 
-                 class="w-32 h-32 rounded-full object-cover border-4 border-green-100 shadow-lg">
+                 class="w-32 h-32 rounded-full object-cover border-4 border-green-100 shadow-lg"
+                 onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent(document.getElementById('menteeModalName')?.textContent || 'Mentee') + '&background=2563eb&color=fff';">
             <div class="absolute -bottom-2 -right-2 bg-green-500 text-white p-2 rounded-full border-2 border-white">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
@@ -936,7 +950,16 @@ function openMenteeProfileModal(mentee) {
     document.getElementById('menteeModalName').innerText = mentee.name || "Not specified";
     document.getElementById('menteeModalStream').innerText = mentee.stream || "Not specified";
     document.getElementById('menteeModalGoal').innerText = mentee.goal || "Not specified";
-    document.getElementById('menteeModalProfilePic').src = mentee.profilePic ? "/static/uploads/" + mentee.profilePic : "https://via.placeholder.com/100";
+    const modalPic = document.getElementById('menteeModalProfilePic');
+    modalPic.onerror = function() {
+      this.onerror = null;
+      this.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentee.name || 'Mentee') + "&background=2563eb&color=fff";
+    };
+    if (mentee.profilePic && mentee.profilePic.trim()) {
+      modalPic.src = mentee.profilePic.startsWith('http') ? mentee.profilePic : "/static/uploads/" + mentee.profilePic;
+    } else {
+      modalPic.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentee.name || 'Mentee') + "&background=2563eb&color=fff";
+    }
 
     // Hide all sections initially
     document.getElementById('contactInfoSection').style.display = 'none';
@@ -1144,38 +1167,103 @@ async function fetchMenteeRating(menteeId) {
   return null;
 }
 
+function applyMenteeRatingDom(uid, rating) {
+  if (!rating) return;
+  const starsEl = document.getElementById('rating-stars-' + uid);
+  if (starsEl) starsEl.innerHTML = renderStarsHtml(rating.final_rating);
+  const numEl = document.getElementById('rating-num-' + uid);
+  if (numEl) {
+    if (rating.final_rating > 0) {
+      numEl.textContent = rating.final_rating.toFixed(1);
+      numEl.classList.remove('text-gray-500');
+      numEl.classList.add('text-yellow-600');
+    } else {
+      numEl.textContent = '--';
+      numEl.classList.add('text-gray-500');
+    }
+  }
+
+  const tipPc = document.getElementById('tip-pc-' + uid);
+  if (tipPc) tipPc.textContent = rating.profile_complete > 0 ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'Not rated yet';
+  const tipGc = document.getElementById('tip-gc-' + uid);
+  if (tipGc) tipGc.textContent = rating.goal_clarity > 0 ? rating.goal_clarity.toFixed(1) + ' / 5.0' : 'Not rated yet';
+  const tipMe = document.getElementById('tip-me-' + uid);
+  if (tipMe) tipMe.textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'Not rated yet';
+  const tipTc = document.getElementById('tip-tc-' + uid);
+  if (tipTc) tipTc.textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'Not rated yet';
+  const tipMf = document.getElementById('tip-mf-' + uid);
+  if (tipMf) tipMf.textContent = rating.has_mentor_feedback ? rating.mentor_feedback.toFixed(1) + ' / 5.0' : 'Not rated yet';
+  const tipFr = document.getElementById('tip-fr-' + uid);
+  if (tipFr) tipFr.textContent = rating.final_rating > 0 ? rating.final_rating.toFixed(1) + ' / 5.0' : 'Not rated yet';
+}
+
+async function fetchMenteeRating(menteeId) {
+  if (!menteeId) return null;
+  if (menteeRatingCache[menteeId]) return menteeRatingCache[menteeId];
+  try {
+    const res = await fetch('/api/mentee_rating_simple/' + menteeId);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && data.success && data.rating) {
+      menteeRatingCache[menteeId] = data.rating;
+      try { localStorage.setItem('mentee_rating_' + menteeId, JSON.stringify(data.rating)); } catch(e){}
+      return data.rating;
+    }
+  } catch (e) {
+    console.error('Error fetching mentee rating:', e);
+  }
+  return null;
+}
+
 async function loadAllMenteeRatings() {
   const containers = document.querySelectorAll('.mentee-rating-container[data-mentee-id]');
   const ids = [...new Set([...containers].map(c => c.getAttribute('data-mentee-id')))].filter(Boolean);
-  for (const uid of ids) {
-    const rating = await fetchMenteeRating(uid);
-    if (!rating) continue;
-    const starsEl = document.getElementById('rating-stars-' + uid);
-    if (starsEl) starsEl.innerHTML = renderStarsHtml(rating.final_rating);
-    const numEl = document.getElementById('rating-num-' + uid);
-    if (numEl) {
-      if (rating.final_rating > 0) {
-        numEl.textContent = rating.final_rating.toFixed(1);
-        numEl.classList.remove('text-gray-500');
-        numEl.classList.add('text-yellow-600');
-      } else {
-        numEl.textContent = '--';
-        numEl.classList.add('text-gray-500');
+
+  // Step 1: Instant load from localStorage
+  ids.forEach(uid => {
+    try {
+      const cached = localStorage.getItem('mentee_rating_' + uid);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed.final_rating === 'number') {
+          menteeRatingCache[uid] = parsed;
+          applyMenteeRatingDom(uid, parsed);
+        }
+      }
+    } catch(e) {}
+  });
+
+  // Step 2: Batch fetch
+  try {
+    const res = await fetch('/api/mentee_ratings_batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_ids: ids.map(id => parseInt(id, 10)) })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.ratings) {
+        for (const uid in data.ratings) {
+          const r = data.ratings[uid];
+          menteeRatingCache[uid] = r;
+          try { localStorage.setItem('mentee_rating_' + uid, JSON.stringify(r)); } catch(e){}
+          applyMenteeRatingDom(uid, r);
+        }
+        return;
       }
     }
+  } catch(e) {
+    console.warn('Batch mentee rating fetch failed, falling back to chunked fetch', e);
+  }
 
-    const tipPc = document.getElementById('tip-pc-' + uid);
-    if (tipPc) tipPc.textContent = rating.profile_complete > 0 ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'Not rated yet';
-    const tipGc = document.getElementById('tip-gc-' + uid);
-    if (tipGc) tipGc.textContent = rating.goal_clarity > 0 ? rating.goal_clarity.toFixed(1) + ' / 5.0' : 'Not rated yet';
-    const tipMe = document.getElementById('tip-me-' + uid);
-    if (tipMe) tipMe.textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'Not rated yet';
-    const tipTc = document.getElementById('tip-tc-' + uid);
-    if (tipTc) tipTc.textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'Not rated yet';
-    const tipMf = document.getElementById('tip-mf-' + uid);
-    if (tipMf) tipMf.textContent = rating.has_mentor_feedback ? rating.mentor_feedback.toFixed(1) + ' / 5.0' : 'Not rated yet';
-    const tipFr = document.getElementById('tip-fr-' + uid);
-    if (tipFr) tipFr.textContent = rating.final_rating > 0 ? rating.final_rating.toFixed(1) + ' / 5.0' : 'Not rated yet';
+  // Step 3: Chunked fallback
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    const batch = ids.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(async (uid) => {
+      const rating = await fetchMenteeRating(uid);
+      if (rating) applyMenteeRatingDom(uid, rating);
+    }));
   }
 }
 

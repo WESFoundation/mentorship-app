@@ -14,9 +14,17 @@
             <div class="flex items-start space-x-4 mb-4 md:mb-0">
                 <div class="flex-shrink-0 relative">
                     {% if institution_details and institution_details.profile_picture %}
+                        {% if institution_details.profile_picture.startswith('http') %}
+                        <img src="{{ institution_details.profile_picture }}" 
+                             alt="{{ institution_details.name }}" 
+                             class="w-24 h-24 rounded-2xl object-cover border-4 border-blue-100 shadow-md"
+                             onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ (institution_details.name if institution_details else 'Institution')|urlencode }}&background=2563eb&color=fff';">
+                        {% else %}
                         <img src="{{ url_for('static', filename='uploads/' + institution_details.profile_picture) }}" 
                              alt="{{ institution_details.name }}" 
-                             class="w-24 h-24 rounded-2xl object-cover border-4 border-blue-100 shadow-md">
+                             class="w-24 h-24 rounded-2xl object-cover border-4 border-blue-100 shadow-md"
+                             onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ (institution_details.name if institution_details else 'Institution')|urlencode }}&background=2563eb&color=fff';">
+                        {% endif %}
                     {% else %}
                         <div class="w-24 h-24 rounded-2xl bg-blue-50 flex items-center justify-center border-4 border-blue-100 shadow-md">
                             <i class="fas fa-university text-blue-500 text-3xl"></i>

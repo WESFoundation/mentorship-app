@@ -64,8 +64,19 @@
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap max-w-[280px]">
               <div class="flex items-center">
                 {% if mentor.mentor_profile and mentor.mentor_profile.profile_picture %}
-                <img src="{{ url_for('static', filename='uploads/' ~ mentor.mentor_profile.profile_picture) }}" alt="{{ mentor.name }}"
-                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3">
+                  {% if mentor.mentor_profile.profile_picture.startswith('http') %}
+                  <img src="{{ mentor.mentor_profile.profile_picture }}" alt="{{ mentor.name }}"
+                    class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3"
+                    onerror="this.onerror=null; this.src='{{ mentor.profile_picture_url if mentor.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentor.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+                  {% else %}
+                  <img src="{{ url_for('static', filename='uploads/' ~ mentor.mentor_profile.profile_picture) }}" alt="{{ mentor.name }}"
+                    class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3"
+                    onerror="this.onerror=null; this.src='{{ mentor.profile_picture_url if mentor.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentor.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
+                  {% endif %}
+                {% elif mentor.profile_picture_url %}
+                <img src="{{ mentor.profile_picture_url }}" alt="{{ mentor.name }}"
+                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover mr-2 sm:mr-3"
+                  onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ mentor.name|urlencode }}&background=2563eb&color=fff';">
                 {% else %}
                 <div
                   class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 mr-2 sm:mr-3">
@@ -179,7 +190,8 @@
       <div class="flex flex-col md:flex-row items-center gap-6 mb-8">
         <div class="relative">
           <img id="modalProfilePic" src="" alt="Profile Picture"
-            class="w-24 h-24 rounded-full object-cover border-4 border-blue-50">
+            class="w-24 h-24 rounded-full object-cover border-4 border-blue-50"
+            onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent(document.getElementById('modalName')?.textContent || 'Mentor') + '&background=2563eb&color=fff';">
         </div>
         <div class="text-center md:text-left">
           <h3 id="modalName" class="text-2xl font-bold text-gray-800 mb-1"></h3>
@@ -591,17 +603,71 @@
     if (mentor.base_mentorship_topics && mentor.base_mentorship_topics.trim()) {
       const topicList = mentor.base_mentorship_topics.split(',').filter(t => t.trim());
       const topicLabels = {
+        // School Students
         'school_subjects': 'School Subjects',
-        'coding_basics': 'Coding Basics',
-        'career_guidance': 'Career Guidance',
-        'azure_devops': 'Azure DevOps',
-        'cloud_computing': 'Cloud Computing',
-        'data_science': 'Data Science',
+        'study_skills_exam_prep': 'Study Skills & Exam Prep',
+        'science_math': 'Science & Mathematics',
+        'language_arts_english': 'Language Arts & English',
+        'homework_support': 'Homework Support',
+        'college_career_readiness': 'College & Career Readiness',
+        'study_habits_time_management': 'Study Habits & Time Management',
+        'stem_coding_beginners': 'STEM & Coding for Beginners',
+        'public_speaking_confidence': 'Public Speaking & Confidence',
+
+        // University Students (Distinct)
+        'seeking_internships': 'Finding Internships & Co-ops',
+        'campus_to_corporate': 'Campus-to-Corporate Transition',
+        'student_resume_portfolio': 'Student Resume & Portfolio Building',
+        'entry_level_interview_prep': 'Entry-Level & Graduate Interview Prep',
+        'higher_studies_guidance': 'Higher Studies & Graduate School (Masters/PhD)',
+        'scholarships_study_abroad': 'Scholarships & Study Abroad Guidance',
+        'academic_major_guidance': 'Academic Major & Coursework Planning',
+        'coding_basics': 'Coding Fundamentals & Academic Projects',
+        'hackathons_open_source': 'Hackathons, Competitions & Open Source',
+        'career_path_exploration': 'Tech & Industry Career Path Exploration',
+        'student_networking_linkedin': 'Student Networking & LinkedIn Basics',
+        'student_time_stress_management': 'Academic Workload & Exam Stress Management',
+
+        // Young Professionals & Career Explorers (Distinct)
+        'career_transition_growth': 'Career Transition & Domain Switching (Career Pivots)',
+        'promotion_advancement': 'Promotion Strategy & Career Progression',
+        'salary_negotiation': 'Salary, Bonus & Equity Negotiation',
+        'workplace_navigation': 'Workplace Dynamics & Stakeholder Management',
+        'performance_reviews_kpis': 'Performance Reviews & KPI Mastery',
+        'first_time_management': 'First-Time People Management & Team Leadership',
+        'executive_presence_branding': 'Personal Branding & Executive Presence',
+        'experienced_job_search': 'Mid-Senior Job Search & Recruiter Strategy',
+        'cross_functional_influence': 'Cross-Functional Collaboration & Influence',
+        'system_design_tech_leadership': 'System Architecture & Senior Tech Practices',
+        'burnout_work_life_harmony': 'Burnout Prevention & Work-Life Harmony',
+        'freelancing_consulting_transition': 'Freelancing & Consulting Career Transitions',
+
+        // Entrepreneurs (Expanded)
+        'entrepreneurship': 'Entrepreneurship Fundamentals & Ideation',
+        'idea_validation_mvp': 'Idea Validation & MVP Development',
+        'business_model_strategy': 'Business Model & Monetization Strategy',
+        'fundraising_pitching': 'Fundraising, Pitch Decks & Investor Pitching',
+        'bootstrapping_lean_startup': 'Bootstrapping & Lean Startup Methods',
+        'product_market_fit': 'Product-Market Fit & Customer Discovery',
+        'go_to_market_marketing': 'Go-to-Market (GTM) & Growth Marketing',
+        'sales_business_development': 'B2B/B2C Sales Pipelines & Business Development',
+        'financial_planning_cashflow': 'Financial Planning, Pricing & Cash Flow Management',
+        'startup_scaling_operations': 'Startup Operations, Scaling & Core Hiring',
+        'legal_ip_incorporation': 'Startup Legal, IP Protection & Incorporation',
+        'founder_mindset_resilience': 'Founder Mindset, Resilience & Decision-Making',
+
+        // Shared / Legacy
+        'soft_skills': 'Soft Skills & Communication',
+        'leadership': 'Leadership & Strategic Decision-Making',
+        'career_guidance': 'General Career Guidance',
+        'azure_devops': 'DevOps & CI/CD Pipelines',
+        'cloud_computing': 'Cloud Computing & Architecture',
+        'data_science': 'Data Science & AI/ML',
         'web_development': 'Web Development',
         'mobile_development': 'Mobile Development',
-        'soft_skills': 'Soft Skills',
-        'leadership': 'Leadership',
-        'entrepreneurship': 'Entrepreneurship'
+        'job_search_applications': 'Job Search & Applications',
+        'resume_linkedin_review': 'Resume & LinkedIn Review',
+        'interview_preparation': 'Interview Prep & Mock Interviews'
       };
       baseTopicsContainer.innerHTML = topicList.map(t => {
         const label = topicLabels[t.trim()] || t.trim();
@@ -707,11 +773,19 @@
 
     // ===== PROFILE PICTURE =====
     const profilePicElement = document.getElementById('modalProfilePic');
+    profilePicElement.onerror = function() {
+      this.onerror = null;
+      this.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentor.name || 'Mentor') + "&background=2563eb&color=fff";
+    };
     if (mentor.profile_picture && mentor.profile_picture.trim()) {
-      profilePicElement.src = "/static/uploads/" + mentor.profile_picture;
+      if (mentor.profile_picture.startsWith('http')) {
+        profilePicElement.src = mentor.profile_picture;
+      } else {
+        profilePicElement.src = "/static/uploads/" + mentor.profile_picture;
+      }
     } else {
       const mentorName = mentor.name || '?';
-      profilePicElement.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentorName) + "&background=blue&color=fff";
+      profilePicElement.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentorName) + "&background=2563eb&color=fff";
     }
 
     // Show the modal
@@ -738,6 +812,17 @@
     return html;
   }
 
+  function applyMentorRatingDom(uid, rating) {
+    if (!rating) return;
+    const finalScore = rating.final_rating != null ? rating.final_rating : 0;
+    document.querySelectorAll('.inst-stars-' + uid).forEach(el => {
+      el.innerHTML = renderStarsHtml(finalScore);
+    });
+    document.querySelectorAll('.inst-num-' + uid).forEach(el => {
+      el.textContent = finalScore > 0 ? (finalScore.toFixed(1) + ' / 5.0') : '--';
+    });
+  }
+
   async function fetchMentorRating(mentorId) {
     if (!mentorId) return null;
     if (mentorRatingCache[mentorId]) return mentorRatingCache[mentorId];
@@ -747,6 +832,7 @@
       const data = await res.json();
       if (data && data.success && data.rating) {
         mentorRatingCache[mentorId] = data.rating;
+        try { localStorage.setItem('mentor_rating_' + mentorId, JSON.stringify(data.rating)); } catch(e){}
         return data.rating;
       }
     } catch(e) {
@@ -758,18 +844,51 @@
   async function loadAllInstitutionMentorRatings() {
     const containers = document.querySelectorAll('[data-mentor-uid]');
     const ids = [...new Set([...containers].map(c => c.getAttribute('data-mentor-uid')))].filter(Boolean);
+
+    // Step 1: Instant load from localStorage
+    ids.forEach(uid => {
+      try {
+        const cached = localStorage.getItem('mentor_rating_' + uid);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed.final_rating === 'number') {
+            mentorRatingCache[uid] = parsed;
+            applyMentorRatingDom(uid, parsed);
+          }
+        }
+      } catch (e) {}
+    });
+
+    // Step 2: Fetch via batch endpoint
+    try {
+      const res = await fetch('/api/mentor_ratings_batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_ids: ids.map(id => parseInt(id, 10)) })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.ratings) {
+          for (const uid in data.ratings) {
+            const r = data.ratings[uid];
+            mentorRatingCache[uid] = r;
+            try { localStorage.setItem('mentor_rating_' + uid, JSON.stringify(r)); } catch(e){}
+            applyMentorRatingDom(uid, r);
+          }
+          return;
+        }
+      }
+    } catch(e) {
+      console.warn('Batch mentor rating fetch failed, falling back to chunked fetch', e);
+    }
+
+    // Step 3: Chunked fallback
     const BATCH_SIZE = 10;
     for (let i = 0; i < ids.length; i += BATCH_SIZE) {
       const batch = ids.slice(i, i + BATCH_SIZE);
       await Promise.all(batch.map(async (uid) => {
         const rating = await fetchMentorRating(uid);
-        if (!rating) return;
-        document.querySelectorAll('.inst-stars-' + uid).forEach(el => {
-          el.innerHTML = renderStarsHtml(rating.final_rating);
-        });
-        document.querySelectorAll('.inst-num-' + uid).forEach(el => {
-          el.textContent = rating.final_rating.toFixed(1) + ' / 5.0';
-        });
+        if (rating) applyMentorRatingDom(uid, rating);
       }));
     }
   }
@@ -785,13 +904,27 @@
     document.getElementById('popupMe').textContent = '--';
     document.getElementById('popupTe').textContent = '--';
     document.getElementById('popupSup').textContent = '--';
+
+    // Show cached rating immediately if available
+    const cached = mentorRatingCache[uid] || (function() {
+      try { return JSON.parse(localStorage.getItem('mentor_rating_' + uid)); } catch(e){ return null; }
+    })();
+    if (cached) {
+      document.getElementById('popupFinalRating').textContent = (cached.final_rating || 0).toFixed(1);
+      document.getElementById('popupStars').innerHTML = renderStarsHtml(cached.final_rating || 0);
+      document.getElementById('popupPc').textContent = cached.profile_complete != null ? cached.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupSk').textContent = cached.useful_skills != null ? cached.useful_skills.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupMe').textContent = cached.has_mentee_feedback ? cached.mentee_feedback.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupTe').textContent = cached.has_task_data ? cached.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupSup').textContent = cached.has_mentorship_experience ? cached.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
+    }
     
     popup.classList.remove('hidden');
     popup.classList.add('flex');
 
     const rating = await fetchMentorRating(uid);
     if (!rating) {
-      document.getElementById('popupFinalRating').textContent = 'N/A';
+      if (!cached) document.getElementById('popupFinalRating').textContent = 'N/A';
       return;
     }
 

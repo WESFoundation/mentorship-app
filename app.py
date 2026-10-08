@@ -72,9 +72,15 @@ load_env_file()
 PRODUCTION = os.environ.get("PRODUCTION", "false").lower() in ("1", "true", "yes")
 
 from werkzeug.middleware.proxy_fix import ProxyFix
+try:
+    from flask_cors import CORS
+except ImportError:
+    CORS = None
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+if CORS:
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Secret key - USE A STRONG RANDOM KEY IN PRODUCTION!
 # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
@@ -86,7 +92,7 @@ else:
 app.permanent_session_lifetime = timedelta(days=10)
 
 # Image upload configuration
-UPLOAD_FOLDER = "static/uploads"
+UPLOAD_FOLDER = os.path.join(app.root_path, "static", "uploads")
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "pdf"}  # Added PDF for criminal certificate
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
@@ -94,6 +100,112 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB max upload size
 
 # Ensure folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+from flask import send_from_directory as _send_from_directory
+import storage_service
+
+@app.route('/static/uploads/<path:filename>')
+@app.route('/uploads/<path:filename>')
+def serve_uploaded_file(filename):
+    if not filename:
+        return redirect('https://ui-avatars.com/api/?name=User&background=2563eb&color=fff', code=302)
+
+    clean_name = filename.strip()
+    for pfx in ['/static/uploads/', 'static/uploads/', '/uploads/', 'uploads/']:
+        while clean_name.startswith(pfx):
+            clean_name = clean_name[len(pfx):]
+
+    # Handle cloud URLs (such as Google Drive) accidentally wrapped in static path by templates
+    if clean_name.startswith('http:/') or clean_name.startswith('https:/') or clean_name.startswith('http://') or clean_name.startswith('https://'):
+        if clean_name.startswith('https:/') and not clean_name.startswith('https://'):
+            clean_url = 'https://' + clean_name[len('https:/'):]
+        elif clean_name.startswith('http:/') and not clean_name.startswith('http://'):
+            clean_url = 'http://' + clean_name[len('http:/'):]
+        else:
+            clean_url = clean_name
+
+        if request.query_string:
+            qs = request.query_string.decode('utf-8', errors='ignore')
+            clean_url += ('&' if '?' in clean_url else '?') + qs
+
+        return redirect(clean_url, code=302)
+
+    def _send_with_cache(directory, fname):
+        resp = _send_from_directory(directory, fname)
+        resp.headers['Cache-Control'] = 'public, max-age=2592000, immutable'
+        return resp
+
+    local_path = os.path.join(app.config["UPLOAD_FOLDER"], clean_name)
+    if not os.path.exists(local_path):
+        # Attempt to restore on the fly from Google Drive cloud backup
+        storage_service.download_file_from_drive(clean_name, local_path)
+
+    if os.path.exists(local_path):
+        # Dynamic thumbnail optimization for images
+        ext = os.path.splitext(clean_name)[1].lower()
+        if ext in ('.jpg', '.jpeg', '.png', '.webp'):
+            try:
+                cache_dir = os.path.join(app.config["UPLOAD_FOLDER"], ".cache")
+                os.makedirs(cache_dir, exist_ok=True)
+                thumb_name = f"thumb_800_{os.path.basename(clean_name)}"
+                thumb_path = os.path.join(cache_dir, thumb_name)
+                if os.path.exists(thumb_path):
+                    return _send_with_cache(cache_dir, thumb_name)
+                if os.path.getsize(local_path) > 200 * 1024:
+                    from PIL import Image, ImageOps, ImageFile
+                    ImageFile.LOAD_TRUNCATED_IMAGES = True
+                    im = Image.open(local_path)
+                    try:
+                        im = ImageOps.exif_transpose(im)
+                    except Exception:
+                        pass
+                    im.thumbnail((800, 800), Image.Resampling.LANCZOS)
+                    if ext in ('.jpg', '.jpeg'):
+                        if im.mode in ('RGBA', 'P'):
+                            im = im.convert('RGB')
+                        im.save(thumb_path, format='JPEG', quality=85, optimize=True)
+                    elif ext == '.png':
+                        im.save(thumb_path, format='PNG', optimize=True)
+                    else:
+                        im.save(thumb_path, format='WEBP', quality=85)
+                    return _send_with_cache(cache_dir, thumb_name)
+            except Exception as e:
+                app.logger.warning(f"Thumbnail generation error for {clean_name}: {e}")
+
+        return _send_with_cache(app.config["UPLOAD_FOLDER"], clean_name)
+
+    return redirect('https://ui-avatars.com/api/?name=User&background=2563eb&color=fff', code=302)
+
+@app.route('/api/upload', methods=['POST'])
+def api_upload_file():
+    """Endpoint for mobile app and web clients to upload files directly to cloud bucket."""
+    if 'email' not in session and 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    file = request.files.get('file') or request.files.get('profile_picture')
+    if not file or not file.filename:
+        return jsonify({'success': False, 'message': 'No file provided'}), 400
+    user_role = session.get('role') or session.get('user_type')
+    user_id = session.get('user_id') or session.get('id')
+    uid_str = f"/{user_id}" if user_id else ""
+    default_folder = 'profiles'
+    if user_role in ('1', 1, 'mentor'):
+        default_folder = f"profiles/mentor{uid_str}"
+    elif user_role in ('2', 2, 'mentee'):
+        default_folder = f"profiles/mentee{uid_str}"
+    elif user_role in ('0', 0, 'supervisor'):
+        default_folder = f"profiles/supervisor{uid_str}"
+    elif user_role in ('3', 3, 'institution'):
+        default_folder = f"profiles/institution{uid_str}"
+    folder = request.form.get('folder') or default_folder
+    file_url, stored_name = storage_service.upload_file(file, folder_prefix=folder)
+    if not file_url:
+        return jsonify({'success': False, 'message': 'Upload failed'}), 500
+    res_url = file_url if file_url.startswith('http') else f"/static/uploads/{stored_name}"
+    return jsonify({
+        'success': True,
+        'url': res_url,
+        'filename': stored_name
+    })
 
 # Helper function to calculate age from date of birth
 def calculate_age(dob_string):
@@ -283,7 +395,14 @@ def get_institution_logo_url(institution):
     if not institution:
         return None
     if institution.profile_picture:
-        return url_for('static', filename='img/institutions/' + institution.profile_picture)
+        pic = institution.profile_picture.strip()
+        upload_dir = app.config.get("UPLOAD_FOLDER", os.path.join(app.root_path, "static", "uploads"))
+        if os.path.exists(os.path.join(upload_dir, pic)):
+            return url_for('static', filename='uploads/' + pic)
+        img_inst_path = os.path.join(app.root_path, "static", "img", "institutions", pic)
+        if os.path.exists(img_inst_path):
+            return url_for('static', filename='img/institutions/' + pic)
+        return url_for('static', filename='uploads/' + pic)
     if institution.website:
         try:
             if institution.id in _institution_logo_cache:
@@ -1849,6 +1968,7 @@ class MeetingRequest(db.Model):
     meeting_date = db.Column(db.Date, nullable=False)
     meeting_time = db.Column(db.Time, nullable=False)   # start time
     meeting_duration = db.Column(db.Integer, default=60)  # in minutes
+    meeting_type = db.Column(db.String(50), default="standard", nullable=True)  # 'anchor', 'special', 'sgm', 'standard'
 
     # Google Calendar info
     meet_link = db.Column(db.String(500), nullable=True)
@@ -2405,6 +2525,14 @@ def ensure_schema_on_request():
     if not _schema_migrated:
         auto_migrate_schema()
 
+# Register Mobile REST API Blueprint
+from mobile_api import register_mobile_api
+register_mobile_api(
+    app, db, User, MentorProfile, MenteeProfile, Institution,
+    SupervisorProfile, MenteeTask, MentorshipRequest, MeetingRequest, Notification,
+    PersonalTask=PersonalTask, MasterTask=MasterTask
+)
+
 
 def is_anchor_mentorship(req):
     """Check if a mentorship request is for anchor meetings/mentorship."""
@@ -2580,6 +2708,9 @@ def check_profile_complete(user_id, user_type, profile_obj=None):
     Check if user profile is FULLY complete with ALL mandatory fields
     Returns True only if ALL required fields are filled, False otherwise
     """
+    user = getattr(profile_obj, "user", None) or (db.session.get(User, user_id) if user_id else None)
+    avatar_url = getattr(user, "profile_picture_url", None) if user else None
+
     if user_type == "1":  # Mentor
         profile = profile_obj if profile_obj is not None else MentorProfile.query.filter_by(user_id=user_id).first()
         if profile:
@@ -2606,7 +2737,7 @@ def check_profile_complete(user_id, user_type, profile_obj=None):
                 profile.why_mentor,
                 profile.mentorship_philosophy,
                 profile.mentorship_motto,
-                profile.profile_picture  # Profile picture is now mandatory
+                (profile.profile_picture or avatar_url)  # Profile picture or OAuth avatar
             ])
             return has_all_required
         return False
@@ -2622,7 +2753,7 @@ def check_profile_complete(user_id, user_type, profile_obj=None):
                 profile.mobile_number,
                 profile.mentorship_expectations,
                 profile.terms_agreement,
-                profile.profile_picture,
+                (profile.profile_picture or avatar_url),
                 profile.who_am_i
             ])
             return has_all_required
@@ -2637,7 +2768,7 @@ def check_profile_complete(user_id, user_type, profile_obj=None):
                 profile.location,
                 profile.role,
                 profile.additional_info,
-                profile.profile_picture
+                (profile.profile_picture or avatar_url)
             ])
             return has_all_required
         return False
@@ -2731,6 +2862,10 @@ def signin():
             return render_template("auth/signin.html")
 
         # Check password
+        if not user.password:
+            flash("This account was created with Google. Please use 'Sign in with Google' or use 'Forgot Password' to set a password.", "error")
+            return render_template("auth/signin.html")
+
         if not check_password_hash(user.password, password):
             flash("Incorrect password! Please try again.", "error")
             return render_template("auth/signin.html")
@@ -3458,11 +3593,13 @@ def calculate_mentor_profile_completion(mentor_id, profile_obj=None):
     }
     """
     profile = profile_obj if profile_obj is not None else MentorProfile.query.filter_by(user_id=mentor_id).first()
+    user = getattr(profile, "user", None) or (db.session.get(User, mentor_id) if mentor_id else None)
+    avatar_url = getattr(user, "profile_picture_url", None) if user else None
     
     # Define all profile fields for completion calculation
     all_fields = {
         # Personal & Professional Details
-        'Profile Photo': profile.profile_picture if profile else None,
+        'Profile Photo': (profile.profile_picture or avatar_url) if profile else None,
         'Profession': profile.profession if profile else None,
         'Skills': profile.skills if profile else None,
         'Job Role': profile.role if profile else None,
@@ -3900,7 +4037,7 @@ def menteedashboard():
 
         return render_template(
             "mentee/menteedashboard.html",
-            all_mentors=all_mentors,
+            all_mentors=[],
             my_mentors=my_mentors,
             professions=professions,
             locations=locations,
@@ -3917,10 +4054,16 @@ def menteedashboard():
             mentee_rating=mentee_rating
         )
 
-    return redirect(url_for("signin"))
+_SUPERVISOR_ANALYTICS_CACHE = None
+_SUPERVISOR_ANALYTICS_CACHE_TIME = 0
+_SUPERVISOR_ANALYTICS_CACHE_TTL = 60  # 60s cache
 
 def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
     """Compute comparative analytics and leaderboards for the supervisor dashboard."""
+    global _SUPERVISOR_ANALYTICS_CACHE, _SUPERVISOR_ANALYTICS_CACHE_TIME
+    now = time.time()
+    if _SUPERVISOR_ANALYTICS_CACHE is not None and (now - _SUPERVISOR_ANALYTICS_CACHE_TIME < _SUPERVISOR_ANALYTICS_CACHE_TTL):
+        return _SUPERVISOR_ANALYTICS_CACHE
     try:
         users_by_id = {}
         for m in mentors:
@@ -4189,7 +4332,7 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
             })
         lb_task_ratings.sort(key=lambda x: (-x["avg_rating"], -x["rating_count"]))
 
-        return {
+        res_analytics = {
             "metrics": metrics,
             "lb_task_mentees": lb_task_mentees,
             "lb_task_mentors": lb_task_mentors,
@@ -4199,6 +4342,9 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
             "lb_mentor_ratings": lb_mentor_ratings,
             "lb_task_ratings": lb_task_ratings
         }
+        _SUPERVISOR_ANALYTICS_CACHE = res_analytics
+        _SUPERVISOR_ANALYTICS_CACHE_TIME = now
+        return res_analytics
     except Exception as e:
         app.logger.error(f"Error computing supervisor comparative analytics: {e}")
         return {
@@ -5920,18 +6066,16 @@ def editinstitutionprofile():
             if 'profile_picture' in request.files:
                 file = request.files['profile_picture']
                 if file and file.filename and allowed_file(file.filename):
-                    # Remove old profile picture file if it exists
                     old_pic = institution_details.profile_picture if hasattr(institution_details, 'profile_picture') else None
                     if old_pic:
-                        old_path = os.path.join(app.config['UPLOAD_FOLDER'], old_pic)
-                        if os.path.exists(old_path):
-                            try:
-                                os.remove(old_path)
-                            except OSError:
-                                pass
-                    filename = secure_filename(f"institution_{institution_details.id}_{file.filename}")
-                    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-                    institution_details.profile_picture = filename
+                        storage_service.delete_file(old_pic)
+                    pic_url, stored_name = storage_service.upload_file(
+                        file,
+                        folder_prefix=f"profiles/institution/{institution_details.id}",
+                        custom_filename=secure_filename(f"institution_{institution_details.id}_{file.filename}")
+                    )
+                    if pic_url:
+                        institution_details.profile_picture = pic_url
             
             # Update user details
             if hasattr(user, 'designation'):
@@ -7561,7 +7705,7 @@ def mentee_calendar():
     all_participants = _get_all_meeting_participants()
     extra_meeting_ids = []
     for mid, pdata in all_participants.items():
-        if pdata.get("mentee_id") == mentee.id:
+        if pdata.get("mentee_id") == mentee.id or (pdata.get("mentee_ids") and mentee.id in pdata.get("mentee_ids")):
             extra_meeting_ids.append(mid)
 
     extra_meetings = []
@@ -7596,15 +7740,23 @@ def mentee_calendar():
         else:
             status = "upcoming"
         
+        tinfo = _resolve_meeting_type(meeting, pdata)
         calendar_meetings.append({
             "id": meeting.id,
             "title": meeting.meeting_title,
             "date": meeting_datetime,
             "duration": meeting.meeting_duration,
             "mentor": mentor.name if mentor else "Unknown Mentor",
-            "type": "Video Call",  # You can add this field to your MeetingRequest model if needed
+            "type": tinfo["label"],
+            "meeting_type": tinfo["type"],
+            "type_color": tinfo["color_code"],
+            "badge_bg": tinfo["badge_bg"],
+            "badge_text": tinfo["badge_text"],
+            "badge_border": tinfo["badge_border"],
+            "card_bg": tinfo["card_bg"],
+            "hex_color": tinfo["hex_color"],
             "status": status,
-            "description": meeting.meeting_description or "No description provided",
+            "description": _clean_meeting_description(meeting.meeting_description) or "No description provided",
             "meet_link": meeting.meet_link
         })
     
@@ -7681,16 +7833,32 @@ def mentor_calendar():
         else:
             status = "upcoming"
         
+        mentee_display = mentee.name if mentee else "Unknown Mentee"
+        mentee_email_display = mentee.email if mentee else ""
+        if pdata and pdata.get("mentee_ids"):
+            m_users = User.query.filter(User.id.in_(pdata["mentee_ids"])).all()
+            if m_users:
+                mentee_display = f"Small Group ({len(m_users)} mentees): " + ", ".join([u.name for u in m_users[:3]]) + ("..." if len(m_users) > 3 else "")
+                mentee_email_display = ", ".join([u.email for u in m_users[:3]])
+
+        tinfo = _resolve_meeting_type(meeting, pdata)
         calendar_meetings.append({
             "id": meeting.id,
             "title": meeting.meeting_title,
             "date": meeting_datetime,
             "duration": meeting.meeting_duration,
-            "mentee": mentee.name if mentee else "Unknown Mentee",
-            "mentee_email": mentee.email if mentee else "",
-            "type": "Video Call",
+            "mentee": mentee_display,
+            "mentee_email": mentee_email_display,
+            "type": tinfo["label"],
+            "meeting_type": tinfo["type"],
+            "type_color": tinfo["color_code"],
+            "badge_bg": tinfo["badge_bg"],
+            "badge_text": tinfo["badge_text"],
+            "badge_border": tinfo["badge_border"],
+            "card_bg": tinfo["card_bg"],
+            "hex_color": tinfo["hex_color"],
             "status": status,
-            "description": meeting.meeting_description or "No description provided",
+            "description": _clean_meeting_description(meeting.meeting_description) or "No description provided",
             "meet_link": meeting.meet_link
         })
     
@@ -7706,57 +7874,134 @@ def supervisor_calendar():
     if "email" not in session or session.get("user_type") != "0":
         return redirect(url_for("signin"))
     
-    # Fetch ALL meetings from the database
+    # 1. Fetch ALL meetings from the database in a single query
     meetings = MeetingRequest.query.order_by(
         MeetingRequest.meeting_date.asc(),
         MeetingRequest.meeting_time.asc()
     ).all()
-    
-    # Prepare meeting data for the calendar
+
+    # Pre-fetch all mentors, mentees, and institutions for the schedule meeting form and lookups
+    mentors = User.query.filter_by(user_type="1").all()
+    mentees = User.query.filter_by(user_type="2").all()
+    institutions = User.query.filter_by(user_type="3").all()
+
+    # Fast in-memory user map
+    users_by_id = {u.id: u for u in (mentors + mentees + institutions)}
+
+    # Pre-fetch all Institutions into dict to avoid N+1 queries in mentorship loop
+    all_insts = {inst.id: inst for inst in Institution.query.all()}
+
+    # Resolve meeting participants without repeated DB hits
+    import datetime as dt
+    now = datetime.now()
+    missing_uids = set()
+    meeting_pdata_map = {}
+
+    for meeting in meetings:
+        if meeting.requester_id and meeting.requester_id not in users_by_id:
+            missing_uids.add(meeting.requester_id)
+        if meeting.requested_to_id and meeting.requested_to_id not in users_by_id:
+            missing_uids.add(meeting.requested_to_id)
+        
+        extracted = _extract_participants_from_description(meeting.meeting_description) or {}
+        pdata = dict(extracted)
+        req_id = meeting.requester_id
+        rec_id = meeting.requested_to_id
+        if not pdata.get("mentee_id"):
+            req_u = users_by_id.get(req_id)
+            rec_u = users_by_id.get(rec_id)
+            if req_u and str(req_u.user_type) == "2":
+                pdata["mentee_id"] = req_u.id
+            elif rec_u and str(rec_u.user_type) == "2":
+                pdata["mentee_id"] = rec_u.id
+        if not pdata.get("mentor_id"):
+            req_u = users_by_id.get(req_id)
+            rec_u = users_by_id.get(rec_id)
+            if req_u and str(req_u.user_type) == "1":
+                pdata["mentor_id"] = req_u.id
+            elif rec_u and str(rec_u.user_type) == "1":
+                pdata["mentor_id"] = rec_u.id
+        
+        for m_id in pdata.get("mentee_ids", []):
+            if m_id not in users_by_id:
+                missing_uids.add(m_id)
+        if pdata.get("mentee_id") and pdata["mentee_id"] not in users_by_id:
+            missing_uids.add(pdata["mentee_id"])
+        if pdata.get("mentor_id") and pdata["mentor_id"] not in users_by_id:
+            missing_uids.add(pdata["mentor_id"])
+            
+        meeting_pdata_map[meeting.id] = pdata
+
+    # Fetch any remaining missing users in one bulk query
+    if missing_uids:
+        for u in User.query.filter(User.id.in_(missing_uids)).all():
+            users_by_id[u.id] = u
+
+    # Prepare meeting data for the calendar (pure in-memory iteration)
     calendar_meetings = []
     for meeting in meetings:
-        # Get mentee and mentor details
-        mentee = User.query.get(meeting.requester_id)
-        mentor = User.query.get(meeting.requested_to_id)
-        
-        # Determine meeting status based on date/time
         if not meeting.meeting_date:
-            continue  # Skip meetings with no date
-        import datetime as dt
+            continue
         meeting_time = meeting.meeting_time if meeting.meeting_time else dt.time(10, 0)
         try:
             meeting_datetime = datetime.combine(meeting.meeting_date, meeting_time)
         except Exception:
             continue
-        now = datetime.now()
-        
+
         if meeting.status == "cancelled":
             status = "cancelled"
         elif meeting_datetime < now:
             status = "completed"
         else:
             status = "upcoming"
-        
+
+        pdata = meeting_pdata_map.get(meeting.id, {})
+        mentee = users_by_id.get(meeting.requester_id)
+        mentor = users_by_id.get(meeting.requested_to_id)
+
+        if pdata.get("mentee_ids"):
+            m_users = [users_by_id[mid] for mid in pdata["mentee_ids"] if mid in users_by_id]
+            mentee_display = f"Small Group ({len(m_users)} mentees): " + ", ".join([u.name for u in m_users[:3]]) + ("..." if len(m_users) > 3 else "")
+            mentee_email_display = ", ".join([u.email for u in m_users[:3]])
+        elif pdata.get("mentee_id"):
+            m_user = users_by_id.get(pdata["mentee_id"])
+            mentee_display = m_user.name if m_user else (mentee.name if mentee else "Unknown Mentee")
+            mentee_email_display = m_user.email if m_user else (mentee.email if mentee else "")
+        else:
+            mentee_display = mentee.name if mentee else "Unknown Mentee"
+            mentee_email_display = mentee.email if mentee else ""
+
+        if pdata.get("mentor_id"):
+            mentor_user = users_by_id.get(pdata["mentor_id"])
+            mentor_display = mentor_user.name if mentor_user else (mentor.name if mentor else "Unknown Mentor")
+            mentor_email_display = mentor_user.email if mentor_user else (mentor.email if mentor else "")
+        else:
+            mentor_display = mentor.name if mentor else "Unknown Mentor"
+            mentor_email_display = mentor.email if mentor else ""
+
+        tinfo = _resolve_meeting_type(meeting, pdata)
         calendar_meetings.append({
             "id": meeting.id,
             "title": meeting.meeting_title,
             "date": meeting_datetime,
             "duration": meeting.meeting_duration,
-            "mentee": mentee.name if mentee else "Unknown Mentee",
-            "mentee_email": mentee.email if mentee else "",
-            "mentor": mentor.name if mentor else "Unknown Mentor",
-            "mentor_email": mentor.email if mentor else "",
-            "type": "Video Call",
+            "mentee": mentee_display,
+            "mentee_email": mentee_email_display,
+            "mentor": mentor_display,
+            "mentor_email": mentor_email_display,
+            "type": tinfo["label"],
+            "meeting_type": tinfo["type"],
+            "type_color": tinfo["color_code"],
+            "badge_bg": tinfo["badge_bg"],
+            "badge_text": tinfo["badge_text"],
+            "badge_border": tinfo["badge_border"],
+            "card_bg": tinfo["card_bg"],
+            "hex_color": tinfo["hex_color"],
             "status": status,
-            "description": meeting.meeting_description or "No description provided",
+            "description": _clean_meeting_description(meeting.meeting_description) or "No description provided",
             "meet_link": meeting.meet_link,
             "created_at": meeting.created_at
         })
-    
-    # Fetch all mentors, mentees, and institutions for the schedule meeting form
-    mentors = User.query.filter_by(user_type="1").all()
-    mentees = User.query.filter_by(user_type="2").all()
-    institutions = User.query.filter_by(user_type="3").all()
 
     # Fetch approved mentorships for the mentorship dropdown
     from sqlalchemy.orm import joinedload
@@ -7771,11 +8016,11 @@ def supervisor_calendar():
     for mr in approved_mentorships:
         mentor_name = mr.mentor.name if mr.mentor else "Unknown"
         mentee_name = mr.mentee.name if mr.mentee else "Unknown"
-        # Resolve institution user_id from mentor's or mentee's institution_id
+        # Resolve institution user_id from mentor's or mentee's institution_id via fast in-memory map
         inst_user_id = ""
         for u in (mr.mentor, mr.mentee):
             if u and u.institution_id:
-                inst = Institution.query.get(u.institution_id)
+                inst = all_insts.get(u.institution_id)
                 if inst and inst.user_id:
                     inst_user_id = str(inst.user_id)
                     break
@@ -9803,6 +10048,118 @@ def _resolve_meeting_participants(meeting):
     return mentor, mentee, participants_info
 
 
+def _resolve_meeting_type(meeting, participants_info=None):
+    """
+    Resolve mentoring type for a meeting: 'anchor', 'special', 'sgm', or 'standard'.
+    Returns a dict with:
+      type: 'anchor' | 'special' | 'sgm' | 'standard'
+      label: 'Anchor Mentoring' | 'Special Mentoring' | 'SGM (Small Group)' | '1-on-1 Mentoring'
+      color_code: 'indigo' | 'purple' | 'emerald' | 'sky'
+      badge_bg: Tailwind bg class
+      badge_text: Tailwind text class
+      badge_border: Tailwind border class
+      hex_color: hex string for calendar chip
+    """
+    if not meeting:
+        return {
+            "type": "standard",
+            "label": "1-on-1 Mentoring",
+            "color_code": "sky",
+            "hex_color": "#0284c7",
+            "badge_bg": "bg-sky-100",
+            "badge_text": "text-sky-800",
+            "badge_border": "border-sky-300",
+            "card_bg": "#0284c7",
+            "light_bg": "#f0f9ff"
+        }
+
+    pdata = participants_info or (_get_meeting_participants(meeting.id) if getattr(meeting, "id", None) else {})
+    
+    # 1. Explicit meeting_type attribute
+    raw_type = getattr(meeting, "meeting_type", None)
+    if raw_type and str(raw_type).strip().lower() in ("anchor", "special", "sgm", "standard"):
+        mtype = str(raw_type).strip().lower()
+    elif pdata and pdata.get("meeting_type") and str(pdata["meeting_type"]).strip().lower() in ("anchor", "special", "sgm", "standard"):
+        mtype = str(pdata["meeting_type"]).strip().lower()
+    elif pdata and (pdata.get("is_sgm") or pdata.get("mentee_ids")):
+        mtype = "sgm"
+    else:
+        # Check title and description
+        title = (meeting.meeting_title or "").lower()
+        desc = (meeting.meeting_description or "").lower()
+        if "sgm" in title or "small group" in title or "sgm" in desc or "small group" in desc:
+            mtype = "sgm"
+        elif "anchor" in title or "anchor" in desc or pdata.get("task_id"):
+            mtype = "anchor"
+        elif "special" in title or "special" in desc:
+            mtype = "special"
+        else:
+            # Check associated mentorship request
+            req_user = getattr(meeting, "requester", None)
+            rec_user = getattr(meeting, "requested_to", None)
+            mentee_id = pdata.get("mentee_id") or (meeting.requester_id if req_user and str(req_user.user_type) == "2" else (meeting.requested_to_id if rec_user and str(rec_user.user_type) == "2" else None))
+            mentor_id = pdata.get("mentor_id") or (meeting.requested_to_id if rec_user and str(rec_user.user_type) == "1" else (meeting.requester_id if req_user and str(req_user.user_type) == "1" else None))
+            mtype = "standard"
+            if mentee_id and mentor_id:
+                try:
+                    mr = MentorshipRequest.query.filter_by(mentee_id=mentee_id, mentor_id=mentor_id, final_status="approved").first()
+                    if mr and mr.mentor_type:
+                        if "anchor" in mr.mentor_type.lower():
+                            mtype = "anchor"
+                        elif "special" in mr.mentor_type.lower():
+                            mtype = "special"
+                except Exception:
+                    pass
+
+    TYPE_META = {
+        "anchor": {
+            "type": "anchor",
+            "label": "Anchor Mentoring",
+            "color_code": "indigo",
+            "hex_color": "#4f46e5",
+            "badge_bg": "bg-indigo-100",
+            "badge_text": "text-indigo-800",
+            "badge_border": "border-indigo-300",
+            "card_bg": "#4f46e5",
+            "light_bg": "#eef2ff"
+        },
+        "special": {
+            "type": "special",
+            "label": "Special Mentoring",
+            "color_code": "purple",
+            "hex_color": "#9333ea",
+            "badge_bg": "bg-purple-100",
+            "badge_text": "text-purple-800",
+            "badge_border": "border-purple-300",
+            "card_bg": "#9333ea",
+            "light_bg": "#faf5ff"
+        },
+        "sgm": {
+            "type": "sgm",
+            "label": "SGM (Small Group)",
+            "color_code": "emerald",
+            "hex_color": "#059669",
+            "badge_bg": "bg-emerald-100",
+            "badge_text": "text-emerald-800",
+            "badge_border": "border-emerald-300",
+            "card_bg": "#059669",
+            "light_bg": "#ecfdf5"
+        },
+        "standard": {
+            "type": "standard",
+            "label": "1-on-1 Mentoring",
+            "color_code": "sky",
+            "hex_color": "#0284c7",
+            "badge_bg": "bg-sky-100",
+            "badge_text": "text-sky-800",
+            "badge_border": "border-sky-300",
+            "card_bg": "#0284c7",
+            "light_bg": "#f0f9ff"
+        }
+    }
+    return TYPE_META.get(mtype, TYPE_META["standard"])
+
+
 # ===== 4-STAGE TASK PROGRESS (computed, no DB changes) =====
 # Stages: not-started, committed, in-progress, done
 
@@ -11159,13 +11516,82 @@ def api_mentor_skills_percentile(mentor_id):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+# Persistent disk-backed rating cache to make ratings load instantly (under 5ms) and allow background recalculation
+import threading
+import json
+
+_RATINGS_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "instance", "ratings_cache.json")
+_RATINGS_LOCK = threading.Lock()
+_RECALC_LOCK = threading.Lock()
+_RECALC_IN_PROGRESS = set()
+_SIMPLE_RATING_CACHE = {}  # (type, id) -> (timestamp, data_dict)
+_SIMPLE_RATING_TTL = 3600  # 1 hour soft TTL
+
+def _load_ratings_from_disk():
+    global _SIMPLE_RATING_CACHE
+    try:
+        if os.path.exists(_RATINGS_CACHE_FILE):
+            with open(_RATINGS_CACHE_FILE, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+                for k, v in raw.items():
+                    parts = k.split(":")
+                    if len(parts) == 2 and isinstance(v, list) and len(v) == 2:
+                        _SIMPLE_RATING_CACHE[(parts[0], int(parts[1]))] = (float(v[0]), v[1])
+            app.logger.info(f"Loaded {len(_SIMPLE_RATING_CACHE)} ratings from persistent disk cache.")
+    except Exception as e:
+        app.logger.warning(f"Failed loading ratings disk cache: {e}")
+
+def _persist_ratings_to_disk():
+    try:
+        os.makedirs(os.path.dirname(_RATINGS_CACHE_FILE), exist_ok=True)
+        with _RATINGS_LOCK:
+            exportable = {}
+            for (rtype, ruid), (ts, data) in _SIMPLE_RATING_CACHE.items():
+                exportable[f"{rtype}:{ruid}"] = [ts, data]
+            with open(_RATINGS_CACHE_FILE, "w", encoding="utf-8") as f:
+                json.dump(exportable, f)
+    except Exception as e:
+        app.logger.warning(f"Failed saving ratings disk cache: {e}")
+
+_load_ratings_from_disk()
+
+def _async_recalc_simple_rating(rtype, uid):
+    """Queue background recalculation of rating without blocking current HTTP thread."""
+    with _RECALC_LOCK:
+        if (rtype, uid) in _RECALC_IN_PROGRESS:
+            return
+        _RECALC_IN_PROGRESS.add((rtype, uid))
+
+    def _worker():
+        try:
+            with app.app_context():
+                if rtype == "mentor":
+                    api_mentor_rating_simple(uid, force_refresh=True)
+                else:
+                    api_mentee_rating_simple(uid, force_refresh=True)
+        except Exception as err:
+            app.logger.warning(f"Background rating refresh error for {rtype}:{uid}: {err}")
+        finally:
+            with _RECALC_LOCK:
+                _RECALC_IN_PROGRESS.discard((rtype, uid))
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
 @app.route("/api/mentor_rating_simple/<int:mentor_id>")
-def api_mentor_rating_simple(mentor_id):
-    """Simple 5-criteria star rating for a mentor. Returns breakdown with 0-5 stars each.
-    Criteria: Profile Completeness, Useful Skills, Task Completion, Mentee Feedback, Mentorship Experience (combined).
-    Final rating = average of criteria that have data."""
-    if "email" not in session:
+def api_mentor_rating_simple(mentor_id, force_refresh=False):
+    """Simple 5-criteria star rating for a mentor. Returns instantly from cache and refreshes in background."""
+    if "email" not in session and not force_refresh:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    cache_key = ("mentor", mentor_id)
+    cached = _SIMPLE_RATING_CACHE.get(cache_key)
+    now = time.time()
+    if cached and not force_refresh:
+        # If cache is older than 30 mins, trigger background refresh
+        if (now - cached[0] > 1800) and cache_key not in _RECALC_IN_PROGRESS:
+            _async_recalc_simple_rating("mentor", mentor_id)
+        return jsonify(cached[1])
 
     try:
         mentor = db.session.get(User, mentor_id)
@@ -11329,7 +11755,7 @@ def api_mentor_rating_simple(mentor_id):
         final_rating = round(sum(rated_criteria) / len(rated_criteria), 1) if rated_criteria else 0
         final_rating = min(5, max(0, final_rating))
 
-        return jsonify({
+        res_data = {
             "success": True,
             "mentor_id": mentor_id,
             "rating": {
@@ -11346,19 +11772,28 @@ def api_mentor_rating_simple(mentor_id):
                 "has_mentee_feedback": has_mentee_feedback,
                 "has_mentorship_experience": has_mentorship_experience
             }
-        })
+        }
+        _SIMPLE_RATING_CACHE[cache_key] = (time.time(), res_data)
+        _persist_ratings_to_disk()
+        return jsonify(res_data)
     except Exception as e:
         app.logger.error(f"Error in api_mentor_rating_simple: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
 
 
 @app.route("/api/mentee_rating_simple/<int:mentee_id>")
-def api_mentee_rating_simple(mentee_id):
-    """Simple 5-criteria star rating for a mentee. Returns breakdown with 0-5 stars each.
-    Criteria: Profile Completeness, Goal Clarity, Task Completion, Mentor Feedback, Mentorship Experience (combined).
-    Final rating = average of criteria that have data."""
-    if "email" not in session:
+def api_mentee_rating_simple(mentee_id, force_refresh=False):
+    """Simple 5-criteria star rating for a mentee. Returns instantly from cache and refreshes in background."""
+    if "email" not in session and not force_refresh:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    cache_key = ("mentee", mentee_id)
+    cached = _SIMPLE_RATING_CACHE.get(cache_key)
+    now = time.time()
+    if cached and not force_refresh:
+        if (now - cached[0] > 1800) and cache_key not in _RECALC_IN_PROGRESS:
+            _async_recalc_simple_rating("mentee", mentee_id)
+        return jsonify(cached[1])
 
     try:
         mentee = db.session.get(User, mentee_id)
@@ -11381,7 +11816,13 @@ def api_mentee_rating_simple(mentee_id):
         try:
             mp = MenteeProfile.query.filter_by(user_id=mentee_id).first()
             if mp:
-                goal_fields = [mp.goal, getattr(mp, 'career_aspirations', None)]
+                secondary_goal = (
+                    getattr(mp, 'career_goal', None)
+                    or getattr(mp, 'career_interest', None)
+                    or getattr(mp, 'mentorship_expectations', None)
+                    or getattr(mp, 'career_aspirations', None)
+                )
+                goal_fields = [mp.goal, secondary_goal]
                 filled = sum(1 for f in goal_fields if f and str(f).strip())
                 goal_stars = round(min(5, filled * 2.5), 1)
         except Exception:
@@ -11501,7 +11942,7 @@ def api_mentee_rating_simple(mentee_id):
         final_rating = round(sum(rated_criteria) / len(rated_criteria), 1) if rated_criteria else 0
         final_rating = min(5, max(0, final_rating))
 
-        return jsonify({
+        res_data = {
             "success": True,
             "mentee_id": mentee_id,
             "rating": {
@@ -11518,10 +11959,67 @@ def api_mentee_rating_simple(mentee_id):
                 "has_mentor_feedback": has_mentor_feedback,
                 "has_mentorship_experience": has_mentorship_experience
             }
-        })
+        }
+        _SIMPLE_RATING_CACHE[cache_key] = (time.time(), res_data)
+        _persist_ratings_to_disk()
+        return jsonify(res_data)
     except Exception as e:
         app.logger.error(f"Error in api_mentee_rating_simple: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/mentee_ratings_batch", methods=["POST"])
+def api_mentee_ratings_batch():
+    """Batch API to fetch multiple mentee ratings instantly in a single call."""
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    ids = (request.get_json() or {}).get("ids", [])
+    results = {}
+    now = time.time()
+    for uid in ids:
+        try:
+            uid_int = int(uid)
+            cached = _SIMPLE_RATING_CACHE.get(("mentee", uid_int))
+            if cached:
+                results[str(uid_int)] = cached[1].get("rating")
+                if (now - cached[0] > 1800) and ("mentee", uid_int) not in _RECALC_IN_PROGRESS:
+                    _async_recalc_simple_rating("mentee", uid_int)
+            else:
+                resp = api_mentee_rating_simple(uid_int)
+                if hasattr(resp, "get_json"):
+                    d = resp.get_json()
+                    if d and d.get("success") and d.get("rating"):
+                        results[str(uid_int)] = d.get("rating")
+        except Exception:
+            continue
+    return jsonify({"success": True, "ratings": results})
+
+
+@app.route("/api/mentor_ratings_batch", methods=["POST"])
+def api_mentor_ratings_batch():
+    """Batch API to fetch multiple mentor ratings instantly in a single call."""
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    ids = (request.get_json() or {}).get("ids", [])
+    results = {}
+    now = time.time()
+    for uid in ids:
+        try:
+            uid_int = int(uid)
+            cached = _SIMPLE_RATING_CACHE.get(("mentor", uid_int))
+            if cached:
+                results[str(uid_int)] = cached[1].get("rating")
+                if (now - cached[0] > 1800) and ("mentor", uid_int) not in _RECALC_IN_PROGRESS:
+                    _async_recalc_simple_rating("mentor", uid_int)
+            else:
+                resp = api_mentor_rating_simple(uid_int)
+                if hasattr(resp, "get_json"):
+                    d = resp.get_json()
+                    if d and d.get("success") and d.get("rating"):
+                        results[str(uid_int)] = d.get("rating")
+        except Exception:
+            continue
+    return jsonify({"success": True, "ratings": results})
 
 
 @app.route("/api/set_supervisor_rating", methods=["POST"])
@@ -11552,6 +12050,12 @@ def api_set_supervisor_rating():
 
         profile.supervisor_rating = round(rating, 1)
         db.session.commit()
+        _SIMPLE_RATING_CACHE.pop(("mentor", int(mentor_user_id)), None)
+        try:
+            api_mentor_rating_simple(int(mentor_user_id), force_refresh=True)
+            _persist_ratings_to_disk()
+        except Exception:
+            pass
 
         return jsonify({
             "success": True,
@@ -12074,6 +12578,7 @@ def institution_calendar():
         else:
             status = "upcoming"
         
+        tinfo = _resolve_meeting_type(meeting, participants_info)
         calendar_meetings.append({
             "id": meeting.id,
             "title": meeting.meeting_title,
@@ -12086,7 +12591,14 @@ def institution_calendar():
             "mentor": mentor.name if mentor else "Unknown Mentor",
             "mentor_id": mentor.id if mentor else (participants_info.get("mentor_id") if participants_info else None),
             "mentor_email": mentor.email if mentor else "",
-            "type": "Video Call",
+            "type": tinfo["label"],
+            "meeting_type": tinfo["type"],
+            "type_color": tinfo["color_code"],
+            "badge_bg": tinfo["badge_bg"],
+            "badge_text": tinfo["badge_text"],
+            "badge_border": tinfo["badge_border"],
+            "card_bg": tinfo["card_bg"],
+            "hex_color": tinfo["hex_color"],
             "status": status,
             "description": _clean_meeting_description(meeting.meeting_description) or "No description provided",
             "meet_link": meeting.meet_link,
@@ -12957,7 +13469,15 @@ def inject_user_profile_pic():
             profile = raw_profile[0] if raw_profile else None
         else:
             profile = raw_profile
-        profile_pic = getattr(profile, "profile_picture", None) if profile else None
+        
+        pic = getattr(profile, "profile_picture", None) if profile else None
+        if pic:
+            if pic.startswith("http://") or pic.startswith("https://"):
+                profile_pic = pic
+            else:
+                profile_pic = url_for("static", filename="uploads/" + pic)
+        if not profile_pic and getattr(user, "profile_picture_url", None):
+            profile_pic = user.profile_picture_url
     return dict(current_user_profile_pic=profile_pic)
 
 @app.context_processor
@@ -13106,8 +13626,7 @@ def editmentorprofile():
         profile.other_social_link = request.form.get("other_social_link")
         
         # Mentorship preferences
-        mentorship_topics = request.form.getlist("mentorship_topics")
-        profile.mentorship_topics = ", ".join(mentorship_topics) if mentorship_topics else None
+        profile.mentorship_topics = request.form.get("mentorship_topics") or None
         
         mentorship_types = request.form.getlist("mentorship_type_preference")
         profile.mentorship_type_preference = ", ".join(mentorship_types) if mentorship_types else None
@@ -13120,8 +13639,20 @@ def editmentorprofile():
         # Mentor philosophy
         profile.why_mentor = request.form.get("why_mentor")
         profile.mentorship_philosophy = request.form.get("mentorship_philosophy")
-        profile.mentorship_motto = request.form.get("mentorship_motto")
+        # mentorship_motto merged into mentorship_philosophy — don't overwrite
         profile.additional_info = request.form.get("additional_info")
+
+        # Target audience (who mentor wants to mentor)
+        target_audiences = request.form.getlist("target_audience")
+        # Expand merged checkbox value into legacy individual values
+        if "young_professional_career_explorer" in target_audiences:
+            target_audiences.remove("young_professional_career_explorer")
+            target_audiences.extend(["young_professional", "seeking_internship", "exploring"])
+        profile.target_audience = ",".join(target_audiences) if target_audiences else None
+
+        # Base mentorship topics
+        base_topics = request.form.getlist("base_mentorship_topics")
+        profile.base_mentorship_topics = ",".join(base_topics) if base_topics else None
 
         user.work_email = work_email
         user.personal_email = personal_email
@@ -13153,43 +13684,49 @@ def editmentorprofile():
         # Handle profile picture upload
         file = request.files.get("profile_picture")
         if file and file.filename and allowed_file(file.filename):
-            # Remove old profile picture file if it exists
             old_pic = profile.profile_picture
             if old_pic:
-                old_path = os.path.join(app.config["UPLOAD_FOLDER"], old_pic)
-                if os.path.exists(old_path):
-                    try:
-                        os.remove(old_path)
-                    except OSError:
-                        pass  # Non-critical: old file cleanup failed
-            filename = secure_filename(f"mentor_{user.id}_{file.filename}")
-            file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
-            profile.profile_picture = filename
+                storage_service.delete_file(old_pic)
+            pic_url, stored_name = storage_service.upload_file(
+                file,
+                folder_prefix=f"profiles/mentor/{user.id}",
+                custom_filename=secure_filename(f"mentor_{user.id}_{int(datetime.now().timestamp())}_{file.filename}")
+            )
+            if pic_url:
+                profile.profile_picture = pic_url
 
         # Handle criminal certificate upload (PDF only)
         criminal_cert_file = request.files.get("criminal_certificate")
         if criminal_cert_file and criminal_cert_file.filename:
             if criminal_cert_file.filename.lower().endswith('.pdf'):
-                cert_filename = secure_filename(criminal_cert_file.filename)
-                # Add timestamp to avoid filename conflicts
+                old_cert = profile.criminal_certificate
+                if old_cert:
+                    storage_service.delete_file(old_cert)
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                cert_filename = f"criminal_cert_{user.id}_{timestamp}_{cert_filename}"
-                criminal_cert_file.save(os.path.join(app.config["UPLOAD_FOLDER"], cert_filename))
-                profile.criminal_certificate = cert_filename
-                print(f"✅ Criminal certificate uploaded: {cert_filename}")
+                cert_name = secure_filename(f"criminal_cert_{user.id}_{timestamp}_{criminal_cert_file.filename}")
+                cert_url, _ = storage_service.upload_file(
+                    criminal_cert_file,
+                    folder_prefix=f"profiles/mentor/{user.id}/certificates",
+                    custom_filename=cert_name
+                )
+                if cert_url:
+                    profile.criminal_certificate = cert_url
+                print(f"✅ Criminal certificate uploaded: {profile.criminal_certificate}")
             else:
                 flash("Criminal Certificate must be a PDF file", "error")
                 return redirect(url_for("editmentorprofile"))
 
         try:
-# Update corporate affiliation status if user has an institution
-            refresh_user_corporate_status(user)
-            
             db.session.commit()
             # Clear any saved form data from session on successful save
             session.pop('mentor_form_data', None)
             flash("✅ Profile updated successfully!", "success")
             print("✅ Database commit successful!")
+            # Update corporate status AFTER main commit succeeds
+            try:
+                refresh_user_corporate_status(user)
+            except Exception:
+                pass  # Non-critical, don't let it affect profile save
             return redirect(url_for("mentorprofile"))
         except Exception as e:
             db.session.rollback()
@@ -13274,7 +13811,11 @@ def editmentorprofile():
         mentorship_philosophy=form_data.get('mentorship_philosophy') if form_data else (profile.mentorship_philosophy if profile else ""),
         mentorship_motto=form_data.get('mentorship_motto') if form_data else (profile.mentorship_motto if profile else ""),
         additional_info=form_data.get('additional_info') if form_data else (profile.additional_info if profile else ""),
-        profile_picture=profile.profile_picture if profile else None,
+        profile_picture=(
+            profile.profile_picture
+            if profile and profile.profile_picture
+            else (user.profile_picture_url if getattr(user, 'profile_picture_url', None) else None)
+        ),
         criminal_certificate=profile.criminal_certificate if profile else None,
         # Educational Information
         highest_qualification=form_data.get('highest_qualification') if form_data else (profile.highest_qualification if profile else ""),
@@ -13284,7 +13825,9 @@ def editmentorprofile():
         graduation_year=form_data.get('graduation_year') if form_data else (profile.graduation_year if profile else ""),
         academic_status=form_data.get('academic_status') if form_data else (profile.academic_status if profile else ""),
         certifications=form_data.get('certifications') if form_data else (profile.certifications if profile else ""),
-        research_work=form_data.get('research_work') if form_data else (profile.research_work if profile else "")
+        research_work=form_data.get('research_work') if form_data else (profile.research_work if profile else ""),
+        target_audience=form_data.get('target_audience') if form_data else (profile.target_audience if profile else ""),
+        base_mentorship_topics=form_data.get('base_mentorship_topics') if form_data else (profile.base_mentorship_topics if profile else "")
     )
 
 
@@ -13348,7 +13891,10 @@ def editmenteeprofile():
         work_email = (request.form.get("work_email") or "").strip().lower()
         personal_email = (request.form.get("personal_email") or "").strip().lower()
         if not work_email and not personal_email:
-            missing_fields.append('Work Email or Personal Email')
+            if user.email:
+                personal_email = user.email.strip().lower()
+            else:
+                missing_fields.append('Work Email or Personal Email')
 
         # Validate terms agreement
         if not request.form.get('terms_agreement'):
@@ -13358,8 +13904,12 @@ def editmenteeprofile():
         if not request.form.get('gdpr_agreement'):
             missing_fields.append('GDPR Agreement')
         
-        # Validate profile picture (only if no existing picture)
-        if not profile or not profile.profile_picture:
+        # Validate profile picture (only if no existing picture and no OAuth picture)
+        existing_pic_valid = bool(
+            (profile and profile.profile_picture)
+            or getattr(user, 'profile_picture_url', None)
+        )
+        if not existing_pic_valid:
             if 'profile_picture' not in request.files or not request.files['profile_picture'].filename:
                 missing_fields.append('Profile Picture')
         
@@ -13517,20 +14067,17 @@ def editmenteeprofile():
         if 'profile_picture' in request.files:
             file = request.files['profile_picture']
             if file and file.filename and allowed_file(file.filename):
-                # Flush to ensure profile.id is assigned for new profiles
                 db.session.flush()
-                # Remove old profile picture file if it exists
                 old_pic = profile.profile_picture
                 if old_pic:
-                    old_path = os.path.join(app.config["UPLOAD_FOLDER"], old_pic)
-                    if os.path.exists(old_path):
-                        try:
-                            os.remove(old_path)
-                        except OSError:
-                            pass  # Non-critical: old file cleanup failed
-                filename = secure_filename(f"mentee_{profile.id}_{file.filename}")
-                file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
-                profile.profile_picture = filename
+                    storage_service.delete_file(old_pic)
+                pic_url, stored_name = storage_service.upload_file(
+                    file,
+                    folder_prefix=f"profiles/mentee/{user.id}",
+                    custom_filename=secure_filename(f"mentee_{user.id}_{int(datetime.now().timestamp())}_{file.filename}")
+                )
+                if pic_url:
+                    profile.profile_picture = pic_url
 
         try:
             db.session.commit()
@@ -13573,8 +14120,8 @@ def editmenteeprofile():
         "mentee/editmenteeprofile.html",
         full_name=user.name,
         email=user.email,
-        work_email=user.work_email if hasattr(user, 'work_email') else '',
-        personal_email=user.personal_email if hasattr(user, 'personal_email') else '',
+        work_email=user.work_email if hasattr(user, 'work_email') and user.work_email else '',
+        personal_email=user.personal_email if hasattr(user, 'personal_email') and user.personal_email else (user.email or ''),
         institutions=institutions,
         dob=profile.dob if profile else "",
         mobile_number=profile.mobile_number if profile else "",
@@ -13636,7 +14183,11 @@ def editmenteeprofile():
         linkedin_link=profile.linkedin_link if profile else "",
         terms_agreement=profile.terms_agreement if profile else "",
         parent_consent_status=profile.parent_consent_status if profile else None,
-        profile_picture=profile.profile_picture if profile else None
+        profile_picture=(
+            profile.profile_picture
+            if profile and profile.profile_picture
+            else (user.profile_picture_url if getattr(user, 'profile_picture_url', None) else None)
+        )
     )
 
 @app.route("/edit_supervisor_profile", methods=["GET", "POST"])
@@ -13699,9 +14250,16 @@ def editsupervisorprofile():
         # Profile picture handling
         file = request.files.get("profile_picture")
         if file and allowed_file(file.filename):
-            filename = f"{user.id}_{int(datetime.now().timestamp())}{secure_filename(file.filename)}"
-            file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
-            profile.profile_picture = filename
+            old_pic = profile.profile_picture
+            if old_pic:
+                storage_service.delete_file(old_pic)
+            pic_url, stored_name = storage_service.upload_file(
+                file,
+                folder_prefix=f"profiles/supervisor/{user.id}",
+                custom_filename=secure_filename(f"supervisor_{user.id}_{int(datetime.now().timestamp())}_{file.filename}")
+            )
+            if pic_url:
+                profile.profile_picture = pic_url
             
         db.session.add(profile)
         db.session.commit()
@@ -13724,7 +14282,7 @@ def editsupervisorprofile():
         location=profile.location if profile else "",
         role=profile.role if profile else "",
         additional_info=profile.additional_info if profile else "",
-        profile_picture=profile.profile_picture if profile else None
+        profile_picture=(profile.profile_picture if profile and profile.profile_picture else getattr(user, "profile_picture_url", None))
     )
 
 # Remove duplicate code below
@@ -14140,7 +14698,11 @@ def mentorprofile():
             mentorship_philosophy=profile.mentorship_philosophy if profile else "",
             mentorship_motto=profile.mentorship_motto if profile else "",
             preferred_duration=profile.preferred_duration if profile else "",
-            profile_picture=profile.profile_picture if profile else None,
+            profile_picture=(
+                profile.profile_picture
+                if profile and profile.profile_picture
+                else (user.profile_picture_url if getattr(user, 'profile_picture_url', None) else None)
+            ),
             criminal_certificate=profile.criminal_certificate if profile else None,
             institution_profile_picture=institution_profile_picture,
             # Educational Information
@@ -14193,7 +14755,11 @@ def menteeprofile():
             institution=user.institution,
             age=age,  # Pass age instead of dob
             dob=profile.dob if profile else "",  # Keep dob for edit form
-            profile_picture=profile.profile_picture if profile else None,
+            profile_picture=(
+                profile.profile_picture
+                if profile and profile.profile_picture
+                else (user.profile_picture_url if getattr(user, 'profile_picture_url', None) else None)
+            ),
             institution_profile_picture=institution_profile_picture,
             # Who am I
             who_am_i=profile.who_am_i if profile else None,
@@ -14269,7 +14835,7 @@ def supervisorprofile():
         location=profile.location if profile else "",
         role=profile.role if profile else "",
         additional_info=profile.additional_info if profile else "",
-        profile_picture=profile.profile_picture if profile else None
+        profile_picture=(profile.profile_picture if profile and profile.profile_picture else getattr(user, "profile_picture_url", None))
     )
 
 # View Mentor Profile (for institution admin)
@@ -15585,7 +16151,8 @@ def create_meeting_ajax():
                 meeting_duration=duration_minutes,
                 meet_link=meet_link,
                 gcal_event_id=gcal_event_id,
-                status="pending"
+                status="pending",
+                meeting_type=data.get("meeting_type") or "standard"
         )
 
         db.session.add(meeting)
@@ -15664,6 +16231,225 @@ def create_meeting_ajax():
     if calendar_warning:
         payload["warning"] = calendar_warning
     return jsonify(payload)
+
+
+@app.route("/supervisor/schedule_sgm_ajax", methods=["POST"])
+def supervisor_schedule_sgm_ajax():
+    """Supervisor-only endpoint to schedule a Small Group Mentoring (SGM) session with 1 Mentor and Multiple Mentees."""
+    if "email" not in session or str(session.get("user_type", "")) not in ("0", "admin", "supervisor"):
+        return jsonify({"error": "Unauthorized. Only supervisors can schedule Small Group Mentoring (SGM) sessions."}), 403
+
+    supervisor = User.query.filter_by(email=session["email"]).first()
+    if not supervisor:
+        return jsonify({"error": "Supervisor user session not found. Please log in again."}), 404
+
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "").strip()
+    mentor_id = data.get("mentor_id")
+    raw_mentee_ids = data.get("mentee_ids") or []
+    date_str = (data.get("date") or "").strip()
+    start_time_str = (data.get("start_time") or "").strip()
+    duration = data.get("duration")
+    timezone = (data.get("timezone") or "Asia/Kolkata").strip()
+    platform = (data.get("platform") or "google").strip().lower()
+    custom_link = (data.get("custom_link") or "").strip()
+    description = (data.get("description") or "").strip()
+
+    # Field validations
+    if not title:
+        return jsonify({"error": "Meeting Title is required."}), 400
+    if not mentor_id:
+        return jsonify({"error": "Please select a Mentor for this SGM session."}), 400
+
+    # Parse mentee_ids (can be list or comma-separated string)
+    mentee_ids = []
+    if isinstance(raw_mentee_ids, list):
+        for mid in raw_mentee_ids:
+            try:
+                mentee_ids.append(int(mid))
+            except (ValueError, TypeError):
+                pass
+    elif isinstance(raw_mentee_ids, str):
+        for mid in raw_mentee_ids.split(","):
+            if mid.strip().isdigit():
+                mentee_ids.append(int(mid.strip()))
+
+    if not mentee_ids:
+        return jsonify({"error": "Please select at least one mentee for this Small Group Mentoring session."}), 400
+
+    try:
+        mentor_id_int = int(mentor_id)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid Mentor ID."}), 400
+
+    mentor = db.session.get(User, mentor_id_int)
+    if not mentor or str(mentor.user_type) != "1":
+        return jsonify({"error": "Selected mentor is invalid or not registered as a mentor."}), 400
+
+    mentees = User.query.filter(User.id.in_(mentee_ids), User.user_type == "2").all()
+    if not mentees:
+        return jsonify({"error": "No valid mentees were found for the selected IDs."}), 400
+
+    if not date_str or not start_time_str:
+        return jsonify({"error": "Date and Start Time are required."}), 400
+
+    import datetime as dt
+    try:
+        start_datetime = dt.datetime.strptime(f"{date_str} {start_time_str}", "%Y-%m-%d %H:%M")
+    except Exception:
+        return jsonify({"error": "Invalid Date or Time format. Please check your selection."}), 400
+
+    if start_datetime <= dt.datetime.now():
+        return jsonify({"error": "Cannot schedule meeting for past or current time. Please select a future date and time."}), 400
+
+    try:
+        duration_minutes = int(duration or 60)
+        if duration_minutes <= 0:
+            duration_minutes = 60
+    except Exception:
+        duration_minutes = 60
+
+    end_datetime = start_datetime + dt.timedelta(minutes=duration_minutes)
+
+    try:
+        from zoneinfo import ZoneInfo
+        tzobj = ZoneInfo(timezone)
+    except Exception:
+        tzobj = dt.timezone.utc
+    start_str = start_datetime.replace(tzinfo=tzobj).isoformat()
+    end_str = end_datetime.replace(tzinfo=tzobj).isoformat()
+
+    # Link generation
+    meet_link = None
+    gcal_event_id = None
+    attendee_emails = [supervisor.email, mentor.email] + [m.email for m in mentees if m.email]
+
+    if platform == "custom":
+        meet_link = custom_link or f"https://meet.google.com/new"
+    elif platform == "teams":
+        try:
+            teams_meet_link, teams_event_id = create_teams_calendar_event(
+                title=f"SGM: {title}",
+                start_utc=start_datetime.astimezone(dt.timezone.utc).isoformat() if hasattr(start_datetime, 'astimezone') else start_datetime.isoformat(),
+                end_utc=end_datetime.astimezone(dt.timezone.utc).isoformat() if hasattr(end_datetime, 'astimezone') else end_datetime.isoformat(),
+                attendee_emails=attendee_emails,
+                description=description or f"Small Group Mentoring session scheduled by Supervisor {supervisor.name}"
+            )
+            if teams_meet_link:
+                meet_link = teams_meet_link
+                gcal_event_id = teams_event_id
+            else:
+                meet_link = "https://teams.live.com/meet/create"
+        except Exception as e:
+            app.logger.warning(f"SGM Teams link creation failed: {e}")
+            meet_link = "https://teams.live.com/meet/create"
+    else:  # Google Meet
+        try:
+            service = get_calendar_service()
+            if service:
+                event_body = {
+                    "summary": f"SGM: {title}",
+                    "description": f"Small Group Mentoring session scheduled by Supervisor {supervisor.name}.\nMentor: {mentor.name}\nMentees: {', '.join([m.name for m in mentees])}\n\n{description}",
+                    "start": {"dateTime": start_str, "timeZone": timezone},
+                    "end": {"dateTime": end_str, "timeZone": timezone},
+                    "attendees": [{"email": em} for em in attendee_emails if em],
+                    "conferenceData": {
+                        "createRequest": {
+                            "requestId": f"sgm-{int(time.time())}-{mentor.id}",
+                            "conferenceSolutionKey": {"type": "hangoutsMeet"}
+                        }
+                    }
+                }
+                event = service.events().insert(
+                    calendarId="primary",
+                    body=event_body,
+                    conferenceDataVersion=1
+                ).execute()
+                meet_link = event.get("hangoutLink")
+                gcal_event_id = event.get("id")
+        except Exception as e:
+            app.logger.warning(f"SGM Google Calendar creation failed: {e}")
+            meet_link = f"https://meet.google.com/lookup/sgm-{int(time.time())}"
+
+    if not meet_link:
+        meet_link = f"https://meet.google.com/lookup/sgm-{int(time.time())}"
+
+    # Build description and embed participants metadata
+    mentee_names_str = ", ".join([m.name for m in mentees])
+    full_description = f"Small Group Mentoring (SGM) session scheduled by Supervisor {supervisor.name}.\nMentor: {mentor.name}\nMentees ({len(mentees)}): {mentee_names_str}"
+    if description:
+        full_description += f"\n\nAgenda / Notes:\n{description}"
+
+    try:
+        meeting = MeetingRequest(
+            requester_id=supervisor.id,
+            requested_to_id=mentor.id,
+            meeting_title=f"SGM: {title}" if not title.upper().startswith("SGM") else title,
+            meeting_description=full_description,
+            meeting_date=start_datetime.date(),
+            meeting_time=start_datetime.time(),
+            meeting_duration=duration_minutes,
+            meet_link=meet_link,
+            gcal_event_id=gcal_event_id,
+            status="pending",
+            meeting_type="sgm"
+        )
+        db.session.add(meeting)
+        db.session.commit()
+
+        participants_data = {
+            "mentor_id": mentor.id,
+            "mentor_name": mentor.name,
+            "mentee_ids": [m.id for m in mentees],
+            "mentee_names": [m.name for m in mentees],
+            "is_sgm": True,
+            "meeting_type": "sgm",
+            "created_by": supervisor.id,
+            "created_by_name": supervisor.name,
+            "scheduled_by": "supervisor"
+        }
+        _save_meeting_participants(meeting.id, participants_data)
+
+        # Send email notifications to mentor and all participating mentees
+        try:
+            for recipient in [mentor] + mentees:
+                if recipient.email:
+                    subj = f"New SGM Session Scheduled: {meeting.meeting_title}"
+                    body_html = f"""
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+                        <h2 style="color: #059669; margin-top: 0;">Small Group Mentoring (SGM) Session</h2>
+                        <p>Hello <strong>{recipient.name}</strong>,</p>
+                        <p>Supervisor <strong>{supervisor.name}</strong> has scheduled a Small Group Mentoring session with mentor <strong>{mentor.name}</strong>.</p>
+                        <div style="background: #ecfdf5; padding: 15px; border-left: 4px solid #059669; border-radius: 6px; margin: 20px 0;">
+                            <p style="margin: 4px 0;"><strong>Topic:</strong> {meeting.meeting_title}</p>
+                            <p style="margin: 4px 0;"><strong>Date:</strong> {meeting.meeting_date.strftime('%B %d, %Y')}</p>
+                            <p style="margin: 4px 0;"><strong>Time:</strong> {meeting.meeting_time.strftime('%I:%M %p')}</p>
+                            <p style="margin: 4px 0;"><strong>Duration:</strong> {duration_minutes} minutes</p>
+                            <p style="margin: 4px 0;"><strong>Mentor:</strong> {mentor.name}</p>
+                            <p style="margin: 4px 0;"><strong>Mentees in Group ({len(mentees)}):</strong> {mentee_names_str}</p>
+                        </div>
+                        <div style="text-align: center; margin: 25px 0;">
+                            <a href="{meet_link}" style="background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Video Call</a>
+                        </div>
+                        <p style="color: #64748b; font-size: 13px;">Please make sure to join on time from your dashboard or calendar.</p>
+                    </div>
+                    """
+                    send_email_reminder(recipient.email, subj, body_html)
+        except Exception as e:
+            app.logger.warning(f"Error sending SGM meeting notification emails: {e}")
+
+        return jsonify({
+            "success": True,
+            "message": f"SGM meeting scheduled successfully with {mentor.name} and {len(mentees)} mentee(s)!",
+            "meeting_id": meeting.id,
+            "meet_link": meet_link,
+            "title": meeting.meeting_title
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Failed to schedule SGM meeting: {e}")
+        return jsonify({"error": f"Failed to schedule SGM meeting: {str(e)}"}), 500
 
 
 @app.route("/update_meeting_ajax", methods=["POST"])
@@ -16616,6 +17402,8 @@ def calculate_mentee_profile_completion(mentee_id, profile_obj=None):
     Calculate profile completion percentage for mentees - tracks meaningful profile fields
     """
     profile = profile_obj if profile_obj is not None else MenteeProfile.query.filter_by(user_id=mentee_id).first()
+    user = getattr(profile, "user", None) or (db.session.get(User, mentee_id) if mentee_id else None)
+    avatar_url = getattr(user, "profile_picture_url", None) if user else None
     
     if not profile:
         return {
@@ -16627,11 +17415,11 @@ def calculate_mentee_profile_completion(mentee_id, profile_obj=None):
     
     # Define meaningful profile fields for mentee completion
     all_fields = {
-        'Profile Photo': profile.profile_picture,
+        'Profile Photo': (profile.profile_picture or avatar_url),
         'Mobile Number': profile.mobile_number,
         'WhatsApp Number': profile.whatsapp_number,
-        'School/College Name': profile.school_college_name,
-        'Stream': profile.stream,
+        'School/College Name': (profile.school_college_name or profile.institution_name or profile.school_name),
+        'Stream': (profile.stream or profile.course_stream),
         'Goal': profile.goal,
         'City': profile.city,
         'Country': profile.country,
@@ -17761,6 +18549,135 @@ def generate_qr(url=None):
         return jsonify({"error": "Failed to generate QR"}), 500
 
 
+# Error handlers for friendly error messages
+@app.errorhandler(413)
+def file_too_large(e):
+    if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+        return jsonify({"success": False, "message": "File too large. Maximum upload size is 16 MB."}), 413
+    flash("File too large. Maximum upload size is 16 MB.", "error")
+    return redirect(request.referrer or url_for("signin")), 413
+
+@app.errorhandler(500)
+def internal_error(e):
+    db.session.rollback()
+    if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+        return jsonify({"success": False, "message": "An internal error occurred. Please try again."}), 500
+    flash("An internal error occurred. Please try again.", "error")
+    return redirect(request.referrer or url_for("signin")), 500
+
+
+# ============================================================
+# AUTOMATIC BACKGROUND DRIVE PHOTO MIGRATION
+# ============================================================
+def _start_auto_drive_migration():
+    """
+    Automatically triggers Google Drive photo migration in a non-blocking background thread
+    upon server/worker startup, without requiring any manual terminal commands.
+
+    Safe & clean lifecycle:
+    1. If migrate_photos_to_drive.py is absent (or when the user deletes it after ~1 hr),
+       this function returns immediately with zero overhead and zero error.
+    2. Multi-worker safe: uses an atomic OS file lock so only one Gunicorn worker runs it.
+    3. Idempotent: checks instance/drive_migration_completed.flag so it only runs once.
+    4. Non-blocking: runs in a daemon thread with an initial 5s delay so HTTP traffic is never blocked.
+    """
+    try:
+        script_file = os.path.join(app.root_path, "migrate_photos_to_drive.py")
+        if not os.path.exists(script_file):
+            return
+
+        instance_dir = os.path.join(app.root_path, "instance")
+        os.makedirs(instance_dir, exist_ok=True)
+        completed_flag = os.path.join(instance_dir, "drive_migration_completed.flag")
+        if os.path.exists(completed_flag):
+            return
+
+        lock_file = os.path.join(instance_dir, ".drive_migration.lock")
+
+        def _is_pid_alive(p):
+            if p <= 0:
+                return False
+            try:
+                if os.name == 'posix':
+                    os.kill(p, 0)
+                    return True
+                else:
+                    import ctypes
+                    h = ctypes.windll.kernel32.OpenProcess(0x1000, 0, p)
+                    if h:
+                        ctypes.windll.kernel32.CloseHandle(h)
+                        return True
+                    return False
+            except Exception:
+                return False
+
+        # Clear stale lock if holding PID is dead or file is older than 1 hour
+        if os.path.exists(lock_file):
+            try:
+                is_stale = False
+                if time.time() - os.path.getmtime(lock_file) > 3600:
+                    is_stale = True
+                else:
+                    with open(lock_file, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    for item in content.split():
+                        if item.startswith("pid="):
+                            try:
+                                locked_pid = int(item.split("=")[1])
+                                if not _is_pid_alive(locked_pid):
+                                    is_stale = True
+                            except Exception:
+                                pass
+                if is_stale:
+                    os.remove(lock_file)
+            except Exception:
+                pass
+
+        # Atomic lock acquisition across processes/workers
+        try:
+            fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            with os.fdopen(fd, "w") as f:
+                f.write(f"pid={os.getpid()} time={time.time()}\n")
+        except (FileExistsError, OSError):
+            # Another worker already acquired the lock and is handling migration
+            return
+
+        def _migration_worker():
+            try:
+                # Wait 5 seconds to let Gunicorn / Flask finish port binding and accept HTTP traffic
+                time.sleep(5)
+
+                if not os.path.exists(script_file) or os.path.exists(completed_flag):
+                    return
+
+                app.logger.info("Auto-migration: Starting background photo migration to Google Drive...")
+                import importlib.util
+                spec = importlib.util.spec_from_file_location("migrate_photos_to_drive", script_file)
+                if spec and spec.loader:
+                    migration_mod = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(migration_mod)
+                    if hasattr(migration_mod, "run_migration"):
+                        result = migration_mod.run_migration(migrate_all=True, update_db=False)
+                        app.logger.info(f"Auto-migration finished: {result}")
+            except Exception as worker_err:
+                app.logger.error(f"Auto-migration error: {worker_err}", exc_info=True)
+            finally:
+                try:
+                    if os.path.exists(lock_file):
+                        os.remove(lock_file)
+                except Exception:
+                    pass
+
+        import threading
+        t = threading.Thread(target=_migration_worker, daemon=True, name="AutoDriveMigrationThread")
+        t.start()
+        app.logger.info("Auto-migration thread queued successfully.")
+    except Exception as e:
+        app.logger.warning(f"Could not initialize auto-migration: {e}")
+
+_start_auto_drive_migration()
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
@@ -17768,21 +18685,5 @@ if __name__ == '__main__':
             init_scheduler()
         except Exception as e:
             print(f"⚠️ Could not initialize scheduler: {e}")
-
-    # Error handlers for friendly error messages
-    @app.errorhandler(413)
-    def file_too_large(e):
-        if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
-            return jsonify({"success": False, "message": "File too large. Maximum upload size is 16 MB."}), 413
-        flash("File too large. Maximum upload size is 16 MB.", "error")
-        return redirect(request.referrer or url_for("signin")), 413
-
-    @app.errorhandler(500)
-    def internal_error(e):
-        db.session.rollback()
-        if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
-            return jsonify({"success": False, "message": "An internal error occurred. Please try again."}), 500
-        flash("An internal error occurred. Please try again.", "error")
-        return redirect(request.referrer or url_for("signin")), 500
 
     app.run(debug=True, host='0.0.0.0', port=5000)

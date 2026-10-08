@@ -184,13 +184,21 @@
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm font-mono text-gray-500">{{ mentor.serial }}</td>
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap max-w-[220px]">
               <div class="flex items-center">
-                {% if mentor.profile_picture %}
-                <img src="{{ url_for('static', filename='uploads/' ~ mentor.profile_picture) }}" alt="{{ mentor.user.name }}"
-                  class="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover mr-1.5 sm:mr-2">
+                {% set mentor_pic = mentor.profile_picture or (mentor.user.profile_picture_url if mentor.user else None) %}
+                {% if mentor_pic %}
+                  {% if mentor_pic.startswith('http') %}
+                  <img src="{{ mentor_pic }}" alt="{{ mentor.user.name }}" loading="lazy" decoding="async"
+                    class="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover mr-1.5 sm:mr-2"
+                    onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((mentor.user.name if mentor.user else 'Mentor')|urlencode) }}&background=2563eb&color=fff';">
+                  {% else %}
+                  <img src="{{ url_for('static', filename='uploads/' ~ mentor_pic) }}" alt="{{ mentor.user.name }}" loading="lazy" decoding="async"
+                    class="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover mr-1.5 sm:mr-2"
+                    onerror="this.onerror=null; this.src='{{ mentor.user.profile_picture_url if mentor.user and mentor.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (((mentor.user.name if mentor.user else 'Mentor')|urlencode)) ~ '&background=2563eb&color=fff' }}';">
+                  {% endif %}
                 {% else %}
                 <div
                   class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 mr-1.5 sm:mr-2">
-                  <span class="font-semibold text-xs">{{ mentor.user.name[0] if mentor.user.name else '?' }}</span>
+                  <span class="font-semibold text-xs">{{ mentor.user.name[0] if mentor.user and mentor.user.name else '?' }}</span>
                 </div>
                 {% endif %}
                 <div>
@@ -863,11 +871,15 @@
 
     // ===== PROFILE PICTURE =====
     const profilePicElement = document.getElementById('modalProfilePic');
+    const mentorName = mentor.user?.name || mentor.name || 'Mentor';
+    const fallbackMentorAvatar = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentorName) + "&background=2563eb&color=fff";
+    profilePicElement.onerror = function() { this.onerror = null; this.src = fallbackMentorAvatar; };
     if (mentor.profile_picture && mentor.profile_picture.trim()) {
-      profilePicElement.src = "/static/uploads/" + mentor.profile_picture;
+      profilePicElement.src = mentor.profile_picture.startsWith('http') ? mentor.profile_picture : "/static/uploads/" + mentor.profile_picture;
+    } else if (mentor.user?.profile_picture_url) {
+      profilePicElement.src = mentor.user.profile_picture_url;
     } else {
-      const mentorName = mentor.user?.name || '?';
-      profilePicElement.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentorName) + "&background=blue&color=fff";
+      profilePicElement.src = fallbackMentorAvatar;
     }
 
     // Show the modal
@@ -1011,15 +1023,40 @@
   }
 
   const supRatingCache = {};
+
+  function displayMentorRatingInRow(uid, rating) {
+    if (!rating || rating.final_rating == null) return;
+    const numEl = document.getElementById('sup-num-' + uid);
+    supRenderStars('sup-stars-' + uid, rating.final_rating || 0);
+    if (numEl) numEl.textContent = Number(rating.final_rating).toFixed(1);
+  }
+
+  // Preload instantly from previous session (< 50ms)
+  function preloadMentorRatingsFromStorage() {
+    const containers = document.querySelectorAll('.sup-rating-container[data-mentor-uid]');
+    containers.forEach(c => {
+      const uid = c.getAttribute('data-mentor-uid');
+      if (!uid) return;
+      try {
+        const stored = localStorage.getItem('mentor_rating_' + uid);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          supRatingCache[uid] = parsed;
+          displayMentorRatingInRow(uid, parsed);
+        }
+      } catch (e) {}
+    });
+  }
+
   async function fetchSupRating(uid) {
     if (!uid) return null;
-    if (supRatingCache[uid]) return supRatingCache[uid];
     try {
       const res = await fetch('/api/mentor_rating_simple/' + uid);
       if (!res.ok) return null;
       const data = await res.json();
       if (data && data.success && data.rating) {
         supRatingCache[uid] = data.rating;
+        try { localStorage.setItem('mentor_rating_' + uid, JSON.stringify(data.rating)); } catch (e) {}
         return data.rating;
       }
     } catch(e) {
@@ -1028,15 +1065,44 @@
     return null;
   }
 
+  // Recalculates in background while previous ratings are visible
   async function loadSupRatings() {
+    preloadMentorRatingsFromStorage();
     const containers = document.querySelectorAll('.sup-rating-container[data-mentor-uid]');
-    for (const c of containers) {
-      const uid = c.getAttribute('data-mentor-uid');
-      const rating = await fetchSupRating(uid);
-      if (!rating) continue;
-      const numEl = document.getElementById('sup-num-' + uid);
-      supRenderStars('sup-stars-' + uid, rating.final_rating || 0);
-      if (numEl) numEl.textContent = rating.final_rating != null ? rating.final_rating.toFixed(1) : '0.0';
+    const ids = [...new Set([...containers].map(c => c.getAttribute('data-mentor-uid')))].filter(Boolean);
+    if (ids.length === 0) return;
+
+    // Fast batch endpoint
+    try {
+      const bRes = await fetch('/api/mentor_ratings_batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: ids })
+      });
+      if (bRes.ok) {
+        const bData = await bRes.json();
+        if (bData && bData.success && bData.ratings) {
+          for (const uid of ids) {
+            const r = bData.ratings[uid];
+            if (r) {
+              supRatingCache[uid] = r;
+              try { localStorage.setItem('mentor_rating_' + uid, JSON.stringify(r)); } catch (e) {}
+              displayMentorRatingInRow(uid, r);
+            }
+          }
+          return;
+        }
+      }
+    } catch (e) {}
+
+    // Fallback: parallel chunks
+    const CHUNK_SIZE = 10;
+    for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+      const chunk = ids.slice(i, i + CHUNK_SIZE);
+      await Promise.all(chunk.map(async (uid) => {
+        const rating = await fetchSupRating(uid);
+        if (rating) displayMentorRatingInRow(uid, rating);
+      }));
     }
   }
 
@@ -1045,24 +1111,38 @@
   let currentPopupMentorUid = null;
   let currentSupRatingSelection = 0;
 
+  function fillMentorPopup(rating) {
+    if (!rating) return;
+    document.getElementById('popupFinalRating').textContent = rating.final_rating != null ? Number(rating.final_rating).toFixed(1) : '0.0';
+    supRenderPopupStars('popupStars', rating.final_rating || 0);
+    document.getElementById('popupPc').textContent = rating.profile_complete != null ? Number(rating.profile_complete).toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupSk').textContent = rating.useful_skills != null ? Number(rating.useful_skills).toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupMe').textContent = rating.has_task_data ? Number(rating.task_completion).toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupTe').textContent = rating.has_mentee_feedback ? Number(rating.mentee_feedback).toFixed(1) + ' / 5.0' : 'N/A';
+    document.getElementById('popupSup').textContent = rating.has_mentorship_experience ? Number(rating.mentorship_experience).toFixed(1) + ' / 5.0' : 'N/A';
+    currentSupRatingSelection = rating.has_mentorship_experience ? rating.mentorship_experience : 0;
+    updateSupRateStars(currentSupRatingSelection);
+  }
+
   function openRatingPopup(uid, name) {
     currentPopupMentorUid = uid;
     currentSupRatingSelection = 0;
     document.getElementById('popupMentorName').textContent = name;
     document.getElementById('ratingPopup').classList.add('active');
-    // Reset star selection
     updateSupRateStars(0);
+
+    // Instant previous rating display
+    let cached = supRatingCache[uid];
+    if (!cached) {
+      try {
+        const stored = localStorage.getItem('mentor_rating_' + uid);
+        if (stored) cached = JSON.parse(stored);
+      } catch (e) {}
+    }
+    if (cached) fillMentorPopup(cached);
+
     fetchSupRating(uid).then(rating => {
-      if (!rating) return;
-      document.getElementById('popupFinalRating').textContent = rating.final_rating != null ? rating.final_rating.toFixed(1) : '0.0';
-      supRenderPopupStars('popupStars', rating.final_rating || 0);
-      document.getElementById('popupPc').textContent = rating.profile_complete != null ? rating.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
-      document.getElementById('popupSk').textContent = rating.useful_skills != null ? rating.useful_skills.toFixed(1) + ' / 5.0' : 'N/A';
-      document.getElementById('popupMe').textContent = rating.has_task_data ? rating.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
-      document.getElementById('popupTe').textContent = rating.has_mentee_feedback ? rating.mentee_feedback.toFixed(1) + ' / 5.0' : 'N/A';
-      document.getElementById('popupSup').textContent = rating.has_mentorship_experience ? rating.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
-      currentSupRatingSelection = rating.has_mentorship_experience ? rating.mentorship_experience : 0;
-      updateSupRateStars(currentSupRatingSelection);
+      if (rating) fillMentorPopup(rating);
     });
   }
 
@@ -1101,6 +1181,7 @@
         document.getElementById('popupSup').textContent = data.supervisor_rating.toFixed(1) + ' / 5.0';
         // Refresh the rating cache and table display
         delete supRatingCache[currentPopupMentorUid];
+        try { localStorage.removeItem('mentor_rating_' + currentPopupMentorUid); } catch(e){}
         const rating = await fetchSupRating(currentPopupMentorUid);
         if (rating) {
           supRenderStars('sup-stars-' + currentPopupMentorUid, rating.final_rating);

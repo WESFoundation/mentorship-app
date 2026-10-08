@@ -74,3 +74,5 @@ WTForms==3.2.1
 APScheduler==3.10.4
 openpyxl==3.1.5
 et-xmlfile==2.0.0
+google-cloud-storage>=2.14.0
+Flask-Cors>=4.0.0

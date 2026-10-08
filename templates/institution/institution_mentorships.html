@@ -113,7 +113,7 @@
                 name: '{{ mentorship.mentor.name|e }}',
                 email: '{{ mentorship.mentor.email|e }}',
                 role: 'Mentor',
-                profile_picture: '{% if mentorship.mentor.mentor_profile and mentorship.mentor.mentor_profile.profile_picture %}{{ url_for('static', filename='uploads/' ~ mentorship.mentor.mentor_profile.profile_picture) }}{% else %}{% endif %}',
+                profile_picture: '{% if mentorship.mentor.mentor_profile and mentorship.mentor.mentor_profile.profile_picture %}{% if mentorship.mentor.mentor_profile.profile_picture.startswith("http") %}{{ mentorship.mentor.mentor_profile.profile_picture }}{% else %}{{ url_for("static", filename="uploads/" ~ mentorship.mentor.mentor_profile.profile_picture) }}{% endif %}{% elif mentorship.mentor.profile_picture_url %}{{ mentorship.mentor.profile_picture_url }}{% else %}{% endif %}',
                 is_corporate: {% if mentorship.mentor.is_corporate %}true{% else %}false{% endif %},
                 premium: {% if mentorship.mentor.premium %}true{% else %}false{% endif %},
                 scholarly: {% if mentorship.mentor.scholarly %}true{% else %}false{% endif %},
@@ -156,7 +156,7 @@
                 name: '{{ mentorship.mentee.name|e }}',
                 email: '{{ mentorship.mentee.email|e }}',
                 role: 'Mentee',
-                profile_picture: '{% if mentorship.mentee.mentee_profile and mentorship.mentee.mentee_profile.profile_picture %}{{ url_for('static', filename='uploads/' ~ mentorship.mentee.mentee_profile.profile_picture) }}{% else %}{% endif %}',
+                profile_picture: '{% if mentorship.mentee.mentee_profile and mentorship.mentee.mentee_profile.profile_picture %}{% if mentorship.mentee.mentee_profile.profile_picture.startswith("http") %}{{ mentorship.mentee.mentee_profile.profile_picture }}{% else %}{{ url_for("static", filename="uploads/" ~ mentorship.mentee.mentee_profile.profile_picture) }}{% endif %}{% elif mentorship.mentee.profile_picture_url %}{{ mentorship.mentee.profile_picture_url }}{% else %}{% endif %}',
                 is_corporate: false,
                 premium: false,
                 scholarly: {% if mentorship.mentee.scholarly %}true{% else %}false{% endif %},
@@ -490,7 +490,7 @@
                   name: '${mentorship.mentor.name}',
                   email: '${mentorship.mentor.email}',
                   role: 'Mentor',
-                  profile_picture: '${mentorship.mentor_profile && mentorship.mentor_profile.profile_picture ? '/static/uploads/' + mentorship.mentor_profile.profile_picture : ''}',
+                  profile_picture: '${mentorship.mentor_profile && mentorship.mentor_profile.profile_picture ? (mentorship.mentor_profile.profile_picture.startsWith("http") ? mentorship.mentor_profile.profile_picture : "/static/uploads/" + mentorship.mentor_profile.profile_picture) : (mentorship.mentor && mentorship.mentor.profile_picture_url ? mentorship.mentor.profile_picture_url : "")}',
                   is_corporate: ${mentorship.mentor.is_corporate ? 'true' : 'false'},
                   premium: ${mentorship.mentor.premium ? 'true' : 'false'},
                   scholarly: ${mentorship.mentor.scholarly ? 'true' : 'false'},
@@ -540,7 +540,7 @@
                   name: '${mentorship.mentee.name}',
                   email: '${mentorship.mentee.email}',
                   role: 'Mentee',
-                  profile_picture: '${mentorship.mentee_profile && mentorship.mentee_profile.profile_picture ? '/static/uploads/' + mentorship.mentee_profile.profile_picture : ''}',
+                  profile_picture: '${mentorship.mentee_profile && mentorship.mentee_profile.profile_picture ? (mentorship.mentee_profile.profile_picture.startsWith("http") ? mentorship.mentee_profile.profile_picture : "/static/uploads/" + mentorship.mentee_profile.profile_picture) : (mentorship.mentee && mentorship.mentee.profile_picture_url ? mentorship.mentee.profile_picture_url : "")}',
                   is_corporate: false,
                   premium: false,
                   scholarly: ${mentorship.mentee.scholarly ? 'true' : 'false'},
@@ -604,17 +604,71 @@
                 const topics = mentorship.mentor_profile.base_mentorship_topics || '';
                 const topicList = topics.split(',').filter(t => t.trim());
                 const topicLabels = {
+                  // School Students
                   'school_subjects': 'School Subjects',
-                  'coding_basics': 'Coding Basics',
-                  'career_guidance': 'Career Guidance',
-                  'azure_devops': 'Azure DevOps',
-                  'cloud_computing': 'Cloud Computing',
-                  'data_science': 'Data Science',
+                  'study_skills_exam_prep': 'Study Skills & Exam Prep',
+                  'science_math': 'Science & Mathematics',
+                  'language_arts_english': 'Language Arts & English',
+                  'homework_support': 'Homework Support',
+                  'college_career_readiness': 'College & Career Readiness',
+                  'study_habits_time_management': 'Study Habits & Time Management',
+                  'stem_coding_beginners': 'STEM & Coding for Beginners',
+                  'public_speaking_confidence': 'Public Speaking & Confidence',
+
+                  // University Students (Distinct)
+                  'seeking_internships': 'Finding Internships & Co-ops',
+                  'campus_to_corporate': 'Campus-to-Corporate Transition',
+                  'student_resume_portfolio': 'Student Resume & Portfolio Building',
+                  'entry_level_interview_prep': 'Entry-Level & Graduate Interview Prep',
+                  'higher_studies_guidance': 'Higher Studies & Graduate School (Masters/PhD)',
+                  'scholarships_study_abroad': 'Scholarships & Study Abroad Guidance',
+                  'academic_major_guidance': 'Academic Major & Coursework Planning',
+                  'coding_basics': 'Coding Fundamentals & Academic Projects',
+                  'hackathons_open_source': 'Hackathons, Competitions & Open Source',
+                  'career_path_exploration': 'Tech & Industry Career Path Exploration',
+                  'student_networking_linkedin': 'Student Networking & LinkedIn Basics',
+                  'student_time_stress_management': 'Academic Workload & Exam Stress Management',
+
+                  // Young Professionals & Career Explorers (Distinct)
+                  'career_transition_growth': 'Career Transition & Domain Switching (Career Pivots)',
+                  'promotion_advancement': 'Promotion Strategy & Career Progression',
+                  'salary_negotiation': 'Salary, Bonus & Equity Negotiation',
+                  'workplace_navigation': 'Workplace Dynamics & Stakeholder Management',
+                  'performance_reviews_kpis': 'Performance Reviews & KPI Mastery',
+                  'first_time_management': 'First-Time People Management & Team Leadership',
+                  'executive_presence_branding': 'Personal Branding & Executive Presence',
+                  'experienced_job_search': 'Mid-Senior Job Search & Recruiter Strategy',
+                  'cross_functional_influence': 'Cross-Functional Collaboration & Influence',
+                  'system_design_tech_leadership': 'System Architecture & Senior Tech Practices',
+                  'burnout_work_life_harmony': 'Burnout Prevention & Work-Life Harmony',
+                  'freelancing_consulting_transition': 'Freelancing & Consulting Career Transitions',
+
+                  // Entrepreneurs (Expanded)
+                  'entrepreneurship': 'Entrepreneurship Fundamentals & Ideation',
+                  'idea_validation_mvp': 'Idea Validation & MVP Development',
+                  'business_model_strategy': 'Business Model & Monetization Strategy',
+                  'fundraising_pitching': 'Fundraising, Pitch Decks & Investor Pitching',
+                  'bootstrapping_lean_startup': 'Bootstrapping & Lean Startup Methods',
+                  'product_market_fit': 'Product-Market Fit & Customer Discovery',
+                  'go_to_market_marketing': 'Go-to-Market (GTM) & Growth Marketing',
+                  'sales_business_development': 'B2B/B2C Sales Pipelines & Business Development',
+                  'financial_planning_cashflow': 'Financial Planning, Pricing & Cash Flow Management',
+                  'startup_scaling_operations': 'Startup Operations, Scaling & Core Hiring',
+                  'legal_ip_incorporation': 'Startup Legal, IP Protection & Incorporation',
+                  'founder_mindset_resilience': 'Founder Mindset, Resilience & Decision-Making',
+
+                  // Shared / Legacy
+                  'soft_skills': 'Soft Skills & Communication',
+                  'leadership': 'Leadership & Strategic Decision-Making',
+                  'career_guidance': 'General Career Guidance',
+                  'azure_devops': 'DevOps & CI/CD Pipelines',
+                  'cloud_computing': 'Cloud Computing & Architecture',
+                  'data_science': 'Data Science & AI/ML',
                   'web_development': 'Web Development',
                   'mobile_development': 'Mobile Development',
-                  'soft_skills': 'Soft Skills',
-                  'leadership': 'Leadership',
-                  'entrepreneurship': 'Entrepreneurship'
+                  'job_search_applications': 'Job Search & Applications',
+                  'resume_linkedin_review': 'Resume & LinkedIn Review',
+                  'interview_preparation': 'Interview Prep & Mock Interviews'
                 };
                 if (topicList.length === 0) {
                   return '<span class="text-xs text-gray-400 italic">Not specified</span>';
@@ -800,6 +854,7 @@
       const data = await res.json();
       if (data && data.success && data.rating) {
         mentorRatingCache[mentorId] = data.rating;
+        try { localStorage.setItem('mentor_rating_' + mentorId, JSON.stringify(data.rating)); } catch(e){}
         return data.rating;
       }
     } catch(e) {
@@ -817,6 +872,7 @@
       const data = await res.json();
       if (data && data.success && data.rating) {
         menteeRatingCache[menteeId] = data.rating;
+        try { localStorage.setItem('mentee_rating_' + menteeId, JSON.stringify(data.rating)); } catch(e){}
         return data.rating;
       }
     } catch(e) {
@@ -825,62 +881,100 @@
     return null;
   }
 
+  function applyInstMsMentorRating(uid, rating) {
+    const score = (rating && typeof rating.final_rating === 'number') ? rating.final_rating : 0.0;
+    const displayScore = score > 0 ? score.toFixed(1) : '0.0';
+    document.querySelectorAll('.inst-ms-pill-' + uid).forEach(el => { el.textContent = displayScore; });
+    document.querySelectorAll('.inst-ms-stars-' + uid).forEach(el => { el.innerHTML = renderStarsHtml(score); });
+    document.querySelectorAll('.inst-ms-num-' + uid).forEach(el => { el.textContent = displayScore + ' / 5.0'; });
+  }
+
+  function applyInstMsMenteeRating(uid, rating) {
+    const score = (rating && typeof rating.final_rating === 'number') ? rating.final_rating : 0.0;
+    const displayScore = score > 0 ? score.toFixed(1) : '0.0';
+    document.querySelectorAll('.inst-ms-mentee-pill-' + uid).forEach(el => { el.textContent = displayScore; });
+    document.querySelectorAll('.inst-ms-mentee-stars-' + uid).forEach(el => { el.innerHTML = renderStarsHtml(score); });
+    document.querySelectorAll('.inst-ms-mentee-num-' + uid).forEach(el => { el.textContent = displayScore + ' / 5.0'; });
+  }
+
   async function loadAllInstitutionMentorshipRatings() {
-    // 1. Load Mentor Ratings in parallel
+    // 1. Mentor Ratings
     const mentorContainers = document.querySelectorAll('[data-mentor-uid]');
     const mentorIds = [...new Set([...mentorContainers].map(c => c.getAttribute('data-mentor-uid')))].filter(Boolean);
     
-    await Promise.all(mentorIds.map(async (uid) => {
+    mentorIds.forEach(uid => {
       try {
-        const rating = await fetchMentorRating(uid);
-        const score = (rating && typeof rating.final_rating === 'number') ? rating.final_rating : 0.0;
-        const displayScore = score > 0 ? score.toFixed(1) : '0.0';
-        
-        // Update quick-pill
-        document.querySelectorAll('.inst-ms-pill-' + uid).forEach(el => {
-          el.textContent = displayScore;
-        });
-        // Update stars in dedicated rating cell
-        document.querySelectorAll('.inst-ms-stars-' + uid).forEach(el => {
-          el.innerHTML = renderStarsHtml(score);
-        });
-        // Update score in dedicated rating cell
-        document.querySelectorAll('.inst-ms-num-' + uid).forEach(el => {
-          el.textContent = displayScore + ' / 5.0';
-        });
-      } catch (err) {
-        console.error('Error rendering mentor rating for ' + uid, err);
-        document.querySelectorAll('.inst-ms-pill-' + uid).forEach(el => { el.textContent = '0.0'; });
-      }
-    }));
+        const cached = localStorage.getItem('mentor_rating_' + uid);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed.final_rating === 'number') {
+            mentorRatingCache[uid] = parsed;
+            applyInstMsMentorRating(uid, parsed);
+          }
+        }
+      } catch(e){}
+    });
 
-    // 2. Load Mentee Ratings in parallel
+    if (mentorIds.length > 0) {
+      fetch('/api/mentor_ratings_batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_ids: mentorIds.map(id => parseInt(id, 10)) })
+      }).then(r => r.json()).then(data => {
+        if (data.success && data.ratings) {
+          for (const uid in data.ratings) {
+            const r = data.ratings[uid];
+            mentorRatingCache[uid] = r;
+            try { localStorage.setItem('mentor_rating_' + uid, JSON.stringify(r)); } catch(e){}
+            applyInstMsMentorRating(uid, r);
+          }
+        }
+      }).catch(async () => {
+        await Promise.all(mentorIds.map(async (uid) => {
+          const rating = await fetchMentorRating(uid);
+          if (rating) applyInstMsMentorRating(uid, rating);
+        }));
+      });
+    }
+
+    // 2. Mentee Ratings
     const menteeContainers = document.querySelectorAll('[data-mentee-uid]');
     const menteeIds = [...new Set([...menteeContainers].map(c => c.getAttribute('data-mentee-uid')))].filter(Boolean);
 
-    await Promise.all(menteeIds.map(async (uid) => {
+    menteeIds.forEach(uid => {
       try {
-        const rating = await fetchMenteeRating(uid);
-        const score = (rating && typeof rating.final_rating === 'number') ? rating.final_rating : 0.0;
-        const displayScore = score > 0 ? score.toFixed(1) : '0.0';
+        const cached = localStorage.getItem('mentee_rating_' + uid);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed.final_rating === 'number') {
+            menteeRatingCache[uid] = parsed;
+            applyInstMsMenteeRating(uid, parsed);
+          }
+        }
+      } catch(e){}
+    });
 
-        // Update quick-pill
-        document.querySelectorAll('.inst-ms-mentee-pill-' + uid).forEach(el => {
-          el.textContent = displayScore;
-        });
-        // Update stars in dedicated rating cell
-        document.querySelectorAll('.inst-ms-mentee-stars-' + uid).forEach(el => {
-          el.innerHTML = renderStarsHtml(score);
-        });
-        // Update score in dedicated rating cell
-        document.querySelectorAll('.inst-ms-mentee-num-' + uid).forEach(el => {
-          el.textContent = displayScore + ' / 5.0';
-        });
-      } catch (err) {
-        console.error('Error rendering mentee rating for ' + uid, err);
-        document.querySelectorAll('.inst-ms-mentee-pill-' + uid).forEach(el => { el.textContent = '0.0'; });
-      }
-    }));
+    if (menteeIds.length > 0) {
+      fetch('/api/mentee_ratings_batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_ids: menteeIds.map(id => parseInt(id, 10)) })
+      }).then(r => r.json()).then(data => {
+        if (data.success && data.ratings) {
+          for (const uid in data.ratings) {
+            const r = data.ratings[uid];
+            menteeRatingCache[uid] = r;
+            try { localStorage.setItem('mentee_rating_' + uid, JSON.stringify(r)); } catch(e){}
+            applyInstMsMenteeRating(uid, r);
+          }
+        }
+      }).catch(async () => {
+        await Promise.all(menteeIds.map(async (uid) => {
+          const rating = await fetchMenteeRating(uid);
+          if (rating) applyInstMsMenteeRating(uid, rating);
+        }));
+      });
+    }
   }
 
   async function openRatingPopup(uid, name) {
@@ -894,13 +988,26 @@
     document.getElementById('popupMe').textContent = '--';
     document.getElementById('popupTe').textContent = '--';
     document.getElementById('popupSup').textContent = '--';
+
+    const cached = mentorRatingCache[uid] || (function() {
+      try { return JSON.parse(localStorage.getItem('mentor_rating_' + uid)); } catch(e){ return null; }
+    })();
+    if (cached) {
+      document.getElementById('popupFinalRating').textContent = (cached.final_rating || 0).toFixed(1);
+      document.getElementById('popupStars').innerHTML = renderStarsHtml(cached.final_rating || 0);
+      document.getElementById('popupPc').textContent = cached.profile_complete != null ? cached.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupSk').textContent = cached.useful_skills != null ? cached.useful_skills.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupMe').textContent = cached.has_mentee_feedback ? cached.mentee_feedback.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupTe').textContent = cached.has_task_data ? cached.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupSup').textContent = cached.has_mentorship_experience ? cached.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
+    }
     
     popup.classList.remove('hidden');
     popup.classList.add('flex');
 
     const rating = await fetchMentorRating(uid);
     if (!rating) {
-      document.getElementById('popupFinalRating').textContent = 'N/A';
+      if (!cached) document.getElementById('popupFinalRating').textContent = 'N/A';
       return;
     }
 
@@ -932,12 +1039,25 @@
     document.getElementById('popupMenteeTc').textContent = '--';
     document.getElementById('popupMenteeMf').textContent = '--';
 
+    const cached = menteeRatingCache[uid] || (function() {
+      try { return JSON.parse(localStorage.getItem('mentee_rating_' + uid)); } catch(e){ return null; }
+    })();
+    if (cached) {
+      document.getElementById('popupMenteeFinalRating').textContent = (cached.final_rating || 0).toFixed(1);
+      document.getElementById('popupMenteeStars').innerHTML = renderStarsHtml(cached.final_rating || 0);
+      document.getElementById('popupMenteePc').textContent = cached.profile_complete != null ? cached.profile_complete.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupMenteeGc').textContent = cached.goal_clarity != null ? cached.goal_clarity.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupMenteeMe').textContent = cached.has_mentorship_experience ? cached.mentorship_experience.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupMenteeTc').textContent = cached.has_task_data ? cached.task_completion.toFixed(1) + ' / 5.0' : 'N/A';
+      document.getElementById('popupMenteeMf').textContent = cached.has_mentor_feedback ? cached.mentor_feedback.toFixed(1) + ' / 5.0' : 'N/A';
+    }
+
     popup.classList.remove('hidden');
     popup.classList.add('flex');
 
     const rating = await fetchMenteeRating(uid);
     if (!rating) {
-      document.getElementById('popupMenteeFinalRating').textContent = 'N/A';
+      if (!cached) document.getElementById('popupMenteeFinalRating').textContent = 'N/A';
       return;
     }
 
@@ -966,6 +1086,8 @@
     const avatarEl = document.getElementById('profileAvatar');
     if (userData.profile_picture) {
       avatarEl.style.backgroundImage = `url('${userData.profile_picture}')`;
+      avatarEl.style.backgroundSize = 'cover';
+      avatarEl.style.backgroundPosition = 'center';
       avatarEl.textContent = '';
     } else {
       avatarEl.style.backgroundImage = '';
@@ -1065,17 +1187,71 @@
       if (userData.base_mentorship_topics && userData.base_mentorship_topics.trim()) {
         const topicList = userData.base_mentorship_topics.split(',').filter(t => t.trim());
         const topicLabels = {
+          // School Students
           'school_subjects': 'School Subjects',
-          'coding_basics': 'Coding Basics',
-          'career_guidance': 'Career Guidance',
-          'azure_devops': 'Azure DevOps',
-          'cloud_computing': 'Cloud Computing',
-          'data_science': 'Data Science',
+          'study_skills_exam_prep': 'Study Skills & Exam Prep',
+          'science_math': 'Science & Mathematics',
+          'language_arts_english': 'Language Arts & English',
+          'homework_support': 'Homework Support',
+          'college_career_readiness': 'College & Career Readiness',
+          'study_habits_time_management': 'Study Habits & Time Management',
+          'stem_coding_beginners': 'STEM & Coding for Beginners',
+          'public_speaking_confidence': 'Public Speaking & Confidence',
+
+          // University Students (Distinct)
+          'seeking_internships': 'Finding Internships & Co-ops',
+          'campus_to_corporate': 'Campus-to-Corporate Transition',
+          'student_resume_portfolio': 'Student Resume & Portfolio Building',
+          'entry_level_interview_prep': 'Entry-Level & Graduate Interview Prep',
+          'higher_studies_guidance': 'Higher Studies & Graduate School (Masters/PhD)',
+          'scholarships_study_abroad': 'Scholarships & Study Abroad Guidance',
+          'academic_major_guidance': 'Academic Major & Coursework Planning',
+          'coding_basics': 'Coding Fundamentals & Academic Projects',
+          'hackathons_open_source': 'Hackathons, Competitions & Open Source',
+          'career_path_exploration': 'Tech & Industry Career Path Exploration',
+          'student_networking_linkedin': 'Student Networking & LinkedIn Basics',
+          'student_time_stress_management': 'Academic Workload & Exam Stress Management',
+
+          // Young Professionals & Career Explorers (Distinct)
+          'career_transition_growth': 'Career Transition & Domain Switching (Career Pivots)',
+          'promotion_advancement': 'Promotion Strategy & Career Progression',
+          'salary_negotiation': 'Salary, Bonus & Equity Negotiation',
+          'workplace_navigation': 'Workplace Dynamics & Stakeholder Management',
+          'performance_reviews_kpis': 'Performance Reviews & KPI Mastery',
+          'first_time_management': 'First-Time People Management & Team Leadership',
+          'executive_presence_branding': 'Personal Branding & Executive Presence',
+          'experienced_job_search': 'Mid-Senior Job Search & Recruiter Strategy',
+          'cross_functional_influence': 'Cross-Functional Collaboration & Influence',
+          'system_design_tech_leadership': 'System Architecture & Senior Tech Practices',
+          'burnout_work_life_harmony': 'Burnout Prevention & Work-Life Harmony',
+          'freelancing_consulting_transition': 'Freelancing & Consulting Career Transitions',
+
+          // Entrepreneurs (Expanded)
+          'entrepreneurship': 'Entrepreneurship Fundamentals & Ideation',
+          'idea_validation_mvp': 'Idea Validation & MVP Development',
+          'business_model_strategy': 'Business Model & Monetization Strategy',
+          'fundraising_pitching': 'Fundraising, Pitch Decks & Investor Pitching',
+          'bootstrapping_lean_startup': 'Bootstrapping & Lean Startup Methods',
+          'product_market_fit': 'Product-Market Fit & Customer Discovery',
+          'go_to_market_marketing': 'Go-to-Market (GTM) & Growth Marketing',
+          'sales_business_development': 'B2B/B2C Sales Pipelines & Business Development',
+          'financial_planning_cashflow': 'Financial Planning, Pricing & Cash Flow Management',
+          'startup_scaling_operations': 'Startup Operations, Scaling & Core Hiring',
+          'legal_ip_incorporation': 'Startup Legal, IP Protection & Incorporation',
+          'founder_mindset_resilience': 'Founder Mindset, Resilience & Decision-Making',
+
+          // Shared / Legacy
+          'soft_skills': 'Soft Skills & Communication',
+          'leadership': 'Leadership & Strategic Decision-Making',
+          'career_guidance': 'General Career Guidance',
+          'azure_devops': 'DevOps & CI/CD Pipelines',
+          'cloud_computing': 'Cloud Computing & Architecture',
+          'data_science': 'Data Science & AI/ML',
           'web_development': 'Web Development',
           'mobile_development': 'Mobile Development',
-          'soft_skills': 'Soft Skills',
-          'leadership': 'Leadership',
-          'entrepreneurship': 'Entrepreneurship'
+          'job_search_applications': 'Job Search & Applications',
+          'resume_linkedin_review': 'Resume & LinkedIn Review',
+          'interview_preparation': 'Interview Prep & Mock Interviews'
         };
         baseTopicsContainer.innerHTML = topicList.map(t => {
           const label = topicLabels[t.trim()] || t.trim();
