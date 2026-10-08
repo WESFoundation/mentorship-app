@@ -136,10 +136,10 @@
   }
   
   /* Mentoring Type Distinct Colors */
-  .event.type-anchor { background: #4f46e5 !important; border-left: 3px solid #312e81; }
+  .event.type-anchor { background: #0284c7 !important; border-left: 3px solid #0369a1; }
   .event.type-special { background: #9333ea !important; border-left: 3px solid #581c87; }
   .event.type-sgm { background: #059669 !important; border-left: 3px solid #064e3b; font-weight: 600; }
-  .event.type-standard { background: #0284c7 !important; border-left: 3px solid #0c4a6e; }
+  .event.type-standard { background: #64748b !important; border-left: 3px solid #334155; }
 
   .event.upcoming {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
@@ -260,17 +260,14 @@
     <div class="bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-xl px-4 py-3 mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-sm">
       <div class="flex items-center gap-2 flex-wrap">
         <span class="font-bold text-slate-700 uppercase tracking-wider text-[11px] mr-1">Mentoring Types:</span>
-        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200 font-semibold">
-          <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span> Anchor Mentoring
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-100 text-sky-800 border border-sky-200 font-semibold">
+          <span class="w-2.5 h-2.5 rounded-full bg-sky-600"></span> Anchor Mentoring
         </span>
         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-200 font-semibold">
           <span class="w-2.5 h-2.5 rounded-full bg-purple-600"></span> Special Mentoring
         </span>
         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold">
           <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> SGM (Small Group)
-        </span>
-        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-100 text-sky-800 border border-sky-200 font-semibold">
-          <span class="w-2.5 h-2.5 rounded-full bg-sky-600"></span> 1-on-1 Mentoring
         </span>
       </div>
       <div class="flex items-center gap-2 self-start md:self-auto">
@@ -280,7 +277,6 @@
           <option value="anchor">Anchor Mentoring</option>
           <option value="special">Special Mentoring</option>
           <option value="sgm">SGM (Small Group)</option>
-          <option value="standard">1-on-1 Mentoring</option>
         </select>
       </div>
     </div>
@@ -511,8 +507,9 @@ function renderCalendar() {
         eventElement.style.backgroundColor = event.hex_color;
       }
       const timeStr = `${event.date.getHours().toString().padStart(2, '0')}:${event.date.getMinutes().toString().padStart(2, '0')}`;
-      const prefix = mtype === 'sgm' ? 'SGM' : mtype === 'anchor' ? 'ANCHOR' : mtype === 'special' ? 'SPEC' : '1:1';
-      eventElement.innerHTML = `<span class="opacity-90 font-bold mr-1 text-[10px] uppercase">[${prefix}]</span><span>${timeStr}</span> ${event.title}`;
+      const prefix = mtype === 'sgm' ? 'SGM' : mtype === 'anchor' ? 'ANCHOR' : mtype === 'special' ? 'SPEC' : '';
+      const prefixHtml = prefix ? `<span class="opacity-90 font-bold mr-1 text-[10px] uppercase">[${prefix}]</span>` : '';
+      eventElement.innerHTML = `${prefixHtml}<span>${timeStr}</span> ${event.title}`;
       eventElement.title = `${event.title} - ${event.type || 'Mentoring Session'}`;
       eventElement.addEventListener('click', () => showEventDetails(event));
       dayElement.appendChild(eventElement);
@@ -567,8 +564,13 @@ function showEventDetails(event) {
   // Type styling
   const typeEl = document.getElementById('event-type');
   if (typeEl) {
-    typeEl.textContent = event.type || '1-on-1 Mentoring';
-    typeEl.className = `inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${event.badge_bg || 'bg-sky-100'} ${event.badge_text || 'text-sky-800'} border ${event.badge_border || 'border-sky-300'}`;
+    if (event.meeting_type === 'standard') {
+      typeEl.classList.add('hidden');
+    } else {
+      typeEl.classList.remove('hidden');
+      typeEl.textContent = event.type || 'Mentoring Session';
+      typeEl.className = `inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${event.badge_bg || 'bg-sky-100'} ${event.badge_text || 'text-sky-800'} border ${event.badge_border || 'border-sky-300'}`;
+    }
   }
 
   document.getElementById('event-status').textContent = event.status.charAt(0).toUpperCase() + event.status.slice(1);

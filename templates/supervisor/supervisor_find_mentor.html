@@ -150,6 +150,17 @@
             <option value="10+" {% if request.args.get('experience')=='10+' %}selected{% endif %}>10+ years</option>
           </select>
 
+          <!-- Ratings Filter -->
+          <select name="rating" id="mentorRatingFilter" data-no-search onchange="filterMentors()"
+            class="w-auto shrink-0 px-2.5 py-1.5 border border-amber-300 rounded-lg text-xs sm:text-sm text-gray-700 bg-amber-50/50 font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition">
+            <option value="" {% if not request.args.get('rating') %}selected{% endif %}>All Ratings</option>
+            <option value="4.5" {% if request.args.get('rating')=='4.5' %}selected{% endif %}>★ 4.5+ Stars</option>
+            <option value="4.0" {% if request.args.get('rating')=='4.0' %}selected{% endif %}>★ 4.0+ Stars</option>
+            <option value="3.5" {% if request.args.get('rating')=='3.5' %}selected{% endif %}>★ 3.5+ Stars</option>
+            <option value="3.0" {% if request.args.get('rating')=='3.0' %}selected{% endif %}>★ 3.0+ Stars</option>
+            <option value="2.0" {% if request.args.get('rating')=='2.0' %}selected{% endif %}>★ 2.0+ Stars</option>
+          </select>
+
           <!-- Search Button -->
           <button type="submit" class="shrink-0 px-3.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-medium hover:bg-blue-700 transition">
             Search
@@ -740,16 +751,27 @@
 
   // Client-side filtering for Mentors
   function filterMentors() {
-    const input = document.getElementById('mentorSearch').value.toLowerCase();
+    const input = document.getElementById('mentorSearch') ? document.getElementById('mentorSearch').value.toLowerCase().trim() : '';
+    const ratingFilterEl = document.getElementById('mentorRatingFilter');
+    const minRating = ratingFilterEl && ratingFilterEl.value ? parseFloat(ratingFilterEl.value) : 0;
     const rows = document.querySelectorAll('.mentor-row');
 
     rows.forEach(row => {
-      const name = row.querySelector('.mentor-name').innerText.toLowerCase();
-      const profession = row.querySelector('.mentor-profession').innerText.toLowerCase();
-      const email = row.querySelector('.mentor-email').innerText.toLowerCase();
-      const location = row.querySelector('.mentor-location').innerText.toLowerCase();
+      const name = row.querySelector('.mentor-name') ? row.querySelector('.mentor-name').innerText.toLowerCase() : '';
+      const profession = row.querySelector('.mentor-profession') ? row.querySelector('.mentor-profession').innerText.toLowerCase() : '';
+      const email = row.querySelector('.mentor-email') ? row.querySelector('.mentor-email').innerText.toLowerCase() : '';
+      const location = row.querySelector('.mentor-location') ? row.querySelector('.mentor-location').innerText.toLowerCase() : '';
+      
+      const numEl = row.querySelector('.sup-rating-num');
+      let mentorRating = 0;
+      if (numEl && numEl.textContent && numEl.textContent !== '--') {
+        mentorRating = parseFloat(numEl.textContent) || 0;
+      }
 
-      if (name.includes(input) || profession.includes(input) || email.includes(input) || location.includes(input)) {
+      const matchesSearch = !input || name.includes(input) || profession.includes(input) || email.includes(input) || location.includes(input);
+      const matchesRating = minRating === 0 || mentorRating >= minRating;
+
+      if (matchesSearch && matchesRating) {
         row.style.display = '';
       } else {
         row.style.display = 'none';
@@ -1029,6 +1051,10 @@
     const numEl = document.getElementById('sup-num-' + uid);
     supRenderStars('sup-stars-' + uid, rating.final_rating || 0);
     if (numEl) numEl.textContent = Number(rating.final_rating).toFixed(1);
+    const ratingFilterEl = document.getElementById('mentorRatingFilter');
+    if (ratingFilterEl && ratingFilterEl.value) {
+      filterMentors();
+    }
   }
 
   // Preload instantly from previous session (< 50ms)

@@ -130,7 +130,7 @@
   }
   
   .event {
-    background: #0284c7;
+    background: #64748b;
     color: white;
     border-radius: 4px;
     padding: 2px 6px;
@@ -149,10 +149,10 @@
   }
   
   /* Mentoring Type Distinct Colors */
-  .event.type-anchor { background: #4f46e5 !important; border-left: 3px solid #312e81; }
+  .event.type-anchor { background: #0284c7 !important; border-left: 3px solid #0c4a6e; }
   .event.type-special { background: #9333ea !important; border-left: 3px solid #581c87; }
   .event.type-sgm { background: #059669 !important; border-left: 3px solid #064e3b; font-weight: 600; }
-  .event.type-standard { background: #0284c7 !important; border-left: 3px solid #0c4a6e; }
+  .event.type-standard { background: #64748b !important; border-left: 3px solid #334155; }
 
   .event.upcoming {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
@@ -303,17 +303,14 @@
     <div class="bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-xl px-4 py-3 mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-sm">
       <div class="flex items-center gap-2 flex-wrap">
         <span class="font-bold text-slate-700 uppercase tracking-wider text-[11px] mr-1">Mentoring Types:</span>
-        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200 font-semibold">
-          <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span> Anchor Mentoring
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-100 text-sky-800 border border-sky-300 font-semibold">
+          <span class="w-2.5 h-2.5 rounded-full bg-sky-600"></span> Anchor Mentoring
         </span>
         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-200 font-semibold">
           <span class="w-2.5 h-2.5 rounded-full bg-purple-600"></span> Special Mentoring
         </span>
         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold">
           <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> SGM (Small Group)
-        </span>
-        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-100 text-sky-800 border border-sky-200 font-semibold">
-          <span class="w-2.5 h-2.5 rounded-full bg-sky-600"></span> 1-on-1 Mentoring
         </span>
       </div>
       <div class="flex items-center gap-2 self-start md:self-auto">
@@ -323,7 +320,6 @@
           <option value="anchor">Anchor Mentoring</option>
           <option value="special">Special Mentoring</option>
           <option value="sgm">SGM (Small Group)</option>
-          <option value="standard">1-on-1 Mentoring</option>
         </select>
       </div>
     </div>
@@ -387,49 +383,174 @@
 
 <!-- Event Details Modal -->
 <div id="event-details-modal" class="event-details-modal">
-  <div class="event-details-content">
-    <h3 class="text-xl font-semibold mb-4" id="event-title">Session Details</h3>
-    <div class="space-y-3">
+  <div class="event-details-content max-w-2xl w-full p-6 sm:p-7 max-h-[92vh] overflow-y-auto">
+    <!-- Header -->
+    <div class="flex items-start justify-between pb-4 border-b border-gray-100 mb-4">
       <div>
-        <span class="font-medium">Mentee:</span>
-        <span id="event-mentee">John Doe</span>
-        <span id="event-mentee-email" class="text-sm text-gray-500 ml-2">(john@example.com)</span>
+        <div class="flex items-center gap-2 flex-wrap mb-1.5">
+          <span id="event-type-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-100 text-sky-800 border border-sky-300">Mentoring</span>
+          <span id="event-status" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">Scheduled</span>
+        </div>
+        <h3 class="text-xl font-bold text-slate-900 tracking-tight" id="event-title">Session Details</h3>
+        <p class="text-xs text-slate-500 mt-1 flex items-center gap-2">
+          <span id="event-datetime">Jan 15, 2024 at 2:00 PM</span>
+          <span>•</span>
+          <span id="event-duration">60 minutes</span>
+        </p>
       </div>
-      <div>
-        <span class="font-medium">Mentor:</span>
-        <span id="event-mentor">Dr. Sarah Johnson</span>
-        <span id="event-mentor-email" class="text-sm text-gray-500 ml-2">(sarah@example.com)</span>
-      </div>
-      <div>
-        <span class="font-medium">Date & Time:</span>
-        <span id="event-datetime">January 15, 2023 at 2:00 PM</span>
-      </div>
-      <div>
-        <span class="font-medium">Duration:</span>
-        <span id="event-duration">60 minutes</span>
-      </div>
-      <div>
-        <span class="font-medium">Meeting Type:</span>
-        <span id="event-type">Video Call</span>
-      </div>
-      <div>
-        <span class="font-medium">Status:</span>
-        <span id="event-status" class="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Scheduled</span>
-      </div>
-      <div>
-        <span class="font-medium">Created:</span>
-        <span id="event-created">January 10, 2023</span>
-      </div>
-      <div>
-        <span class="font-medium">Agenda:</span>
-        <p id="event-description" class="mt-1">Discussion about career options and guidance for next steps.</p>
+      <button id="close-event-modal-icon" onclick="closeEventDetailsModal()" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+      </button>
+    </div>
+
+    <!-- Agenda / Description -->
+    <div class="mb-4">
+      <h5 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Agenda & Description</h5>
+      <p id="event-description" class="text-sm text-gray-700 bg-gray-50/80 p-3.5 rounded-xl border border-gray-100 whitespace-pre-wrap leading-relaxed">No description provided</p>
+    </div>
+
+    <!-- Participants Roster -->
+    <div class="mb-5">
+      <h5 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Participant Roster</h5>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50/50 p-3.5 rounded-2xl border border-gray-200/70" id="event-participants-grid">
+        <!-- Mentors Column -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-gray-500 uppercase tracking-wider" id="event-mentors-title">Mentor</span>
+          </div>
+          <div id="event-mentors-list" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
+        </div>
+        <!-- Mentees Column -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-gray-500 uppercase tracking-wider" id="event-mentees-title">Mentee</span>
+            <span id="event-sgm-badge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">SGM Group</span>
+          </div>
+          <div id="event-mentees-list" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
+        </div>
       </div>
     </div>
-    <div class="mt-6 flex justify-end space-x-3">
-      <button id="close-event-modal" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition">Close</button>
-      <button id="join-meeting-btn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">Join Meeting</button>
-      <button id="view-details-btn" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">View Full Details</button>
+
+    <!-- Action Bar -->
+    <div class="pt-4 border-t border-gray-100 flex items-center justify-between flex-wrap gap-3">
+      <div class="text-xs text-gray-500">
+        Created: <span id="event-created">Recently</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="close-event-modal" class="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 font-medium rounded-xl text-xs transition">Close</button>
+        <button id="edit-event-btn" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-xl text-xs transition shadow-sm flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+          Edit Meeting
+        </button>
+        <button id="join-meeting-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl text-xs transition shadow-sm">Join Meeting</button>
+        <button id="view-details-btn" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-xl text-xs transition shadow-sm">Full Details</button>
+      </div>
     </div>
+  </div>
+</div>
+
+<!-- Edit Meeting Modal (Supervisor) -->
+<div id="supervisor-edit-meeting-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[80] hidden transition-opacity duration-300">
+  <div class="bg-white rounded-2xl p-6 sm:p-7 w-full max-w-sm sm:max-w-md md:max-w-2xl mx-4 shadow-2xl max-h-[92vh] overflow-y-auto">
+    <div class="flex justify-between items-start mb-5 pb-4 border-b border-gray-100">
+      <div>
+        <h3 class="text-xl font-bold text-slate-900">Edit Meeting</h3>
+        <p class="text-xs text-slate-500 mt-0.5">Modify meeting timing, title, or platform links</p>
+      </div>
+      <button onclick="closeSupervisorEditModal()" class="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-50 rounded-full transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+      </button>
+    </div>
+
+    <form id="supervisor-edit-form" novalidate class="space-y-4">
+      <input type="hidden" id="sup-edit-meeting-id">
+      <input type="hidden" id="sup-edit-mentor-id">
+      <input type="hidden" id="sup-edit-mentee-id">
+      <div id="sup-edit-status" class="hidden text-sm p-3 rounded-lg border"></div>
+
+      <!-- Participants Info Card -->
+      <div id="sup-edit-roster-box" class="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
+        <div class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5" id="sup-edit-roster-label">Participants</div>
+        <div id="sup-edit-roster-content" class="text-xs text-slate-800 space-y-1"></div>
+      </div>
+
+      <!-- Title -->
+      <div>
+        <label for="sup-edit-title" class="block text-sm font-semibold text-slate-700 mb-1">Meeting Title *</label>
+        <input type="text" id="sup-edit-title" required maxlength="200" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+      </div>
+
+      <!-- Description -->
+      <div>
+        <label for="sup-edit-description" class="block text-sm font-semibold text-slate-700 mb-1">Description / Agenda</label>
+        <textarea id="sup-edit-description" rows="2" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"></textarea>
+      </div>
+
+      <!-- Date & Time -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label for="sup-edit-date" class="block text-sm font-semibold text-slate-700 mb-1">Date *</label>
+          <input type="date" id="sup-edit-date" required class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">Start Time *</label>
+          <div class="flex gap-2">
+            <select id="sup-edit-hour" class="flex-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+              <option value="">Hr</option>
+              <option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option>
+              <option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option>
+              <option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option>
+            </select>
+            <select id="sup-edit-minute" class="flex-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+              <option value="">Min</option>
+              <option value="00">00</option><option value="05">05</option><option value="10">10</option><option value="15">15</option>
+              <option value="20">20</option><option value="25">25</option><option value="30">30</option><option value="35">35</option>
+              <option value="40">40</option><option value="45">45</option><option value="50">50</option><option value="55">55</option>
+            </select>
+            <select id="sup-edit-ampm" class="flex-1 px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+              <option value="AM">AM</option><option value="PM">PM</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Duration & Platform -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label for="sup-edit-duration" class="block text-sm font-semibold text-slate-700 mb-1">Duration *</label>
+          <select id="sup-edit-duration" required class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+            <option value="15">15 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="45">45 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="90">1.5 hours</option>
+            <option value="120">2 hours</option>
+          </select>
+        </div>
+        <div>
+          <label for="sup-edit-platform" class="block text-sm font-semibold text-slate-700 mb-1">Platform</label>
+          <select id="sup-edit-platform" onchange="toggleSupEditCustomLink()" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+            <option value="google">Google Meet</option>
+            <option value="teams">Microsoft Teams</option>
+            <option value="custom">Other (Custom Link)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Custom Link -->
+      <div id="sup-edit-custom-link-wrap" class="hidden">
+        <label for="sup-edit-custom-link" class="block text-sm font-semibold text-slate-700 mb-1">Meeting Link *</label>
+        <input type="url" id="sup-edit-custom-link" placeholder="https://..." class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+      </div>
+
+      <!-- Buttons -->
+      <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
+        <button type="button" onclick="closeSupervisorEditModal()" class="px-5 py-2.5 text-gray-600 hover:text-gray-800 font-medium text-sm">Cancel</button>
+        <button type="submit" id="sup-edit-submit-btn" class="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/20 text-sm flex items-center gap-2">
+          Save Changes
+        </button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -726,18 +847,44 @@
       <!-- Status Alert -->
       <div id="sgm-status-top" class="hidden text-sm p-3 rounded-lg border"></div>
 
-      <!-- Mentor Selection -->
+      <!-- Mentors Multi-Select -->
       <div>
-        <label class="block text-sm font-semibold text-gray-700 mb-1">
-          Select Lead Mentor <span class="text-red-500">*</span>
-        </label>
-        <select id="sgm-mentor" name="mentor_id" required
-          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm">
-          <option value="">Choose mentor to lead the small group...</option>
+        <div class="flex items-center justify-between mb-1">
+          <label class="block text-sm font-semibold text-gray-700">
+            Select Mentors <span class="text-red-500">*</span>
+          </label>
+          <span id="sgm-mentors-selected-badge" class="text-xs font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+            0 Mentors Selected
+          </span>
+        </div>
+
+        <!-- Search & Quick Selection -->
+        <div class="flex items-center gap-2 mb-2">
+          <div class="relative flex-1">
+            <svg class="w-4 h-4 text-gray-400 absolute left-3 top-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" id="sgm-mentor-filter" oninput="filterSgmMentorsList(this.value)" placeholder="Search mentors by name or email..." class="w-full pl-9 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+          </div>
+          <button type="button" onclick="toggleAllSgmMentors(true)" class="px-2.5 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100">Select All</button>
+          <button type="button" onclick="toggleAllSgmMentors(false)" class="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100">Clear</button>
+        </div>
+
+        <!-- Scrollable Checklist -->
+        <div id="sgm-mentors-checklist" class="max-h-36 overflow-y-auto border border-gray-200 rounded-xl p-2 bg-gray-50 space-y-1">
           {% for mentor in mentors %}
-          <option value="{{ mentor.id }}">{{ mentor.name }} ({{ mentor.email }}){% if mentor.institution %} — {{ mentor.institution }}{% endif %}</option>
+          <label class="sgm-mentor-row flex items-center justify-between p-2 rounded-lg hover:bg-white cursor-pointer transition text-xs border border-transparent hover:border-gray-200" data-name="{{ (mentor.name or '') | lower }}" data-email="{{ (mentor.email or '') | lower }}">
+            <div class="flex items-center gap-2.5">
+              <input type="checkbox" value="{{ mentor.id }}" onchange="updateSgmMentorsSelectedCount()" class="sgm-mentor-cb rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4">
+              <div>
+                <p class="font-semibold text-gray-800">{{ mentor.name }}</p>
+                <p class="text-[11px] text-gray-500">{{ mentor.email }}</p>
+              </div>
+            </div>
+            {% if mentor.institution %}
+            <span class="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded">{{ mentor.institution }}</span>
+            {% endif %}
+          </label>
           {% endfor %}
-        </select>
+        </div>
       </div>
 
       <!-- Mentees Multi-Select -->
@@ -851,6 +998,14 @@
         <input type="url" id="sgm-custom-link" placeholder="https://..." class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm">
       </div>
 
+      <!-- Automated Mentee Task Notice -->
+      <div class="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-start gap-2.5">
+        <svg class="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <div class="text-xs text-emerald-900 leading-relaxed">
+          <span class="font-semibold">Automatic Learning & Feedback Task:</span> A personal follow-up task (<span class="font-medium italic">"Learning & Feedback: [Title]"</span>) will be automatically created and assigned to all selected mentees upon scheduling.
+        </div>
+      </div>
+
       <!-- Submit & Cancel -->
       <div class="flex justify-end gap-3 pt-3 border-t border-gray-100">
         <button type="button" onclick="closeScheduleSgmModal()" class="px-5 py-2.5 text-gray-600 hover:text-gray-800 font-medium">Cancel</button>
@@ -881,9 +1036,14 @@ function initializeEvents() {
       date: new Date("{{ meeting.date.strftime('%Y-%m-%dT%H:%M:%S') if meeting.date else '' }}"),
       duration: {{ meeting.duration or 0 }},
       mentee: {{ (meeting.mentee or '') | tojson }},
+      mentee_id: {{ (meeting.mentee_id or '') | tojson }},
       mentee_email: {{ (meeting.mentee_email or '') | tojson }},
       mentor: {{ (meeting.mentor or '') | tojson }},
+      mentor_id: {{ (meeting.mentor_id or '') | tojson }},
       mentor_email: {{ (meeting.mentor_email or '') | tojson }},
+      mentors: {{ (meeting.mentors or []) | tojson }},
+      mentees: {{ (meeting.mentees or []) | tojson }},
+      is_sgm: {{ (meeting.is_sgm or false) | tojson }},
       type: {{ (meeting.type or '') | tojson }},
       meeting_type: {{ (meeting.meeting_type or 'standard') | tojson }},
       type_color: {{ (meeting.type_color or 'sky') | tojson }},
@@ -1030,8 +1190,9 @@ function renderCalendar() {
         eventElement.style.backgroundColor = event.hex_color;
       }
       const timeStr = `${event.date.getHours().toString().padStart(2, '0')}:${event.date.getMinutes().toString().padStart(2, '0')}`;
-      const prefix = mtype === 'sgm' ? 'SGM' : mtype === 'anchor' ? 'ANCHOR' : mtype === 'special' ? 'SPEC' : '1:1';
-      eventElement.innerHTML = `<span class="opacity-90 font-bold mr-1 text-[10px] uppercase">[${prefix}]</span><span>${timeStr}</span> ${event.title}`;
+      const prefix = mtype === 'sgm' ? 'SGM' : mtype === 'anchor' ? 'ANCHOR' : mtype === 'special' ? 'SPEC' : '';
+      const prefixBadge = prefix ? `<span class="opacity-90 font-bold mr-1 text-[10px] uppercase">[${prefix}]</span>` : '';
+      eventElement.innerHTML = `${prefixBadge}<span>${timeStr}</span> ${event.title}`;
       eventElement.title = `${event.title} - ${event.type || 'Mentoring Session'}`;
       eventElement.addEventListener('click', () => showEventDetails(event));
       dayElement.appendChild(eventElement);
@@ -1072,43 +1233,123 @@ function renderCalendar() {
   }
 }
 
+let currentSupervisorEvent = null;
+
+function closeEventDetailsModal() {
+  const modal = document.getElementById('event-details-modal');
+  if (modal) modal.style.display = 'none';
+  currentSupervisorEvent = null;
+}
+
 function showEventDetails(event) {
+  currentSupervisorEvent = event;
   const modal = document.getElementById('event-details-modal');
   const eventDate = new Date(event.date);
   const createdDate = new Date(event.created_at);
   
-  document.getElementById('event-title').textContent = event.title;
-  document.getElementById('event-mentee').textContent = event.mentee;
-  document.getElementById('event-mentee-email').textContent = event.mentee_email;
-  document.getElementById('event-mentor').textContent = event.mentor;
-  document.getElementById('event-mentor-email').textContent = event.mentor_email;
+  document.getElementById('event-title').textContent = event.title || 'Mentoring Session';
   document.getElementById('event-datetime').textContent = 
     `${eventDate.toLocaleDateString()} at ${eventDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
   document.getElementById('event-duration').textContent = `${event.duration} minutes`;
-  
-  // Type badge styling
-  const typeEl = document.getElementById('event-type');
-  if (typeEl) {
-    typeEl.textContent = event.type || '1-on-1 Mentoring';
-    typeEl.className = `inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${event.badge_bg || 'bg-sky-100'} ${event.badge_text || 'text-sky-800'} border ${event.badge_border || 'border-sky-300'}`;
+  document.getElementById('event-description').textContent = event.description || 'No description provided';
+  document.getElementById('event-created').textContent = createdDate.toLocaleDateString();
+
+  // Status badge styling
+  const statusEl = document.getElementById('event-status');
+  if (statusEl) {
+    statusEl.textContent = event.status ? (event.status.charAt(0).toUpperCase() + event.status.slice(1)) : 'Scheduled';
+    statusEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold';
+    if (event.status === 'upcoming') {
+      statusEl.classList.add('bg-blue-100', 'text-blue-800', 'border', 'border-blue-200');
+    } else if (event.status === 'completed') {
+      statusEl.classList.add('bg-green-100', 'text-green-800', 'border', 'border-green-200');
+    } else {
+      statusEl.classList.add('bg-red-100', 'text-red-800', 'border', 'border-red-200');
+    }
   }
 
-  document.getElementById('event-status').textContent = event.status.charAt(0).toUpperCase() + event.status.slice(1);
-  document.getElementById('event-created').textContent = createdDate.toLocaleDateString();
-  document.getElementById('event-description').textContent = event.description;
-  
-  // Update status color
-  const statusElement = document.getElementById('event-status');
-  statusElement.className = 'px-2 py-1 rounded-full text-xs font-medium';
-  if (event.status === 'upcoming') {
-    statusElement.classList.add('bg-blue-100', 'text-blue-800');
-  } else if (event.status === 'completed') {
-    statusElement.classList.add('bg-green-100', 'text-green-800');
+  // Type badge styling
+  const typeBadge = document.getElementById('event-type-badge');
+  if (typeBadge) {
+    if (!event.meeting_type || event.meeting_type === 'standard') {
+      typeBadge.classList.add('hidden');
+    } else {
+      typeBadge.classList.remove('hidden');
+      typeBadge.textContent = event.type || 'Mentoring Session';
+      typeBadge.className = `px-2.5 py-0.5 rounded-full text-xs font-bold ${event.badge_bg || 'bg-sky-100'} ${event.badge_text || 'text-sky-800'} border ${event.badge_border || 'border-sky-300'}`;
+    }
   }
-  
-  // Show/hide buttons based on event status
+
+  // Render Mentors list
+  const mentorsListEl = document.getElementById('event-mentors-list');
+  const mentorsTitleEl = document.getElementById('event-mentors-title');
+  const mentorsList = (event.mentors && event.mentors.length > 0) ? event.mentors : (event.mentor ? [{name: event.mentor, email: event.mentor_email}] : []);
+  if (mentorsTitleEl) {
+    mentorsTitleEl.textContent = `Mentor${mentorsList.length > 1 ? 's (' + mentorsList.length + ')' : ''}`;
+  }
+  if (mentorsListEl) {
+    if (mentorsList.length > 0) {
+      mentorsListEl.innerHTML = mentorsList.map(m => `
+        <div class="flex items-center space-x-2.5 p-2 rounded-xl bg-blue-50/70 border border-blue-100/80">
+          <div class="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shrink-0 text-xs shadow-sm">
+            ${(m.name || 'M').charAt(0).toUpperCase()}
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="text-xs font-semibold text-gray-900 truncate">${m.name || 'Unknown Mentor'}</p>
+            ${m.email ? `<p class="text-[11px] text-gray-500 truncate">${m.email}</p>` : ''}
+          </div>
+        </div>
+      `).join('');
+    } else {
+      mentorsListEl.innerHTML = `<div class="p-2.5 bg-gray-50 rounded-xl text-xs text-gray-500">No mentor assigned</div>`;
+    }
+  }
+
+  // Render Mentees list
+  const menteesListEl = document.getElementById('event-mentees-list');
+  const menteesTitleEl = document.getElementById('event-mentees-title');
+  const sgmBadge = document.getElementById('event-sgm-badge');
+  const menteesList = (event.mentees && event.mentees.length > 0) ? event.mentees : (event.mentee ? [{name: event.mentee, email: event.mentee_email}] : []);
+  if (menteesTitleEl) {
+    menteesTitleEl.textContent = `${event.is_sgm ? 'Small Group Mentees' : 'Mentee'}${menteesList.length > 1 ? ' (' + menteesList.length + ')' : ''}`;
+  }
+  if (sgmBadge) {
+    if (event.is_sgm) sgmBadge.classList.remove('hidden');
+    else sgmBadge.classList.add('hidden');
+  }
+  if (menteesListEl) {
+    if (menteesList.length > 0) {
+      menteesListEl.innerHTML = menteesList.map(m => `
+        <div class="flex items-center space-x-2.5 p-2 rounded-xl bg-emerald-50/70 border border-emerald-100/80">
+          <div class="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center shrink-0 text-xs shadow-sm">
+            ${(m.name || 'S').charAt(0).toUpperCase()}
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="text-xs font-semibold text-gray-900 truncate">${m.name || 'Unknown Mentee'}</p>
+            ${m.email ? `<p class="text-[11px] text-gray-500 truncate">${m.email}</p>` : ''}
+          </div>
+        </div>
+      `).join('');
+    } else {
+      menteesListEl.innerHTML = `<div class="p-2.5 bg-gray-50 rounded-xl text-xs text-gray-500">No mentee assigned</div>`;
+    }
+  }
+
+  // Buttons
   const joinBtn = document.getElementById('join-meeting-btn');
   const viewDetailsBtn = document.getElementById('view-details-btn');
+  const editBtn = document.getElementById('edit-event-btn');
+
+  if (editBtn) {
+    if (event.status === 'upcoming') {
+      editBtn.classList.remove('hidden');
+      editBtn.onclick = function() {
+        openSupervisorEditModal(event);
+      };
+    } else {
+      editBtn.classList.add('hidden');
+    }
+  }
   
   if (event.status === 'upcoming' && event.meet_link) {
     joinBtn.style.display = 'inline-block';
@@ -1127,12 +1368,187 @@ function showEventDetails(event) {
     joinBtn.style.display = 'none';
   }
   
-  // View details button
   viewDetailsBtn.onclick = function() {
     window.location.href = "{{ url_for('supervisor_meeting_details') }}";
   };
   
   modal.style.display = 'flex';
+}
+
+function openSupervisorEditModal(event) {
+  closeEventDetailsModal();
+  const modal = document.getElementById('supervisor-edit-meeting-modal');
+  if (!modal) return;
+
+  document.getElementById('sup-edit-meeting-id').value = event.id;
+  document.getElementById('sup-edit-mentor-id').value = event.mentor_id || '';
+  document.getElementById('sup-edit-mentee-id').value = event.mentee_id || '';
+  document.getElementById('sup-edit-title').value = event.title || '';
+  document.getElementById('sup-edit-description').value = event.description || '';
+  document.getElementById('sup-edit-duration').value = event.duration || 60;
+
+  // Date
+  var d = new Date(event.date);
+  var yyyy = d.getFullYear();
+  var mm = String(d.getMonth() + 1).padStart(2, '0');
+  var dd = String(d.getDate()).padStart(2, '0');
+  document.getElementById('sup-edit-date').value = `${yyyy}-${mm}-${dd}`;
+
+  // Time
+  var h = d.getHours();
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  var h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  document.getElementById('sup-edit-hour').value = String(h12).padStart(2, '0');
+  var mins = d.getMinutes();
+  var roundedM = Math.round(mins / 5) * 5;
+  if (roundedM === 60) roundedM = 55;
+  document.getElementById('sup-edit-minute').value = String(roundedM).padStart(2, '0');
+  document.getElementById('sup-edit-ampm').value = ampm;
+
+  // Link and platform
+  var meetLink = event.meet_link || '';
+  if (meetLink) {
+    if (meetLink.includes('meet.google.com')) {
+      document.getElementById('sup-edit-platform').value = 'google';
+    } else if (meetLink.includes('teams.microsoft.com') || meetLink.includes('teams.live.com')) {
+      document.getElementById('sup-edit-platform').value = 'teams';
+    } else {
+      document.getElementById('sup-edit-platform').value = 'custom';
+      document.getElementById('sup-edit-custom-link').value = meetLink;
+    }
+  } else {
+    document.getElementById('sup-edit-platform').value = 'google';
+  }
+  toggleSupEditCustomLink();
+
+  // Roster banner
+  const rosterContent = document.getElementById('sup-edit-roster-content');
+  const mentorsList = (event.mentors && event.mentors.length > 0) ? event.mentors : [{name: event.mentor || 'Mentor'}];
+  const menteesList = (event.mentees && event.mentees.length > 0) ? event.mentees : [{name: event.mentee || 'Mentee'}];
+  if (rosterContent) {
+    rosterContent.innerHTML = `
+      <div><span class="font-semibold text-slate-700">Mentor(s):</span> ${mentorsList.map(m => `<span class="inline-block bg-white border border-slate-200 px-2 py-0.5 rounded text-[11px] font-semibold text-slate-800 mr-1">${m.name}</span>`).join('')}</div>
+      <div class="mt-1"><span class="font-semibold text-slate-700">Mentee(s) (${menteesList.length}):</span> ${menteesList.map(m => `<span class="inline-block bg-white border border-slate-200 px-2 py-0.5 rounded text-[11px] font-semibold text-slate-800 mr-1">${m.name}</span>`).join('')}</div>
+    `;
+  }
+
+  const statusBox = document.getElementById('sup-edit-status');
+  if (statusBox) statusBox.classList.add('hidden');
+
+  modal.classList.remove('hidden');
+}
+
+function closeSupervisorEditModal() {
+  const modal = document.getElementById('supervisor-edit-meeting-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function toggleSupEditCustomLink() {
+  const platform = document.getElementById('sup-edit-platform').value;
+  const wrap = document.getElementById('sup-edit-custom-link-wrap');
+  if (wrap) {
+    if (platform === 'custom') wrap.classList.remove('hidden');
+    else wrap.classList.add('hidden');
+  }
+}
+
+function showSupEditStatus(msg, type) {
+  const el = document.getElementById('sup-edit-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'text-sm p-3 rounded-lg border ' + (type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200');
+  el.classList.remove('hidden');
+}
+
+function handleSupervisorEditSubmit(e) {
+  e.preventDefault();
+  const statusEl = document.getElementById('sup-edit-status');
+  if (statusEl) statusEl.classList.add('hidden');
+
+  const meetingId = document.getElementById('sup-edit-meeting-id').value;
+  const mentorId = document.getElementById('sup-edit-mentor-id').value;
+  const menteeId = document.getElementById('sup-edit-mentee-id').value;
+  const title = document.getElementById('sup-edit-title').value.trim();
+  const description = document.getElementById('sup-edit-description').value.trim();
+  const date = document.getElementById('sup-edit-date').value;
+  const hour = document.getElementById('sup-edit-hour').value;
+  const minute = document.getElementById('sup-edit-minute').value;
+  const ampm = document.getElementById('sup-edit-ampm').value;
+  const duration = document.getElementById('sup-edit-duration').value;
+  const platform = document.getElementById('sup-edit-platform').value;
+  const customLink = (document.getElementById('sup-edit-custom-link').value || '').trim();
+
+  if (!title) { showSupEditStatus('Please enter a meeting title.', 'error'); return; }
+  if (!date) { showSupEditStatus('Please select a date.', 'error'); return; }
+  if (!hour || !minute || !ampm) { showSupEditStatus('Please select a valid time.', 'error'); return; }
+
+  let h = parseInt(hour, 10);
+  if (ampm === 'PM' && h !== 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
+  const startTime = String(h).padStart(2, '0') + ':' + minute + ':00';
+
+  let meetLink = '';
+  if (platform === 'custom') {
+    meetLink = customLink;
+  } else if (platform === 'google') {
+    meetLink = 'https://meet.google.com/new';
+  } else if (platform === 'teams') {
+    meetLink = 'https://teams.live.com/meet/create';
+  }
+
+  const submitBtn = document.getElementById('sup-edit-submit-btn');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<svg class="animate-spin w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Saving...';
+  }
+
+  fetch('/update_meeting_ajax', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      meeting_id: meetingId,
+      mentor_id: mentorId,
+      mentee_id: menteeId,
+      title: title,
+      description: description,
+      date: date,
+      start_time: startTime,
+      duration: duration,
+      platform: platform,
+      meet_link: meetLink,
+      timezone: 'Asia/Kolkata'
+    })
+  })
+  .then(async function(r) {
+    let data;
+    try {
+      data = await r.json();
+    } catch (err) {
+      throw new Error('Server returned invalid response (status ' + r.status + ')');
+    }
+    if (!r.ok || !data.success) {
+      throw new Error(data.error || 'Failed to update meeting.');
+    }
+    return data;
+  })
+  .then(function(data) {
+    showSupEditStatus('Meeting updated successfully!', 'success');
+    setTimeout(function() {
+      closeSupervisorEditModal();
+      window.location.reload();
+    }, 900);
+  })
+  .catch(function(err) {
+    console.error('Error updating meeting:', err);
+    showSupEditStatus(err.message || 'Network error. Please try again.', 'error');
+  })
+  .finally(function() {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = 'Save Changes';
+    }
+  });
 }
 
 function filterEvents(type) {
@@ -1151,6 +1567,7 @@ function openScheduleSgmModal() {
       dateInput.min = todayStr;
       if (!dateInput.value) dateInput.value = todayStr;
     }
+    updateSgmMentorsSelectedCount();
     updateSgmSelectedCount();
   }
 }
@@ -1165,6 +1582,42 @@ function toggleSgmCustomLink(val) {
   if (wrap) {
     if (val === 'custom') wrap.classList.remove('hidden');
     else wrap.classList.add('hidden');
+  }
+}
+
+function filterSgmMentorsList(query) {
+  const q = (query || '').toLowerCase().trim();
+  document.querySelectorAll('.sgm-mentor-row').forEach(row => {
+    const name = row.getAttribute('data-name') || '';
+    const email = row.getAttribute('data-email') || '';
+    if (!q || name.includes(q) || email.includes(q)) {
+      row.style.display = 'flex';
+    } else {
+      row.style.display = 'none';
+    }
+  });
+}
+
+function toggleAllSgmMentors(check) {
+  document.querySelectorAll('.sgm-mentor-row').forEach(row => {
+    if (row.style.display !== 'none') {
+      const cb = row.querySelector('.sgm-mentor-cb');
+      if (cb) cb.checked = check;
+    }
+  });
+  updateSgmMentorsSelectedCount();
+}
+
+function updateSgmMentorsSelectedCount() {
+  const selected = document.querySelectorAll('.sgm-mentor-cb:checked').length;
+  const badge = document.getElementById('sgm-mentors-selected-badge');
+  if (badge) {
+    badge.textContent = `${selected} Mentor${selected === 1 ? '' : 's'} Selected`;
+    if (selected > 0) {
+      badge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
+    } else {
+      badge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200';
+    }
   }
 }
 
@@ -1208,7 +1661,8 @@ async function handleScheduleSgm(e) {
   if (e) e.preventDefault();
   const submitBtn = document.getElementById('sgm-submit-btn');
   
-  const mentorId = document.getElementById('sgm-mentor').value;
+  const selectedMentorCbs = document.querySelectorAll('.sgm-mentor-cb:checked');
+  const mentorIds = Array.from(selectedMentorCbs).map(cb => parseInt(cb.value));
   const selectedCheckboxes = document.querySelectorAll('.sgm-mentee-cb:checked');
   const menteeIds = Array.from(selectedCheckboxes).map(cb => parseInt(cb.value));
   const title = document.getElementById('sgm-title').value.trim();
@@ -1221,8 +1675,8 @@ async function handleScheduleSgm(e) {
   const platform = document.getElementById('sgm-platform').value;
   const customLink = document.getElementById('sgm-custom-link') ? document.getElementById('sgm-custom-link').value.trim() : '';
 
-  if (!mentorId) {
-    showSgmStatus('Please select a lead mentor for the group session.', 'error');
+  if (mentorIds.length === 0) {
+    showSgmStatus('Please select at least one mentor for the small group session.', 'error');
     return;
   }
   if (menteeIds.length === 0) {
@@ -1251,7 +1705,8 @@ async function handleScheduleSgm(e) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        mentor_id: parseInt(mentorId),
+        mentor_ids: mentorIds,
+        mentor_id: mentorIds[0],
         mentee_ids: menteeIds,
         title: title,
         description: description,
@@ -1362,6 +1817,20 @@ document.addEventListener('DOMContentLoaded', function() {
     e.preventDefault();
     handleScheduleMeeting();
   });
+
+  // Supervisor edit form submit
+  const supEditForm = document.getElementById('supervisor-edit-form');
+  if (supEditForm) {
+    supEditForm.addEventListener('submit', handleSupervisorEditSubmit);
+  }
+
+  // Close supervisor edit modal when clicking outside
+  const supEditModal = document.getElementById('supervisor-edit-meeting-modal');
+  if (supEditModal) {
+    supEditModal.addEventListener('click', function(e) {
+      if (e.target === this) closeSupervisorEditModal();
+    });
+  }
 });
 
 // ===== Mentorship Connections & Saved Options for Supervisor =====
