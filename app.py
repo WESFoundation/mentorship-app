@@ -18514,35 +18514,45 @@ def delete_note(note_id):
 def generate_qr(url=None):
     """Generate a QR code PNG image for the given URL. Supports query param or path param."""
     try:
-        import qrcode
-        from io import BytesIO
-        
         target_url = url or request.args.get("url")
         if not target_url:
             target_url = request.host_url.rstrip('/') + '/programs'
         elif not (target_url.startswith("http://") or target_url.startswith("https://")):
             target_url = request.host_url.rstrip('/') + '/' + target_url.lstrip('/')
-            
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=10,
-            border=4,
-        )
-        qr.add_data(target_url)
-        qr.make(fit=True)
-        
-        # Use proper hex color with # prefix
-        img = qr.make_image(fill_color="#1e40af", back_color="#ffffff")
-        
-        buf = BytesIO()
-        img.save(buf, format='PNG')
-        buf.seek(0)
-        
+
+        try:
+            import qrcode
+            from io import BytesIO
+
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_M,
+                box_size=10,
+                border=4,
+            )
+            qr.add_data(target_url)
+            qr.make(fit=True)
+
+            img = qr.make_image(fill_color="#1e40af", back_color="#ffffff")
+
+            buf = BytesIO()
+            img.save(buf, format='PNG')
+            buf.seek(0)
+            png_bytes = buf.getvalue()
+        except Exception as qr_lib_err:
+            print(f"QR dependency fallback to qr_code_lib: {qr_lib_err}")
+            from io import BytesIO
+            from qr_code_lib import QRCode as LocalQRCode
+
+            png_bytes = LocalQRCode(target_url, error_correction='M').to_png(box_size=10, border=4)
+            buf = BytesIO(png_bytes)
+            buf.seek(0)
+
         from flask import send_file
         response = send_file(buf, mimetype='image/png')
         response.headers['Cache-Control'] = 'public, max-age=3600'
         response.headers['Content-Disposition'] = 'inline'
+        response.headers['Access-Control-Allow-Origin'] = '*'
         return response
     except Exception as e:
         print(f"QR generation error: {e}")
