@@ -12906,7 +12906,7 @@ def mentor_meeting_details():
 # ------------------- RESCHEDULE MEETING -------------------
 @app.route("/reschedule_meeting/<int:meeting_id>", methods=["POST"])
 def reschedule_meeting(meeting_id):
-    if "email" not in session or session.get("user_type") != "1":
+    if "email" not in session:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
 
     try:
@@ -12918,18 +12918,26 @@ def reschedule_meeting(meeting_id):
         if not new_date or not new_time:
             return jsonify({"success": False, "message": "Please provide new date and time"}), 400
 
-        mentor = User.query.filter_by(email=session["email"]).first()
-        meeting = MeetingRequest.query.get(meeting_id)
+        user = User.query.filter_by(email=session["email"]).first()
+        if not user:
+            return jsonify({"success": False, "message": "User not found"}), 404
 
+        meeting = MeetingRequest.query.get(meeting_id)
         if not meeting:
             return jsonify({"success": False, "message": "Meeting not found"}), 404
 
-        if meeting.requested_to_id != mentor.id:
+        user_type = str(user.user_type or session.get("user_type", ""))
+        is_participant = (meeting.requested_to_id == user.id or meeting.requester_id == user.id)
+        is_admin_or_sup = user_type in ("0", "3")
+        if not is_participant and not is_admin_or_sup:
             return jsonify({"success": False, "message": "You can only reschedule your own meetings"}), 403
 
-        # Parse new date and time
+        # Parse new date and time safely
         new_meeting_date = datetime.strptime(new_date, "%Y-%m-%d").date()
-        new_meeting_time = datetime.strptime(new_time, "%H:%M").time()
+        try:
+            new_meeting_time = datetime.strptime(new_time, "%H:%M").time()
+        except ValueError:
+            new_meeting_time = datetime.strptime(new_time, "%H:%M:%S").time()
 
         # Calculate original meeting datetime
         original_datetime = datetime.combine(meeting.meeting_date, meeting.meeting_time)
@@ -12959,12 +12967,14 @@ def reschedule_meeting(meeting_id):
         meeting.is_rescheduled = True
         meeting.reschedule_reason = reason if reason else None
         meeting.rescheduled_at = datetime.utcnow()
-        meeting.rescheduled_by_id = mentor.id
+        meeting.rescheduled_by_id = user.id
         meeting.status = "rescheduled"
 
         # Update calendar event if exists (Google Calendar or MS Teams)
+        calendar_updated = False
         if meeting.gcal_event_id:
-            if meeting.meet_link and "teams" in str(meeting.meet_link).lower():
+            is_teams = str(meeting.gcal_event_id).startswith("AAMk") or ("teams" in str(meeting.meet_link or "").lower())
+            if is_teams:
                 try:
                     new_start_datetime = datetime.combine(new_meeting_date, new_meeting_time)
                     duration_mins = int(meeting.meeting_duration or 60)
@@ -12976,29 +12986,37 @@ def reschedule_meeting(meeting_id):
                         tzobj = dt.timezone.utc
                     new_start_utc = new_start_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
                     new_end_utc = new_end_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
-                    update_teams_calendar_event(meeting.gcal_event_id, new_start_utc, new_end_utc)
-                    print(f"Microsoft Teams event updated for meeting {meeting_id}")
+                    calendar_updated = update_teams_calendar_event(
+                        meeting.gcal_event_id,
+                        new_start_utc,
+                        new_end_utc,
+                        title=meeting.meeting_title,
+                        description=meeting.meeting_description
+                    )
+                    app.logger.info(f"Microsoft Teams event {meeting.gcal_event_id} update result: {calendar_updated}")
                 except Exception as e:
-                    print(f"Error updating Teams calendar event for meeting {meeting_id}: {str(e)}")
+                    app.logger.error(f"Error updating Teams calendar event for meeting {meeting_id}: {e}")
             else:
                 try:
                     new_start_datetime = datetime.combine(new_meeting_date, new_meeting_time)
-                    update_google_calendar_event(
+                    calendar_updated = update_google_calendar_event(
                         event_id=meeting.gcal_event_id,
                         new_start_datetime=new_start_datetime,
                         duration_minutes=meeting.meeting_duration or 60,
-                        timezone=MEETING_TIMEZONE
+                        timezone=MEETING_TIMEZONE,
+                        title=meeting.meeting_title,
+                        description=meeting.meeting_description
                     )
-                    print(f"Google Calendar event updated for meeting {meeting_id}")
+                    app.logger.info(f"Google Calendar event {meeting.gcal_event_id} update result: {calendar_updated}")
                 except Exception as e:
-                    print(f"Error updating Google Calendar for meeting {meeting_id}: {str(e)}")
-                    # Continue even if calendar update fails
+                    app.logger.error(f"Error updating Google Calendar for meeting {meeting_id}: {e}")
 
         db.session.commit()
 
         return jsonify({
             "success": True,
             "message": "Meeting rescheduled successfully",
+            "calendar_updated": calendar_updated,
             "new_date": new_meeting_date.strftime("%Y-%m-%d"),
             "new_time": new_meeting_time.strftime("%I:%M %p")
         })
@@ -15535,52 +15553,62 @@ DELEGATED_EMAIL = os.environ.get("GOOGLE_DELEGATED_EMAIL", "info@wazireducations
 CALENDAR_ID = os.environ.get("GOOGLE_CALENDAR_ID", DELEGATED_EMAIL)  # Calendar where meetings are created
 MEETING_TIMEZONE = os.environ.get("GOOGLE_MEETING_TIMEZONE", "Asia/Kolkata")  # Fallback timezone for calendar events
 
-def get_calendar_service():
-    """Return Google Calendar API service, or None if credentials are unavailable.
-
-    Tries service_account.json first, then falls back to the GOOGLE_* variables
-    loaded from .env. Never raises: callers treat None as "calendar unavailable"
-    so meeting scheduling keeps working without Google Calendar integration.
-    """
+def get_raw_service_account_credentials():
+    """Return raw Google service account credentials without delegation."""
     try:
         if os.path.exists(SERVICE_ACCOUNT_FILE):
-            creds = service_account.Credentials.from_service_account_file(
+            return service_account.Credentials.from_service_account_file(
                 SERVICE_ACCOUNT_FILE, scopes=CALENDAR_SERVICE_SCOPES
             )
-        else:
-            private_key = os.environ.get("GOOGLE_PRIVATE_KEY", "")
-            client_email = os.environ.get("GOOGLE_CLIENT_EMAIL", "")
-            if not private_key or not client_email:
-                app.logger.warning(
-                    "Google Calendar unavailable: service_account.json not found and "
-                    "GOOGLE_CLIENT_EMAIL/GOOGLE_PRIVATE_KEY missing from environment"
-                )
-                return None
-            service_account_info = {
-                "type": "service_account",
-                "project_id": os.environ.get("GOOGLE_PROJECT_ID", ""),
-                "private_key_id": os.environ.get("GOOGLE_PRIVATE_KEY_ID", ""),
-                "private_key": private_key.replace("\\n", "\n"),
-                "client_email": client_email,
-                "client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
-                "auth_uri": os.environ.get(
-                    "GOOGLE_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"
-                ),
-                "token_uri": os.environ.get(
-                    "GOOGLE_TOKEN_URI", "https://oauth2.googleapis.com/token"
-                ),
-                "auth_provider_x509_cert_url": os.environ.get(
-                    "GOOGLE_AUTH_PROVIDER_CERT_URL",
-                    "https://www.googleapis.com/oauth2/v1/certs",
-                ),
-                "client_x509_cert_url": os.environ.get("GOOGLE_CLIENT_CERT_URL", ""),
-            }
-            creds = service_account.Credentials.from_service_account_info(
-                service_account_info, scopes=CALENDAR_SERVICE_SCOPES
-            )
-        delegated_creds = creds.with_subject(DELEGATED_EMAIL)
-        service = build("calendar", "v3", credentials=delegated_creds)
-        return service
+        private_key = os.environ.get("GOOGLE_PRIVATE_KEY", "")
+        client_email = os.environ.get("GOOGLE_CLIENT_EMAIL", "")
+        if not private_key or not client_email:
+            return None
+        service_account_info = {
+            "type": "service_account",
+            "project_id": os.environ.get("GOOGLE_PROJECT_ID", ""),
+            "private_key_id": os.environ.get("GOOGLE_PRIVATE_KEY_ID", ""),
+            "private_key": private_key.replace("\\n", "\n"),
+            "client_email": client_email,
+            "client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
+            "auth_uri": os.environ.get(
+                "GOOGLE_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"
+            ),
+            "token_uri": os.environ.get(
+                "GOOGLE_TOKEN_URI", "https://oauth2.googleapis.com/token"
+            ),
+            "auth_provider_x509_cert_url": os.environ.get(
+                "GOOGLE_AUTH_PROVIDER_CERT_URL",
+                "https://www.googleapis.com/oauth2/v1/certs",
+            ),
+            "client_x509_cert_url": os.environ.get("GOOGLE_CLIENT_CERT_URL", ""),
+        }
+        return service_account.Credentials.from_service_account_info(
+            service_account_info, scopes=CALENDAR_SERVICE_SCOPES
+        )
+    except Exception as e:
+        app.logger.error(f"Could not load service account credentials: {e}")
+        return None
+
+def get_calendar_service(delegated=True):
+    """Return Google Calendar API service, or None if credentials are unavailable.
+
+    If delegated=True, delegates to DELEGATED_EMAIL.
+    If delegated=False, uses raw service account credentials.
+    """
+    try:
+        creds = get_raw_service_account_credentials()
+        if not creds:
+            app.logger.warning("Google Calendar unavailable: credentials missing")
+            return None
+        if delegated:
+            try:
+                delegated_creds = creds.with_subject(DELEGATED_EMAIL)
+                return build("calendar", "v3", credentials=delegated_creds)
+            except Exception as e:
+                app.logger.warning(f"Could not delegate credentials to {DELEGATED_EMAIL}: {e}")
+                return build("calendar", "v3", credentials=creds)
+        return build("calendar", "v3", credentials=creds)
     except Exception as e:
         app.logger.error(f"Could not initialize Google Calendar service: {e}")
         return None
@@ -15588,14 +15616,10 @@ def get_calendar_service():
 def update_google_calendar_event(event_id, new_start_datetime, duration_minutes=60, timezone=None, title=None, description=None):
     """
     Updates the start/end times (and optionally summary/description) of a Google Calendar event.
-    Ensures RFC 3339 compliance with timezone offsets and tries CALENDAR_ID then 'primary'.
+    Tries delegated calendar (CALENDAR_ID) first, then falls back to direct service account calendar.
     Returns True on success, False on failure.
     """
     if not event_id:
-        return False
-    service = get_calendar_service()
-    if not service:
-        app.logger.warning("Google Calendar service unavailable for event update")
         return False
 
     tz_name = timezone or MEETING_TIMEZONE or "Asia/Kolkata"
@@ -15633,58 +15657,68 @@ def update_google_calendar_event(event_id, new_start_datetime, duration_minutes=
     if description:
         event_update["description"] = description
 
-    try:
+    # 1. Try delegated service on CALENDAR_ID
+    del_service = get_calendar_service(delegated=True)
+    if del_service:
         try:
-            service.events().patch(
+            del_service.events().patch(
                 calendarId=CALENDAR_ID,
                 eventId=event_id,
                 body=event_update,
                 sendUpdates="all"
             ).execute()
-            app.logger.info(f"Google Calendar event {event_id} updated successfully on {CALENDAR_ID}")
+            app.logger.info(f"Google Calendar event {event_id} updated successfully on delegated calendar {CALENDAR_ID}")
             return True
         except Exception as e:
-            if ("404" in str(e) or "notFound" in str(e)) and CALENDAR_ID != "primary":
-                service.events().patch(
-                    calendarId="primary",
-                    eventId=event_id,
-                    body=event_update,
-                    sendUpdates="all"
-                ).execute()
-                app.logger.info(f"Google Calendar event {event_id} updated successfully on primary calendar")
-                return True
-            raise
-    except Exception as e:
-        app.logger.error(f"Error updating Google Calendar event {event_id}: {e}")
-        return False
+            if not ("404" in str(e) or "notFound" in str(e)):
+                app.logger.warning(f"Delegated calendar update failed: {e}")
+
+    # 2. Try raw service account on primary
+    raw_service = get_calendar_service(delegated=False)
+    if raw_service:
+        try:
+            raw_service.events().patch(
+                calendarId="primary",
+                eventId=event_id,
+                body=event_update,
+                sendUpdates="all"
+            ).execute()
+            app.logger.info(f"Google Calendar event {event_id} updated successfully on raw service account calendar")
+            return True
+        except Exception as e:
+            app.logger.error(f"Error updating Google Calendar event {event_id} on raw service account: {e}")
+
+    return False
 
 def delete_google_calendar_event(event_id):
-    """Delete a Google Calendar event by ID. Tries CALENDAR_ID then 'primary'."""
+    """Delete a Google Calendar event by ID. Tries delegated CALENDAR_ID then raw service account."""
     if not event_id:
         return False
-    service = get_calendar_service()
-    if not service:
-        return False
-    try:
+    del_service = get_calendar_service(delegated=True)
+    if del_service:
         try:
-            service.events().delete(
+            del_service.events().delete(
                 calendarId=CALENDAR_ID,
                 eventId=event_id,
                 sendUpdates="all"
             ).execute()
             return True
         except Exception as e:
-            if ("404" in str(e) or "notFound" in str(e)) and CALENDAR_ID != "primary":
-                service.events().delete(
-                    calendarId="primary",
-                    eventId=event_id,
-                    sendUpdates="all"
-                ).execute()
-                return True
-            raise
-    except Exception as e:
-        app.logger.error(f"Error deleting Google Calendar event {event_id}: {e}")
-        return False
+            if not ("404" in str(e) or "notFound" in str(e)):
+                app.logger.warning(f"Delegated calendar delete failed: {e}")
+
+    raw_service = get_calendar_service(delegated=False)
+    if raw_service:
+        try:
+            raw_service.events().delete(
+                calendarId="primary",
+                eventId=event_id,
+                sendUpdates="all"
+            ).execute()
+            return True
+        except Exception as e:
+            app.logger.error(f"Error deleting Google Calendar event {event_id} on raw service account: {e}")
+    return False
 
 MS_GRAPH_TENANT_ID = os.environ.get("MS_GRAPH_TENANT_ID") or os.environ.get("MS_TENANT_ID")
 MS_GRAPH_CLIENT_ID = os.environ.get("MS_GRAPH_CLIENT_ID") or os.environ.get("MS_CLIENT_ID")
@@ -15796,6 +15830,23 @@ def update_teams_calendar_event(event_id, new_start_utc, new_end_utc, title=None
     if not token:
         return False
     try:
+        # Convert string ISO dates if needed
+        if isinstance(new_start_utc, str):
+            try:
+                new_start_utc = dt.datetime.fromisoformat(new_start_utc.replace("Z", "+00:00"))
+            except Exception:
+                pass
+        if isinstance(new_end_utc, str):
+            try:
+                new_end_utc = dt.datetime.fromisoformat(new_end_utc.replace("Z", "+00:00"))
+            except Exception:
+                pass
+
+        if hasattr(new_start_utc, "tzinfo") and new_start_utc.tzinfo is not None:
+            new_start_utc = new_start_utc.astimezone(dt.timezone.utc)
+        if hasattr(new_end_utc, "tzinfo") and new_end_utc.tzinfo is not None:
+            new_end_utc = new_end_utc.astimezone(dt.timezone.utc)
+
         url = f"https://graph.microsoft.com/v1.0/users/{MS_GRAPH_ORGANIZER_EMAIL}/events/{event_id}"
         patch_body = {
             "start": {
@@ -16677,7 +16728,8 @@ def update_meeting_ajax():
         meeting.meeting_date = meeting_date
         meeting.meeting_time = meeting_time
         meeting.meeting_duration = meeting_duration
-        meeting.meet_link = meet_link if meet_link else meeting.meet_link
+        if meet_link and not meet_link.endswith("/new") and not meet_link.endswith("/create"):
+            meeting.meet_link = meet_link
 
         # Preserve and re-save participants metadata
         participants = _get_meeting_participants(meeting.id) or {}
@@ -16709,8 +16761,10 @@ def update_meeting_ajax():
         meeting.meeting_description = _embed_meeting_participants(new_desc, participants)
 
         # Update calendar event if exists (Google Calendar or MS Teams)
+        calendar_updated = False
         if meeting.gcal_event_id:
-            if meeting.meet_link and "teams" in str(meeting.meet_link).lower():
+            is_teams = str(meeting.gcal_event_id).startswith("AAMk") or ("teams" in str(meeting.meet_link or "").lower())
+            if is_teams:
                 try:
                     try:
                         from zoneinfo import ZoneInfo
@@ -16718,13 +16772,14 @@ def update_meeting_ajax():
                     except Exception:
                         tzobj = dt.timezone.utc
                     new_start_utc = new_dt.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
-                    new_end_utc = (new_dt + dt.timedelta(minutes=meeting_duration)).replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
-                    update_teams_calendar_event(meeting.gcal_event_id, new_start_utc, new_end_utc, title=title, description=new_desc)
+                    new_end_utc = (new_dt + timedelta(minutes=meeting_duration)).replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
+                    calendar_updated = update_teams_calendar_event(meeting.gcal_event_id, new_start_utc, new_end_utc, title=title, description=new_desc)
+                    app.logger.info(f"Teams event {meeting.gcal_event_id} update result on edit: {calendar_updated}")
                 except Exception as e:
                     app.logger.error(f"Error updating Teams calendar event on edit: {e}")
             else:
                 try:
-                    update_google_calendar_event(
+                    calendar_updated = update_google_calendar_event(
                         event_id=meeting.gcal_event_id,
                         new_start_datetime=new_dt,
                         duration_minutes=meeting_duration,
@@ -16732,6 +16787,7 @@ def update_meeting_ajax():
                         title=title,
                         description=new_desc
                     )
+                    app.logger.info(f"Google Calendar event {meeting.gcal_event_id} update result on edit: {calendar_updated}")
                 except Exception as e:
                     app.logger.error(f"Error updating Google Calendar event on edit: {e}")
 
@@ -16779,7 +16835,7 @@ def update_meeting_ajax():
             except Exception as e:
                 app.logger.error(f"Failed to send institution notification on edit: {e}")
 
-        return jsonify({"success": True, "message": "Meeting updated successfully"})
+        return jsonify({"success": True, "message": "Meeting updated successfully", "calendar_updated": calendar_updated})
     except ValueError as e:
         db.session.rollback()
         return jsonify({"error": f"Invalid date or time format: {e}"}), 400
