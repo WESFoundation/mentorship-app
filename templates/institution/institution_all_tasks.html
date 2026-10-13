@@ -904,10 +904,8 @@ async function initializePage() {
         console.warn("Error reading cached analytics:", e);
     }
 
-    // 2. Fetch fresh analytics without loading all tasks
-    await loadInstitutionAnalytics();
-    document.getElementById('loading-state').classList.add('hidden');
-    document.getElementById('tasks-empty-state').classList.remove('hidden');
+    // 2. Fetch tasks and populate filters immediately
+    loadInstitutionTasks(true);
 }
 
 // Load analytics immediately on page load (does NOT load tasks)

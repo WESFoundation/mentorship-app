@@ -5691,12 +5691,22 @@ def get_institution_tasks_data():
 
     inst_id_val = institution_id or user.id
 
-    # Pre-fetch all mentee feedbacks and institution reflections
+    # Pre-fetch all mentee feedbacks and reflections in bulk
     mentee_feedbacks = MenteeFeedback.query.all()
     mentee_fb_map = {(mf.task_type, mf.task_id): mf for mf in mentee_feedbacks}
     mentee_fb_dual_map = {(mf.task_type, mf.task_id, mf.mentee_id): mf for mf in mentee_feedbacks if mf.mentee_id}
+    mentee_fb_set = set()
+    for mf in mentee_feedbacks:
+        if bool((mf.rating and mf.rating > 0) or (mf.mentor_rating and mf.mentor_rating > 0) or (mf.text or '').strip() or (mf.challenges or '').strip() or (mf.next_steps or '').strip() or (mf.extra or '').strip()):
+            mentee_fb_set.add((mf.task_type, mf.task_id, mf.mentee_id))
+            mentee_fb_set.add((mf.task_type, mf.task_id))
+
+    all_mentor_reflections = MentorReflection.query.all()
+    mentor_refl_set = {(mr.task_type, mr.task_id) for mr in all_mentor_reflections if bool((mr.text or '').strip() or (mr.extra or '').strip())}
+
     inst_reflections = InstitutionReflection.query.filter_by(institution_id=inst_id_val).all()
     inst_refl_map = {(ir.task_type, ir.task_id): bool((ir.text or '').strip() or (ir.notes or '').strip()) for ir in inst_reflections}
+    inst_refl_set = {(ir.task_type, ir.task_id) for ir in inst_reflections if bool((ir.text or '').strip() or (ir.notes or '').strip())}
 
     def _resolve_api_task_fb(ttype, tid, mid=None, master_tid=None):
         fb = mentee_fb_map.get((ttype, tid))
@@ -5768,7 +5778,8 @@ def get_institution_tasks_data():
         
         t_status = compute_task_progress_status(
             "personal", task.id, task.mentee_id, task.mentor_id or None,
-            ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
+            ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata,
+            task_obj=task, mentee_fb_set=mentee_fb_set, mentor_refl_set=mentor_refl_set, inst_refl_set=inst_refl_set
         )
         tasks_data.append({
             "id": f"personal_{task.id}",
@@ -5806,7 +5817,8 @@ def get_institution_tasks_data():
         
         t_status = compute_task_progress_status(
             "master", task.id, task.mentee_id, task.mentor_id,
-            ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
+            ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata,
+            task_obj=task, mentee_fb_set=mentee_fb_set, mentor_refl_set=mentor_refl_set, inst_refl_set=inst_refl_set
         )
         task_num = getattr(task, 'meeting_number', None) or (master_task.meeting_number if master_task else None)
         tasks_data.append({
