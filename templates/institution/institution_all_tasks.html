@@ -993,8 +993,8 @@ async function loadInstitutionTasks(reset = true) {
 
         const params = new URLSearchParams();
         if (currentFilter && currentFilter !== 'all') params.set('status', currentFilter);
-        if (currentMentorFilter && currentMentorFilter !== 'all') params.set('mentor_id', currentMentorFilter);
-        if (currentMenteeFilter && currentMenteeFilter !== 'all') params.set('mentee_id', currentMenteeFilter);
+        if (currentMentorFilter && currentMentorFilter !== 'all' && currentMentorFilter !== 'none') params.set('mentor_id', currentMentorFilter);
+        if (currentMenteeFilter && currentMenteeFilter !== 'all' && currentMenteeFilter !== 'none') params.set('mentee_id', currentMenteeFilter);
         if (currentPriorityFilter && currentPriorityFilter !== 'all') params.set('priority', currentPriorityFilter);
         if (currentCategoryFilter && currentCategoryFilter !== 'all') params.set('category', currentCategoryFilter);
         if (currentTaskTypeFilter && currentTaskTypeFilter !== 'all') params.set('type', currentTaskTypeFilter);
@@ -1144,14 +1144,20 @@ function populateFilters() {
 
     // Populate category filter
     const categoryFilter = document.getElementById('category-filter');
-    while (categoryFilter.children.length > 1) categoryFilter.removeChild(categoryFilter.lastChild);
-    const categories = [...new Set(allTasks.map(t => t.category).filter(c => c))].sort();
-    categories.forEach(cat => {
-        const option = document.createElement('option');
-        option.value = cat;
-        option.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
-        categoryFilter.appendChild(option);
+    const existingCats = new Set();
+    for (let i = 1; i < categoryFilter.children.length; i++) {
+        existingCats.add(categoryFilter.children[i].value);
+    }
+    (allTasks || []).map(t => t.category).filter(Boolean).forEach(cat => {
+        if (!existingCats.has(cat)) {
+            existingCats.add(cat);
+            const option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
+            categoryFilter.appendChild(option);
+        }
     });
+    categoryFilter.value = currentCategoryFilter || 'all';
 }
 
 // Render tasks based on filters
@@ -1182,10 +1188,10 @@ function renderTasks() {
                              (currentFilter === 'in-progress' ? (task.status === 'in-progress' || task.status === 'inprogress') :
                              task.status === currentFilter)))));
         const matchesSearch = currentSearch === '' || 
-                            task.title.toLowerCase().includes(currentSearch.toLowerCase()) ||
-                            (task.description && task.description.toLowerCase().includes(currentSearch.toLowerCase())) ||
-                            task.mentorName.toLowerCase().includes(currentSearch.toLowerCase()) ||
-                            task.menteeName.toLowerCase().includes(currentSearch.toLowerCase());
+                            (task.title || '').toLowerCase().includes(currentSearch.toLowerCase()) ||
+                            ((task.description || '').toLowerCase().includes(currentSearch.toLowerCase())) ||
+                            ((task.mentorName || '').toLowerCase().includes(currentSearch.toLowerCase())) ||
+                            ((task.menteeName || '').toLowerCase().includes(currentSearch.toLowerCase()));
         const matchesMentor = currentMentorFilter === 'all' || String(task.mentorId) === String(currentMentorFilter);
         const matchesMentee = currentMenteeFilter === 'all' || String(task.menteeId) === String(currentMenteeFilter);
         const matchesPriority = currentPriorityFilter === 'all' || task.priority === currentPriorityFilter;
@@ -1310,8 +1316,8 @@ function loadMoreTasks(count = 50) {
         // Build params with current filters and next offset
         const params = new URLSearchParams();
         if (currentFilter && currentFilter !== 'all') params.set('status', currentFilter);
-        if (currentMentorFilter && currentMentorFilter !== 'all') params.set('mentor_id', currentMentorFilter);
-        if (currentMenteeFilter && currentMenteeFilter !== 'all') params.set('mentee_id', currentMenteeFilter);
+        if (currentMentorFilter && currentMentorFilter !== 'all' && currentMentorFilter !== 'none') params.set('mentor_id', currentMentorFilter);
+        if (currentMenteeFilter && currentMenteeFilter !== 'all' && currentMenteeFilter !== 'none') params.set('mentee_id', currentMenteeFilter);
         if (currentPriorityFilter && currentPriorityFilter !== 'all') params.set('priority', currentPriorityFilter);
         if (currentCategoryFilter && currentCategoryFilter !== 'all') params.set('category', currentCategoryFilter);
         if (currentTaskTypeFilter && currentTaskTypeFilter !== 'all') params.set('type', currentTaskTypeFilter);
@@ -1738,45 +1744,28 @@ function formatDate(dateString) {
 // Filter functions
 function filterTasks(filter) {
     currentFilter = filter;
-    if (allTasks && allTasks.length > 0) {
-        renderTasks();
-    } else {
-        loadInstitutionTasks();
-    }
+    loadInstitutionTasks(true);
 }
 
 function filterByTaskType(type) {
     currentTaskTypeFilter = type;
-    if (allTasks && allTasks.length > 0) {
-        renderTasks();
-    } else {
-        loadInstitutionTasks();
-    }
+    loadInstitutionTasks(true);
 }
 
 function searchTasks(searchTerm) {
-    currentSearch = searchTerm.toLowerCase();
+    currentSearch = (searchTerm || '').toLowerCase();
     renderTasks();
 }
 
 function filterByMentor(mentorId) {
     currentMentorFilter = mentorId;
-    currentMenteeFilter = 'all';
     updateMenteeDropdownForMentor(mentorId);
-    if (allTasks && allTasks.length > 0) {
-        renderTasks();
-    } else {
-        loadInstitutionTasks();
-    }
+    loadInstitutionTasks(true);
 }
 
 function filterByMentee(menteeId) {
     currentMenteeFilter = menteeId;
-    if (allTasks && allTasks.length > 0) {
-        renderTasks();
-    } else {
-        loadInstitutionTasks();
-    }
+    loadInstitutionTasks(true);
 }
 
 function toggleAdvancedFilters() {
@@ -1806,11 +1795,7 @@ function clearAllFilters() {
     document.getElementById('due-from').value = '';
     document.getElementById('due-to').value = '';
 
-    if (allTasks && allTasks.length > 0) {
-        renderTasks();
-    } else {
-        loadInstitutionTasks();
-    }
+    loadInstitutionTasks(true);
 }
 
 function updateActiveFiltersDisplay() {
@@ -2336,21 +2321,13 @@ function setupEventListeners() {
     // Priority filter
     document.getElementById('priority-filter').addEventListener('change', (e) => {
         currentPriorityFilter = e.target.value;
-        if (allTasks && allTasks.length > 0) {
-            renderTasks();
-        } else {
-            loadInstitutionTasks();
-        }
+        loadInstitutionTasks(true);
     });
 
     // Category filter
     document.getElementById('category-filter').addEventListener('change', (e) => {
         currentCategoryFilter = e.target.value;
-        if (allTasks && allTasks.length > 0) {
-            renderTasks();
-        } else {
-            loadInstitutionTasks();
-        }
+        loadInstitutionTasks(true);
     });
 
     // Date range filters

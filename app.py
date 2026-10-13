@@ -2530,7 +2530,8 @@ from mobile_api import register_mobile_api
 register_mobile_api(
     app, db, User, MentorProfile, MenteeProfile, Institution,
     SupervisorProfile, MenteeTask, MentorshipRequest, MeetingRequest, Notification,
-    PersonalTask=PersonalTask, MasterTask=MasterTask
+    PersonalTask=PersonalTask, MasterTask=MasterTask, TaskRating=TaskRating,
+    MenteeFeedback=MenteeFeedback, MentorReflection=MentorReflection
 )
 
 
@@ -5720,24 +5721,27 @@ def get_institution_tasks_data():
             return True
         return False
     
+    f_mentor_id = int(f_mentor) if f_mentor.isdigit() else None
+    f_mentee_id = int(f_mentee) if f_mentee.isdigit() else None
+
     tasks_data = []
     
     # Get Personal Tasks (filtered)
     pt_query = PersonalTask.query.filter(PersonalTask.mentee_id.in_(institution_user_ids))
-    if f_mentee:
-        pt_query = pt_query.filter_by(mentee_id=int(f_mentee))
-    if f_mentor:
-        pt_query = pt_query.filter_by(mentor_id=int(f_mentor))
-    if f_priority:
+    if f_mentee_id is not None:
+        pt_query = pt_query.filter_by(mentee_id=f_mentee_id)
+    if f_mentor_id is not None:
+        pt_query = pt_query.filter_by(mentor_id=f_mentor_id)
+    if f_priority and f_priority != 'all':
         pt_query = pt_query.filter_by(priority=f_priority)
     personal_tasks = pt_query.all()
 
     # Get Mentee Tasks (Master Tasks, filtered)
     mt_query = MenteeTask.query.filter(MenteeTask.mentee_id.in_(institution_user_ids))
-    if f_mentee:
-        mt_query = mt_query.filter_by(mentee_id=int(f_mentee))
-    if f_mentor:
-        mt_query = mt_query.filter_by(mentor_id=int(f_mentor))
+    if f_mentee_id is not None:
+        mt_query = mt_query.filter_by(mentee_id=f_mentee_id)
+    if f_mentor_id is not None:
+        mt_query = mt_query.filter_by(mentor_id=f_mentor_id)
     mentee_tasks = mt_query.all()
     
     # Batch-fetch users and master tasks to eliminate N+1 queries
@@ -5850,9 +5854,11 @@ def get_institution_tasks_data():
             tasks_data = [t for t in tasks_data if t.get('status') == f_status]
     if f_type:
         tasks_data = [t for t in tasks_data if t.get('type') == f_type]
-    if f_category:
+    if f_category and f_category != 'all':
         cat_lower = f_category.lower()
         tasks_data = [t for t in tasks_data if t.get('category', '').lower() == cat_lower]
+    if f_priority and f_priority != 'all':
+        tasks_data = [t for t in tasks_data if (t.get('priority') or '').lower() == f_priority.lower()]
 
     # Compute active mentorship mentor-to-mentees mapping
     active_mrs = MentorshipRequest.query.filter(
@@ -5862,13 +5868,18 @@ def get_institution_tasks_data():
     for mr in active_mrs:
         mentor_to_mentees_map.setdefault(str(mr.mentor_id), []).append(str(mr.mentee_id))
 
-    # Also augment with tasks data
-    for t in tasks_data:
-        if t.get('mentorId') and t.get('menteeId'):
-            m_str = str(t['mentorId'])
-            me_str = str(t['menteeId'])
-            if m_str not in mentor_to_mentees_map:
-                mentor_to_mentees_map[m_str] = []
+    # Also augment with all pairs across tasks in DB
+    for mt in MenteeTask.query.with_entities(MenteeTask.mentor_id, MenteeTask.mentee_id).distinct().all():
+        if mt[0] and mt[1]:
+            m_str, me_str = str(mt[0]), str(mt[1])
+            mentor_to_mentees_map.setdefault(m_str, [])
+            if me_str not in mentor_to_mentees_map[m_str]:
+                mentor_to_mentees_map[m_str].append(me_str)
+
+    for pt in PersonalTask.query.with_entities(PersonalTask.mentor_id, PersonalTask.mentee_id).distinct().all():
+        if pt[0] and pt[1]:
+            m_str, me_str = str(pt[0]), str(pt[1])
+            mentor_to_mentees_map.setdefault(m_str, [])
             if me_str not in mentor_to_mentees_map[m_str]:
                 mentor_to_mentees_map[m_str].append(me_str)
 
@@ -12203,22 +12214,25 @@ def get_supervisor_tasks_data():
             rating_val = fb.rating or fb.mentor_rating or 0
             return has_fb, rating_val
 
+        f_mentor_id = int(f_mentor) if f_mentor.isdigit() else None
+        f_mentee_id = int(f_mentee) if f_mentee.isdigit() else None
+
         # Build filtered query for personal tasks
         pt_query = PersonalTask.query
-        if f_mentee:
-            pt_query = pt_query.filter_by(mentee_id=int(f_mentee))
-        if f_mentor:
-            pt_query = pt_query.filter_by(mentor_id=int(f_mentor))
-        if f_priority:
+        if f_mentee_id is not None:
+            pt_query = pt_query.filter_by(mentee_id=f_mentee_id)
+        if f_mentor_id is not None:
+            pt_query = pt_query.filter_by(mentor_id=f_mentor_id)
+        if f_priority and f_priority != 'all':
             pt_query = pt_query.filter_by(priority=f_priority)
         personal_tasks = pt_query.all()
 
         # Build filtered query for mentee (master) tasks
         mt_query = MenteeTask.query
-        if f_mentee:
-            mt_query = mt_query.filter_by(mentee_id=int(f_mentee))
-        if f_mentor:
-            mt_query = mt_query.filter_by(mentor_id=int(f_mentor))
+        if f_mentee_id is not None:
+            mt_query = mt_query.filter_by(mentee_id=f_mentee_id)
+        if f_mentor_id is not None:
+            mt_query = mt_query.filter_by(mentor_id=f_mentor_id)
         mentee_tasks = mt_query.all()
 
         # Batch-fetch users
@@ -12285,7 +12299,9 @@ def get_supervisor_tasks_data():
             mentee = users_map.get(task.mentee_id)
             mentor = users_map.get(task.mentor_id)
             
-            if master_task and mentee and mentor:
+            if master_task:
+                mentor_name = mentor.name if mentor else (f"Mentor #{task.mentor_id}" if task.mentor_id else "Self-assigned")
+                mentee_name = mentee.name if mentee else f"Mentee #{task.mentee_id}"
                 rating_obj = ratings_map.get(('master', task.id))
                 has_mf, mf_rating = _resolve_task_mentee_fb("master", task.id, task.mentee_id, task.task_id)
                 due_date = task.due_date or default_due
@@ -12299,17 +12315,18 @@ def get_supervisor_tasks_data():
                 
                 tasks.append({
                     'id': f"master_{task.id}",
+                    'serial': f"M-{task.id}",
                     'title': f"{master_task.purpose_of_call} - {master_task.month}",
                     'description': master_task.mentee_focus or 'No description provided',
                     'dueDate': due_date.isoformat() if hasattr(due_date, 'isoformat') else str(due_date),
-                    'priority': 'medium',
+                    'priority': getattr(task, 'priority', None) or 'high',
                     'status': status,
                     'progress': task.progress or 0,
                     'mentorId': task.mentor_id,
-                    'mentorName': mentor.name,
+                    'mentorName': mentor_name,
                     'mentorIsCorporate': _is_mentor_corp(mentor),
                     'menteeId': task.mentee_id,
-                    'menteeName': mentee.name,
+                    'menteeName': mentee_name,
                     'category': 'Mentorship Task',
                     'rating': rating_obj.rating if rating_obj else None,
                     'menteeRating': mf_rating,
@@ -12350,7 +12367,7 @@ def get_supervisor_tasks_data():
         }
 
         # Apply status and category filters (applied after status computation)
-        if f_status:
+        if f_status and f_status != 'all':
             if f_status == 'done':
                 tasks = [t for t in tasks if t.get('status') in ('done', 'completed')]
             elif f_status == 'not-started':
@@ -12365,9 +12382,11 @@ def get_supervisor_tasks_data():
                 tasks = [t for t in tasks if t.get('isCritical') and t.get('status') not in ('done', 'completed')]
             else:
                 tasks = [t for t in tasks if t.get('status') == f_status]
-        if f_category:
+        if f_category and f_category != 'all':
             cat_lower = f_category.lower()
             tasks = [t for t in tasks if t.get('category', '').lower() == cat_lower]
+        if f_priority and f_priority != 'all':
+            tasks = [t for t in tasks if (t.get('priority') or '').lower() == f_priority.lower()]
 
         # Add serial numbers to tasks for frontend display
         for i, t in enumerate(tasks, start=1):
@@ -12384,12 +12403,17 @@ def get_supervisor_tasks_data():
         for mr in active_mrs:
             mentor_to_mentees_map.setdefault(str(mr.mentor_id), []).append(str(mr.mentee_id))
 
-        for t in tasks:
-            if t.get('mentorId') and t.get('menteeId'):
-                m_str = str(t['mentorId'])
-                me_str = str(t['menteeId'])
-                if m_str not in mentor_to_mentees_map:
-                    mentor_to_mentees_map[m_str] = []
+        for mt in MenteeTask.query.with_entities(MenteeTask.mentor_id, MenteeTask.mentee_id).distinct().all():
+            if mt[0] and mt[1]:
+                m_str, me_str = str(mt[0]), str(mt[1])
+                mentor_to_mentees_map.setdefault(m_str, [])
+                if me_str not in mentor_to_mentees_map[m_str]:
+                    mentor_to_mentees_map[m_str].append(me_str)
+
+        for pt in PersonalTask.query.with_entities(PersonalTask.mentor_id, PersonalTask.mentee_id).distinct().all():
+            if pt[0] and pt[1]:
+                m_str, me_str = str(pt[0]), str(pt[1])
+                mentor_to_mentees_map.setdefault(m_str, [])
                 if me_str not in mentor_to_mentees_map[m_str]:
                     mentor_to_mentees_map[m_str].append(me_str)
 

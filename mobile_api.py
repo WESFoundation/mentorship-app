@@ -46,8 +46,20 @@ def get_current_user_from_req(User):
     if email:
         return User.query.filter(func.lower(User.email) == email.strip().lower()).first()
 
-    # Fallback to user_id parameter if provided
-    user_id = request.args.get("user_id") or (request.is_json and request.json.get("user_id"))
+    # Fallback to user_id, mentor_id, or mentee_id parameter if provided
+    user_id = (
+        request.args.get("user_id")
+        or request.args.get("mentor_id")
+        or request.args.get("mentee_id")
+        or (
+            request.is_json
+            and (
+                request.json.get("user_id")
+                or request.json.get("mentor_id")
+                or request.json.get("mentee_id")
+            )
+        )
+    )
     if user_id:
         try:
             return User.query.get(int(user_id))
@@ -128,6 +140,27 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         except Exception:
             MasterTask = None
 
+    TaskRating = kwargs.get("TaskRating")
+    if TaskRating is None:
+        try:
+            TaskRating = db.Model._decl_class_registry.get("TaskRating")
+        except Exception:
+            TaskRating = None
+
+    MenteeFeedback = kwargs.get("MenteeFeedback")
+    if MenteeFeedback is None:
+        try:
+            MenteeFeedback = db.Model._decl_class_registry.get("MenteeFeedback")
+        except Exception:
+            MenteeFeedback = None
+
+    MentorReflection = kwargs.get("MentorReflection")
+    if MentorReflection is None:
+        try:
+            MentorReflection = db.Model._decl_class_registry.get("MentorReflection")
+        except Exception:
+            MentorReflection = None
+
     # -------------------------------------------------------------
     # 0. UNIVERSAL FILE / PHOTO UPLOAD
     # -------------------------------------------------------------
@@ -168,6 +201,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         data = request.get_json(silent=True) or {}
         email = (data.get("email") or "").strip().lower()
         password = data.get("password") or ""
+        is_oauth = bool(data.get("is_oauth") or data.get("oauth"))
 
         if not email:
             return jsonify({"success": False, "message": "Email is required"}), 400
@@ -176,7 +210,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         if not user:
             return jsonify({"success": False, "message": "User not found"}), 404
 
-        if user.password:
+        if not is_oauth and user.password:
             valid = False
             try:
                 valid = check_password_hash(user.password, password)
@@ -494,12 +528,13 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             }
         })
 
+    @api_bp.route("/mentors", methods=["GET"])
     @api_bp.route("/mentee/mentors", methods=["GET"])
     def api_get_all_mentors():
         """Returns list of registered mentors with formatted photos and computed ratings."""
         mentors = db.session.query(User, MentorProfile).outerjoin(
             MentorProfile, User.id == MentorProfile.user_id
-        ).filter(User.user_type == "1").limit(60).all()
+        ).filter(or_(User.user_type == "1", User.user_type == "mentor")).limit(100).all()
 
         mentor_list = []
         for u, mp in mentors:
@@ -531,6 +566,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
         reqs = MentorshipRequest.query.filter(
             MentorshipRequest.mentee_id == user.id,
+            MentorshipRequest.final_status != "rejected",
             or_(
                 MentorshipRequest.final_status == "approved",
                 MentorshipRequest.supervisor_status == "approved",
@@ -671,6 +707,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
         reqs = MentorshipRequest.query.filter(
             MentorshipRequest.mentor_id == user.id,
+            MentorshipRequest.final_status != "rejected",
             or_(
                 MentorshipRequest.final_status == "approved",
                 MentorshipRequest.supervisor_status == "approved",
@@ -707,12 +744,13 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
         return jsonify({"success": True, "mentees": connected})
 
+    @api_bp.route("/mentees", methods=["GET"])
     @api_bp.route("/mentor/all_mentees", methods=["GET"])
     def api_get_all_mentees():
         """Returns all registered mentees for Find Mentees directory."""
         mentees = db.session.query(User, MenteeProfile).outerjoin(
             MenteeProfile, User.id == MenteeProfile.user_id
-        ).filter(User.user_type == "2").limit(60).all()
+        ).filter(or_(User.user_type == "2", User.user_type == "mentee")).limit(100).all()
 
         result = []
         for u, mp in mentees:
@@ -859,6 +897,301 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 })
 
         return jsonify({"success": True, "tasks": task_list})
+
+    @api_bp.route("/mentor/certificate_eligibility", methods=["GET"])
+    def api_mentor_certificate_eligibility():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        completed_tasks = MenteeTask.query.filter(
+            MenteeTask.mentor_id == user.id,
+            or_(MenteeTask.status == "Done", MenteeTask.status == "completed", MenteeTask.progress >= 100)
+        ).count()
+
+        active_mentees = MentorshipRequest.query.filter(
+            MentorshipRequest.mentor_id == user.id,
+            MentorshipRequest.final_status.in_(["approved", "completed", "active"])
+        ).count()
+
+        sessions_count = MeetingRequest.query.filter(
+            or_(MeetingRequest.requested_to_id == user.id, MeetingRequest.requester_id == user.id),
+            MeetingRequest.status != "rejected"
+        ).count()
+
+        is_scholarly = getattr(user, "scholarly", False) == True
+        is_corporate = getattr(user, "is_corporate", False) == True
+
+        return jsonify({
+            "success": True,
+            "eligibility": {
+                "isEligible": True,
+                "completedTasks": completed_tasks,
+                "requiredTasks": 0,
+                "activeMentees": active_mentees,
+                "sessionsCount": sessions_count,
+                "isScholarly": is_scholarly,
+                "isCorporate": is_corporate,
+                "userType": "1"
+            }
+        })
+
+    @api_bp.route("/certificate/data", methods=["GET"])
+    def api_get_certificate_data():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        # Format registration date
+        if getattr(user, "created_at", None):
+            registration_date = user.created_at.strftime("%B %d, %Y")
+        elif getattr(user, "oauth_created_at", None):
+            registration_date = user.oauth_created_at.strftime("%B %d, %Y")
+        else:
+            registration_date = "Registration date not available"
+
+        user_type = str(user.user_type or "2")
+        connections_list = []
+        sessions_list = []
+        tasks_list = []
+        mentorship_details = []
+        task_ratings = []
+
+        def _norm_status(st):
+            s = str(st or "").strip().lower()
+            if s in ["done", "completed"]:
+                return "completed"
+            elif s in ["in_progress", "in-progress", "committed"]:
+                return "in-progress"
+            return "pending"
+
+        if user_type == "1":  # Mentor
+            active_mentorships = MentorshipRequest.query.filter(
+                MentorshipRequest.mentor_id == user.id,
+                MentorshipRequest.final_status.in_(["approved", "completed", "active"])
+            ).all()
+            seen_mentee_ids = set()
+            for mr in active_mentorships:
+                mentee = User.query.get(mr.mentee_id)
+                if mentee and mentee.id not in seen_mentee_ids:
+                    seen_mentee_ids.add(mentee.id)
+                    connections_list.append({
+                        "id": mr.id,
+                        "name": mentee.name,
+                        "type": "mentee",
+                        "is_corporate": getattr(mentee, "is_corporate", False)
+                    })
+
+                mentorship_details.append({
+                    "id": mr.id,
+                    "partner": mentee.name if mentee else "Mentee",
+                    "purpose": mr.purpose or "Mentorship Program",
+                    "mentor_type": (mr.mentor_type or "Official").capitalize(),
+                    "term": ("Long-term" if mr.term == "long" else "Short-term") if mr.term else "Standard",
+                    "duration": f"{mr.duration_months} months" if mr.duration_months else "3 months",
+                    "status": (mr.final_status or "pending").capitalize(),
+                    "started": mr.created_at.strftime("%b %d, %Y") if getattr(mr, "created_at", None) else "Active"
+                })
+
+            # Linked mentees via MenteeTask
+            mentee_tasks = MenteeTask.query.filter_by(mentor_id=user.id).all()
+            for t in mentee_tasks:
+                if t.mentee_id and t.mentee_id not in seen_mentee_ids:
+                    mentee = User.query.get(t.mentee_id)
+                    if mentee:
+                        seen_mentee_ids.add(t.mentee_id)
+                        connections_list.append({
+                            "id": f"t_{t.id}",
+                            "name": mentee.name,
+                            "type": "mentee",
+                            "is_corporate": getattr(mentee, "is_corporate", False)
+                        })
+
+                mt = getattr(t, "master_task", None)
+                task_name = (mt.purpose_of_call if mt and mt.purpose_of_call else (mt.journey_phase if mt and mt.journey_phase else f"Task #{t.meeting_number}"))
+                m_user = User.query.get(t.mentee_id)
+                tasks_list.append({
+                    "id": t.id,
+                    "title": task_name,
+                    "status": _norm_status(t.status),
+                    "with": m_user.name if m_user else "Mentee"
+                })
+
+            if PersonalTask:
+                p_tasks = PersonalTask.query.filter_by(mentor_id=user.id).all()
+                for pt in p_tasks:
+                    tasks_list.append({
+                        "id": f"p{pt.id}",
+                        "title": pt.title or "Personal Task",
+                        "status": _norm_status(pt.status),
+                        "with": "Personal"
+                    })
+
+            # Sessions
+            sessions = MeetingRequest.query.filter(
+                or_(MeetingRequest.requested_to_id == user.id, MeetingRequest.requester_id == user.id),
+                MeetingRequest.status != "rejected"
+            ).order_by(MeetingRequest.meeting_date.desc()).all()
+            for s in sessions:
+                other_id = s.requester_id if s.requested_to_id == user.id else s.requested_to_id
+                other_u = User.query.get(other_id)
+                m_date = getattr(s, "meeting_date", None)
+                sessions_list.append({
+                    "id": s.id,
+                    "title": getattr(s, "meeting_title", None) or "Mentorship Meeting",
+                    "date": m_date.strftime("%b %d, %Y") if m_date else "Scheduled",
+                    "with": other_u.name if other_u else "Mentee"
+                })
+
+            connected_label = "Active Mentees"
+            sessions_label = "Sessions Conducted"
+            is_eligible = True
+
+        else:  # Mentee (user_type == "2")
+            active_mentorships = MentorshipRequest.query.filter(
+                MentorshipRequest.mentee_id == user.id,
+                MentorshipRequest.final_status.in_(["approved", "completed", "active"])
+            ).all()
+            seen_mentor_ids = set()
+            for mr in active_mentorships:
+                mentor = User.query.get(mr.mentor_id)
+                if mentor and mentor.id not in seen_mentor_ids:
+                    seen_mentor_ids.add(mentor.id)
+                    connections_list.append({
+                        "id": mr.id,
+                        "name": mentor.name,
+                        "type": "mentor",
+                        "is_corporate": getattr(mentor, "is_corporate", False)
+                    })
+
+                mentorship_details.append({
+                    "id": mr.id,
+                    "partner": mentor.name if mentor else "Mentor",
+                    "purpose": mr.purpose or "Mentorship Program",
+                    "mentor_type": (mr.mentor_type or "Official").capitalize(),
+                    "term": ("Long-term" if mr.term == "long" else "Short-term") if mr.term else "Standard",
+                    "duration": f"{mr.duration_months} months" if mr.duration_months else "3 months",
+                    "status": (mr.final_status or "pending").capitalize(),
+                    "started": mr.created_at.strftime("%b %d, %Y") if getattr(mr, "created_at", None) else "Active"
+                })
+
+            mentee_tasks = MenteeTask.query.filter_by(mentee_id=user.id).all()
+            for t in mentee_tasks:
+                if t.mentor_id and t.mentor_id not in seen_mentor_ids:
+                    mentor = User.query.get(t.mentor_id)
+                    if mentor:
+                        seen_mentor_ids.add(t.mentor_id)
+                        connections_list.append({
+                            "id": f"t_{t.id}",
+                            "name": mentor.name,
+                            "type": "mentor",
+                            "is_corporate": getattr(mentor, "is_corporate", False)
+                        })
+
+                mt = getattr(t, "master_task", None)
+                task_name = (mt.purpose_of_call if mt and mt.purpose_of_call else (mt.journey_phase if mt and mt.journey_phase else f"Task #{t.meeting_number}"))
+                m_user = User.query.get(t.mentor_id)
+                tasks_list.append({
+                    "id": t.id,
+                    "title": task_name,
+                    "status": _norm_status(t.status),
+                    "with": m_user.name if m_user else "Mentor"
+                })
+
+            if PersonalTask:
+                p_tasks = PersonalTask.query.filter_by(mentee_id=user.id).all()
+                for pt in p_tasks:
+                    tasks_list.append({
+                        "id": f"p{pt.id}",
+                        "title": pt.title or "Personal Task",
+                        "status": _norm_status(pt.status),
+                        "with": "Self"
+                    })
+
+            sessions = MeetingRequest.query.filter(
+                or_(MeetingRequest.requested_to_id == user.id, MeetingRequest.requester_id == user.id),
+                MeetingRequest.status != "rejected"
+            ).order_by(MeetingRequest.meeting_date.desc()).all()
+            for s in sessions:
+                other_id = s.requested_to_id if s.requester_id == user.id else s.requester_id
+                other_u = User.query.get(other_id)
+                m_date = getattr(s, "meeting_date", None)
+                sessions_list.append({
+                    "id": s.id,
+                    "title": getattr(s, "meeting_title", None) or "Mentorship Session",
+                    "date": m_date.strftime("%b %d, %Y") if m_date else "Scheduled",
+                    "with": other_u.name if other_u else "Mentor"
+                })
+
+            connected_label = "Active Mentors"
+            sessions_label = "Sessions Attended"
+            completed_count = sum(1 for t in tasks_list if t["status"] == "completed")
+            is_eligible = completed_count >= 5 or getattr(user, "scholarly", False) or getattr(user, "is_corporate", False)
+
+        # Task ratings
+        tr_model = kwargs.get("TaskRating")
+        if not tr_model:
+            try:
+                from app import TaskRating as TR
+                tr_model = TR
+            except Exception:
+                tr_model = None
+
+        if tr_model:
+            if user_type == "1":
+                ratings = tr_model.query.filter_by(mentor_id=user.id).all()
+            else:
+                ratings = tr_model.query.filter_by(mentee_id=user.id).all()
+            for r in ratings:
+                me_u = User.query.get(r.mentee_id)
+                mr_u = User.query.get(r.mentor_id)
+                stars = "★" * (r.rating or 5) + "☆" * (5 - (r.rating or 5))
+                task_ratings.append({
+                    "task_id": r.task_id,
+                    "task_type": r.task_type,
+                    "mentee": me_u.name if me_u else "Mentee",
+                    "mentor": mr_u.name if mr_u else "Mentor",
+                    "rating": r.rating or 5,
+                    "stars": stars,
+                    "feedback": r.feedback or "Consistent progress and commitment.",
+                    "strengths": r.strengths or "Diligent execution and clear communication.",
+                    "improvements": r.improvements or "Continue exploring advanced concepts.",
+                    "rated_at": r.rated_at.strftime("%b %d, %Y") if getattr(r, "rated_at", None) else "Completed"
+                })
+
+        # Calculate initial stats
+        completed_tasks = sum(1 for t in tasks_list if t["status"] == "completed")
+        in_progress_tasks = sum(1 for t in tasks_list if t["status"] == "in-progress")
+        pending_tasks = len(tasks_list) - completed_tasks - in_progress_tasks
+
+        return jsonify({
+            "success": True,
+            "data": {
+                "user_name": user.name,
+                "user_type": user_type,
+                "user_id": user.id,
+                "cert_id": f"WES-{user_type}-{user.id}",
+                "registration_date": registration_date,
+                "connections_list": connections_list,
+                "sessions_list": sessions_list,
+                "tasks_list": tasks_list,
+                "mentorship_details": mentorship_details,
+                "task_ratings": task_ratings,
+                "mentorship_stats": {
+                    "connected_count": len(connections_list),
+                    "connected_type": connected_label,
+                    "sessions_count": len(sessions_list),
+                    "sessions_type": sessions_label
+                },
+                "task_stats": {
+                    "total": len(tasks_list),
+                    "completed": completed_tasks,
+                    "in_progress": in_progress_tasks,
+                    "pending": pending_tasks
+                },
+                "is_eligible": is_eligible
+            }
+        })
 
     # -------------------------------------------------------------
     # 4. MEETINGS & CALENDAR ENDPOINTS
@@ -1069,6 +1402,190 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             return jsonify({"success": False, "message": str(e)}), 500
 
     # -------------------------------------------------------------
+    # 5B. TASK FEEDBACK (MENTEE) & REFLECTIONS (MENTOR)
+    # -------------------------------------------------------------
+    @api_bp.route("/tasks/feedback", methods=["GET", "POST"])
+    def api_task_feedback():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+        if request.method == "GET":
+            task_id = request.args.get("task_id")
+            task_type = request.args.get("task_type", "master")
+            if not task_id:
+                return jsonify({"success": False, "message": "task_id required"}), 400
+
+            fb = None
+            if MenteeFeedback:
+                fb = MenteeFeedback.query.filter_by(
+                    task_type=task_type,
+                    task_id=int(task_id),
+                    mentee_id=user.id
+                ).first()
+                if not fb and str(user.user_type) in ("1", "mentor"):
+                    fb = MenteeFeedback.query.filter_by(
+                        task_type=task_type,
+                        task_id=int(task_id)
+                    ).first()
+
+            return jsonify({
+                "success": True,
+                "feedback": fb.to_dict() if fb and hasattr(fb, "to_dict") else None
+            })
+
+        data = request.get_json(silent=True) or {}
+        task_id = data.get("task_id")
+        task_type = data.get("task_type", "master")
+        if not task_id:
+            return jsonify({"success": False, "message": "task_id required"}), 400
+
+        task_id = int(task_id)
+        if not MenteeFeedback:
+            return jsonify({"success": False, "message": "MenteeFeedback model unavailable"}), 500
+
+        fb = MenteeFeedback.query.filter_by(
+            mentee_id=user.id,
+            task_type=task_type,
+            task_id=task_id
+        ).first()
+
+        if not fb:
+            fb = MenteeFeedback(
+                mentee_id=user.id,
+                task_type=task_type,
+                task_id=task_id
+            )
+            db.session.add(fb)
+
+        fb.rating = int(data.get("rating")) if data.get("rating") else None
+        fb.mentor_rating = int(data.get("mentor_rating")) if data.get("mentor_rating") else None
+        fb.text = (data.get("text") or data.get("reflection") or "").strip()
+        fb.challenges = (data.get("challenges") or "").strip()
+        fb.next_steps = (data.get("nextSteps") or data.get("next_steps") or "").strip()
+        fb.extra = (data.get("extra") or "").strip()
+        fb.created_at = datetime.utcnow()
+
+        try:
+            db.session.commit()
+            return jsonify({
+                "success": True,
+                "message": "Feedback submitted successfully",
+                "feedback": fb.to_dict() if hasattr(fb, "to_dict") else {
+                    "id": fb.id,
+                    "task_id": fb.task_id,
+                    "rating": fb.rating,
+                    "text": fb.text
+                }
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e)}), 500
+
+    @api_bp.route("/tasks/reflection", methods=["GET", "POST"])
+    def api_task_reflection():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+        if request.method == "GET":
+            task_id = request.args.get("task_id")
+            task_type = request.args.get("task_type", "master")
+            if not task_id:
+                return jsonify({"success": False, "message": "task_id required"}), 400
+
+            refl = None
+            if MentorReflection:
+                refl = MentorReflection.query.filter_by(
+                    task_type=task_type,
+                    task_id=int(task_id)
+                ).first()
+
+            return jsonify({
+                "success": True,
+                "reflection": refl.to_dict() if refl and hasattr(refl, "to_dict") else None
+            })
+
+        data = request.get_json(silent=True) or {}
+        task_id = data.get("task_id")
+        task_type = data.get("task_type", "master")
+        if not task_id:
+            return jsonify({"success": False, "message": "task_id required"}), 400
+
+        task_id = int(task_id)
+        if not MentorReflection:
+            return jsonify({"success": False, "message": "MentorReflection model unavailable"}), 500
+
+        refl = MentorReflection.query.filter_by(
+            mentor_id=user.id,
+            task_type=task_type,
+            task_id=task_id
+        ).first()
+
+        if not refl:
+            refl = MentorReflection(
+                mentor_id=user.id,
+                task_type=task_type,
+                task_id=task_id
+            )
+            db.session.add(refl)
+
+        refl.text = (data.get("text") or data.get("reflection") or "").strip()
+        refl.extra = (data.get("extra") or "").strip()
+        refl.created_at = datetime.utcnow()
+
+        # Also support TaskRating record if mentor gave rating/feedback
+        if TaskRating and data.get("rating"):
+            t_rate = TaskRating.query.filter_by(
+                task_type=task_type,
+                task_id=task_id,
+                mentor_id=user.id
+            ).first()
+            if not t_rate:
+                # determine mentee_id
+                target_mentee_id = data.get("mentee_id")
+                if not target_mentee_id:
+                    if task_type == "master":
+                        mt = db.session.get(MenteeTask, task_id)
+                        target_mentee_id = mt.mentee_id if mt else None
+                    elif PersonalTask:
+                        pt = db.session.get(PersonalTask, task_id)
+                        target_mentee_id = pt.mentee_id if pt else None
+
+                if target_mentee_id:
+                    t_rate = TaskRating(
+                        task_id=task_id,
+                        task_type=task_type,
+                        mentee_id=int(target_mentee_id),
+                        mentor_id=user.id,
+                        rating=int(data.get("rating")),
+                        feedback=data.get("text") or "",
+                        strengths=data.get("strengths") or "",
+                        improvements=data.get("improvements") or ""
+                    )
+                    db.session.add(t_rate)
+            else:
+                t_rate.rating = int(data.get("rating"))
+                t_rate.feedback = data.get("text") or t_rate.feedback
+                t_rate.strengths = data.get("strengths") or t_rate.strengths
+                t_rate.improvements = data.get("improvements") or t_rate.improvements
+
+        try:
+            db.session.commit()
+            return jsonify({
+                "success": True,
+                "message": "Reflection saved successfully",
+                "reflection": refl.to_dict() if hasattr(refl, "to_dict") else {
+                    "id": refl.id,
+                    "task_id": refl.task_id,
+                    "text": refl.text
+                }
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e)}), 500
+
+    # -------------------------------------------------------------
     # 6. INSTITUTION & ADMIN MODULES
     # -------------------------------------------------------------
     @api_bp.route("/institution/stats", methods=["GET"])
@@ -1181,13 +1698,15 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
     @api_bp.route("/admin/users", methods=["GET"])
     def api_get_admin_users():
+        user_type_param = (request.args.get("type") or "").strip().lower()
+
         mentors = db.session.query(User, MentorProfile).outerjoin(
             MentorProfile, User.id == MentorProfile.user_id
-        ).filter(User.user_type == "1").all()
+        ).filter(or_(User.user_type == "1", User.user_type == "mentor")).all()
 
         mentees = db.session.query(User, MenteeProfile).outerjoin(
             MenteeProfile, User.id == MenteeProfile.user_id
-        ).filter(User.user_type == "2").all()
+        ).filter(or_(User.user_type == "2", User.user_type == "mentee")).all()
 
         m_list = []
         for u, mp in mentors:
@@ -1198,6 +1717,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "email": u.email,
                 "profession": mp.profession if mp and mp.profession else "Mentor",
                 "organisation": mp.organisation if mp and mp.organisation else "Organisation",
+                "supervisor_rating": calc_mentor_rating_helper(u.id, mp, MenteeTask, db),
                 "profile_picture": format_pic_url(mp.profile_picture if mp else None),
                 "role": "Mentor"
             })
@@ -1210,11 +1730,22 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "name": u.name,
                 "email": u.email,
                 "institution_name": mp.institution_name if mp and mp.institution_name else "Student",
+                "career_goal": mp.career_goal or mp.goal if mp else "Career Guidance",
                 "profile_picture": format_pic_url(mp.profile_picture if mp else None),
                 "role": "Mentee"
             })
 
-        return jsonify({"success": True, "mentors": m_list, "mentees": me_list})
+        if user_type_param in ("mentors", "mentor"):
+            return jsonify({"success": True, "users": m_list, "mentors": m_list, "mentees": []})
+        elif user_type_param in ("mentees", "mentee"):
+            return jsonify({"success": True, "users": me_list, "mentors": [], "mentees": me_list})
+
+        return jsonify({
+            "success": True,
+            "users": m_list + me_list,
+            "mentors": m_list,
+            "mentees": me_list
+        })
 
     @api_bp.route("/admin/requests", methods=["GET"])
     def api_get_admin_requests():
@@ -1265,11 +1796,13 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
     def api_get_notifications():
         user = get_current_user_from_req(User)
         if not user:
-            return jsonify({"success": True, "notifications": []})
+            return jsonify({"success": True, "notifications": [], "unread_count": 0})
 
         notifications = Notification.query.filter_by(user_id=user.id).order_by(
             Notification.created_at.desc()
-        ).limit(30).all()
+        ).limit(50).all()
+
+        unread_count = Notification.query.filter_by(user_id=user.id, is_read=False).count()
 
         result = []
         for n in notifications:
@@ -1280,34 +1813,92 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "is_read": bool(n.is_read),
                 "created_at": n.created_at.strftime("%Y-%m-%d %H:%M") if n.created_at else ""
             })
-        return jsonify({"success": True, "notifications": result})
+        return jsonify({"success": True, "notifications": result, "unread_count": unread_count})
+
+    @api_bp.route("/notifications/unread_count", methods=["GET"])
+    def api_get_unread_notifications_count():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": True, "unread_count": 0})
+        unread_count = Notification.query.filter_by(user_id=user.id, is_read=False).count()
+        return jsonify({"success": True, "unread_count": unread_count})
+
+    @api_bp.route("/notifications/mark_all_read", methods=["POST"])
+    @api_bp.route("/notifications/read_all", methods=["POST"])
+    def api_mark_all_notifications_read():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "error": "User not found"}), 404
+
+        try:
+            Notification.query.filter_by(user_id=user.id, is_read=False).update({"is_read": True})
+            db.session.commit()
+            return jsonify({"success": True, "message": "All notifications marked as read", "unread_count": 0})
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error marking notifications as read: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @api_bp.route("/notifications/<int:notification_id>/read", methods=["POST"])
+    def api_mark_notification_read(notification_id):
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "error": "User not found"}), 404
+
+        try:
+            notif = Notification.query.filter_by(id=notification_id, user_id=user.id).first()
+            if notif:
+                notif.is_read = True
+                db.session.commit()
+            unread_count = Notification.query.filter_by(user_id=user.id, is_read=False).count()
+            return jsonify({"success": True, "unread_count": unread_count})
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error marking single notification read: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
 
     @api_bp.route("/resources", methods=["GET"])
     def api_get_resources():
         """Returns standard mentor and mentee guidebook notes."""
+        resource_items = [
+            {
+                "id": 1,
+                "title": "Mentorship Handbook 2026",
+                "content": "Comprehensive guidelines for setting goals, scheduling curriculum tasks, and meeting etiquette.",
+                "created_at": "2026-09-01"
+            },
+            {
+                "id": 2,
+                "title": "Goal Setting & Action Plan Template",
+                "content": "SMART framework guide for mentees to define academic and professional quarterly targets.",
+                "created_at": "2026-09-10"
+            },
+            {
+                "id": 3,
+                "title": "Luxembourg Career Navigation Guide",
+                "content": "Industry sectors, internship opportunities, and corporate networking best practices.",
+                "created_at": "2026-09-15"
+            }
+        ]
         return jsonify({
             "success": True,
-            "notes": [
-                {
-                    "id": 1,
-                    "title": "Mentorship Handbook 2026",
-                    "content": "Comprehensive guidelines for setting goals, scheduling curriculum tasks, and meeting etiquette.",
-                    "created_at": "2026-09-01"
-                },
-                {
-                    "id": 2,
-                    "title": "Goal Setting & Action Plan Template",
-                    "content": "SMART framework guide for mentees to define academic and professional quarterly targets.",
-                    "created_at": "2026-09-10"
-                },
-                {
-                    "id": 3,
-                    "title": "Luxembourg Career Navigation Guide",
-                    "content": "Industry sectors, internship opportunities, and corporate networking best practices.",
-                    "created_at": "2026-09-15"
-                }
-            ]
+            "notes": resource_items,
+            "resources": resource_items
         })
+
+    @api_bp.errorhandler(Exception)
+    def handle_api_exception(e):
+        logger.error(f"Unhandled API error: {e}", exc_info=True)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        code = getattr(e, "code", 500)
+        return jsonify({
+            "success": False,
+            "message": str(getattr(e, "description", e)) or "Internal server error",
+            "error": str(e)
+        }), code if isinstance(code, int) and 100 <= code <= 599 else 500
 
     app.register_blueprint(api_bp)
     logger.info("Mobile REST API endpoints successfully registered under /api/*")
