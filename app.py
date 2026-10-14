@@ -9,6 +9,7 @@ from functools import wraps
 from sqlalchemy.orm import Session, joinedload
 import os
 import json 
+import re
 import time
 from urllib.parse import urlencode
 from google_auth_oauthlib.flow import Flow
@@ -1196,6 +1197,618 @@ def api_location_data():
     res.headers["Cache-Control"] = "public, max-age=86400, immutable"
     return res
 
+# ============================================================
+# LOCATION CANONICALISATION
+# Keeps stored mentor locations aligned with the Country / State / City cascade
+# used by the profile completion form, so that
+#   * the same real place is never stored under two different spellings, and
+#   * a city is never recorded under a country it does not belong to.
+# ============================================================
+
+# The exact country list offered by static/js/location_cascade.js (grouped for the
+# <optgroup> ordering used by the dropdown). Keep the two in sync.
+LOCATION_COUNTRY_REGIONS = {
+    'Asia': (
+        'Afghanistan', 'Armenia', 'Azerbaijan', 'Bahrain', 'Bangladesh', 'Bhutan', 'Brunei', 'Cambodia', 'China',
+        'Cyprus', 'Georgia', 'Hong Kong', 'India', 'Indonesia', 'Iran', 'Iraq', 'Israel', 'Japan', 'Jordan',
+        'Kazakhstan', 'Kuwait', 'Kyrgyzstan', 'Laos', 'Lebanon', 'Macau', 'Malaysia', 'Maldives', 'Mongolia',
+        'Myanmar', 'Nepal', 'North Korea', 'Oman', 'Pakistan', 'Palestine', 'Philippines', 'Qatar', 'Saudi Arabia',
+        'Singapore', 'South Korea', 'Sri Lanka', 'Syria', 'Taiwan', 'Tajikistan', 'Thailand', 'Timor-Leste',
+        'Turkey', 'Turkmenistan', 'United Arab Emirates', 'Uzbekistan', 'Vietnam', 'Yemen',
+    ),
+    'Europe': (
+        'Albania', 'Andorra', 'Austria', 'Belarus', 'Belgium', 'Bosnia and Herzegovina', 'Bulgaria', 'Croatia',
+        'Czech Republic', 'Denmark', 'Estonia', 'Finland', 'France', 'Germany', 'Greece', 'Hungary', 'Iceland',
+        'Ireland', 'Italy', 'Latvia', 'Liechtenstein', 'Lithuania', 'Luxembourg', 'Malta', 'Moldova', 'Monaco',
+        'Montenegro', 'Netherlands', 'North Macedonia', 'Norway', 'Poland', 'Portugal', 'Romania', 'Russia',
+        'San Marino', 'Serbia', 'Slovakia', 'Slovenia', 'Spain', 'Sweden', 'Switzerland', 'Ukraine',
+        'United Kingdom', 'Vatican City',
+    ),
+    'Americas': (
+        'Antigua and Barbuda', 'Argentina', 'Bahamas', 'Barbados', 'Belize', 'Bolivia', 'Brazil', 'Canada',
+        'Chile', 'Colombia', 'Costa Rica', 'Cuba', 'Dominica', 'Dominican Republic', 'Ecuador', 'El Salvador',
+        'Grenada', 'Guatemala', 'Guyana', 'Haiti', 'Honduras', 'Jamaica', 'Mexico', 'Nicaragua', 'Panama',
+        'Paraguay', 'Peru', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Suriname',
+        'Trinidad and Tobago', 'United States', 'Uruguay', 'Venezuela',
+    ),
+    'Africa': (
+        'Algeria', 'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cameroon', 'Cape Verde',
+        'Central African Republic', 'Chad', 'Comoros', 'Congo', "Cote d'Ivoire", 'DR Congo', 'Djibouti', 'Egypt',
+        'Equatorial Guinea', 'Eritrea', 'Eswatini', 'Ethiopia', 'Gabon', 'Gambia', 'Ghana', 'Guinea',
+        'Guinea-Bissau', 'Kenya', 'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Malawi', 'Mali', 'Mauritania',
+        'Mauritius', 'Morocco', 'Mozambique', 'Namibia', 'Niger', 'Nigeria', 'Rwanda', 'Sao Tome and Principe',
+        'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 'South Africa', 'South Sudan', 'Sudan', 'Tanzania',
+        'Togo', 'Tunisia', 'Uganda', 'Zambia', 'Zimbabwe',
+    ),
+    'Oceania': (
+        'Australia', 'Fiji', 'Kiribati', 'Marshall Islands', 'Micronesia', 'Nauru', 'New Zealand', 'Palau',
+        'Papua New Guinea', 'Samoa', 'Solomon Islands', 'Tonga', 'Tuvalu', 'Vanuatu',
+    ),
+}
+
+# Every country name the location cascade accepts, in dropdown order.
+CANONICAL_COUNTRIES = tuple(
+    name for _region in ('Asia', 'Europe', 'Americas', 'Africa', 'Oceania')
+    for name in LOCATION_COUNTRY_REGIONS[_region]
+)
+
+# Canonical country name -> LOCATION_DATA key (the countries that have real city lists).
+COUNTRY_TO_LOCATION_KEY = {
+    'United States': 'USA',
+    'United States of America': 'USA',
+    'USA': 'USA',
+    'United Kingdom': 'UK',
+    'UK': 'UK',
+    'Great Britain': 'UK',
+    'Korea, Republic of': 'South Korea',
+    'Korea': 'South Korea',
+    'Russian Federation': 'Russia',
+}
+
+# LOCATION_DATA key -> the canonical dropdown name for it (only two differ).
+LOCATION_KEY_TO_COUNTRY = {
+    'USA': 'United States',
+    'UK': 'United Kingdom',
+}
+
+# Free-text spellings seen in historical records -> canonical dropdown name.
+# An empty value means "not a real country" and must resolve to blank.
+COUNTRY_ALIASES = {
+    'usa': 'United States',
+    'us': 'United States',
+    'u.s.': 'United States',
+    'u.s.a.': 'United States',
+    'united states of america': 'United States',
+    'america': 'United States',
+    'uk': 'United Kingdom',
+    'u.k.': 'United Kingdom',
+    'great britain': 'United Kingdom',
+    'britain': 'United Kingdom',
+    'england': 'United Kingdom',
+    'scotland': 'United Kingdom',
+    'wales': 'United Kingdom',
+    'uae': 'United Arab Emirates',
+    'u.a.e.': 'United Arab Emirates',
+    'russia': 'Russia',
+    'russian federation': 'Russia',
+    'south korea': 'South Korea',
+    'korea': 'South Korea',
+    'republic of korea': 'South Korea',
+    'korea, republic of': 'South Korea',
+    'north korea': 'North Korea',
+    'turkiye': 'Turkey',
+    'türkiye': 'Turkey',
+    'czechia': 'Czech Republic',
+    'czech': 'Czech Republic',
+    'ivory coast': "Cote d'Ivoire",
+    'cote divoire': "Cote d'Ivoire",
+    'dr congo': 'DR Congo',
+    'drc': 'DR Congo',
+    'democratic republic of the congo': 'DR Congo',
+    'congo kinshasa': 'DR Congo',
+    'congo': 'Congo',
+    'congo brazzaville': 'Congo',
+    'hong kong sar': 'Hong Kong',
+    'hong kong s.a.r.': 'Hong Kong',
+    'macau sar': 'Macau',
+    'macao': 'Macau',
+    'east timor': 'Timor-Leste',
+    'swaziland': 'Eswatini',
+    'burma': 'Myanmar',
+    'vatican': 'Vatican City',
+    'holy see': 'Vatican City',
+    'palestinian territory occupied': 'Palestine',
+    'state of palestine': 'Palestine',
+    'the bahamas': 'Bahamas',
+    'the gambia': 'Gambia',
+    'cape verde islands': 'Cape Verde',
+    'fiji islands': 'Fiji',
+    'south korea republic of': 'South Korea',
+    # 'Other' came from a retired free-text country field and is not a place.
+    'other': '',
+    'na': '',
+    'n/a': '',
+    'none': '',
+    'null': '',
+    'nil': '',
+    'undefined': '',
+}
+
+
+def _location_key(value):
+    """Fold a place name to a comparable key: lowercase, alphanumerics + spaces."""
+    return re.sub(r'[^a-z0-9]+', ' ', (value or '').strip().lower()).strip()
+
+
+# Folded country-name -> canonical dropdown name ('' for non-countries).
+_COUNTRY_LOOKUP = {}
+for _c in CANONICAL_COUNTRIES:
+    _COUNTRY_LOOKUP[_location_key(_c)] = _c
+for _src, _loc_key in COUNTRY_TO_LOCATION_KEY.items():
+    # Never overwrite a canonical name: 'United States' must stay 'United States'
+    # even though LOCATION_DATA calls it 'USA'.
+    _canon = LOCATION_KEY_TO_COUNTRY.get(_loc_key, _loc_key)
+    if _canon in CANONICAL_COUNTRIES:
+        _COUNTRY_LOOKUP.setdefault(_location_key(_src), _canon)
+for _src, _dst in COUNTRY_ALIASES.items():
+    _COUNTRY_LOOKUP[_location_key(_src)] = _dst
+
+
+def canonical_country(value):
+    """Map any country spelling onto the cascade's dropdown name ('' if unknown).
+
+    Matching is exact (case/punctuation folded) or via the explicit alias table.
+    There is deliberately NO substring fuzziness: "Indoneisa" must not resolve to
+    "India", and "Chad" must not resolve to "China".
+    """
+    key = _location_key(value)
+    if not key:
+        return ''
+    return _COUNTRY_LOOKUP.get(key, '')
+
+
+def _location_data_for_country(country):
+    """LOCATION_DATA entry (states -> cities) for a canonical country name."""
+    key = COUNTRY_TO_LOCATION_KEY.get(country, country)
+    entry = LOCATION_DATA.get(key)
+    if entry is None:
+        folded = _location_key(key)
+        for name, val in LOCATION_DATA.items():
+            if _location_key(name) == folded:
+                return val
+    return entry
+
+
+_global_states_cache = None
+# canonical country name -> {folded state name: canonical state name}
+_global_states_by_country = {}
+
+
+def _global_states():
+    """States-only fallback list (250 countries) served as a static asset."""
+    global _global_states_cache
+    if _global_states_cache is None:
+        try:
+            path = os.path.join(app.static_folder, 'data', 'global_states.json')
+            with open(path, encoding='utf-8') as fh:
+                raw = json.load(fh)
+            _global_states_cache = {_location_key(k): v for k, v in raw.items()}
+            for name, states in raw.items():
+                canonical = canonical_country(name) or name
+                bucket = _global_states_by_country.setdefault(canonical, {})
+                for st in states or []:
+                    bucket.setdefault(_location_key(st), st)
+        except Exception as e:
+            app.logger.warning(f"global_states.json unavailable: {e}")
+            _global_states_cache = {}
+    return _global_states_cache
+
+
+def country_states(country):
+    """States / provinces available for a country.
+
+    LOCATION_DATA first (that is what the cascade dropdown uses), then
+    global_states.json to top up any state LOCATION_DATA is missing.
+    """
+    if not country:
+        return []
+    entry = _location_data_for_country(country)
+    out = list(entry['states'].keys()) if entry and entry.get('states') else []
+    _global_states()
+    extra = _global_states_by_country.get(country) or {}
+    seen = {_location_key(s) for s in out}
+    for folded, canonical_state in extra.items():
+        if folded not in seen:
+            out.append(canonical_state)
+            seen.add(folded)
+    return out
+
+
+def _match_in_list(value, candidates):
+    """Canonical spelling of `value` within `candidates` (case/space tolerant)."""
+    if not value or not candidates:
+        return ''
+    key = _location_key(value)
+    if not key:
+        return ''
+    for cand in candidates:
+        if cand == value:
+            return cand
+    for cand in candidates:
+        if _location_key(cand) == key:
+            return cand
+    # A value that carried its own qualifier ("Bengaluru, Karnataka") may still
+    # match one entry - but only when it really contained a comma, otherwise
+    # "New York" would wrongly match the city "York".
+    if ',' in value:
+        for cand in candidates:
+            ck = _location_key(cand)
+            if ck and (key.startswith(ck + ' ') or key.endswith(' ' + ck)):
+                return cand
+    return ''
+
+
+def state_cities(country, state):
+    entry = _location_data_for_country(country)
+    if not entry or not entry.get('states'):
+        return []
+    if state in entry['states']:
+        return list(entry['states'][state])
+    canon = _match_in_list(state, list(entry['states'].keys()))
+    if canon:
+        return list(entry['states'][canon])
+    return []
+
+
+def find_state_for_city(country, city):
+    """State / province of `country` whose cascade list contains `city`."""
+    if not country or not city:
+        return ''
+    entry = _location_data_for_country(country)
+    if not entry or not entry.get('states'):
+        return ''
+    for state, cities in entry['states'].items():
+        if _match_in_list(city, cities):
+            return state
+    return ''
+
+
+_city_owner_index = None
+
+
+def build_location_index():
+    """city (folded) -> set of countries that contain it.
+
+    Built from LOCATION_DATA (cities) plus global_states.json (states), so a city
+    recorded against a country that does not contain it can be detected.
+    """
+    global _city_owner_index
+    if _city_owner_index is not None:
+        return _city_owner_index
+    index = {}
+    for country, entry in LOCATION_DATA.items():
+        canonical = _COUNTRY_LOOKUP.get(_location_key(country), country)
+        for _state, cities in (entry.get('states') or {}).items():
+            for city in cities:
+                index.setdefault(_location_key(city), set()).add(canonical)
+    _global_states()
+    for country, states in _global_states_by_country.items():
+        for folded in states:
+            index.setdefault(folded, set()).add(country)
+    _city_owner_index = index
+    return index
+
+
+def _find_city_owner(city):
+    """Countries that contain `city`, narrowed when possible.
+
+    A subdivision named exactly like its own country (e.g. the canton
+    "Luxembourg") wins over foreign owners, so "Luxembourg, Pakistan" is repaired
+    to Luxembourg.
+    """
+    key = _location_key(city)
+    owners = build_location_index().get(key) or set()
+    if not owners:
+        return set()
+    self_named = {c for c in owners if _location_key(c) == key}
+    if self_named and len(self_named) < len(owners):
+        return self_named
+    return owners
+
+
+# Well-known renames / reclassifications seen in mentor records: historical
+# spelling -> (value the cascade offers, state). Keeps one real city from
+# appearing under several different names.
+CITY_SYNONYMS = {
+    'bangalore': ('Bengaluru Urban', 'Karnataka'),
+    'bengaluru': ('Bengaluru Urban', 'Karnataka'),
+    'bengaluru city': ('Bengaluru Urban', 'Karnataka'),
+    'bangalore urban': ('Bengaluru Urban', 'Karnataka'),
+    'mysore': ('Mysuru', 'Karnataka'),
+    'mysuru': ('Mysuru', 'Karnataka'),
+    'navi mumbai': ('Mumbai Suburban', 'Maharashtra'),
+    'mumbai': ('Mumbai City', 'Maharashtra'),
+    'bombay': ('Mumbai City', 'Maharashtra'),
+    'delhi': ('New Delhi', 'Delhi'),
+    'new delhi': ('New Delhi', 'Delhi'),
+    'noida': ('Gautam Buddha Nagar', 'Uttar Pradesh'),
+    'gurugram': ('Gautam Buddha Nagar', 'Haryana'),
+    'gurgaon': ('Gautam Buddha Nagar', 'Haryana'),
+    'kolkata': ('Kolkata', 'West Bengal'),
+    'calcutta': ('Kolkata', 'West Bengal'),
+    'chennai': ('Chennai', 'Tamil Nadu'),
+    'madras': ('Chennai', 'Tamil Nadu'),
+    'varanasi': ('Varanasi', 'Uttar Pradesh'),
+    'banaras': ('Varanasi', 'Uttar Pradesh'),
+    'lucknow': ('Lucknow', 'Uttar Pradesh'),
+    'pune': ('Pune', 'Maharashtra'),
+    'bhopal': ('Bhopal', 'Madhya Pradesh'),
+    # Towns with no entry of their own: keep the name, fix the state.
+    'zirakpur': ('Zirakpur', 'Punjab'),
+    'dhanpuri': ('Dhanpuri', 'Madhya Pradesh'),
+    'shahdol': ('Shahdol', 'Madhya Pradesh'),
+    # Countries with no city list in LOCATION_DATA.
+    'amsterdam': ('Amsterdam', 'North Holland'),
+    'rotterdam': ('Rotterdam', 'South Holland'),
+    'the hague': ('The Hague', 'South Holland'),
+    'den haag': ('The Hague', 'South Holland'),
+    'utrecht': ('Utrecht', 'Utrecht'),
+    'eindhoven': ('Eindhoven', 'North Brabant'),
+}
+
+# Cities that identify their country strongly enough to repair a blank/placeholder
+# country (most countries have no city list in the cascade, so these are explicit).
+CITY_COUNTRY_HINTS = {
+    'amsterdam': 'Netherlands', 'rotterdam': 'Netherlands', 'the hague': 'Netherlands',
+    'den haag': 'Netherlands', 'utrecht': 'Netherlands', 'eindhoven': 'Netherlands',
+    'dublin': 'Ireland', 'cork': 'Ireland',
+    'lisbon': 'Portugal', 'porto': 'Portugal',
+    'madrid': 'Spain', 'barcelona': 'Spain',
+    'paris': 'France', 'lyon': 'France',
+    'berlin': 'Germany', 'munich': 'Germany', 'munchen': 'Germany',
+    'hamburg': 'Germany', 'frankfurt': 'Germany',
+    'milan': 'Italy', 'rome': 'Italy',
+    'zurich': 'Switzerland', 'zurich': 'Switzerland', 'geneva': 'Switzerland',
+    'vienna': 'Austria',
+    'brussels': 'Belgium', 'bruxelles': 'Belgium', 'antwerp': 'Belgium',
+    'stockholm': 'Sweden', 'oslo': 'Norway', 'copenhagen': 'Denmark', 'helsinki': 'Finland',
+    'warsaw': 'Poland', 'krakow': 'Poland', 'krakow': 'Poland',
+    'prague': 'Czech Republic', 'budapest': 'Hungary', 'bucharest': 'Romania',
+    'sofia': 'Bulgaria', 'athens': 'Greece', 'istanbul': 'Turkey',
+    'tokyo': 'Japan', 'osaka': 'Japan', 'kyoto': 'Japan',
+    'seoul': 'South Korea',
+    'beijing': 'China', 'shanghai': 'China', 'shenzhen': 'China', 'guangzhou': 'China',
+    'singapore': 'Singapore',
+    'kuala lumpur': 'Malaysia',
+    'jakarta': 'Indonesia',
+    'bangkok': 'Thailand',
+    'hanoi': 'Vietnam',
+    'manila': 'Philippines',
+    'cairo': 'Egypt',
+    'lagos': 'Nigeria', 'abuja': 'Nigeria',
+    'nairobi': 'Kenya',
+    'johannesburg': 'South Africa', 'cape town': 'South Africa',
+    'casablanca': 'Morocco', 'marrakesh': 'Morocco',
+    'sydney': 'Australia', 'melbourne': 'Australia',
+    'toronto': 'Canada', 'vancouver': 'Canada', 'montreal': 'Canada',
+    'new york': 'United States', 'san francisco': 'United States',
+    'los angeles': 'United States', 'chicago': 'United States',
+    'houston': 'United States', 'boston': 'United States',
+    'seattle': 'United States', 'atlanta': 'United States',
+    'london': 'United Kingdom', 'manchester': 'United Kingdom',
+    'birmingham': 'United Kingdom', 'glasgow': 'United Kingdom', 'edinburgh': 'United Kingdom',
+    'sao paulo': 'Brazil', 'rio de janeiro': 'Brazil',
+    'mexico city': 'Mexico',
+}
+
+
+def resolve_location(country=None, state=None, city=None, legacy_location=None):
+    """Normalise any (country, state, city) triple - including the legacy single
+    `location` string - into values the Country / State / City cascade would
+    actually produce.
+
+    Guarantees:
+      * `country` is always a name from the cascade's country dropdown;
+      * `state` is always one of that country's states (when it has a list);
+      * `city` is always one of that state's cities, or free text belonging to a
+        country that genuinely has it - never a city of a different country.
+
+    Returns `country`, `state`, `city`, the rebuilt display `location`, and a
+    `notes` list describing every repair that was applied.
+    """
+    notes = []
+    country = canonical_country(country)
+    state = re.sub(r'\s+', ' ', (state or '').strip())
+    city = re.sub(r'\s+', ' ', (city or '').strip())
+
+    # ---- 1. Recover the triple from the legacy single-string column ---------
+    if not country and not state and not city and legacy_location:
+        parts = [re.sub(r'\s+', ' ', p.strip()) for p in str(legacy_location).split(',') if p.strip()]
+        if len(parts) >= 3:
+            city, state, country = parts[0], parts[1], parts[2]
+        elif len(parts) == 2:
+            city, country = parts[0], parts[1]
+        elif parts:
+            country = parts[0]
+        notes.append("parsed legacy location string")
+
+        # A single-part legacy value that is really just a country.
+        if not city and not state and country and canonical_country(country) == _location_key(country):
+            country = canonical_country(country)
+
+        # The parsed parts still need canonicalisation ("Other", "NA", "USA", ...).
+        country = canonical_country(country)
+
+    # ---- 2. Infer the country from the state / city when it is missing ------
+    if not country and state:
+        for cand in CANONICAL_COUNTRIES:
+            if _match_in_list(state, country_states(cand)):
+                country = cand
+                notes.append(f"country inferred as {country} from state '{state}'")
+                break
+    if not country and city:
+        hinted = CITY_COUNTRY_HINTS.get(_location_key(city))
+        if hinted:
+            country = hinted
+            notes.append(f"country inferred as {country} from city '{city}'")
+        else:
+            owners = _find_city_owner(city)
+            if len(owners) == 1:
+                country = next(iter(owners))
+                notes.append(f"country inferred as {country} from city '{city}'")
+            elif owners:
+                notes.append(f"city '{city}' exists in several countries {sorted(owners)}; country left blank")
+
+    if not country:
+        # Without a country the city/state cannot be validated against anything,
+        # so they are dropped rather than stored as an unverifiable pair.
+        if city or state:
+            notes.append(f"'{city or state}' dropped - no country could be resolved")
+        return {
+            'country': '', 'state': '', 'city': '',
+            'location': '',
+            'notes': notes + ['country could not be resolved - needs manual review'],
+        }
+
+    # ---- 3. Normalise the city spelling via known renames ------------------
+    syn = CITY_SYNONYMS.get(_location_key(city))
+    if syn and city:
+        syn_city, syn_state = syn
+        if not _match_in_list(city, state_cities(country, state) if state else []):
+            if not state:
+                state = syn_state
+            city = syn_city
+            notes.append(f"city '{city}' mapped to '{syn_city}' ({syn_state})")
+
+    # ---- 4. Repair a city that belongs to a different country --------------
+    if city:
+        states_available = country_states(country)
+        if not find_state_for_city(country, city) and states_available:
+            owners = _find_city_owner(city) - {country}
+            if len(owners) == 1:
+                new_country = next(iter(owners))
+                notes.append(f"'{city}' is not in {country}; country corrected to {new_country}")
+                country, state = new_country, ''
+
+    # ---- 5. Canonicalise the state ----------------------------------------
+    states_available = country_states(country)
+    state_canon = _match_in_list(state, states_available)
+    if state and not state_canon:
+        if states_available:
+            # Not a state of this country: if it is one of its cities it is
+            # really the district/city field.
+            if _match_in_list(state, [c for st in states_available
+                                      for c in state_cities(country, st)]):
+                if not city:
+                    city = state
+                    notes.append(f"'{state}' is a city of {country}, moved to city")
+                else:
+                    notes.append(f"state '{state}' is not valid for {country}; dropped")
+            else:
+                notes.append(f"state '{state}' is not valid for {country}; dropped")
+            state = ''
+        else:
+            state = ''
+    elif state_canon:
+        if state_canon != state:
+            notes.append(f"state '{state}' -> '{state_canon}'")
+        state = state_canon
+
+    # ---- 6. Canonicalise the city, inferring the state when missing ---------
+    cities_available = state_cities(country, state) if state else []
+    city_canon = _match_in_list(city, cities_available)
+    if city and not city_canon:
+        inferred_state = find_state_for_city(country, city)
+        if inferred_state:
+            if state and inferred_state != state:
+                notes.append(f"city '{city}' moved from state '{state}' to '{inferred_state}'")
+            else:
+                notes.append(f"state inferred as '{inferred_state}' from city '{city}'")
+            state = inferred_state
+            cities_available = state_cities(country, state)
+            city_canon = _match_in_list(city, cities_available)
+    if city and not city_canon:
+        if _location_key(city) == _location_key(state) and cities_available:
+            # Names the state, not a city within it. Only applies when the state
+            # actually has a city list the value is missing from - countries with
+            # no city list legitimately repeat the state name as the city.
+            notes.append(f"'{city}' is the state itself; cleared the city")
+            city = ''
+        elif cities_available:
+            notes.append(f"city '{city}' is not in {state}; kept as free text")
+        elif states_available:
+            notes.append(f"city '{city}' not recognised in {country}; kept as free text")
+        else:
+            notes.append(f"city '{city}' kept as free text ({country} has no city list)")
+    if city_canon:
+        if city_canon != city:
+            notes.append(f"city '{city}' -> '{city_canon}'")
+        city = city_canon
+
+    # A city identical to its country name is only useful when that country also
+    # has a subdivision with the same name (e.g. the canton "Luxembourg").
+    if city and _location_key(city) == _location_key(country):
+        same_named_state = _match_in_list(city, states_available)
+        if same_named_state:
+            if not state:
+                notes.append(f"'{city}' is a subdivision of {country}; used as the state")
+            state = same_named_state
+        else:
+            notes.append(f"'{city}' duplicates the country name; cleared the city")
+            city = ''
+
+    city = re.sub(r'\s+', ' ', city).strip()
+    state = re.sub(r'\s+', ' ', state).strip()
+
+    if city and state:
+        location = f"{city}, {state}, {country}"
+    elif city:
+        location = f"{city}, {country}"
+    elif state:
+        location = f"{state}, {country}"
+    else:
+        location = country
+
+    return {
+        'country': country,
+        'state': state,
+        'city': city,
+        'location': location,
+        'notes': notes,
+    }
+
+
+def mentor_location_parts(profile):
+    """(country, state, city) for a MentorProfile - the structured columns when
+    present, otherwise parsed out of the legacy `location` string."""
+    if profile is None:
+        return '', '', ''
+    resolved = resolve_location(
+        country=getattr(profile, 'country', None),
+        state=getattr(profile, 'state', None),
+        city=getattr(profile, 'city', None),
+        legacy_location=getattr(profile, 'location', None),
+    )
+    return resolved['country'], resolved['state'], resolved['city']
+
+
+def mentor_location_filter_options(all_mentors, country=None, state=None):
+    """Deduplicated Country / State / City picklists for the mentor filters,
+    narrowed by the currently selected country and state."""
+    resolved = [
+        resolve_location(country=m.get('country'), state=m.get('state'),
+                         city=m.get('city'), legacy_location=m.get('location'))
+        for m in all_mentors
+    ]
+    countries = sorted({r['country'] for r in resolved if r['country']})
+    c_key = _location_key(country)
+    country_pool = [r for r in resolved if not c_key or _location_key(r['country']) == c_key]
+    states = sorted({r['state'] for r in country_pool if r['state']})
+    s_key = _location_key(state)
+    state_pool = [r for r in country_pool if not s_key or _location_key(r['state']) == s_key]
+    cities = sorted({r['city'] for r in state_pool if r['city']})
+    return countries, states, cities
+
 # Background Supabase Cloud Backup Sync (Disabled by request)
 # try:
 #     import supabase_sync
@@ -1502,7 +2115,13 @@ class MentorProfile(db.Model):
     
     # Contact Information
     whatsapp = db.Column(db.String(20))
-    location = db.Column(db.String(100))  # New field - country
+    location = db.Column(db.String(100))  # Legacy display string, kept in sync with the columns below
+
+    # Structured location - mirrors the Country / State / City cascade used by the
+    # profile completion form, so filtering and matching agree with what mentors pick.
+    country = db.Column(db.String(100))   # e.g. "India"
+    state = db.Column(db.String(100))     # State / Province, or District for India
+    city = db.Column(db.String(100))      # City, or District for India
     
     # Education & Background
     education = db.Column(db.String(150))
@@ -2043,10 +2662,67 @@ class PersonalTask(db.Model):
     progress = db.Column(db.Integer, default=0)  # 0-100%
     created_date = db.Column(db.DateTime, default=datetime.utcnow)
     completed_date = db.Column(db.DateTime)
-    
+
+    # Task category: 'personal' (default), 'mentorship', or 'sgm'
+    # (Group Mentoring & Fireside chat).
+    category = db.Column(db.String(30), default="personal")
+    # For SGM tasks: every participating mentor / mentee, stored comma-wrapped
+    # (",1,2,3,") so a LIKE match can never confuse 1 with 11.
+    sgm_mentor_ids = db.Column(db.Text)
+    sgm_mentee_ids = db.Column(db.Text)
+    # For SGM tasks: link back to the Small Group Mentoring session.
+    sgm_meeting_id = db.Column(db.Integer)
+
     # Relationship
     mentee = db.relationship("User", foreign_keys=[mentee_id])
     mentor = db.relationship("User", foreign_keys=[mentor_id])
+
+    # ---- Category helpers -------------------------------------------------
+    CATEGORY_PERSONAL = "personal"
+    CATEGORY_MENTORSHIP = "mentorship"
+    CATEGORY_SGM = "sgm"
+
+    CATEGORY_LABELS = {
+        "personal": "Personal Task",
+        "mentorship": "Mentorship Task",
+        "sgm": "SGM",
+    }
+
+    @property
+    def is_sgm(self):
+        return (self.category or "").lower() == "sgm"
+
+    @property
+    def category_label(self):
+        return self.CATEGORY_LABELS.get((self.category or "").lower(), "Personal Task")
+
+    @staticmethod
+    def _id_list(raw):
+        out = []
+        for chunk in (raw or "").split(","):
+            chunk = chunk.strip()
+            if chunk.isdigit():
+                out.append(int(chunk))
+        return out
+
+    @property
+    def sgm_mentor_id_list(self):
+        return self._id_list(self.sgm_mentor_ids)
+
+    @property
+    def sgm_mentee_id_list(self):
+        return self._id_list(self.sgm_mentee_ids)
+
+    def mentor_has_access(self, user_id):
+        """A mentor may act on a task when they own it, or when they are one of
+        the participating mentors of a shared SGM group task."""
+        if not user_id:
+            return False
+        if self.mentor_id == user_id:
+            return True
+        if self.is_sgm:
+            return int(user_id) in self.sgm_mentor_id_list
+        return False
 
 
 #------------Task feedback Table-------------------
@@ -2162,6 +2838,72 @@ class InstitutionReflection(db.Model):
             'notes': self.notes or '',
             'date': self.created_at.isoformat() if self.created_at else ''
         }
+
+
+#------------Mentor Coupon / QR Key Table-------------------
+class MentorCoupon(db.Model):
+    """A single-use coupon a mentor hands out.
+
+    The coupon's `code` IS the key: it is what the mentor's QR code encodes, and
+    the QR points at /coupon/verify/<code>. A seller scanning that QR lands on
+    the verification page and presses a button, which flips the coupon to `used`
+    and records when and where. The discount itself is applied by the seller.
+    """
+    __tablename__ = "mentor_coupons"
+
+    id = db.Column(db.Integer, primary_key=True)
+    # The QR key. Unambiguous alphabet (no O/0, I/1) so it can be read aloud.
+    code = db.Column(db.String(40), unique=True, nullable=False, index=True)
+    mentor_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False, index=True)
+
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    # Free-text so the mentor decides: "10% off", "Free session", "1:1 consult".
+    discount_label = db.Column(db.String(120))
+
+    status = db.Column(db.String(20), default="active")  # active, used, revoked, expired
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime)
+
+    # Filled in when a seller verifies the QR.
+    used_at = db.Column(db.DateTime)
+    used_by = db.Column(db.String(200))        # seller / shop the coupon was used at
+    verification_count = db.Column(db.Integer, default=0)
+
+    mentor = db.relationship("User", foreign_keys=[mentor_id])
+
+    @property
+    def is_expired(self):
+        return bool(self.expires_at and datetime.utcnow() > self.expires_at)
+
+    @property
+    def is_usable(self):
+        return self.status == "active" and not self.is_expired
+
+    def to_dict(self, include_mentor=False):
+        data = {
+            'id': self.id,
+            'code': self.code,
+            'title': self.title,
+            'description': self.description or '',
+            'discount_label': self.discount_label or '',
+            'status': self.status,
+            'usable': self.is_usable,
+            'expired': self.is_expired,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'expires_at': self.expires_at.isoformat() if self.expires_at else None,
+            'used_at': self.used_at.isoformat() if self.used_at else None,
+            'used_by': self.used_by or '',
+            'verification_count': self.verification_count or 0,
+        }
+        if include_mentor:
+            data['mentor_id'] = self.mentor_id
+            data['mentor_name'] = self.mentor.name if self.mentor else ''
+            data['mentor_organisation'] = (
+                self.mentor.mentor_profile.organisation
+                if self.mentor and self.mentor.mentor_profile else ''
+            )
+        return data
 
 
 #------------Chat System Tables-------------------
@@ -4375,11 +5117,27 @@ def supervisordashboard():
     location = request.args.get("location")
     education = request.args.get("education")
     experience = request.args.get("experience")
+    # Structured location filters: Country > State/Province > City
+    f_country = (request.args.get("country") or "").strip()
+    f_state = (request.args.get("state") or "").strip()
+    f_city = (request.args.get("city") or "").strip()
 
     if profession:
         mentor_query = mentor_query.filter_by(profession=profession)
     if location:
         mentor_query = mentor_query.filter_by(location=location)
+    # Structured location filters: Country > State/Province > City.
+    # Filtered in Python because the cascade resolves legacy `location` strings
+    # for mentors whose structured columns are still empty.
+    if f_country:
+        mentor_query = mentor_query.filter(
+            func.lower(MentorProfile.country) == f_country.lower())
+    if f_state:
+        mentor_query = mentor_query.filter(
+            func.lower(MentorProfile.state) == f_state.lower())
+    if f_city:
+        mentor_query = mentor_query.filter(
+            func.lower(MentorProfile.city) == f_city.lower())
     if education:
         mentor_query = mentor_query.filter_by(education=education)
     if experience:
@@ -4397,12 +5155,22 @@ def supervisordashboard():
     # Add serial numbers based on timestamp order
     for idx, m in enumerate(mentors, 1):
         m.serial = idx
+        # country/state/city are real mapped columns - never assign to them here,
+        # or this read-only page would silently write resolved values to the DB.
+        # The template uses the resolved_* names instead.
+        m_country, m_state, m_city = mentor_location_parts(m)
+        setattr(m, "resolved_country", m_country)
+        setattr(m, "resolved_state", m_state)
+        setattr(m, "resolved_city", m_city)
 
     mentor_dropdown_rows = MentorProfile.query.with_entities(
         MentorProfile.profession,
         MentorProfile.location,
         MentorProfile.education,
-        MentorProfile.years_of_experience
+        MentorProfile.years_of_experience,
+        MentorProfile.country,
+        MentorProfile.state,
+        MentorProfile.city
     ).distinct().all()
 
     options = {
@@ -4411,6 +5179,15 @@ def supervisordashboard():
         "educations": sorted({r[2] for r in mentor_dropdown_rows if r[2]}),
         "experiences": sorted({r[3] for r in mentor_dropdown_rows if r[3]}),
     }
+
+    # Deduplicated Country / State / City picklists, narrowed by the selection.
+    options["countries"], options["states"], options["cities"] = mentor_location_filter_options(
+        [{"country": r[4], "state": r[5], "city": r[6], "location": r[1]}
+         for r in mentor_dropdown_rows],
+        country=f_country, state=f_state)
+    options["selected_country"] = f_country
+    options["selected_state"] = f_state
+    options["selected_city"] = f_city
 
     # ----------------- Mentees -----------------
     mentee_query = MenteeProfile.query.options(joinedload(MenteeProfile.user)).join(User, MenteeProfile.user_id == User.id)
@@ -4473,6 +5250,12 @@ def supervisordashboard():
         locations=options["locations"],
         educations=options["educations"],
         experiences=options["experiences"],
+        countries=options["countries"],
+        states=options["states"],
+        cities=options["cities"],
+        selected_country=options["selected_country"],
+        selected_state=options["selected_state"],
+        selected_city=options["selected_city"],
         mentee_streams=mentee_streams,
         mentee_schools=mentee_schools,
         mentee_goals=mentee_goals,
@@ -5764,8 +6547,16 @@ def get_institution_tasks_data():
         
         t_status = compute_task_progress_status(
             "personal", task.id, task.mentee_id, task.mentor_id or None,
-            ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
+            ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata,
+            task_obj=task
         )
+        _cat_key = (getattr(task, 'category', None) or 'personal').lower()
+        _is_sgm = _cat_key == 'sgm'
+        _sgm_mentors = task.sgm_mentor_id_list if _is_sgm else []
+        _sgm_names = []
+        if _sgm_mentors:
+            _sgm_names = [u.name for u in
+                          User.query.filter(User.id.in_(_sgm_mentors)).all()]
         tasks_data.append({
             "id": f"personal_{task.id}",
             "serial": f"P-{task.id}",
@@ -5778,9 +6569,14 @@ def get_institution_tasks_data():
             "status": t_status,
             "progress": task.progress or 0,
             "priority": task.priority or "medium",
-            "category": getattr(task, 'category', None) or "Personal",
+            "category": PersonalTask.CATEGORY_LABELS.get(_cat_key, "Personal Task"),
+            "categoryKey": _cat_key,
+            "isSGM": _is_sgm,
+            "sgmMentorNames": _sgm_names,
+            "sgmMeetingId": task.sgm_meeting_id if _is_sgm else None,
+            "mentorFeedbackCount": _mentor_submission_count("personal", task.id),
             "mentorId": task.mentor_id,
-            "mentorName": mentor.name if mentor else "Self-assigned",
+            "mentorName": ", ".join(_sgm_names) if _sgm_names else (mentor.name if mentor else "Self-assigned"),
             "mentorIsCorporate": _is_mentor_corp(mentor),
             "menteeId": task.mentee_id,
             "menteeName": mentee.name if mentee else "Unknown",
@@ -6235,6 +7031,10 @@ def find_mentor():
     location = request.args.get("location")
     education = request.args.get("education")
     experience = request.args.get("experience")
+    # Structured location filters: Country > State/Province > City
+    f_country = (request.args.get("country") or "").strip()
+    f_state = (request.args.get("state") or "").strip()
+    f_city = (request.args.get("city") or "").strip()
 
     # Get ALL users with user_type = "1" (mentors) - eager load mentor_profile in 1 single query
     all_mentor_users = User.query.filter_by(user_type="1").options(joinedload(User.mentor_profile)).all()
@@ -6243,6 +7043,7 @@ def find_mentor():
     all_mentors = []
     for user in all_mentor_users:
         mentor_profile = user.mentor_profile
+        m_country, m_state, m_city = mentor_location_parts(mentor_profile)
         
         # Create enriched object with user data as fallback
         mentor = type('MentorData', (), {})()
@@ -6259,6 +7060,9 @@ def find_mentor():
             mentor.profession = mentor_profile.profession
             mentor.organisation = mentor_profile.organisation
             mentor.location = mentor_profile.location
+            mentor.country = m_country
+            mentor.state = m_state
+            mentor.city = m_city
             mentor.years_of_experience = mentor_profile.years_of_experience
             mentor.education = mentor_profile.education
             mentor.language = mentor_profile.language
@@ -6296,6 +7100,9 @@ def find_mentor():
             mentor.profession = None
             mentor.organisation = None
             mentor.location = None
+            mentor.country = m_country
+            mentor.state = m_state
+            mentor.city = m_city
             mentor.years_of_experience = None
             mentor.education = None
             mentor.language = None
@@ -6335,6 +7142,15 @@ def find_mentor():
         filtered_mentors = [m for m in filtered_mentors if m.profession == profession]
     if location:
         filtered_mentors = [m for m in filtered_mentors if m.location == location]
+    if f_country:
+        filtered_mentors = [m for m in filtered_mentors
+                            if _location_key(getattr(m, 'country', '')) == _location_key(f_country)]
+    if f_state:
+        filtered_mentors = [m for m in filtered_mentors
+                            if _location_key(getattr(m, 'state', '')) == _location_key(f_state)]
+    if f_city:
+        filtered_mentors = [m for m in filtered_mentors
+                            if _location_key(getattr(m, 'city', '')) == _location_key(f_city)]
     if education:
         filtered_mentors = [m for m in filtered_mentors if m.education == education]
     if experience:
@@ -6364,6 +7180,17 @@ def find_mentor():
         "experiences": sorted({row.years_of_experience for row in mentor_profiles if row.years_of_experience}),
     }
 
+    # Deduplicated Country / State / City picklists for the filter bar.
+    picklist = [
+        {"country": m.country, "state": m.state, "city": m.city, "location": m.location}
+        for m in all_mentors
+    ]
+    options["countries"], options["states"], options["cities"] = mentor_location_filter_options(
+        picklist, country=f_country, state=f_state)
+    options["selected_country"] = f_country
+    options["selected_state"] = f_state
+    options["selected_city"] = f_city
+
     # Dynamic render/redirect based on source
     if source_page == "supervisor_find_mentor" or session.get("user_type") in ("0", "3"):
         return render_template(
@@ -6375,6 +7202,12 @@ def find_mentor():
         locations=options["locations"],
         educations=options["educations"],
         experiences=options["experiences"],
+        countries=options["countries"],
+        states=options["states"],
+        cities=options["cities"],
+        selected_country=options["selected_country"],
+        selected_state=options["selected_state"],
+        selected_city=options["selected_city"],
         show_sidebar=True
         )
     else:  # default mentee
@@ -6386,6 +7219,12 @@ def find_mentor():
         locations=options["locations"],
         educations=options["educations"],
         experiences=options["experiences"],
+        countries=options["countries"],
+        states=options["states"],
+        cities=options["cities"],
+        selected_country=options["selected_country"],
+        selected_state=options["selected_state"],
+        selected_city=options["selected_city"],
         active_section="findmentor",
         show_sidebar=True,
         current_user=current_user
@@ -6806,6 +7645,10 @@ def supervisor_find_mentor():
     location = request.args.get("location")
     education = request.args.get("education")
     experience = request.args.get("experience")
+    # Structured location filters: Country > State/Province > City
+    f_country = (request.args.get("country") or "").strip()
+    f_state = (request.args.get("state") or "").strip()
+    f_city = (request.args.get("city") or "").strip()
 
     # Single query: fetch all mentor-type users with their profiles eagerly loaded
     all_users = User.query.filter_by(user_type="1").outerjoin(
@@ -6816,6 +7659,7 @@ def supervisor_find_mentor():
     enriched_mentors = []
     for user in all_users:
         profile = user.mentor_profile
+        m_country, m_state, m_city = mentor_location_parts(profile)
         if profile:
             enriched_mentor = {
                 'id': profile.id,
@@ -6825,6 +7669,9 @@ def supervisor_find_mentor():
                 'profession': profile.profession,
                 'organisation': profile.organisation,
                 'location': profile.location,
+                'country': m_country,
+                'state': m_state,
+                'city': m_city,
                 'years_of_experience': profile.years_of_experience,
                 'profile_picture': profile.profile_picture,
                 'education': profile.education,
@@ -6864,6 +7711,7 @@ def supervisor_find_mentor():
                 'user': user,
                 'is_corporate': getattr(user, 'is_corporate', False),
                 'profession': None, 'organisation': None, 'location': None,
+                'country': m_country, 'state': m_state, 'city': m_city,
                 'years_of_experience': None, 'profile_picture': None,
                 'education': None, 'language': None, 'preferred_communication': None,
                 'why_mentor': None, 'role': None, 'industry_sector': None,
@@ -6887,6 +7735,15 @@ def supervisor_find_mentor():
         filtered_mentors = [m for m in filtered_mentors if m.get('profession') == profession]
     if location:
         filtered_mentors = [m for m in filtered_mentors if m.get('location') == location]
+    if f_country:
+        filtered_mentors = [m for m in filtered_mentors
+                            if _location_key(m.get('country')) == _location_key(f_country)]
+    if f_state:
+        filtered_mentors = [m for m in filtered_mentors
+                            if _location_key(m.get('state')) == _location_key(f_state)]
+    if f_city:
+        filtered_mentors = [m for m in filtered_mentors
+                            if _location_key(m.get('city')) == _location_key(f_city)]
     if education:
         filtered_mentors = [m for m in filtered_mentors if m.get('education') == education]
     if experience:
@@ -6913,6 +7770,11 @@ def supervisor_find_mentor():
     educations = sorted({r[0] for r in MentorProfile.query.with_entities(MentorProfile.education).distinct() if r[0]})
     experiences = sorted({r[0] for r in MentorProfile.query.with_entities(MentorProfile.years_of_experience).distinct() if r[0]})
 
+    # Deduplicated Country / State / City picklists, narrowed by the current
+    # selection so the filter can never offer the same place twice.
+    countries, states, cities = mentor_location_filter_options(
+        enriched_mentors, country=f_country, state=f_state)
+
     return render_template(
         "supervisor/supervisor_find_mentor.html",
         mentors=filtered_mentors,
@@ -6920,6 +7782,12 @@ def supervisor_find_mentor():
         locations=locations,
         educations=educations,
         experiences=experiences,
+        countries=countries,
+        states=states,
+        cities=cities,
+        selected_country=f_country,
+        selected_state=f_state,
+        selected_city=f_city,
         active_section="mentors",
         show_sidebar=True
     )
@@ -8094,8 +8962,7 @@ def mentee_tasks():
         .order_by(MenteeTask.meeting_number)\
         .all()
     
-    personal_tasks = PersonalTask.query\
-        .filter_by(mentee_id=mentee.id)\
+    personal_tasks = _mentee_task_query_for_user(mentee.id)\
         .order_by(PersonalTask.created_date.desc())\
         .all()
     
@@ -8436,8 +9303,8 @@ def mentor_tasks():
                     "profile": mentee_profile
                 })
 
-    # Get personal tasks assigned by this mentor
-    personal_tasks = PersonalTask.query.filter_by(mentor_id=mentor.id).all()
+    # Get personal tasks assigned by this mentor, plus the SGM group tasks they facilitate
+    personal_tasks = _mentor_task_query_for_user(mentor.id).all()
     
     # Ensure confirmed anchor mentorships have their tasks assigned
     ensure_anchor_tasks_assigned(mentor_id=mentor.id)
@@ -8473,10 +9340,21 @@ def mentor_tasks():
     not_started_count = 0
     overdue_count = 0
     today = datetime.utcnow().date()
+    # Bulk mentor-feedback counts (avoids a query per task)
+    personal_counts = _mentor_submission_counts(
+        "personal", [t.id for t in personal_tasks])
     for t in all_tasks:
         ttype = "master" if hasattr(t, 'meeting_number') and hasattr(t, 'task_id') else "personal"
-        st = compute_task_progress_status(ttype, t.id, t.mentee_id, t.mentor_id or None)
+        st = compute_task_progress_status(
+            ttype, t.id, t.mentee_id, t.mentor_id or None,
+            task_obj=t if ttype == "personal" else None)
         setattr(t, 'status', st)  # Override DB status with computed 4-stage status
+        if ttype == "personal":
+            # category_label and is_sgm are read-only properties on PersonalTask,
+            # so only the plain attributes are set here.
+            setattr(t, 'task_category', (getattr(t, 'category', None) or 'personal').lower())
+            setattr(t, 'sgm_mentors', t.sgm_mentor_id_list if t.is_sgm else [])
+            setattr(t, 'mentor_feedback_count', personal_counts.get(t.id, 0))
         if st == 'done':
             done_count += 1
         elif st in ('in-progress', 'committed'):
@@ -9630,7 +10508,12 @@ def mentor_create_task():
         description = data.get('description')
         due_date_str = data.get('due_date')
         priority = data.get('priority', 'medium')
-        category = data.get('category', 'Other')
+        category = (data.get('category') or '').strip()
+        # Only the SGM bucket maps onto a stored task category; the rest of the
+        # form's taxonomy (Programming, Career Development, ...) stays free-text.
+        task_category = (PersonalTask.CATEGORY_SGM
+                         if category.lower() in ('sgm', 'sgm task')
+                         else PersonalTask.CATEGORY_PERSONAL)
         
         # Get current mentor
         mentor = User.query.filter_by(email=session["email"]).first()
@@ -9661,7 +10544,8 @@ def mentor_create_task():
             due_date=due_date,
             priority=priority,
             status="pending",
-            progress=0
+            progress=0,
+            category=task_category
         )
         
         db.session.add(personal_task)
@@ -9732,9 +10616,9 @@ def get_mentor_task_details(task_id):
             if not task:
                 return jsonify({"success": False, "message": "Personal task not found"})
             
-            # Verify the mentor has access to this task
+            # Verify the mentor has access (owner, or any participating mentor of an SGM group task)
             mentor = User.query.filter_by(email=session["email"]).first()
-            if task.mentor_id != mentor.id:
+            if not task.mentor_has_access(mentor.id):
                 return jsonify({"success": False, "message": "Access denied"})
             
             task_data = {
@@ -9743,9 +10627,13 @@ def get_mentor_task_details(task_id):
                 "title": task.title,
                 "description": task.description,
                 "due_date": task.due_date.strftime('%Y-%m-%d') if task.due_date else None,
-                "status": compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id or None),
+                "status": compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id or None, task_obj=task),
                 "progress": task.progress or 0,
                 "priority": task.priority,
+                "category": (task.category or 'personal'),
+                "categoryLabel": task.category_label,
+                "isSGM": task.is_sgm,
+                "mentorFeedbackCount": _mentor_submission_count("personal", task.id),
                 "mentee_name": task.mentee.name if task.mentee else "Unknown",
                 "mentee_email": task.mentee.email if task.mentee else "",
                 "assigned_by": "You",
@@ -9777,11 +10665,14 @@ def rate_task(task_type, task_id):
         
         data = request.get_json()
         
-        # Check if task exists and belongs to mentor's mentee
+        # Check the task exists and this mentor may act on it (owner, or any
+        # participating mentor of a shared SGM group task)
         if task_type == 'master':
             task = MenteeTask.query.filter_by(id=task_id, mentor_id=mentor.id).first()
         else:
-            task = PersonalTask.query.filter_by(id=task_id, mentor_id=mentor.id).first()
+            task = db.session.get(PersonalTask, task_id)
+            if task and not task.mentor_has_access(mentor.id):
+                task = None
             
         if not task:
             return jsonify({'success': False, 'message': 'Task not found or access denied'})
@@ -9816,13 +10707,16 @@ def rate_task(task_type, task_id):
         
         db.session.commit()
         mentor_id = mentor.id
-        new_status = compute_task_progress_status(task_type, task_id, task.mentee_id, mentor_id)
+        new_status = compute_task_progress_status(
+            task_type, task_id, task.mentee_id, mentor_id,
+            task_obj=task if task_type == 'personal' else None)
         _sync_task_completion_status(task, new_status)
         
         return jsonify({
             'success': True, 
             'message': 'Task rated successfully',
-            'status': new_status
+            'status': new_status,
+            'submission_count': _mentor_submission_count(task_type, task_id),
         })
         
     except Exception as e:
@@ -10323,24 +11217,152 @@ def _has_mentee_feedback(task_type, task_id, mentee_id=None):
     return has_rating or has_text
 
 
-def _has_mentor_rating(task_type, task_id):
-    """Check if mentor has submitted rating for this task."""
-    rating = TaskRating.query.filter_by(task_id=task_id, task_type=task_type).first()
+def _is_sgm_task(task_type, task_id, task_obj=None):
+    """True when the task is an SGM (Group Mentoring & Fireside chat) task."""
+    if task_type != 'personal':
+        return False
+    task = task_obj if task_obj is not None else db.session.get(PersonalTask, task_id)
+    if not task:
+        return False
+    return (getattr(task, 'category', None) or '').lower() == 'sgm'
+
+
+def _sgm_task_participants(task_obj):
+    """(mentor_ids, mentee_ids) for an SGM task, falling back to the assignees."""
+    if not task_obj:
+        return [], []
+    mentor_ids = list(getattr(task_obj, 'sgm_mentor_id_list', None) or [])
+    mentee_ids = list(getattr(task_obj, 'sgm_mentee_id_list', None) or [])
+    if not mentor_ids and task_obj.mentor_id:
+        mentor_ids = [task_obj.mentor_id]
+    if not mentee_ids and task_obj.mentee_id:
+        mentee_ids = [task_obj.mentee_id]
+    return mentor_ids, mentee_ids
+
+
+def _mentor_task_query_for_user(mentor_id):
+    """Personal tasks a mentor may view/submit on: tasks they own, plus the SGM
+    group tasks they facilitate.
+
+    Only the REQUESTING mentor's id is used in the roster match - matching every
+    id on the task would let any mentor see somebody else's SGM task.
+    """
+    from sqlalchemy import or_
+    ors = [PersonalTask.mentor_id == mentor_id]
+    if mentor_id:
+        ors.append(PersonalTask.sgm_mentor_ids.like(f"%,{int(mentor_id)},%"))
+    return PersonalTask.query.filter(or_(*ors))
+
+
+def _mentee_task_query_for_user(mentee_id):
+    """Personal tasks a mentee may view: tasks assigned to them, plus the shared
+    SGM group tasks they take part in.
+
+    Only the REQUESTING mentee's id is used in the roster match - matching every
+    id on the task would let any mentee see somebody else's SGM task.
+    """
+    from sqlalchemy import or_
+    ors = [PersonalTask.mentee_id == mentee_id]
+    if mentee_id:
+        ors.append(PersonalTask.sgm_mentee_ids.like(f"%,{int(mentee_id)},%"))
+    return PersonalTask.query.filter(or_(*ors))
+
+
+def _mentor_submission_count(task_type, task_id):
+    """How many distinct mentors have submitted feedback (rating or reflection)."""
+    rating_ids = {
+        r[0] for r in TaskRating.query.with_entities(TaskRating.mentor_id)
+        .filter_by(task_id=task_id, task_type=task_type).all() if r[0]
+    }
+    reflection_ids = {
+        rr.mentor_id for rr in MentorReflection.query
+        .filter_by(task_id=task_id, task_type=task_type).all()
+        if (rr.text or '').strip() or (rr.extra or '').strip()
+    }
+    return len(rating_ids | reflection_ids)
+
+
+def _mentor_submission_counts(task_type, task_ids):
+    """Bulk version of _mentor_submission_count - avoids N+1 on task listings."""
+    ids = [int(i) for i in task_ids if i is not None]
+    if not ids:
+        return {}
+    counts = {}
+    rating_rows = TaskRating.query.with_entities(
+        TaskRating.task_id, TaskRating.mentor_id).filter(
+        TaskRating.task_type == task_type,
+        TaskRating.task_id.in_(ids)).all()
+    reflection_rows = MentorReflection.query.with_entities(
+        MentorReflection.task_id, MentorReflection.mentor_id, MentorReflection.text,
+        MentorReflection.extra).filter(
+        MentorReflection.task_type == task_type,
+        MentorReflection.task_id.in_(ids)).all()
+    for task_id, mentor_id in rating_rows:
+        if not mentor_id:
+            continue
+        counts.setdefault(task_id, set()).add(mentor_id)
+    for task_id, mentor_id, text, extra in reflection_rows:
+        if not mentor_id or not ((text or '').strip() or (extra or '').strip()):
+            continue
+        counts.setdefault(task_id, set()).add(mentor_id)
+    return {tid: len(members) for tid, members in counts.items()}
+
+
+def _all_mentor_reflections(task_type, task_id):
+    """Every mentor reflection on a task - one row per mentor, so no mentor's
+    feedback is overwritten by another's."""
+    rows = MentorReflection.query.filter_by(task_type=task_type, task_id=task_id).all()
+    if task_type == 'master':
+        mt = db.session.get(MenteeTask, task_id)
+        if mt and mt.task_id:
+            rows = rows + MentorReflection.query.filter_by(
+                task_type='master', task_id=mt.task_id).all()
+    return [r for r in rows if (r.text or '').strip() or (r.extra or '').strip()]
+
+
+def _all_mentor_ratings(task_type, task_id):
+    """Every mentor rating on a task - one row per mentor."""
+    rows = TaskRating.query.filter_by(task_type=task_type, task_id=task_id).all()
+    if task_type == 'master':
+        mt = db.session.get(MenteeTask, task_id)
+        if mt and mt.task_id:
+            rows = rows + TaskRating.query.filter_by(
+                task_type='master', task_id=mt.task_id).all()
+    seen, out = set(), []
+    for r in rows:
+        if r.rating is None or r.mentor_id in seen:
+            continue
+        seen.add(r.mentor_id)
+        out.append(r)
+    return out
+
+
+def _has_mentor_rating(task_type, task_id, mentor_id=None):
+    """Has mentor feedback been submitted for this task?
+
+    With no mentor_id this answers "has ANY mentor submitted?", which is the
+    rule used for completion (on an SGM group task a single mentor is enough).
+    Pass mentor_id to answer "has THIS mentor submitted?".
+    """
+    q = TaskRating.query.filter_by(task_id=task_id, task_type=task_type)
+    rating = q.filter_by(mentor_id=mentor_id).first() if mentor_id else q.first()
     if not rating and task_type == 'master':
         mt = db.session.get(MenteeTask, task_id)
         if mt and mt.task_id:
-            rating = TaskRating.query.filter_by(task_id=mt.task_id, task_type='master').first()
-    # Only return true if there's an actual rating value
+            q2 = TaskRating.query.filter_by(task_id=mt.task_id, task_type='master')
+            rating = q2.filter_by(mentor_id=mentor_id).first() if mentor_id else q2.first()
     return rating is not None and rating.rating is not None
 
 
-def _has_mentor_reflection(task_type, task_id):
-    """Check if mentor has submitted a reflection for this task."""
-    refl = MentorReflection.query.filter_by(task_type=task_type, task_id=task_id).first()
+def _has_mentor_reflection(task_type, task_id, mentor_id=None):
+    """Has a mentor submitted a reflection for this task (any mentor by default)?"""
+    q = MentorReflection.query.filter_by(task_type=task_type, task_id=task_id)
+    refl = q.filter_by(mentor_id=mentor_id).first() if mentor_id else q.first()
     if not refl and task_type == 'master':
         mt = db.session.get(MenteeTask, task_id)
         if mt and mt.task_id:
-            refl = MentorReflection.query.filter_by(task_type='master', task_id=mt.task_id).first()
+            q2 = MentorReflection.query.filter_by(task_type='master', task_id=mt.task_id)
+            refl = q2.filter_by(mentor_id=mentor_id).first() if mentor_id else q2.first()
     if not refl:
         return False
     return bool((refl.text or '').strip() or (refl.extra or '').strip())
@@ -10363,6 +11385,7 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
 
     Stages:
       done        : All 3 personas (mentee, mentor, and institute) have submitted feedback/ratings.
+                     Exception -> SGM tasks: a SINGLE mentor's feedback completes the task.
       in-progress : Any one (or two) personas have submitted feedback, but not all three.
       committed   : Task is attached to a scheduled meeting, but no feedback/ratings submitted yet.
       not-started : Neither feedback from anyone NOR a meeting scheduled for this task.
@@ -10373,6 +11396,8 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
     _mt_obj = None
     if task_type == 'master':
         _mt_obj = task_obj if task_obj is not None else db.session.get(MenteeTask, task_id)
+
+    _sgm_task = _is_sgm_task(task_type, task_id, task_obj if task_type == 'personal' else None)
 
     # 1. Mentee feedback check
     if mentee_fb_set is not None:
@@ -10411,8 +11436,12 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
     any_feedback = bool(has_mentee_fb or mentor_submitted or has_inst_refl)
 
     # Determine which personas are required for 'done':
-    # Each task is complete ONLY when mentee, mentor, AND institute have given feedback.
-    if task_type == 'master':
+    # Normally mentee AND mentor AND institute must all have given feedback.
+    # SGM exception: the task is shared by a group of mentors, so ONE mentor's
+    # feedback is enough to complete it.
+    if _sgm_task:
+        all_feedback = bool(mentor_submitted)
+    elif task_type == 'master':
         all_feedback = bool(has_mentee_fb and mentor_submitted and has_inst_refl)
     else:
         mentor_req = mentor_submitted if mentor_id else True
@@ -10672,7 +11701,23 @@ def save_mentor_reflection():
         if not task_type or not task_id:
             return jsonify({'success': False, 'message': 'Missing task_type or task_id'})
 
-        reflection = MentorReflection.query.filter_by(task_type=task_type, task_id=task_id).first()
+        t = None
+        mentee_id = None
+        if task_type == 'master':
+            t = db.session.get(MenteeTask, task_id)
+            if t and t.mentor_id != mentor.id:
+                return jsonify({'success': False, 'message': 'Task not found or access denied'})
+            mentee_id = t.mentee_id if t else None
+        else:
+            t = db.session.get(PersonalTask, task_id)
+            if not t or not t.mentor_has_access(mentor.id):
+                return jsonify({'success': False, 'message': 'Task not found or access denied'})
+            mentee_id = t.mentee_id
+
+        # One row per mentor, so every mentor's feedback on a shared SGM task is
+        # kept instead of being overwritten by whoever submits last.
+        reflection = MentorReflection.query.filter_by(
+            task_type=task_type, task_id=task_id, mentor_id=mentor.id).first()
         if not reflection:
             reflection = MentorReflection(
                 mentor_id=mentor.id,
@@ -10680,29 +11725,37 @@ def save_mentor_reflection():
                 task_id=task_id
             )
             db.session.add(reflection)
-        reflection.mentor_id = mentor.id
         reflection.text = (data.get('text') or '').strip()
         reflection.extra = (data.get('extra') or '').strip()
         reflection.created_at = datetime.utcnow()
 
         db.session.commit()
-        mentee_id = None
-        if task_type == 'master':
-            t = db.session.get(MenteeTask, task_id)
-            mentee_id = t.mentee_id if t else None
-        else:
-            t = db.session.get(PersonalTask, task_id)
-            mentee_id = t.mentee_id if t else None
-        new_status = compute_task_progress_status(task_type, task_id, mentee_id, mentor.id)
+        new_status = compute_task_progress_status(
+            task_type, task_id, mentee_id, mentor.id,
+            task_obj=t if task_type == 'personal' else None)
         _sync_task_completion_status(t, new_status)
-        return jsonify({'success': True, 'message': 'Reflection saved', 'reflection': reflection.to_dict(), 'status': new_status})
+        return jsonify({
+            'success': True,
+            'message': 'Reflection saved',
+            'reflection': reflection.to_dict(),
+            'status': new_status,
+            'submission_count': _mentor_submission_count(task_type, task_id),
+        })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/get_mentor_reflection/<task_type>/<int:task_id>')
 def get_mentor_reflection(task_type, task_id):
     try:
-        reflection = MentorReflection.query.filter_by(task_type=task_type, task_id=task_id).first()
+        # Prefer the signed-in mentor's own reflection, fall back to any other.
+        reflection = None
+        if "email" in session and session.get("user_type") == "1":
+            mentor = User.query.filter_by(email=session["email"]).first()
+            if mentor:
+                reflection = MentorReflection.query.filter_by(
+                    task_type=task_type, task_id=task_id, mentor_id=mentor.id).first()
+        if not reflection:
+            reflection = MentorReflection.query.filter_by(task_type=task_type, task_id=task_id).first()
         if not reflection and task_type == 'master':
             mt = db.session.get(MenteeTask, task_id)
             if mt and mt.task_id:
@@ -10712,6 +11765,107 @@ def get_mentor_reflection(task_type, task_id):
         return jsonify({'success': True, 'reflection': reflection.to_dict()})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+
+
+# ===== ALL MENTORS' FEEDBACK ON A TASK (used by SGM group tasks) =====
+@app.route('/get_all_mentor_feedback/<task_type>/<int:task_id>')
+def get_all_mentor_feedback(task_type, task_id):
+    """Every mentor's rating + reflection recorded against a task.
+
+    Visible to supervisors, institution coordinators, and to mentors assigned to
+    the task (including every participating mentor of an SGM group task).
+    """
+    try:
+        if "email" not in session:
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        viewer = User.query.filter_by(email=session["email"]).first()
+        if not viewer:
+            return jsonify({'success': False, 'message': 'User not found'}), 401
+
+        if task_type == 'master':
+            task = db.session.get(MenteeTask, task_id)
+        else:
+            task = db.session.get(PersonalTask, task_id)
+        if not task:
+            return jsonify({'success': False, 'message': 'Task not found'}), 404
+
+        vtype = str(session.get("user_type", ""))
+        if vtype == "1":
+            allowed = task.mentor_id == viewer.id if task_type == 'master' \
+                else task.mentor_has_access(viewer.id)
+            if not allowed:
+                return jsonify({'success': False, 'message': 'Access denied'}), 403
+        elif vtype not in ("0", "3", "admin", "supervisor"):
+            return jsonify({'success': False, 'message': 'Access denied'}), 403
+
+        reflections = _all_mentor_reflections(task_type, task_id)
+        ratings = _all_mentor_ratings(task_type, task_id)
+
+        if task_type == 'personal':
+            expected = task.sgm_mentor_id_list or ([task.mentor_id] if task.mentor_id else [])
+        else:
+            expected = [task.mentor_id] if task.mentor_id else []
+
+        users = {}
+        if expected:
+            users = {u.id: u for u in User.query.filter(User.id.in_(expected)).all()}
+
+        by_mentor = {}
+        for mid in expected:
+            if mid:
+                by_mentor[mid] = {
+                    'mentor_id': mid,
+                    'mentor_name': users[mid].name if mid in users else f"Mentor #{mid}",
+                    'submitted': False, 'rating': None,
+                    'feedback': '', 'strengths': '', 'improvements': '',
+                    'reflection': '', 'reflection_extra': '', 'submitted_at': None,
+                }
+
+        for r in ratings:
+            entry = by_mentor.setdefault(r.mentor_id, {
+                'mentor_id': r.mentor_id, 'mentor_name': '', 'submitted': False,
+                'rating': None, 'feedback': '', 'strengths': '', 'improvements': '',
+                'reflection': '', 'reflection_extra': '', 'submitted_at': None,
+            })
+            if not entry['mentor_name']:
+                u = users.get(r.mentor_id) or (r.mentor if r.mentor_id else None)
+                entry['mentor_name'] = getattr(u, 'name', '') or f"Mentor #{r.mentor_id}"
+            entry['rating'] = r.rating
+            entry['feedback'] = r.feedback or ''
+            entry['strengths'] = r.strengths or ''
+            entry['improvements'] = r.improvements or ''
+            entry['submitted'] = True
+            if r.rated_at:
+                entry['submitted_at'] = r.rated_at.isoformat()
+
+        for refl in reflections:
+            entry = by_mentor.setdefault(refl.mentor_id, {
+                'mentor_id': refl.mentor_id, 'mentor_name': '', 'submitted': False,
+                'rating': None, 'feedback': '', 'strengths': '', 'improvements': '',
+                'reflection': '', 'reflection_extra': '', 'submitted_at': None,
+            })
+            if not entry['mentor_name']:
+                u = users.get(refl.mentor_id) or (refl.mentor if refl.mentor_id else None)
+                entry['mentor_name'] = getattr(u, 'name', '') or f"Mentor #{refl.mentor_id}"
+            entry['reflection'] = refl.text or ''
+            entry['reflection_extra'] = refl.extra or ''
+            entry['submitted'] = True
+            if refl.created_at:
+                entry['submitted_at'] = refl.created_at.isoformat()
+
+        entries = sorted(by_mentor.values(), key=lambda e: (e['mentor_name'] or '').lower())
+        return jsonify({
+            'success': True,
+            'task_type': task_type,
+            'task_id': task_id,
+            'is_sgm': bool(task_type == 'personal' and task.is_sgm),
+            'feedback': entries,
+            'submitted_count': len([e for e in entries if e['submitted']]),
+            'total_mentors': len(entries),
+        })
+    except Exception as e:
+        app.logger.error(f"get_all_mentor_feedback failed: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 # ===== INSTITUTION TASK REFLECTION SYNC =====
 @app.route('/save_institution_reflection', methods=['POST'])
@@ -12190,6 +13344,35 @@ def get_supervisor_tasks_data():
                 task_obj=task, mentee_fb_set=mentee_fb_set, mentor_refl_set=mentor_refl_set, inst_refl_set=inst_refl_set
             )
             is_critical = task.priority == 'high' and status != 'done'
+            cat_key = (getattr(task, 'category', None) or 'personal').lower()
+            is_sgm = cat_key == 'sgm'
+            sgm_mentor_ids = task.sgm_mentor_id_list if is_sgm else []
+            sgm_mentor_names = []
+            if sgm_mentor_ids:
+                sgm_mentor_names = [u.name for u in
+                                    User.query.filter(User.id.in_(sgm_mentor_ids)).all()]
+            # Every mentor's feedback on an SGM task, for the supervisor view.
+            sgm_feedbacks = []
+            if is_sgm:
+                for fb in _all_mentor_reflections("personal", task.id):
+                    sgm_feedbacks.append({
+                        'mentor_id': fb.mentor_id,
+                        'mentor_name': fb.mentor.name if fb.mentor else f"Mentor #{fb.mentor_id}",
+                        'text': fb.text or '', 'extra': fb.extra or '',
+                        'rating': None,
+                        'date': fb.created_at.isoformat() if fb.created_at else None,
+                    })
+                seen = {f['mentor_id'] for f in sgm_feedbacks}
+                for rt in _all_mentor_ratings("personal", task.id):
+                    if rt.mentor_id in seen:
+                        continue
+                    sgm_feedbacks.append({
+                        'mentor_id': rt.mentor_id,
+                        'mentor_name': rt.mentor.name if rt.mentor else f"Mentor #{rt.mentor_id}",
+                        'text': rt.feedback or '', 'extra': rt.strengths or '',
+                        'rating': rt.rating,
+                        'date': rt.rated_at.isoformat() if rt.rated_at else None,
+                    })
             
             tasks.append({
                 'id': f"personal_{task.id}",
@@ -12200,11 +13383,18 @@ def get_supervisor_tasks_data():
                 'status': status,
                 'progress': task.progress or 0,
                 'mentorId': task.mentor_id,
-                'mentorName': mentor.name if mentor else 'Self',
+                'mentorName': ", ".join(sgm_mentor_names) if sgm_mentor_names
+                              else (mentor.name if mentor else 'Self'),
                 'mentorIsCorporate': _is_mentor_corp(mentor),
                 'menteeId': task.mentee_id,
                 'menteeName': mentee.name if mentee else 'Unknown',
-                'category': 'Personal Task',
+                'category': PersonalTask.CATEGORY_LABELS.get(cat_key, 'Personal Task'),
+                'categoryKey': cat_key,
+                'isSGM': is_sgm,
+                'sgmMentorIds': sgm_mentor_ids,
+                'sgmMeetingId': task.sgm_meeting_id if is_sgm else None,
+                'mentorFeedbackCount': _mentor_submission_count("personal", task.id),
+                'mentorFeedbacks': sgm_feedbacks,
                 'rating': rating_obj.rating if rating_obj else None,
                 'menteeRating': mf_rating,
                 'mentee_rating': mf_rating,
@@ -12428,6 +13618,12 @@ def supervisor_create_task():
         description = data.get('description', '')
         due_date_str = data.get('due_date')
         priority = data.get('priority', 'medium')
+        category = (data.get('category') or '').strip()
+        # Only the SGM bucket maps onto a stored task category; the rest of the
+        # form's taxonomy (Programming, Career Development, ...) stays free-text.
+        task_category = (PersonalTask.CATEGORY_SGM
+                         if category.lower() in ('sgm', 'sgm task')
+                         else PersonalTask.CATEGORY_PERSONAL)
         
         if not mentee_id or not title:
             return jsonify({"success": False, "message": "Mentee and title are required"})
@@ -12457,7 +13653,8 @@ def supervisor_create_task():
             due_date=due_date,
             priority=priority,
             status="pending",
-            progress=0
+            progress=0,
+            category=task_category
         )
         
         db.session.add(personal_task)
@@ -13600,16 +14797,18 @@ def editmentorprofile():
         if country == "Other":
             other_country = request.form.get("other_country")
             country = other_country if other_country else country
-        
+
         city = request.form.get("city")
         state = request.form.get("state")
-        # Build location string: "City, State, Country" for normal, "District, State, India" for India, or just "City, Country"
-        if city and state and country:
-            profile.location = f"{city}, {state}, {country}"
-        elif city and country:
-            profile.location = f"{city}, {country}"
-        else:
-            profile.location = city or country
+        # Normalise against the Country / State / City cascade so the structured
+        # columns and the display string always agree with the picklist.
+        resolved_loc = resolve_location(country=country, state=state, city=city)
+        profile.country = resolved_loc["country"] or None
+        profile.state = resolved_loc["state"] or None
+        profile.city = resolved_loc["city"] or None
+        profile.location = resolved_loc["location"]
+        if resolved_loc["notes"]:
+            app.logger.debug(f"Mentor location normalised: {resolved_loc['notes']}")
         
         # Handle multiple language selection with "Other" option
         languages = request.form.getlist("language")
@@ -13737,23 +14936,9 @@ def editmentorprofile():
     # Check if there's saved form data from failed validation
     form_data = session.pop('mentor_form_data', None)
     
-    # Parse location to get city, state, and country separately
+    # Structured location (falls back to parsing the legacy location string)
+    country, state, city = mentor_location_parts(profile)
     location = profile.location if profile else ""
-    city = ""
-    country = ""
-    state = ""
-    if location and ", " in location:
-        parts = location.split(", ")
-        if len(parts) >= 3:
-            # New format: "City, State, Country"
-            city = parts[0]
-            state = parts[1]
-            country = parts[2]
-        elif len(parts) == 2:
-            city = parts[0]
-            country = parts[1]
-    else:
-        city = location
     
     # Parse WhatsApp to get country code and number separately
     whatsapp_full = profile.whatsapp if profile else ""
@@ -14482,9 +15667,9 @@ def my_certificate():
                 "with": mentor.name if mentor else "Unknown"
             })
         
-        personal_tasks = PersonalTask.query.filter_by(mentee_id=user.id).all()
+        personal_tasks = _mentee_task_query_for_user(user.id).all()
         for t in personal_tasks:
-            raw_st = compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id or None)
+            raw_st = compute_task_progress_status("personal", t.id, t.mentee_id, t.mentor_id or None, task_obj=t)
             tasks_list.append({
                 "id": f"p{t.id}",
                 "title": t.title,
@@ -16246,6 +17431,7 @@ def supervisor_schedule_sgm_ajax():
     data = request.get_json(silent=True) or {}
     title = (data.get("title") or "").strip()
     mentor_id = data.get("mentor_id")
+    raw_mentor_ids = data.get("mentor_ids") or []
     raw_mentee_ids = data.get("mentee_ids") or []
     date_str = (data.get("date") or "").strip()
     start_time_str = (data.get("start_time") or "").strip()
@@ -16255,36 +17441,49 @@ def supervisor_schedule_sgm_ajax():
     custom_link = (data.get("custom_link") or "").strip()
     description = (data.get("description") or "").strip()
 
-    # Field validations
-    if not title:
-        return jsonify({"error": "Meeting Title is required."}), 400
-    if not mentor_id:
+    # Field validations. The title is optional - when left blank it becomes the
+    # standard SGM title carrying the lead mentor's name (resolved below).
+    if not mentor_id and not raw_mentor_ids:
         return jsonify({"error": "Please select a Mentor for this SGM session."}), 400
 
-    # Parse mentee_ids (can be list or comma-separated string)
+    # Parse ids (list or comma-separated string)
+    mentor_ids = []
+
+    def _collect(raw, sink):
+        if raw is None:
+            return
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            sink.append(int(raw))
+        elif isinstance(raw, list):
+            for mid in raw:
+                try:
+                    sink.append(int(mid))
+                except (ValueError, TypeError):
+                    pass
+        elif isinstance(raw, str):
+            for mid in raw.split(","):
+                if mid.strip().isdigit():
+                    sink.append(int(mid.strip()))
+
+    _collect(mentor_id, mentor_ids)
+    _collect(raw_mentor_ids, mentor_ids)
+    mentor_ids = list(dict.fromkeys(mentor_ids))
+
     mentee_ids = []
-    if isinstance(raw_mentee_ids, list):
-        for mid in raw_mentee_ids:
-            try:
-                mentee_ids.append(int(mid))
-            except (ValueError, TypeError):
-                pass
-    elif isinstance(raw_mentee_ids, str):
-        for mid in raw_mentee_ids.split(","):
-            if mid.strip().isdigit():
-                mentee_ids.append(int(mid.strip()))
+    _collect(raw_mentee_ids, mentee_ids)
 
     if not mentee_ids:
         return jsonify({"error": "Please select at least one mentee for this Small Group Mentoring session."}), 400
+    if not mentor_ids:
+        return jsonify({"error": "Please select a Mentor for this SGM session."}), 400
 
-    try:
-        mentor_id_int = int(mentor_id)
-    except (ValueError, TypeError):
-        return jsonify({"error": "Invalid Mentor ID."}), 400
-
-    mentor = db.session.get(User, mentor_id_int)
-    if not mentor or str(mentor.user_type) != "1":
-        return jsonify({"error": "Selected mentor is invalid or not registered as a mentor."}), 400
+    mentors = User.query.filter(User.id.in_(mentor_ids), User.user_type == "1").all()
+    if len(mentors) != len(mentor_ids):
+        return jsonify({"error": "One or more selected mentors are invalid or not registered as a mentor."}), 400
+    # Keep the order the scheduler picked, so mentors[0] is the lead mentor.
+    mentors.sort(key=lambda m: mentor_ids.index(m.id))
+    lead_mentor = mentors[0]
+    mentor_names_str = ", ".join(m.name for m in mentors)
 
     mentees = User.query.filter(User.id.in_(mentee_ids), User.user_type == "2").all()
     if not mentees:
@@ -16322,14 +17521,23 @@ def supervisor_schedule_sgm_ajax():
     # Link generation
     meet_link = None
     gcal_event_id = None
-    attendee_emails = [supervisor.email, mentor.email] + [m.email for m in mentees if m.email]
+    attendee_emails = [supervisor.email] + [m.email for m in mentors if m.email] \
+        + [m.email for m in mentees if m.email]
+
+    # Default SGM title names the lead mentor:
+    # "SGM: Group Mentoring & Fireside chat with [Mentor's Name]"
+    SGM_TITLE_PREFIX = "SGM: Group Mentoring & Fireside chat with"
+    legacy_default_titles = {"", "sgm: group mentoring & discussion", "sgm: group mentoring & fireside chat"}
+    if title.strip().lower() in legacy_default_titles or title.strip() == SGM_TITLE_PREFIX:
+        title = f"{SGM_TITLE_PREFIX} {lead_mentor.name}"
+    canonical_title = title if title.upper().startswith("SGM") else f"SGM: {title}"
 
     if platform == "custom":
         meet_link = custom_link or f"https://meet.google.com/new"
     elif platform == "teams":
         try:
             teams_meet_link, teams_event_id = create_teams_calendar_event(
-                title=f"SGM: {title}",
+                title=canonical_title,
                 start_utc=start_datetime.astimezone(dt.timezone.utc).isoformat() if hasattr(start_datetime, 'astimezone') else start_datetime.isoformat(),
                 end_utc=end_datetime.astimezone(dt.timezone.utc).isoformat() if hasattr(end_datetime, 'astimezone') else end_datetime.isoformat(),
                 attendee_emails=attendee_emails,
@@ -16348,14 +17556,14 @@ def supervisor_schedule_sgm_ajax():
             service = get_calendar_service()
             if service:
                 event_body = {
-                    "summary": f"SGM: {title}",
-                    "description": f"Small Group Mentoring session scheduled by Supervisor {supervisor.name}.\nMentor: {mentor.name}\nMentees: {', '.join([m.name for m in mentees])}\n\n{description}",
+                    "summary": canonical_title,
+                    "description": f"Small Group Mentoring session scheduled by Supervisor {supervisor.name}.\nMentors: {mentor_names_str}\nMentees: {', '.join([m.name for m in mentees])}\n\n{description}",
                     "start": {"dateTime": start_str, "timeZone": timezone},
                     "end": {"dateTime": end_str, "timeZone": timezone},
                     "attendees": [{"email": em} for em in attendee_emails if em],
                     "conferenceData": {
                         "createRequest": {
-                            "requestId": f"sgm-{int(time.time())}-{mentor.id}",
+                            "requestId": f"sgm-{int(time.time())}-{lead_mentor.id}",
                             "conferenceSolutionKey": {"type": "hangoutsMeet"}
                         }
                     }
@@ -16376,16 +17584,26 @@ def supervisor_schedule_sgm_ajax():
 
     # Build description and embed participants metadata
     mentee_names_str = ", ".join([m.name for m in mentees])
-    full_description = f"Small Group Mentoring (SGM) session scheduled by Supervisor {supervisor.name}.\nMentor: {mentor.name}\nMentees ({len(mentees)}): {mentee_names_str}"
+    full_description = f"Small Group Mentoring (SGM) session scheduled by Supervisor {supervisor.name}.\nMentors: {mentor_names_str}\nMentees ({len(mentees)}): {mentee_names_str}"
     if description:
         full_description += f"\n\nAgenda / Notes:\n{description}"
+
+    sgm_task_title = f"{canonical_title}: Feedback & Learning Task"
+    sgm_task_description = (
+        "Write a short feedback and learning summary after attending this SGM meeting.\n\n"
+        f"Meeting: {canonical_title}\n"
+        f"Mentors: {mentor_names_str}\n"
+        f"Mentees: {mentee_names_str}\n\n"
+        "Every mentor on this SGM can add their own feedback below. The task is "
+        "marked complete as soon as one mentor has submitted."
+    )
 
     try:
         meeting = MeetingRequest(
             requester_id=supervisor.id,
-            requested_to_id=mentor.id,
-            meeting_title=f"SGM: {title}" if not title.upper().startswith("SGM") else title,
-            meeting_description=full_description,
+            requested_to_id=lead_mentor.id,
+            meeting_title=canonical_title,
+            meeting_description=full_description + f"\n\nAuto-assigned SGM Task (category: SGM): {sgm_task_title} - {sgm_task_description}",
             meeting_date=start_datetime.date(),
             meeting_time=start_datetime.time(),
             meeting_duration=duration_minutes,
@@ -16398,35 +17616,71 @@ def supervisor_schedule_sgm_ajax():
         db.session.commit()
 
         participants_data = {
-            "mentor_id": mentor.id,
-            "mentor_name": mentor.name,
+            "mentor_id": lead_mentor.id,
+            "mentor_name": lead_mentor.name,
+            "mentor_ids": [m.id for m in mentors],
+            "mentor_names": [m.name for m in mentors],
             "mentee_ids": [m.id for m in mentees],
             "mentee_names": [m.name for m in mentees],
             "is_sgm": True,
             "meeting_type": "sgm",
             "created_by": supervisor.id,
             "created_by_name": supervisor.name,
-            "scheduled_by": "supervisor"
+            "scheduled_by": "supervisor",
+            "custom_task": {
+                "title": sgm_task_title,
+                "description": sgm_task_description,
+                "category": "SGM",
+                "assigned_to": "all_mentors",
+            },
         }
-        _save_meeting_participants(meeting.id, participants_data)
 
-        # Send email notifications to mentor and all participating mentees
+        # ONE shared task (category SGM) for the whole group. Every participating
+        # mentor can add feedback to it, and the task completes on the first one.
+        sgm_task = PersonalTask(
+            mentee_id=mentees[0].id,
+            mentor_id=lead_mentor.id,
+            title=sgm_task_title,
+            description=sgm_task_description,
+            due_date=end_datetime,
+            priority="medium",
+            status="pending",
+            category=PersonalTask.CATEGORY_SGM,
+            sgm_mentor_ids="," + ",".join(str(m.id) for m in mentors) + ",",
+            sgm_mentee_ids="," + ",".join(str(m.id) for m in mentees) + ",",
+            sgm_meeting_id=meeting.id,
+        )
+        db.session.add(sgm_task)
         try:
-            for recipient in [mentor] + mentees:
+            db.session.commit()
+            # Link meeting -> task so the task reads as "committed" before feedback.
+            participants_data["task_id"] = sgm_task.id
+            participants_data["task_type"] = "personal"
+            _save_meeting_participants(meeting.id, participants_data)
+        except Exception as task_err:
+            db.session.rollback()
+            app.logger.warning(f"Could not create SGM task: {task_err}")
+            sgm_task = None
+            _save_meeting_participants(meeting.id, participants_data)
+
+        # Send email notifications to every mentor and all participating mentees
+        try:
+            for recipient in mentors + mentees:
                 if recipient.email:
                     subj = f"New SGM Session Scheduled: {meeting.meeting_title}"
                     body_html = f"""
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
                         <h2 style="color: #059669; margin-top: 0;">Small Group Mentoring (SGM) Session</h2>
                         <p>Hello <strong>{recipient.name}</strong>,</p>
-                        <p>Supervisor <strong>{supervisor.name}</strong> has scheduled a Small Group Mentoring session with mentor <strong>{mentor.name}</strong>.</p>
+                        <p>Supervisor <strong>{supervisor.name}</strong> has scheduled a Small Group Mentoring session with mentors <strong>{mentor_names_str}</strong>.</p>
                         <div style="background: #ecfdf5; padding: 15px; border-left: 4px solid #059669; border-radius: 6px; margin: 20px 0;">
                             <p style="margin: 4px 0;"><strong>Topic:</strong> {meeting.meeting_title}</p>
                             <p style="margin: 4px 0;"><strong>Date:</strong> {meeting.meeting_date.strftime('%B %d, %Y')}</p>
                             <p style="margin: 4px 0;"><strong>Time:</strong> {meeting.meeting_time.strftime('%I:%M %p')}</p>
                             <p style="margin: 4px 0;"><strong>Duration:</strong> {duration_minutes} minutes</p>
-                            <p style="margin: 4px 0;"><strong>Mentor:</strong> {mentor.name}</p>
+                            <p style="margin: 4px 0;"><strong>Mentors:</strong> {mentor_names_str}</p>
                             <p style="margin: 4px 0;"><strong>Mentees in Group ({len(mentees)}):</strong> {mentee_names_str}</p>
+                            <p style="margin: 4px 0;"><strong>SGM Task:</strong> {sgm_task_title} (category: SGM) &mdash; one mentor's feedback completes it.</p>
                         </div>
                         <div style="text-align: center; margin: 25px 0;">
                             <a href="{meet_link}" style="background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Video Call</a>
@@ -16440,10 +17694,12 @@ def supervisor_schedule_sgm_ajax():
 
         return jsonify({
             "success": True,
-            "message": f"SGM meeting scheduled successfully with {mentor.name} and {len(mentees)} mentee(s)!",
+            "message": f"SGM meeting scheduled successfully with {mentor_names_str} and {len(mentees)} mentee(s)!",
             "meeting_id": meeting.id,
             "meet_link": meet_link,
-            "title": meeting.meeting_title
+            "title": meeting.meeting_title,
+            "task_id": sgm_task.id if sgm_task is not None else None,
+            "task_category": "SGM",
         })
 
     except Exception as e:
@@ -18507,6 +19763,324 @@ def delete_note(note_id):
     db.session.commit()
 
     return jsonify({"success": True, "message": "Note deleted successfully."})
+
+
+# ============================================================
+# MENTOR COUPONS / QR KEYS
+#
+#   1. The mentor generates coupon keys; each gets an unguessable `code`.
+#   2. Each coupon gets a QR image encoding <public base>/coupon/verify/<code>.
+#   3. The mentor shows the QR (on screen or printed) from their coupon page.
+#   4. A seller scans it, lands on the verify page and presses "Verify coupon".
+#   5. The key is marked used in the database and the page confirms it. The
+#      discount is applied by the seller themselves.
+# ============================================================
+
+# Unambiguous alphabet: no O/0, I/1, S/5, B/8 so codes can be read aloud.
+COUPON_CODE_ALPHABET = "ABCDEFGHJKLMNPQRTUVWXYZ23456789"
+COUPON_CODE_GROUPS = 2
+COUPON_CODE_GROUP_LEN = 6
+COUPON_CODE_PREFIX = "WES"
+
+
+def _public_base_url():
+    """Absolute base URL encoded into QR codes.
+
+    Defaults to the weslux production domain so printed QR codes keep resolving
+    regardless of which host the mentor was browsing from. Override with
+    COUPON_PUBLIC_BASE_URL.
+    """
+    configured = os.environ.get("COUPON_PUBLIC_BASE_URL", "").strip()
+    if configured:
+        return configured.rstrip("/")
+    if PRODUCTION:
+        return "https://mentorship.weslux.lu"
+    return request.host_url.rstrip("/")
+
+
+def coupon_verify_url(code):
+    return f"{_public_base_url()}/coupon/verify/{code}"
+
+
+def generate_coupon_code():
+    """Unguessable, human-readable coupon key."""
+    for _attempt in range(20):
+        groups = [
+            ''.join(secrets.choice(COUPON_CODE_ALPHABET) for _ in range(COUPON_CODE_GROUP_LEN))
+            for _ in range(COUPON_CODE_GROUPS)
+        ]
+        code = f"{COUPON_CODE_PREFIX}-" + "-".join(groups)
+        if not MentorCoupon.query.filter_by(code=code).first():
+            return code
+    return f"{COUPON_CODE_PREFIX}-{secrets.token_hex(8).upper()}"
+
+
+def _coupon_qr_png(target_url, box_size=8, border=4):
+    """Render `target_url` as a PNG, preferring the qrcode lib and falling back
+    to the bundled dependency-free encoder."""
+    from io import BytesIO
+    try:
+        import qrcode as _qrcode_lib
+        qr = _qrcode_lib.QRCode(
+            version=1,
+            error_correction=_qrcode_lib.constants.ERROR_CORRECT_M,
+            box_size=box_size,
+            border=border,
+        )
+        qr.add_data(target_url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="#1e40af", back_color="#ffffff")
+        buf = BytesIO()
+        img.save(buf, format='PNG')
+        buf.seek(0)
+        return buf
+    except Exception as e:
+        app.logger.info(f"Coupon QR using bundled encoder: {e}")
+        from qr_code_lib import QRCode as LocalQRCode
+        png_bytes = LocalQRCode(target_url, error_correction='M').to_png(
+            box_size=box_size, border=border)
+        buf = BytesIO(png_bytes)
+        buf.seek(0)
+        return buf
+
+
+def _mentor_or_none():
+    if "email" not in session or session.get("user_type") != "1":
+        return None
+    return User.query.filter_by(email=session["email"]).first()
+
+
+@app.route("/mentor/coupons")
+def mentor_coupons():
+    """Coupon dashboard: generate keys, view the QR codes, revoke, see usage."""
+    mentor = _mentor_or_none()
+    if not mentor:
+        return redirect(url_for("signin"))
+
+    all_coupons = (
+        MentorCoupon.query.filter_by(mentor_id=mentor.id)
+        .order_by(MentorCoupon.created_at.desc())
+        .all()
+    )
+    # Expire anything past its date so the dashboard and the verify page agree.
+    stale = [c for c in all_coupons if c.status == "active" and c.is_expired]
+    if stale:
+        for c in stale:
+            c.status = "expired"
+        db.session.commit()
+        all_coupons.sort(key=lambda c: c.created_at, reverse=True)
+
+    stats = {
+        "total": len(all_coupons),
+        "active": sum(1 for c in all_coupons if c.status == "active"),
+        "used": sum(1 for c in all_coupons if c.status == "used"),
+        "expired": sum(1 for c in all_coupons if c.status in ("expired", "revoked")),
+    }
+
+    return render_template(
+        "mentor/mentor_coupons.html",
+        show_sidebar=True,
+        active_section="coupons",
+        mentor=mentor,
+        coupons=[c.to_dict(include_mentor=True) for c in all_coupons],
+        coupon_urls={c.code: coupon_verify_url(c.code) for c in all_coupons},
+        stats=stats,
+        public_base_url=_public_base_url(),
+    )
+
+
+@app.route("/mentor/coupons/create", methods=["POST"])
+def mentor_coupon_create():
+    mentor = _mentor_or_none()
+    if not mentor:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    data = request.get_json(silent=True) or request.form or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"success": False, "message": "Please give the coupon a title."}), 400
+
+    quantity = 1
+    try:
+        quantity = max(1, min(50, int(data.get("quantity") or 1)))
+    except (TypeError, ValueError):
+        quantity = 1
+
+    expires_at = None
+    raw_expiry = (data.get("expires_at") or "").strip()
+    if raw_expiry:
+        for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+            try:
+                expires_at = datetime.strptime(raw_expiry, fmt)
+                break
+            except ValueError:
+                continue
+
+    created = []
+    try:
+        for _ in range(quantity):
+            coupon = MentorCoupon(
+                code=generate_coupon_code(),
+                mentor_id=mentor.id,
+                title=title,
+                description=(data.get("description") or "").strip() or None,
+                discount_label=(data.get("discount_label") or "").strip() or None,
+                status="active",
+                expires_at=expires_at,
+            )
+            db.session.add(coupon)
+            db.session.flush()
+            created.append(coupon)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Coupon creation failed: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+    return jsonify({
+        "success": True,
+        "message": f"{len(created)} coupon key(s) generated.",
+        "coupons": [c.to_dict() for c in created],
+        "urls": {c.code: coupon_verify_url(c.code) for c in created},
+    })
+
+
+@app.route("/mentor/coupons/<int:coupon_id>/status", methods=["POST"])
+def mentor_coupon_status(coupon_id):
+    mentor = _mentor_or_none()
+    if not mentor:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    coupon = MentorCoupon.query.filter_by(id=coupon_id, mentor_id=mentor.id).first()
+    if not coupon:
+        return jsonify({"success": False, "message": "Coupon not found"}), 404
+
+    data = request.get_json(silent=True) or request.form or {}
+    action = (data.get("action") or "").strip().lower()
+    if action == "revoke":
+        if coupon.status == "used":
+            return jsonify({"success": False,
+                            "message": "A coupon that has already been used cannot be revoked."}), 400
+        coupon.status = "revoked"
+    elif action == "reinstate":
+        if coupon.status == "used":
+            return jsonify({"success": False,
+                            "message": "A used coupon cannot be reinstated."}), 400
+        coupon.status = "active"
+    elif action == "reset":
+        coupon.status = "active"
+        coupon.used_at = None
+        coupon.used_by = None
+    else:
+        return jsonify({"success": False, "message": "Unknown action."}), 400
+
+    db.session.commit()
+    return jsonify({"success": True, "coupon": coupon.to_dict()})
+
+
+@app.route("/coupon/qr/<code>.png")
+def coupon_qr(code):
+    """QR image for a coupon key. Only the owning mentor can fetch it."""
+    from flask import send_file
+
+    mentor = _mentor_or_none()
+    if not mentor:
+        return jsonify({"error": "Unauthorized"}), 401
+    coupon = MentorCoupon.query.filter_by(code=code, mentor_id=mentor.id).first()
+    if not coupon:
+        return jsonify({"error": "Coupon not found"}), 404
+    try:
+        box_size = 10 if request.args.get("size") == "large" else 6
+        buf = _coupon_qr_png(coupon_verify_url(coupon.code), box_size=box_size)
+        response = send_file(buf, mimetype="image/png")
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+    except Exception as e:
+        app.logger.error(f"Coupon QR generation failed: {e}")
+        return jsonify({"error": "Failed to generate QR"}), 500
+
+
+@app.route("/coupon/verify/<code>", methods=["GET", "POST"])
+def coupon_verify(code):
+    """Public page a seller lands on after scanning the mentor's QR code.
+
+    GET  -> show the coupon and whether it is still valid.
+    POST -> mark the key used. The seller then applies the discount themselves.
+    """
+    code = (code or "").strip().upper()
+    coupon = MentorCoupon.query.filter_by(code=code).first()
+    if not coupon:
+        return render_template(
+            "coupon_verify.html", coupon=None, code=code, show_result=False,
+            message="This coupon code is not recognised. Please ask the mentor for a valid coupon.",
+        ), 404
+
+    if request.method == "POST":
+        payload = request.get_json(silent=True) or request.form or {}
+        seller = (payload.get("seller") or "").strip()
+
+        # Re-check under the current DB state so a double scan cannot re-use a key.
+        if coupon.status == "used":
+            return render_template(
+                "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
+                code=code, show_result=False,
+                message="This coupon has already been used.",
+            ), 409
+        if coupon.status == "revoked":
+            return render_template(
+                "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
+                code=code, show_result=False,
+                message="This coupon has been withdrawn by the mentor.",
+            ), 409
+        if coupon.is_expired:
+            coupon.status = "expired"
+            db.session.commit()
+            return render_template(
+                "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
+                code=code, show_result=False,
+                message="This coupon has expired.",
+            ), 410
+
+        coupon.status = "used"
+        coupon.used_at = datetime.utcnow()
+        coupon.used_by = seller or None
+        coupon.verification_count = (coupon.verification_count or 0) + 1
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Coupon redemption failed for {code}: {e}")
+            return render_template(
+                "coupon_verify.html", coupon=None, code=code, show_result=False,
+                message="We could not record this coupon right now. Please try again.",
+            ), 500
+
+        app.logger.info(f"Coupon {code} verified by {seller or 'unknown seller'}")
+        if coupon.mentor and coupon.mentor.email:
+            try:
+                send_email_reminder(
+                    coupon.mentor.email,
+                    f"Coupon used: {coupon.title}",
+                    f"<p>Your coupon <strong>{coupon.code}</strong> ({coupon.title}) was verified"
+                    + (f" at <strong>{seller}</strong>" if seller else "")
+                    + f" on {coupon.used_at.strftime('%d %B %Y, %H:%M')} UTC.</p>",
+                )
+            except Exception as e:
+                app.logger.warning(f"Coupon usage email failed: {e}")
+
+        return render_template(
+            "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
+            code=code, show_result=True,
+            message="Coupon verified and marked as used.",
+        )
+
+    return render_template(
+        "coupon_verify.html",
+        coupon=coupon.to_dict(include_mentor=True),
+        code=code,
+        show_result=False,
+        message="",
+    )
 
 
 @app.route("/api/generate_qr", defaults={"url": None})

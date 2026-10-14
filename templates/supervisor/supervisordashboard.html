@@ -667,14 +667,35 @@
             </select>
           </div>
 
-          <!-- Location -->
+          <!-- Country -->
           <div class="relative">
-            <select name="location" class="appearance-none pl-4 pr-10 py-2 border rounded-full text-gray-700 bg-white">
-              <option value="" {% if not request.args.get('location') %}selected{% endif %}>All Locations</option>
-              {% for location in locations %}
-              <option value="{{ location }}" {% if request.args.get('location')==location %}selected{% endif %}>
-                {{ location }}
-              </option>
+            <select name="country" id="dash-mentor-country"
+              class="appearance-none pl-4 pr-10 py-2 border rounded-full text-gray-700 bg-white">
+              <option value="">All Countries</option>
+              {% for c in countries %}
+              <option value="{{ c }}" {% if selected_country == c %}selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- State / Province -->
+          <div class="relative">
+            <select name="state" id="dash-mentor-state"
+              class="appearance-none pl-4 pr-10 py-2 border rounded-full text-gray-700 bg-white">
+              <option value="">All States / Provinces</option>
+              {% for s in states %}
+              <option value="{{ s }}" {% if selected_state == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- City -->
+          <div class="relative">
+            <select name="city" id="dash-mentor-city"
+              class="appearance-none pl-4 pr-10 py-2 border rounded-full text-gray-700 bg-white">
+              <option value="">All Cities</option>
+              {% for c in cities %}
+              <option value="{{ c }}" {% if selected_city == c %}selected{% endif %}>{{ c }}</option>
               {% endfor %}
             </select>
           </div>
@@ -749,7 +770,12 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-              <span class="break-words min-w-0">{{ mentor.location if mentor.location else 'Not specified' }}</span>
+              <span class="break-words min-w-0">
+                {% if mentor.resolved_city %}{{ mentor.resolved_city }}{% if mentor.resolved_state %}, {{ mentor.resolved_state }}{% endif %}{% if mentor.resolved_country %}, {{ mentor.resolved_country }}{% endif %}
+                {% elif mentor.resolved_state %}{{ mentor.resolved_state }}{% if mentor.resolved_country %}, {{ mentor.resolved_country }}{% endif %}
+                {% elif mentor.resolved_country %}{{ mentor.resolved_country }}
+                {% else %}Not specified{% endif %}
+              </span>
             </div>
 
             <div class="flex items-start text-sm text-gray-600 mentor-email min-w-0">
@@ -1419,6 +1445,29 @@
       }
     });
   }
+
+  // Cascading location picklists: reload so state narrows by country, city by state.
+  document.addEventListener('DOMContentLoaded', function () {
+    const countrySel = document.getElementById('dash-mentor-country');
+    const stateSel = document.getElementById('dash-mentor-state');
+    const citySel = document.getElementById('dash-mentor-city');
+    if (countrySel) {
+      countrySel.addEventListener('change', function () {
+        if (stateSel) stateSel.value = '';
+        if (citySel) citySel.value = '';
+        countrySel.form.submit();
+      });
+    }
+    if (stateSel) {
+      stateSel.addEventListener('change', function () {
+        if (citySel) citySel.value = '';
+        stateSel.form.submit();
+      });
+    }
+    if (citySel) {
+      citySel.addEventListener('change', function () { citySel.form.submit(); });
+    }
+  });
 
   // Client-side filtering for Mentees
   function filterMentees() {

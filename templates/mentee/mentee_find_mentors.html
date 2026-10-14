@@ -70,11 +70,11 @@
       <!-- Filters -->
       <form method="GET" action="{{ url_for('find_mentor') }}" class="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 sm:gap-4">
 
-        <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+<div class="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3 sm:gap-4">
           <!-- Profession -->
           <div class="relative">
             <select name="profession"
-              class="w-full appearance-none pl-3.5 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 hover:border-blue-300 cursor-pointer">
+              class="w-full appearance-none pl-3.5 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 hover:border-gray-300 cursor-pointer">
               <option value="" {% if not request.args.get('profession') %}selected{% endif %}>All Professions</option>
               {% for profession in professions %}
               <option value="{{ profession }}" {% if request.args.get('profession')==profession %}selected{% endif %}>{{
@@ -88,14 +88,13 @@
             </div>
           </div>
 
-          <!-- Location -->
+          <!-- Country -->
           <div class="relative">
-            <select name="location"
-              class="w-full appearance-none pl-3.5 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 hover:border-blue-300 cursor-pointer">
-              <option value="" {% if not request.args.get('location') %}selected{% endif %}>All Locations</option>
-              {% for location in locations %}
-              <option value="{{ location }}" {% if request.args.get('location')==location %}selected{% endif %}>{{
-                location }}</option>
+            <select name="country" id="mentee-mentor-country"
+              class="w-full appearance-none pl-3.5 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 hover:border-gray-300 cursor-pointer">
+              <option value="">All Countries</option>
+              {% for c in countries %}
+              <option value="{{ c }}" {% if selected_country == c %}selected{% endif %}>{{ c }}</option>
               {% endfor %}
             </select>
             <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-500">
@@ -105,7 +104,40 @@
             </div>
           </div>
 
-          <!-- Education -->
+          <!-- State / Province -->
+          <div class="relative">
+            <select name="state" id="mentee-mentor-state"
+              class="w-full appearance-none pl-3.5 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 hover:border-gray-300 cursor-pointer">
+              <option value="">All States</option>
+              {% for s in states %}
+              <option value="{{ s }}" {% if selected_state == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-500">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </div>
+          </div>
+
+          <!-- City -->
+          <div class="relative">
+            <select name="city" id="mentee-mentor-city"
+              class="w-full appearance-none pl-3.5 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 hover:border-gray-300 cursor-pointer">
+              <option value="">All Cities</option>
+              {% for c in cities %}
+              <option value="{{ c }}" {% if selected_city == c %}selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-500">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </div>
+          </div>
+          </div>
+
+<!-- Education -->
           <div class="relative">
             <select name="education"
               class="w-full appearance-none pl-3.5 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 hover:border-blue-300 cursor-pointer">
@@ -1196,6 +1228,29 @@
           : 'none';
     });
   }
+
+  // Cascading location picklists: reload so state narrows by country, city by state.
+  document.addEventListener('DOMContentLoaded', function() {
+    const countrySel = document.getElementById('mentee-mentor-country');
+    const stateSel = document.getElementById('mentee-mentor-state');
+    const citySel = document.getElementById('mentee-mentor-city');
+    if (countrySel) {
+      countrySel.addEventListener('change', function () {
+        if (stateSel) stateSel.value = '';
+        if (citySel) citySel.value = '';
+        countrySel.form.submit();
+      });
+    }
+    if (stateSel) {
+      stateSel.addEventListener('change', function () {
+        if (citySel) citySel.value = '';
+        stateSel.form.submit();
+      });
+    }
+    if (citySel) {
+      citySel.addEventListener('change', function () { citySel.form.submit(); });
+    }
+  });
 
   // Initialize View Profile buttons with event listeners
   document.addEventListener('DOMContentLoaded', function() {

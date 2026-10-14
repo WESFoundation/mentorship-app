@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Verify Coupon - WES Mentorship</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; }
+    </style>
+</head>
+
+<body class="bg-gray-50">
+    <div class="min-h-screen flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-lg w-full">
+
+            <div class="text-center mb-6">
+                <div class="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-blue-700 text-white mb-3">
+                    <i class="fas fa-qrcode text-xl"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-900">Coupon Verification</h1>
+                <p class="text-sm text-gray-500 mt-1">WES Mentorship Program</p>
+            </div>
+
+            <!-- Unrecognised code -->
+            {% if not coupon %}
+            <div class="bg-white rounded-2xl shadow-sm p-8 border border-gray-200 text-center">
+                <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
+                    <i class="fas fa-times-circle text-red-600 text-3xl"></i>
+                </div>
+                <h2 class="text-xl font-bold text-gray-900 mb-2">Coupon not recognised</h2>
+                <p class="text-gray-600 text-sm mb-4">{{ message }}</p>
+                {% if code %}
+                <p class="text-xs text-gray-400 mono">Scanned key: {{ code }}</p>
+                {% endif %}
+            </div>
+
+            {% else %}
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+
+                <!-- Status banner -->
+                <div class="px-6 py-5 text-center border-b border-gray-100
+                    {% if show_result %}bg-green-50
+                    {% elif coupon.status == 'used' %}bg-amber-50
+                    {% elif coupon.status == 'revoked' %}bg-red-50
+                    {% elif coupon.expired %}bg-gray-100
+                    {% else %}bg-blue-50{% endif %}">
+                    <div class="mx-auto flex items-center justify-center h-14 w-14 rounded-full mb-3
+                        {% if show_result %}bg-green-100
+                        {% elif coupon.status == 'used' %}bg-amber-100
+                        {% elif coupon.status == 'revoked' %}bg-red-100
+                        {% elif coupon.expired %}bg-gray-200
+                        {% else %}bg-blue-100{% endif %}">
+                        {% if show_result %}
+                        <i class="fas fa-check text-green-600 text-2xl"></i>
+                        {% elif coupon.status == 'used' %}
+                        <i class="fas fa-clock text-amber-600 text-2xl"></i>
+                        {% elif coupon.status == 'revoked' %}
+                        <i class="fas fa-ban text-red-600 text-2xl"></i>
+                        {% elif coupon.expired %}
+                        <i class="fas fa-hourglass-end text-gray-500 text-2xl"></i>
+                        {% else %}
+                        <i class="fas fa-ticket text-blue-600 text-2xl"></i>
+                        {% endif %}
+                    </div>
+
+                    {% if show_result %}
+                    <h2 class="text-lg font-bold text-green-800">Coupon verified</h2>
+                    <p class="text-sm text-green-700 mt-1">{{ message }}</p>
+                    {% elif coupon.status == 'used' %}
+                    <h2 class="text-lg font-bold text-amber-800">Already used</h2>
+                    <p class="text-sm text-amber-700 mt-1">{{ message }}</p>
+                    <p class="text-xs text-amber-600 mt-2">
+                        Used on {{ coupon.used_at }} UTC{% if coupon.used_by %} at {{ coupon.used_by }}{% endif %}
+                    </p>
+                    {% elif coupon.status == 'revoked' %}
+                    <h2 class="text-lg font-bold text-red-800">Withdrawn</h2>
+                    <p class="text-sm text-red-700 mt-1">{{ message }}</p>
+                    {% elif coupon.expired %}
+                    <h2 class="text-lg font-bold text-gray-700">Expired</h2>
+                    <p class="text-sm text-gray-600 mt-1">{{ message }}</p>
+                    <p class="text-xs text-gray-500 mt-2">Expired on {{ coupon.expires_at }} UTC</p>
+                    {% else %}
+                    <h2 class="text-lg font-bold text-blue-800">Valid coupon</h2>
+                    <p class="text-sm text-blue-700 mt-1">Press the button below to confirm you have read this coupon.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Coupon details -->
+                <div class="p-6">
+                    <div class="mb-4">
+                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">Coupon</p>
+                        <p class="text-lg font-bold text-gray-900 leading-tight">{{ coupon.title }}</p>
+                        {% if coupon.description %}
+                        <p class="text-sm text-gray-600 mt-1">{{ coupon.description }}</p>
+                        {% endif %}
+                    </div>
+
+                    <dl class="rounded-xl border border-gray-200 divide-y divide-gray-100 text-sm">
+                        <div class="flex items-center justify-between px-4 py-3">
+                            <dt class="text-gray-500">Mentor</dt>
+                            <dd class="font-semibold text-gray-900 text-right">{{ coupon.mentor_name or 'WES Mentor' }}</dd>
+                        </div>
+                        {% if coupon.mentor_organisation %}
+                        <div class="flex items-center justify-between px-4 py-3">
+                            <dt class="text-gray-500">Organisation</dt>
+                            <dd class="font-medium text-gray-800 text-right">{{ coupon.mentor_organisation }}</dd>
+                        </div>
+                        {% endif %}
+                        <div class="flex items-center justify-between px-4 py-3">
+                            <dt class="text-gray-500">Discount</dt>
+                            <dd class="font-semibold text-gray-900 text-right">{{ coupon.discount_label or 'As described' }}</dd>
+                        </div>
+                        <div class="flex items-center justify-between px-4 py-3">
+                            <dt class="text-gray-500">Key</dt>
+                            <dd class="mono text-xs text-gray-700 text-right">{{ coupon.code }}</dd>
+                        </div>
+                        {% if coupon.expires_at %}
+                        <div class="flex items-center justify-between px-4 py-3">
+                            <dt class="text-gray-500">Valid until</dt>
+                            <dd class="font-medium text-gray-800 text-right">{{ coupon.expires_at }} UTC</dd>
+                        </div>
+                        {% endif %}
+                    </dl>
+
+                    <!-- Action -->
+                    {% if not show_result and coupon.status == 'active' and not coupon.expired %}
+                    <form method="POST" class="mt-5">
+                        <label for="seller" class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">
+                            Your shop / seller name <span class="font-normal normal-case text-gray-400">(optional)</span>
+                        </label>
+                        <input type="text" id="seller" name="seller" maxlength="200"
+                            placeholder="e.g. Weslux Store, Berlin"
+                            class="w-full px-3.5 py-2.5 mb-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <button type="submit"
+                            class="w-full py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm shadow-lg shadow-green-600/25 flex items-center justify-center gap-2 transition">
+                            <i class="fas fa-check-circle"></i>
+                            Verify coupon &amp; mark as used
+                        </button>
+                        <p class="text-[11px] text-gray-500 mt-3 text-center leading-relaxed">
+                            This marks the key as used in the WES database. <strong>Apply the discount yourself</strong>
+                            after verification - this page does not charge anything.
+                        </p>
+                    </form>
+                    {% elif not show_result %}
+                    <p class="mt-5 text-center text-xs text-gray-400">
+                        No further action is needed for this coupon.
+                    </p>
+                    {% endif %}
+
+                    {% if show_result %}
+                    <div class="mt-5 rounded-xl bg-blue-50 border border-blue-200 p-4 text-left">
+                        <p class="text-xs font-semibold uppercase tracking-wider text-blue-700 mb-1">Next step for the seller</p>
+                        <p class="text-sm text-blue-900">
+                            Apply <strong>{{ coupon.discount_label or 'the discount described above' }}</strong>
+                            for <strong>{{ coupon.mentor_name or 'this mentor' }}</strong>.
+                            This coupon cannot be used again.
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <p class="text-center text-xs text-gray-400 mt-6">
+                WES Foundation &middot; Mentorship Program &middot; mentorship.weslux.lu
+            </p>
+        </div>
+    </div>
+</body>
+
+</html>

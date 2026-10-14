@@ -118,14 +118,30 @@
             {% endfor %}
           </select>
 
-          <!-- Location -->
-          <select name="location" data-no-search
+          <!-- Country -->
+          <select name="country" id="mentor-country-filter" data-no-search
+            class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs sm:text-sm text-gray-700 bg-white font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+            <option value="">All Countries</option>
+            {% for c in countries %}
+            <option value="{{ c }}" {% if selected_country == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+
+          <!-- State / Province -->
+          <select name="state" id="mentor-state-filter" data-no-search
             class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs sm:text-sm text-gray-700 bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
-            <option value="" {% if not request.args.get('location') %}selected{% endif %}>All Locations</option>
-            {% for location in locations %}
-            <option value="{{ location }}" {% if request.args.get('location')==location %}selected{% endif %}>
-              {{ location }}
-            </option>
+            <option value="">All States / Provinces</option>
+            {% for s in states %}
+            <option value="{{ s }}" {% if selected_state == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+
+          <!-- City -->
+          <select name="city" id="mentor-city-filter" data-no-search
+            class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs sm:text-sm text-gray-700 bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+            <option value="">All Cities</option>
+            {% for c in cities %}
+            <option value="{{ c }}" {% if selected_city == c %}selected{% endif %}>{{ c }}</option>
             {% endfor %}
           </select>
 
@@ -170,7 +186,9 @@
             <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
             <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor</th>
             <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Profession</th>
-            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Country</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">State / Province</th>
+            <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">City</th>
             <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
             <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
             <th class="px-1.5 sm:px-2.5 py-2.5 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
@@ -220,7 +238,9 @@
               </div>
             </td>
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-700 mentor-profession max-w-[150px] truncate">{{ mentor.profession or 'Not specified' }}</td>
-            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-600 mentor-location max-w-[120px] truncate">{{ mentor.location or 'Not specified' }}</td>
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-600 mentor-country max-w-[130px] truncate">{{ mentor.country or 'Not specified' }}</td>
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-600 mentor-state max-w-[140px] truncate">{{ mentor.state or '-' }}</td>
+            <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-600 mentor-city max-w-[150px] truncate">{{ mentor.city or '-' }}</td>
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-600 mentor-email max-w-[170px] truncate">{{ mentor.user.email }}</td>
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm text-gray-500">{{ mentor.user.created_at.strftime('%d %b %Y') if mentor.user.created_at else 'N/A' }}</td>
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap">
@@ -747,15 +767,41 @@
       const name = row.querySelector('.mentor-name').innerText.toLowerCase();
       const profession = row.querySelector('.mentor-profession').innerText.toLowerCase();
       const email = row.querySelector('.mentor-email').innerText.toLowerCase();
-      const location = row.querySelector('.mentor-location').innerText.toLowerCase();
+      const place = ['.mentor-country', '.mentor-state', '.mentor-city']
+        .map(sel => { const c = row.querySelector(sel); return c ? c.innerText.toLowerCase() : ''; })
+        .join(' ');
 
-      if (name.includes(input) || profession.includes(input) || email.includes(input) || location.includes(input)) {
+      if (name.includes(input) || profession.includes(input) || email.includes(input) || place.includes(input)) {
         row.style.display = '';
       } else {
         row.style.display = 'none';
       }
     });
   }
+
+  // Cascading picklists: choosing a country reloads so the state list narrows to
+  // it, and choosing a state narrows the city list.
+  document.addEventListener('DOMContentLoaded', function () {
+    const countrySel = document.getElementById('mentor-country-filter');
+    const stateSel = document.getElementById('mentor-state-filter');
+    const citySel = document.getElementById('mentor-city-filter');
+    if (countrySel) {
+      countrySel.addEventListener('change', function () {
+        if (stateSel) stateSel.value = '';
+        if (citySel) citySel.value = '';
+        countrySel.form.submit();
+      });
+    }
+    if (stateSel) {
+      stateSel.addEventListener('change', function () {
+        if (citySel) citySel.value = '';
+        stateSel.form.submit();
+      });
+    }
+    if (citySel) {
+      citySel.addEventListener('change', function () { citySel.form.submit(); });
+    }
+  });
 
   function openProfileModal(mentor) {
     // ===== BASIC INFORMATION =====

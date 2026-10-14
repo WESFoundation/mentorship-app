@@ -1630,6 +1630,40 @@
             return `<div class="flex gap-1 items-center">${stars} <span class="text-sm text-gray-600 ml-1">${rating}/5</span></div>`;
         };
 
+        // Renders the feedback submitted by EVERY mentor on an SGM group task.
+    // An SGM task is already complete once one mentor has submitted.
+    function renderSgmMentorFeedback(task) {
+        const feedbacks = Array.isArray(task.mentorFeedbacks) ? task.mentorFeedbacks : [];
+        const total = (feedbacks && feedbacks.length) || task.mentorFeedbackCount || 0;
+        if (!feedbacks.length) {
+            return `<div class="mb-4 p-3 rounded-xl border border-emerald-200 bg-emerald-50/60">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-emerald-800">SGM Mentor Feedback</span>
+                    <span class="text-[11px] text-emerald-700 font-medium">0 submitted &middot; completes on the first submission</span>
+                </div>
+            </div>`;
+        }
+        const rows = feedbacks.map(fb => {
+            const stars = fb.rating ? renderStars(fb.rating) : '';
+            const text = fb.text || fb.reflection || '';
+            return `<li class="flex items-start gap-2">
+                <span class="mt-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold shrink-0">${(fb.mentor_name || 'M').charAt(0).toUpperCase()}</span>
+                <div class="min-w-0">
+                    <p class="text-xs font-semibold text-gray-800">${fb.mentor_name || 'Mentor'} ${stars}</p>
+                    ${text ? `<p class="text-[11px] text-gray-600 whitespace-pre-wrap">${text}</p>` : ''}
+                    ${fb.extra ? `<p class="text-[11px] text-gray-500 whitespace-pre-wrap">${fb.extra}</p>` : ''}
+                </div>
+            </li>`;
+        }).join('');
+        return `<div class="mb-4 p-3 rounded-xl border border-emerald-200 bg-emerald-50/60">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-emerald-800">SGM Mentor Feedback (all mentors)</span>
+                <span class="text-[11px] text-emerald-700 font-medium">${feedbacks.length} of ${total} submitted</span>
+            </div>
+            <ul class="space-y-2">${rows}</ul>
+        </div>`;
+    }
+
         return `
         <div class="task-card p-6 ${(task.status === 'completed' || task.status === 'done') ? 'completed' : ''} ${((task.status !== 'done' && task.status !== 'completed') && (task.isCritical || isOverdue)) ? 'urgent' : ''}">
             <div class="flex justify-between items-start mb-3">
@@ -1666,6 +1700,8 @@
                 </div>
             </div>
             
+            ${task.isSGM ? renderSgmMentorFeedback(task) : ''}
+
             <p class="text-gray-600 mb-4 line-clamp-2">${task.description || 'No description available'}</p>
             
             <!-- Dual Rating Display: Mentor Rating & Mentee Rating -->
