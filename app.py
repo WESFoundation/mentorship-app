@@ -3272,7 +3272,8 @@ from mobile_api import register_mobile_api
 register_mobile_api(
     app, db, User, MentorProfile, MenteeProfile, Institution,
     SupervisorProfile, MenteeTask, MentorshipRequest, MeetingRequest, Notification,
-    PersonalTask=PersonalTask, MasterTask=MasterTask
+    PersonalTask=PersonalTask, MasterTask=MasterTask, TaskRating=TaskRating,
+    MenteeFeedback=MenteeFeedback, MentorReflection=MentorReflection
 )
 
 
@@ -6473,12 +6474,22 @@ def get_institution_tasks_data():
 
     inst_id_val = institution_id or user.id
 
-    # Pre-fetch all mentee feedbacks and institution reflections
+    # Pre-fetch all mentee feedbacks and reflections in bulk
     mentee_feedbacks = MenteeFeedback.query.all()
     mentee_fb_map = {(mf.task_type, mf.task_id): mf for mf in mentee_feedbacks}
     mentee_fb_dual_map = {(mf.task_type, mf.task_id, mf.mentee_id): mf for mf in mentee_feedbacks if mf.mentee_id}
+    mentee_fb_set = set()
+    for mf in mentee_feedbacks:
+        if bool((mf.rating and mf.rating > 0) or (mf.mentor_rating and mf.mentor_rating > 0) or (mf.text or '').strip() or (mf.challenges or '').strip() or (mf.next_steps or '').strip() or (mf.extra or '').strip()):
+            mentee_fb_set.add((mf.task_type, mf.task_id, mf.mentee_id))
+            mentee_fb_set.add((mf.task_type, mf.task_id))
+
+    all_mentor_reflections = MentorReflection.query.all()
+    mentor_refl_set = {(mr.task_type, mr.task_id) for mr in all_mentor_reflections if bool((mr.text or '').strip() or (mr.extra or '').strip())}
+
     inst_reflections = InstitutionReflection.query.filter_by(institution_id=inst_id_val).all()
     inst_refl_map = {(ir.task_type, ir.task_id): bool((ir.text or '').strip() or (ir.notes or '').strip()) for ir in inst_reflections}
+    inst_refl_set = {(ir.task_type, ir.task_id) for ir in inst_reflections if bool((ir.text or '').strip() or (ir.notes or '').strip())}
 
     def _resolve_api_task_fb(ttype, tid, mid=None, master_tid=None):
         fb = mentee_fb_map.get((ttype, tid))
@@ -6503,24 +6514,27 @@ def get_institution_tasks_data():
             return True
         return False
     
+    f_mentor_id = int(f_mentor) if f_mentor.isdigit() else None
+    f_mentee_id = int(f_mentee) if f_mentee.isdigit() else None
+
     tasks_data = []
     
     # Get Personal Tasks (filtered)
     pt_query = PersonalTask.query.filter(PersonalTask.mentee_id.in_(institution_user_ids))
-    if f_mentee:
-        pt_query = pt_query.filter_by(mentee_id=int(f_mentee))
-    if f_mentor:
-        pt_query = pt_query.filter_by(mentor_id=int(f_mentor))
-    if f_priority:
+    if f_mentee_id is not None:
+        pt_query = pt_query.filter_by(mentee_id=f_mentee_id)
+    if f_mentor_id is not None:
+        pt_query = pt_query.filter_by(mentor_id=f_mentor_id)
+    if f_priority and f_priority != 'all':
         pt_query = pt_query.filter_by(priority=f_priority)
     personal_tasks = pt_query.all()
 
     # Get Mentee Tasks (Master Tasks, filtered)
     mt_query = MenteeTask.query.filter(MenteeTask.mentee_id.in_(institution_user_ids))
-    if f_mentee:
-        mt_query = mt_query.filter_by(mentee_id=int(f_mentee))
-    if f_mentor:
-        mt_query = mt_query.filter_by(mentor_id=int(f_mentor))
+    if f_mentee_id is not None:
+        mt_query = mt_query.filter_by(mentee_id=f_mentee_id)
+    if f_mentor_id is not None:
+        mt_query = mt_query.filter_by(mentor_id=f_mentor_id)
     mentee_tasks = mt_query.all()
     
     # Batch-fetch users and master tasks to eliminate N+1 queries
@@ -6548,7 +6562,11 @@ def get_institution_tasks_data():
         t_status = compute_task_progress_status(
             "personal", task.id, task.mentee_id, task.mentor_id or None,
             ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata,
+<<<<<<< HEAD
             task_obj=task
+=======
+            task_obj=task, mentee_fb_set=mentee_fb_set, mentor_refl_set=mentor_refl_set, inst_refl_set=inst_refl_set
+>>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
         )
         _cat_key = (getattr(task, 'category', None) or 'personal').lower()
         _is_sgm = _cat_key == 'sgm'
@@ -6598,7 +6616,8 @@ def get_institution_tasks_data():
         
         t_status = compute_task_progress_status(
             "master", task.id, task.mentee_id, task.mentor_id,
-            ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata
+            ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata,
+            task_obj=task, mentee_fb_set=mentee_fb_set, mentor_refl_set=mentor_refl_set, inst_refl_set=inst_refl_set
         )
         task_num = getattr(task, 'meeting_number', None) or (master_task.meeting_number if master_task else None)
         tasks_data.append({
@@ -6646,9 +6665,11 @@ def get_institution_tasks_data():
             tasks_data = [t for t in tasks_data if t.get('status') == f_status]
     if f_type:
         tasks_data = [t for t in tasks_data if t.get('type') == f_type]
-    if f_category:
+    if f_category and f_category != 'all':
         cat_lower = f_category.lower()
         tasks_data = [t for t in tasks_data if t.get('category', '').lower() == cat_lower]
+    if f_priority and f_priority != 'all':
+        tasks_data = [t for t in tasks_data if (t.get('priority') or '').lower() == f_priority.lower()]
 
     # Compute active mentorship mentor-to-mentees mapping
     active_mrs = MentorshipRequest.query.filter(
@@ -6658,13 +6679,18 @@ def get_institution_tasks_data():
     for mr in active_mrs:
         mentor_to_mentees_map.setdefault(str(mr.mentor_id), []).append(str(mr.mentee_id))
 
-    # Also augment with tasks data
-    for t in tasks_data:
-        if t.get('mentorId') and t.get('menteeId'):
-            m_str = str(t['mentorId'])
-            me_str = str(t['menteeId'])
-            if m_str not in mentor_to_mentees_map:
-                mentor_to_mentees_map[m_str] = []
+    # Also augment with all pairs across tasks in DB
+    for mt in MenteeTask.query.with_entities(MenteeTask.mentor_id, MenteeTask.mentee_id).distinct().all():
+        if mt[0] and mt[1]:
+            m_str, me_str = str(mt[0]), str(mt[1])
+            mentor_to_mentees_map.setdefault(m_str, [])
+            if me_str not in mentor_to_mentees_map[m_str]:
+                mentor_to_mentees_map[m_str].append(me_str)
+
+    for pt in PersonalTask.query.with_entities(PersonalTask.mentor_id, PersonalTask.mentee_id).distinct().all():
+        if pt[0] and pt[1]:
+            m_str, me_str = str(pt[0]), str(pt[1])
+            mentor_to_mentees_map.setdefault(m_str, [])
             if me_str not in mentor_to_mentees_map[m_str]:
                 mentor_to_mentees_map[m_str].append(me_str)
 
@@ -7760,15 +7786,55 @@ def supervisor_find_mentor():
         except (ValueError, TypeError):
             pass
 
+    # Optional rating filter (computed using simple rating cache or function)
+    rating_filter = request.args.get("rating")
+    if rating_filter:
+        try:
+            min_r = float(rating_filter)
+            filtered_by_rating = []
+            for m in filtered_mentors:
+                uid = m.get('user_id')
+                cached = _SIMPLE_RATING_CACHE.get(("mentor", uid))
+                r_val = 0.0
+                if cached and cached[1].get('success'):
+                    r_val = float(cached[1].get('rating', {}).get('final_rating', 0.0))
+                else:
+                    try:
+                        res = api_mentor_rating_simple(uid)
+                        data = res.get_json() if hasattr(res, 'get_json') else res
+                        if data.get('success'):
+                            r_val = float(data.get('rating', {}).get('final_rating', 0.0))
+                    except Exception:
+                        pass
+                m['computed_rating'] = r_val
+                if r_val >= min_r:
+                    filtered_by_rating.append(m)
+            filtered_mentors = filtered_by_rating
+        except (ValueError, TypeError):
+            pass
+
     # Add serial numbers (already sorted by created_at from the query)
     for idx, m in enumerate(filtered_mentors, 1):
         m['serial'] = idx
 
-    # Efficient distinct queries for filter dropdowns (no full table load)
-    professions = sorted({r[0] for r in MentorProfile.query.with_entities(MentorProfile.profession).distinct() if r[0]})
-    locations = sorted({r[0] for r in MentorProfile.query.with_entities(MentorProfile.location).distinct() if r[0]})
-    educations = sorted({r[0] for r in MentorProfile.query.with_entities(MentorProfile.education).distinct() if r[0]})
-    experiences = sorted({r[0] for r in MentorProfile.query.with_entities(MentorProfile.years_of_experience).distinct() if r[0]})
+    # Efficient distinct queries for filter dropdowns (standardized and non-empty)
+    professions = sorted({r[0].strip() for r in MentorProfile.query.with_entities(MentorProfile.profession).distinct() if r[0] and r[0].strip()})
+    
+    # Standardize distinct locations for dropdown
+    raw_locations = {r[0].strip() for r in MentorProfile.query.with_entities(MentorProfile.location).distinct() if r[0] and r[0].strip()}
+    clean_locations_set = set()
+    for l in raw_locations:
+        parts = [p.strip() for p in l.split(',') if p.strip()]
+        norm_parts = []
+        for p in parts:
+            p_cap = p.title() if (p.isupper() or p.islower()) else p
+            if p_cap not in norm_parts:
+                norm_parts.append(p_cap)
+        clean_locations_set.add(', '.join(norm_parts))
+    locations = sorted(clean_locations_set)
+
+    educations = sorted({r[0].strip() for r in MentorProfile.query.with_entities(MentorProfile.education).distinct() if r[0] and r[0].strip()})
+    experiences = sorted({r[0].strip() for r in MentorProfile.query.with_entities(MentorProfile.years_of_experience).distinct() if r[0] and r[0].strip()})
 
     # Deduplicated Country / State / City picklists, narrowed by the current
     # selection so the filter can never offer the same place twice.
@@ -8847,6 +8913,34 @@ def supervisor_calendar():
             mentor_display = mentor.name if mentor else "Unknown Mentor"
             mentor_email_display = mentor.email if mentor else ""
 
+        # Resolve structured participants list
+        is_sgm_meeting = bool(pdata.get("is_sgm") or pdata.get("mentee_ids"))
+        mentors_list_arr = []
+        mentees_list_arr = []
+        if pdata.get("mentor_ids"):
+            for mid in pdata["mentor_ids"]:
+                u = users_by_id.get(mid)
+                if u:
+                    mentors_list_arr.append({"id": u.id, "name": u.name, "email": u.email})
+        elif mentor:
+            mentors_list_arr.append({"id": mentor.id, "name": mentor.name, "email": mentor.email})
+        elif pdata.get("mentor_id"):
+            u = users_by_id.get(pdata["mentor_id"])
+            if u:
+                mentors_list_arr.append({"id": u.id, "name": u.name, "email": u.email})
+
+        if pdata.get("mentee_ids"):
+            for mid in pdata["mentee_ids"]:
+                u = users_by_id.get(mid)
+                if u:
+                    mentees_list_arr.append({"id": u.id, "name": u.name, "email": u.email})
+        elif mentee:
+            mentees_list_arr.append({"id": mentee.id, "name": mentee.name, "email": mentee.email})
+        elif pdata.get("mentee_id"):
+            u = users_by_id.get(pdata["mentee_id"])
+            if u:
+                mentees_list_arr.append({"id": u.id, "name": u.name, "email": u.email})
+
         tinfo = _resolve_meeting_type(meeting, pdata)
         calendar_meetings.append({
             "id": meeting.id,
@@ -8854,9 +8948,14 @@ def supervisor_calendar():
             "date": meeting_datetime,
             "duration": meeting.meeting_duration,
             "mentee": mentee_display,
+            "mentee_id": mentee.id if mentee else (pdata.get("mentee_id")),
             "mentee_email": mentee_email_display,
             "mentor": mentor_display,
+            "mentor_id": mentor.id if mentor else (pdata.get("mentor_id")),
             "mentor_email": mentor_email_display,
+            "mentors": mentors_list_arr,
+            "mentees": mentees_list_arr,
+            "is_sgm": is_sgm_meeting,
             "type": tinfo["label"],
             "meeting_type": tinfo["type"],
             "type_color": tinfo["color_code"],
@@ -10838,21 +10937,16 @@ def _get_meeting_participants(meeting_id):
                 elif rec and str(rec.user_type) == "1":
                     data["mentor_id"] = rec.id
 
-            # If still missing mentee_id and mentor is known: infer from MentorshipRequest
-            if not data.get("mentee_id") and data.get("mentor_id"):
-                m_mentor_id = data["mentor_id"]
-                m_query = MentorshipRequest.query.filter_by(mentor_id=m_mentor_id, final_status="approved")
-                if req and str(req.user_type) == "3":
-                    direct_mentors, direct_mentees = _get_institution_members(req, include_paired=False)
-                    inst_mentee_ids = [m.id for m in direct_mentees]
-                    if inst_mentee_ids:
-                        m_query = m_query.filter(MentorshipRequest.mentee_id.in_(inst_mentee_ids))
-                mentorship = m_query.first()
-                if mentorship:
-                    data["mentee_id"] = mentorship.mentee_id
+            # Only infer from MentorshipRequest if there are NO mentee_ids (not a group meeting) and requested_to is a mentor
+            if not data.get("mentee_id") and not data.get("mentee_ids") and data.get("mentor_id"):
+                # Only infer if meeting was direct 1-on-1 between mentee and mentor or requested by mentee
+                if req and str(req.user_type) == "2":
+                    data["mentee_id"] = req.id
+                elif rec and str(rec.user_type) == "2":
+                    data["mentee_id"] = rec.id
 
             # If inferred and not yet embedded in the database, persist to DB description
-            if (data.get("mentee_id") or data.get("mentor_id")) and not extracted:
+            if (data.get("mentee_id") or data.get("mentor_id") or data.get("mentee_ids")) and not extracted:
                 try:
                     meeting.meeting_description = _embed_participants_in_description(meeting.meeting_description, data)
                     db.session.commit()
@@ -10888,7 +10982,7 @@ def _resolve_meeting_participants(meeting):
     """
     Robustly resolve (mentor_user, mentee_user, participants_info) for any meeting,
     handling institution/supervisor-scheduled meetings, direct mentee requests,
-    ephemeral container restarts, and fallback mentorship connections.
+    and group meetings without corrupting participants with arbitrary fallbacks.
     """
     if not meeting:
         return None, None, {}
@@ -10917,25 +11011,19 @@ def _resolve_meeting_participants(meeting):
         if not mentor and participants_info.get("mentor_id"):
             mentor = db.session.get(User, int(participants_info["mentor_id"]))
 
-    # If mentee is still None, attempt resolution via mentorship connections
-    if not mentee:
+    # Do not guess an arbitrary unrelated mentee if this is a group meeting (mentee_ids present)
+    # or if the meeting was scheduled by supervisor / institution without a single mentee
+    is_group = bool(participants_info.get("mentee_ids") or participants_info.get("is_sgm"))
+    if not mentee and not is_group:
         target_mentor_id = mentor.id if mentor else (requested_to.id if (requested_to and str(requested_to.user_type) == "1") else None)
-        if target_mentor_id:
-            m_query = MentorshipRequest.query.filter_by(mentor_id=target_mentor_id, final_status="approved")
-            if requester and str(requester.user_type) == "3":
-                direct_mentors, direct_mentees = _get_institution_members(requester, include_paired=False)
-                inst_mentee_ids = [m.id for m in direct_mentees]
-                if inst_mentee_ids:
-                    m_query = m_query.filter(MentorshipRequest.mentee_id.in_(inst_mentee_ids))
-            found_req = m_query.first()
-            if found_req and found_req.mentee:
-                mentee = found_req.mentee
-                participants_info["mentee_id"] = mentee.id
-                participants_info["mentor_id"] = target_mentor_id
-                _save_meeting_participants(meeting.id, participants_info)
+        if target_mentor_id and requester and str(requester.user_type) == "2":
+            mentee = requester
+            participants_info["mentee_id"] = mentee.id
+            participants_info["mentor_id"] = target_mentor_id
+            _save_meeting_participants(meeting.id, participants_info)
 
     # Position-based fallback only if both are still None and types are ambiguous
-    if not mentee and not mentor:
+    if not mentee and not mentor and not is_group:
         mentee = requester
         mentor = requested_to
 
@@ -10957,14 +11045,14 @@ def _resolve_meeting_type(meeting, participants_info=None):
     if not meeting:
         return {
             "type": "standard",
-            "label": "1-on-1 Mentoring",
-            "color_code": "sky",
-            "hex_color": "#0284c7",
-            "badge_bg": "bg-sky-100",
-            "badge_text": "text-sky-800",
-            "badge_border": "border-sky-300",
-            "card_bg": "#0284c7",
-            "light_bg": "#f0f9ff"
+            "label": "Mentoring Session",
+            "color_code": "slate",
+            "hex_color": "#64748b",
+            "badge_bg": "bg-slate-100",
+            "badge_text": "text-slate-700",
+            "badge_border": "border-slate-300",
+            "card_bg": "#64748b",
+            "light_bg": "#f8fafc"
         }
 
     pdata = participants_info or (_get_meeting_participants(meeting.id) if getattr(meeting, "id", None) else {})
@@ -11009,13 +11097,13 @@ def _resolve_meeting_type(meeting, participants_info=None):
         "anchor": {
             "type": "anchor",
             "label": "Anchor Mentoring",
-            "color_code": "indigo",
-            "hex_color": "#4f46e5",
-            "badge_bg": "bg-indigo-100",
-            "badge_text": "text-indigo-800",
-            "badge_border": "border-indigo-300",
-            "card_bg": "#4f46e5",
-            "light_bg": "#eef2ff"
+            "color_code": "sky",
+            "hex_color": "#0284c7",
+            "badge_bg": "bg-sky-100",
+            "badge_text": "text-sky-800",
+            "badge_border": "border-sky-300",
+            "card_bg": "#0284c7",
+            "light_bg": "#f0f9ff"
         },
         "special": {
             "type": "special",
@@ -11041,14 +11129,14 @@ def _resolve_meeting_type(meeting, participants_info=None):
         },
         "standard": {
             "type": "standard",
-            "label": "1-on-1 Mentoring",
-            "color_code": "sky",
-            "hex_color": "#0284c7",
-            "badge_bg": "bg-sky-100",
-            "badge_text": "text-sky-800",
-            "badge_border": "border-sky-300",
-            "card_bg": "#0284c7",
-            "light_bg": "#f0f9ff"
+            "label": "Mentoring Session",
+            "color_code": "slate",
+            "hex_color": "#64748b",
+            "badge_bg": "bg-slate-100",
+            "badge_text": "text-slate-700",
+            "badge_border": "border-slate-300",
+            "card_bg": "#64748b",
+            "light_bg": "#f8fafc"
         }
     }
     return TYPE_META.get(mtype, TYPE_META["standard"])
@@ -13295,22 +13383,25 @@ def get_supervisor_tasks_data():
             rating_val = fb.rating or fb.mentor_rating or 0
             return has_fb, rating_val
 
+        f_mentor_id = int(f_mentor) if f_mentor.isdigit() else None
+        f_mentee_id = int(f_mentee) if f_mentee.isdigit() else None
+
         # Build filtered query for personal tasks
         pt_query = PersonalTask.query
-        if f_mentee:
-            pt_query = pt_query.filter_by(mentee_id=int(f_mentee))
-        if f_mentor:
-            pt_query = pt_query.filter_by(mentor_id=int(f_mentor))
-        if f_priority:
+        if f_mentee_id is not None:
+            pt_query = pt_query.filter_by(mentee_id=f_mentee_id)
+        if f_mentor_id is not None:
+            pt_query = pt_query.filter_by(mentor_id=f_mentor_id)
+        if f_priority and f_priority != 'all':
             pt_query = pt_query.filter_by(priority=f_priority)
         personal_tasks = pt_query.all()
 
         # Build filtered query for mentee (master) tasks
         mt_query = MenteeTask.query
-        if f_mentee:
-            mt_query = mt_query.filter_by(mentee_id=int(f_mentee))
-        if f_mentor:
-            mt_query = mt_query.filter_by(mentor_id=int(f_mentor))
+        if f_mentee_id is not None:
+            mt_query = mt_query.filter_by(mentee_id=f_mentee_id)
+        if f_mentor_id is not None:
+            mt_query = mt_query.filter_by(mentor_id=f_mentor_id)
         mentee_tasks = mt_query.all()
 
         # Batch-fetch users
@@ -13413,7 +13504,9 @@ def get_supervisor_tasks_data():
             mentee = users_map.get(task.mentee_id)
             mentor = users_map.get(task.mentor_id)
             
-            if master_task and mentee and mentor:
+            if master_task:
+                mentor_name = mentor.name if mentor else (f"Mentor #{task.mentor_id}" if task.mentor_id else "Self-assigned")
+                mentee_name = mentee.name if mentee else f"Mentee #{task.mentee_id}"
                 rating_obj = ratings_map.get(('master', task.id))
                 has_mf, mf_rating = _resolve_task_mentee_fb("master", task.id, task.mentee_id, task.task_id)
                 due_date = task.due_date or default_due
@@ -13427,17 +13520,18 @@ def get_supervisor_tasks_data():
                 
                 tasks.append({
                     'id': f"master_{task.id}",
+                    'serial': f"M-{task.id}",
                     'title': f"{master_task.purpose_of_call} - {master_task.month}",
                     'description': master_task.mentee_focus or 'No description provided',
                     'dueDate': due_date.isoformat() if hasattr(due_date, 'isoformat') else str(due_date),
-                    'priority': 'medium',
+                    'priority': getattr(task, 'priority', None) or 'high',
                     'status': status,
                     'progress': task.progress or 0,
                     'mentorId': task.mentor_id,
-                    'mentorName': mentor.name,
+                    'mentorName': mentor_name,
                     'mentorIsCorporate': _is_mentor_corp(mentor),
                     'menteeId': task.mentee_id,
-                    'menteeName': mentee.name,
+                    'menteeName': mentee_name,
                     'category': 'Mentorship Task',
                     'rating': rating_obj.rating if rating_obj else None,
                     'menteeRating': mf_rating,
@@ -13478,7 +13572,7 @@ def get_supervisor_tasks_data():
         }
 
         # Apply status and category filters (applied after status computation)
-        if f_status:
+        if f_status and f_status != 'all':
             if f_status == 'done':
                 tasks = [t for t in tasks if t.get('status') in ('done', 'completed')]
             elif f_status == 'not-started':
@@ -13493,9 +13587,11 @@ def get_supervisor_tasks_data():
                 tasks = [t for t in tasks if t.get('isCritical') and t.get('status') not in ('done', 'completed')]
             else:
                 tasks = [t for t in tasks if t.get('status') == f_status]
-        if f_category:
+        if f_category and f_category != 'all':
             cat_lower = f_category.lower()
             tasks = [t for t in tasks if t.get('category', '').lower() == cat_lower]
+        if f_priority and f_priority != 'all':
+            tasks = [t for t in tasks if (t.get('priority') or '').lower() == f_priority.lower()]
 
         # Add serial numbers to tasks for frontend display
         for i, t in enumerate(tasks, start=1):
@@ -13512,12 +13608,17 @@ def get_supervisor_tasks_data():
         for mr in active_mrs:
             mentor_to_mentees_map.setdefault(str(mr.mentor_id), []).append(str(mr.mentee_id))
 
-        for t in tasks:
-            if t.get('mentorId') and t.get('menteeId'):
-                m_str = str(t['mentorId'])
-                me_str = str(t['menteeId'])
-                if m_str not in mentor_to_mentees_map:
-                    mentor_to_mentees_map[m_str] = []
+        for mt in MenteeTask.query.with_entities(MenteeTask.mentor_id, MenteeTask.mentee_id).distinct().all():
+            if mt[0] and mt[1]:
+                m_str, me_str = str(mt[0]), str(mt[1])
+                mentor_to_mentees_map.setdefault(m_str, [])
+                if me_str not in mentor_to_mentees_map[m_str]:
+                    mentor_to_mentees_map[m_str].append(me_str)
+
+        for pt in PersonalTask.query.with_entities(PersonalTask.mentor_id, PersonalTask.mentee_id).distinct().all():
+            if pt[0] and pt[1]:
+                m_str, me_str = str(pt[0]), str(pt[1])
+                mentor_to_mentees_map.setdefault(m_str, [])
                 if me_str not in mentor_to_mentees_map[m_str]:
                     mentor_to_mentees_map[m_str].append(me_str)
 
@@ -13775,6 +13876,45 @@ def institution_calendar():
         else:
             status = "upcoming"
         
+        # Resolve structured participants list
+        is_sgm_meeting = bool(participants_info.get("is_sgm") or participants_info.get("mentee_ids"))
+        mentors_list_arr = []
+        mentees_list_arr = []
+        if participants_info.get("mentor_ids"):
+            m_users = User.query.filter(User.id.in_(participants_info["mentor_ids"])).all()
+            mentors_list_arr = [{"id": u.id, "name": u.name, "email": u.email} for u in m_users]
+        elif mentor:
+            mentors_list_arr.append({"id": mentor.id, "name": mentor.name, "email": mentor.email})
+        elif participants_info.get("mentor_id"):
+            u = db.session.get(User, int(participants_info["mentor_id"]))
+            if u:
+                mentors_list_arr.append({"id": u.id, "name": u.name, "email": u.email})
+
+        if participants_info.get("mentee_ids"):
+            m_users = User.query.filter(User.id.in_(participants_info["mentee_ids"])).all()
+            mentees_list_arr = [{"id": u.id, "name": u.name, "email": u.email} for u in m_users]
+        elif mentee:
+            mentees_list_arr.append({"id": mentee.id, "name": mentee.name, "email": mentee.email})
+        elif participants_info.get("mentee_id"):
+            u = db.session.get(User, int(participants_info["mentee_id"]))
+            if u:
+                mentees_list_arr.append({"id": u.id, "name": u.name, "email": u.email})
+
+        # Format display mentee if group
+        if is_sgm_meeting and mentees_list_arr:
+            mentee_display_name = f"Small Group ({len(mentees_list_arr)} mentees): " + ", ".join([u["name"] for u in mentees_list_arr[:3]]) + ("..." if len(mentees_list_arr) > 3 else "")
+            mentee_email_display = ", ".join([u["email"] for u in mentees_list_arr[:3]])
+        else:
+            mentee_display_name = mentee.name if mentee else "Unknown Mentee"
+            mentee_email_display = mentee.email if mentee else ""
+
+        if mentors_list_arr and len(mentors_list_arr) > 1:
+            mentor_display_name = ", ".join([u["name"] for u in mentors_list_arr[:2]]) + ("..." if len(mentors_list_arr) > 2 else "")
+            mentor_email_display = ", ".join([u["email"] for u in mentors_list_arr[:2]])
+        else:
+            mentor_display_name = mentor.name if mentor else "Unknown Mentor"
+            mentor_email_display = mentor.email if mentor else ""
+
         tinfo = _resolve_meeting_type(meeting, participants_info)
         calendar_meetings.append({
             "id": meeting.id,
@@ -13782,12 +13922,15 @@ def institution_calendar():
             "date": meeting_datetime.strftime("%Y-%m-%dT%H:%M:%S") if meeting_datetime else "",
             "time": meeting.meeting_time.strftime("%I:%M %p") if meeting.meeting_time else "",
             "duration": meeting.meeting_duration,
-            "mentee": mentee.name if mentee else "Unknown Mentee",
+            "mentee": mentee_display_name,
             "mentee_id": mentee.id if mentee else (participants_info.get("mentee_id") if participants_info else None),
-            "mentee_email": mentee.email if mentee else "",
-            "mentor": mentor.name if mentor else "Unknown Mentor",
+            "mentee_email": mentee_email_display,
+            "mentor": mentor_display_name,
             "mentor_id": mentor.id if mentor else (participants_info.get("mentor_id") if participants_info else None),
-            "mentor_email": mentor.email if mentor else "",
+            "mentor_email": mentor_email_display,
+            "mentors": mentors_list_arr,
+            "mentees": mentees_list_arr,
+            "is_sgm": is_sgm_meeting,
             "type": tinfo["label"],
             "meeting_type": tinfo["type"],
             "type_color": tinfo["color_code"],
@@ -13999,7 +14142,7 @@ def mentor_meeting_details():
 # ------------------- RESCHEDULE MEETING -------------------
 @app.route("/reschedule_meeting/<int:meeting_id>", methods=["POST"])
 def reschedule_meeting(meeting_id):
-    if "email" not in session or session.get("user_type") != "1":
+    if "email" not in session:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
 
     try:
@@ -14011,18 +14154,26 @@ def reschedule_meeting(meeting_id):
         if not new_date or not new_time:
             return jsonify({"success": False, "message": "Please provide new date and time"}), 400
 
-        mentor = User.query.filter_by(email=session["email"]).first()
-        meeting = MeetingRequest.query.get(meeting_id)
+        user = User.query.filter_by(email=session["email"]).first()
+        if not user:
+            return jsonify({"success": False, "message": "User not found"}), 404
 
+        meeting = MeetingRequest.query.get(meeting_id)
         if not meeting:
             return jsonify({"success": False, "message": "Meeting not found"}), 404
 
-        if meeting.requested_to_id != mentor.id:
+        user_type = str(user.user_type or session.get("user_type", ""))
+        is_participant = (meeting.requested_to_id == user.id or meeting.requester_id == user.id)
+        is_admin_or_sup = user_type in ("0", "3")
+        if not is_participant and not is_admin_or_sup:
             return jsonify({"success": False, "message": "You can only reschedule your own meetings"}), 403
 
-        # Parse new date and time
+        # Parse new date and time safely
         new_meeting_date = datetime.strptime(new_date, "%Y-%m-%d").date()
-        new_meeting_time = datetime.strptime(new_time, "%H:%M").time()
+        try:
+            new_meeting_time = datetime.strptime(new_time, "%H:%M").time()
+        except ValueError:
+            new_meeting_time = datetime.strptime(new_time, "%H:%M:%S").time()
 
         # Calculate original meeting datetime
         original_datetime = datetime.combine(meeting.meeting_date, meeting.meeting_time)
@@ -14052,12 +14203,14 @@ def reschedule_meeting(meeting_id):
         meeting.is_rescheduled = True
         meeting.reschedule_reason = reason if reason else None
         meeting.rescheduled_at = datetime.utcnow()
-        meeting.rescheduled_by_id = mentor.id
+        meeting.rescheduled_by_id = user.id
         meeting.status = "rescheduled"
 
         # Update calendar event if exists (Google Calendar or MS Teams)
+        calendar_updated = False
         if meeting.gcal_event_id:
-            if meeting.meet_link and "teams" in str(meeting.meet_link).lower():
+            is_teams = str(meeting.gcal_event_id).startswith("AAMk") or ("teams" in str(meeting.meet_link or "").lower())
+            if is_teams:
                 try:
                     new_start_datetime = datetime.combine(new_meeting_date, new_meeting_time)
                     duration_mins = int(meeting.meeting_duration or 60)
@@ -14069,29 +14222,37 @@ def reschedule_meeting(meeting_id):
                         tzobj = dt.timezone.utc
                     new_start_utc = new_start_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
                     new_end_utc = new_end_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
-                    update_teams_calendar_event(meeting.gcal_event_id, new_start_utc, new_end_utc)
-                    print(f"Microsoft Teams event updated for meeting {meeting_id}")
+                    calendar_updated = update_teams_calendar_event(
+                        meeting.gcal_event_id,
+                        new_start_utc,
+                        new_end_utc,
+                        title=meeting.meeting_title,
+                        description=meeting.meeting_description
+                    )
+                    app.logger.info(f"Microsoft Teams event {meeting.gcal_event_id} update result: {calendar_updated}")
                 except Exception as e:
-                    print(f"Error updating Teams calendar event for meeting {meeting_id}: {str(e)}")
+                    app.logger.error(f"Error updating Teams calendar event for meeting {meeting_id}: {e}")
             else:
                 try:
                     new_start_datetime = datetime.combine(new_meeting_date, new_meeting_time)
-                    update_google_calendar_event(
+                    calendar_updated = update_google_calendar_event(
                         event_id=meeting.gcal_event_id,
                         new_start_datetime=new_start_datetime,
                         duration_minutes=meeting.meeting_duration or 60,
-                        timezone=MEETING_TIMEZONE
+                        timezone=MEETING_TIMEZONE,
+                        title=meeting.meeting_title,
+                        description=meeting.meeting_description
                     )
-                    print(f"Google Calendar event updated for meeting {meeting_id}")
+                    app.logger.info(f"Google Calendar event {meeting.gcal_event_id} update result: {calendar_updated}")
                 except Exception as e:
-                    print(f"Error updating Google Calendar for meeting {meeting_id}: {str(e)}")
-                    # Continue even if calendar update fails
+                    app.logger.error(f"Error updating Google Calendar for meeting {meeting_id}: {e}")
 
         db.session.commit()
 
         return jsonify({
             "success": True,
             "message": "Meeting rescheduled successfully",
+            "calendar_updated": calendar_updated,
             "new_date": new_meeting_date.strftime("%Y-%m-%d"),
             "new_time": new_meeting_time.strftime("%I:%M %p")
         })
@@ -16616,52 +16777,62 @@ DELEGATED_EMAIL = os.environ.get("GOOGLE_DELEGATED_EMAIL", "info@wazireducations
 CALENDAR_ID = os.environ.get("GOOGLE_CALENDAR_ID", DELEGATED_EMAIL)  # Calendar where meetings are created
 MEETING_TIMEZONE = os.environ.get("GOOGLE_MEETING_TIMEZONE", "Asia/Kolkata")  # Fallback timezone for calendar events
 
-def get_calendar_service():
-    """Return Google Calendar API service, or None if credentials are unavailable.
-
-    Tries service_account.json first, then falls back to the GOOGLE_* variables
-    loaded from .env. Never raises: callers treat None as "calendar unavailable"
-    so meeting scheduling keeps working without Google Calendar integration.
-    """
+def get_raw_service_account_credentials():
+    """Return raw Google service account credentials without delegation."""
     try:
         if os.path.exists(SERVICE_ACCOUNT_FILE):
-            creds = service_account.Credentials.from_service_account_file(
+            return service_account.Credentials.from_service_account_file(
                 SERVICE_ACCOUNT_FILE, scopes=CALENDAR_SERVICE_SCOPES
             )
-        else:
-            private_key = os.environ.get("GOOGLE_PRIVATE_KEY", "")
-            client_email = os.environ.get("GOOGLE_CLIENT_EMAIL", "")
-            if not private_key or not client_email:
-                app.logger.warning(
-                    "Google Calendar unavailable: service_account.json not found and "
-                    "GOOGLE_CLIENT_EMAIL/GOOGLE_PRIVATE_KEY missing from environment"
-                )
-                return None
-            service_account_info = {
-                "type": "service_account",
-                "project_id": os.environ.get("GOOGLE_PROJECT_ID", ""),
-                "private_key_id": os.environ.get("GOOGLE_PRIVATE_KEY_ID", ""),
-                "private_key": private_key.replace("\\n", "\n"),
-                "client_email": client_email,
-                "client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
-                "auth_uri": os.environ.get(
-                    "GOOGLE_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"
-                ),
-                "token_uri": os.environ.get(
-                    "GOOGLE_TOKEN_URI", "https://oauth2.googleapis.com/token"
-                ),
-                "auth_provider_x509_cert_url": os.environ.get(
-                    "GOOGLE_AUTH_PROVIDER_CERT_URL",
-                    "https://www.googleapis.com/oauth2/v1/certs",
-                ),
-                "client_x509_cert_url": os.environ.get("GOOGLE_CLIENT_CERT_URL", ""),
-            }
-            creds = service_account.Credentials.from_service_account_info(
-                service_account_info, scopes=CALENDAR_SERVICE_SCOPES
-            )
-        delegated_creds = creds.with_subject(DELEGATED_EMAIL)
-        service = build("calendar", "v3", credentials=delegated_creds)
-        return service
+        private_key = os.environ.get("GOOGLE_PRIVATE_KEY", "")
+        client_email = os.environ.get("GOOGLE_CLIENT_EMAIL", "")
+        if not private_key or not client_email:
+            return None
+        service_account_info = {
+            "type": "service_account",
+            "project_id": os.environ.get("GOOGLE_PROJECT_ID", ""),
+            "private_key_id": os.environ.get("GOOGLE_PRIVATE_KEY_ID", ""),
+            "private_key": private_key.replace("\\n", "\n"),
+            "client_email": client_email,
+            "client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
+            "auth_uri": os.environ.get(
+                "GOOGLE_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"
+            ),
+            "token_uri": os.environ.get(
+                "GOOGLE_TOKEN_URI", "https://oauth2.googleapis.com/token"
+            ),
+            "auth_provider_x509_cert_url": os.environ.get(
+                "GOOGLE_AUTH_PROVIDER_CERT_URL",
+                "https://www.googleapis.com/oauth2/v1/certs",
+            ),
+            "client_x509_cert_url": os.environ.get("GOOGLE_CLIENT_CERT_URL", ""),
+        }
+        return service_account.Credentials.from_service_account_info(
+            service_account_info, scopes=CALENDAR_SERVICE_SCOPES
+        )
+    except Exception as e:
+        app.logger.error(f"Could not load service account credentials: {e}")
+        return None
+
+def get_calendar_service(delegated=True):
+    """Return Google Calendar API service, or None if credentials are unavailable.
+
+    If delegated=True, delegates to DELEGATED_EMAIL.
+    If delegated=False, uses raw service account credentials.
+    """
+    try:
+        creds = get_raw_service_account_credentials()
+        if not creds:
+            app.logger.warning("Google Calendar unavailable: credentials missing")
+            return None
+        if delegated:
+            try:
+                delegated_creds = creds.with_subject(DELEGATED_EMAIL)
+                return build("calendar", "v3", credentials=delegated_creds)
+            except Exception as e:
+                app.logger.warning(f"Could not delegate credentials to {DELEGATED_EMAIL}: {e}")
+                return build("calendar", "v3", credentials=creds)
+        return build("calendar", "v3", credentials=creds)
     except Exception as e:
         app.logger.error(f"Could not initialize Google Calendar service: {e}")
         return None
@@ -16669,14 +16840,10 @@ def get_calendar_service():
 def update_google_calendar_event(event_id, new_start_datetime, duration_minutes=60, timezone=None, title=None, description=None):
     """
     Updates the start/end times (and optionally summary/description) of a Google Calendar event.
-    Ensures RFC 3339 compliance with timezone offsets and tries CALENDAR_ID then 'primary'.
+    Tries delegated calendar (CALENDAR_ID) first, then falls back to direct service account calendar.
     Returns True on success, False on failure.
     """
     if not event_id:
-        return False
-    service = get_calendar_service()
-    if not service:
-        app.logger.warning("Google Calendar service unavailable for event update")
         return False
 
     tz_name = timezone or MEETING_TIMEZONE or "Asia/Kolkata"
@@ -16714,58 +16881,68 @@ def update_google_calendar_event(event_id, new_start_datetime, duration_minutes=
     if description:
         event_update["description"] = description
 
-    try:
+    # 1. Try delegated service on CALENDAR_ID
+    del_service = get_calendar_service(delegated=True)
+    if del_service:
         try:
-            service.events().patch(
+            del_service.events().patch(
                 calendarId=CALENDAR_ID,
                 eventId=event_id,
                 body=event_update,
                 sendUpdates="all"
             ).execute()
-            app.logger.info(f"Google Calendar event {event_id} updated successfully on {CALENDAR_ID}")
+            app.logger.info(f"Google Calendar event {event_id} updated successfully on delegated calendar {CALENDAR_ID}")
             return True
         except Exception as e:
-            if ("404" in str(e) or "notFound" in str(e)) and CALENDAR_ID != "primary":
-                service.events().patch(
-                    calendarId="primary",
-                    eventId=event_id,
-                    body=event_update,
-                    sendUpdates="all"
-                ).execute()
-                app.logger.info(f"Google Calendar event {event_id} updated successfully on primary calendar")
-                return True
-            raise
-    except Exception as e:
-        app.logger.error(f"Error updating Google Calendar event {event_id}: {e}")
-        return False
+            if not ("404" in str(e) or "notFound" in str(e)):
+                app.logger.warning(f"Delegated calendar update failed: {e}")
+
+    # 2. Try raw service account on primary
+    raw_service = get_calendar_service(delegated=False)
+    if raw_service:
+        try:
+            raw_service.events().patch(
+                calendarId="primary",
+                eventId=event_id,
+                body=event_update,
+                sendUpdates="all"
+            ).execute()
+            app.logger.info(f"Google Calendar event {event_id} updated successfully on raw service account calendar")
+            return True
+        except Exception as e:
+            app.logger.error(f"Error updating Google Calendar event {event_id} on raw service account: {e}")
+
+    return False
 
 def delete_google_calendar_event(event_id):
-    """Delete a Google Calendar event by ID. Tries CALENDAR_ID then 'primary'."""
+    """Delete a Google Calendar event by ID. Tries delegated CALENDAR_ID then raw service account."""
     if not event_id:
         return False
-    service = get_calendar_service()
-    if not service:
-        return False
-    try:
+    del_service = get_calendar_service(delegated=True)
+    if del_service:
         try:
-            service.events().delete(
+            del_service.events().delete(
                 calendarId=CALENDAR_ID,
                 eventId=event_id,
                 sendUpdates="all"
             ).execute()
             return True
         except Exception as e:
-            if ("404" in str(e) or "notFound" in str(e)) and CALENDAR_ID != "primary":
-                service.events().delete(
-                    calendarId="primary",
-                    eventId=event_id,
-                    sendUpdates="all"
-                ).execute()
-                return True
-            raise
-    except Exception as e:
-        app.logger.error(f"Error deleting Google Calendar event {event_id}: {e}")
-        return False
+            if not ("404" in str(e) or "notFound" in str(e)):
+                app.logger.warning(f"Delegated calendar delete failed: {e}")
+
+    raw_service = get_calendar_service(delegated=False)
+    if raw_service:
+        try:
+            raw_service.events().delete(
+                calendarId="primary",
+                eventId=event_id,
+                sendUpdates="all"
+            ).execute()
+            return True
+        except Exception as e:
+            app.logger.error(f"Error deleting Google Calendar event {event_id} on raw service account: {e}")
+    return False
 
 MS_GRAPH_TENANT_ID = os.environ.get("MS_GRAPH_TENANT_ID") or os.environ.get("MS_TENANT_ID")
 MS_GRAPH_CLIENT_ID = os.environ.get("MS_GRAPH_CLIENT_ID") or os.environ.get("MS_CLIENT_ID")
@@ -16807,6 +16984,18 @@ def create_teams_calendar_event(title, start_utc, end_utc, attendee_emails, desc
     if not token:
         return None, None
     try:
+        # Support string ISO dates defensively
+        if isinstance(start_utc, str):
+            try:
+                start_utc = dt.datetime.fromisoformat(start_utc.replace("Z", "+00:00"))
+            except Exception:
+                pass
+        if isinstance(end_utc, str):
+            try:
+                end_utc = dt.datetime.fromisoformat(end_utc.replace("Z", "+00:00"))
+            except Exception:
+                pass
+
         url = f"https://graph.microsoft.com/v1.0/users/{MS_GRAPH_ORGANIZER_EMAIL}/events"
         attendees = []
         for email in attendee_emails:
@@ -16865,6 +17054,23 @@ def update_teams_calendar_event(event_id, new_start_utc, new_end_utc, title=None
     if not token:
         return False
     try:
+        # Convert string ISO dates if needed
+        if isinstance(new_start_utc, str):
+            try:
+                new_start_utc = dt.datetime.fromisoformat(new_start_utc.replace("Z", "+00:00"))
+            except Exception:
+                pass
+        if isinstance(new_end_utc, str):
+            try:
+                new_end_utc = dt.datetime.fromisoformat(new_end_utc.replace("Z", "+00:00"))
+            except Exception:
+                pass
+
+        if hasattr(new_start_utc, "tzinfo") and new_start_utc.tzinfo is not None:
+            new_start_utc = new_start_utc.astimezone(dt.timezone.utc)
+        if hasattr(new_end_utc, "tzinfo") and new_end_utc.tzinfo is not None:
+            new_end_utc = new_end_utc.astimezone(dt.timezone.utc)
+
         url = f"https://graph.microsoft.com/v1.0/users/{MS_GRAPH_ORGANIZER_EMAIL}/events/{event_id}"
         patch_body = {
             "start": {
@@ -17419,19 +17625,29 @@ def create_meeting_ajax():
 
 
 @app.route("/supervisor/schedule_sgm_ajax", methods=["POST"])
+@app.route("/institution/schedule_sgm_ajax", methods=["POST"], endpoint="institution_schedule_sgm_ajax")
 def supervisor_schedule_sgm_ajax():
-    """Supervisor-only endpoint to schedule a Small Group Mentoring (SGM) session with 1 Mentor and Multiple Mentees."""
-    if "email" not in session or str(session.get("user_type", "")) not in ("0", "admin", "supervisor"):
-        return jsonify({"error": "Unauthorized. Only supervisors can schedule Small Group Mentoring (SGM) sessions."}), 403
+    """Endpoint for supervisors and institution coordinators to schedule a Small Group Mentoring (SGM) session with multiple Mentors and multiple Mentees."""
+    if "email" not in session or str(session.get("user_type", "")) not in ("0", "3", "admin", "supervisor", "institution"):
+        return jsonify({"error": "Unauthorized. Only supervisors and institution coordinators can schedule Small Group Mentoring (SGM) sessions."}), 403
 
-    supervisor = User.query.filter_by(email=session["email"]).first()
-    if not supervisor:
-        return jsonify({"error": "Supervisor user session not found. Please log in again."}), 404
+    organizer = User.query.filter_by(email=session["email"]).first()
+    if not organizer:
+        return jsonify({"error": "User session not found. Please log in again."}), 404
+
+    is_institution = str(organizer.user_type) == "3"
+    organizer_role_label = "Coordinator" if is_institution else "Supervisor"
 
     data = request.get_json(silent=True) or {}
     title = (data.get("title") or "").strip()
+<<<<<<< HEAD
     mentor_id = data.get("mentor_id")
     raw_mentor_ids = data.get("mentor_ids") or []
+=======
+    raw_mentor_ids = data.get("mentor_ids") or []
+    if not raw_mentor_ids and data.get("mentor_id"):
+        raw_mentor_ids = [data.get("mentor_id")]
+>>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
     raw_mentee_ids = data.get("mentee_ids") or []
     date_str = (data.get("date") or "").strip()
     start_time_str = (data.get("start_time") or "").strip()
@@ -17441,10 +17657,32 @@ def supervisor_schedule_sgm_ajax():
     custom_link = (data.get("custom_link") or "").strip()
     description = (data.get("description") or "").strip()
 
+<<<<<<< HEAD
     # Field validations. The title is optional - when left blank it becomes the
     # standard SGM title carrying the lead mentor's name (resolved below).
     if not mentor_id and not raw_mentor_ids:
         return jsonify({"error": "Please select a Mentor for this SGM session."}), 400
+=======
+    # Field validations
+    if not title:
+        return jsonify({"error": "Meeting Title is required."}), 400
+
+    # Parse mentor_ids (can be list or comma-separated string)
+    mentor_ids = []
+    if isinstance(raw_mentor_ids, list):
+        for mid in raw_mentor_ids:
+            try:
+                mentor_ids.append(int(mid))
+            except (ValueError, TypeError):
+                pass
+    elif isinstance(raw_mentor_ids, str):
+        for mid in raw_mentor_ids.split(","):
+            if mid.strip().isdigit():
+                mentor_ids.append(int(mid.strip()))
+
+    if not mentor_ids:
+        return jsonify({"error": "Please select at least one mentor for this SGM session."}), 400
+>>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
 
     # Parse ids (list or comma-separated string)
     mentor_ids = []
@@ -17478,12 +17716,18 @@ def supervisor_schedule_sgm_ajax():
         return jsonify({"error": "Please select a Mentor for this SGM session."}), 400
 
     mentors = User.query.filter(User.id.in_(mentor_ids), User.user_type == "1").all()
+<<<<<<< HEAD
     if len(mentors) != len(mentor_ids):
         return jsonify({"error": "One or more selected mentors are invalid or not registered as a mentor."}), 400
     # Keep the order the scheduler picked, so mentors[0] is the lead mentor.
     mentors.sort(key=lambda m: mentor_ids.index(m.id))
     lead_mentor = mentors[0]
     mentor_names_str = ", ".join(m.name for m in mentors)
+=======
+    if not mentors:
+        return jsonify({"error": "No valid mentors were found for the selected IDs."}), 400
+    primary_mentor = mentors[0]
+>>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
 
     mentees = User.query.filter(User.id.in_(mentee_ids), User.user_type == "2").all()
     if not mentees:
@@ -17517,10 +17761,13 @@ def supervisor_schedule_sgm_ajax():
         tzobj = dt.timezone.utc
     start_str = start_datetime.replace(tzinfo=tzobj).isoformat()
     end_str = end_datetime.replace(tzinfo=tzobj).isoformat()
+    start_utc = start_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
+    end_utc = end_datetime.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
 
     # Link generation
     meet_link = None
     gcal_event_id = None
+<<<<<<< HEAD
     attendee_emails = [supervisor.email] + [m.email for m in mentors if m.email] \
         + [m.email for m in mentees if m.email]
 
@@ -17531,17 +17778,26 @@ def supervisor_schedule_sgm_ajax():
     if title.strip().lower() in legacy_default_titles or title.strip() == SGM_TITLE_PREFIX:
         title = f"{SGM_TITLE_PREFIX} {lead_mentor.name}"
     canonical_title = title if title.upper().startswith("SGM") else f"SGM: {title}"
+=======
+    attendee_emails = [organizer.email] + [m.email for m in mentors if m.email] + [m.email for m in mentees if m.email]
+>>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
 
     if platform == "custom":
         meet_link = custom_link or f"https://meet.google.com/new"
     elif platform == "teams":
         try:
             teams_meet_link, teams_event_id = create_teams_calendar_event(
+<<<<<<< HEAD
                 title=canonical_title,
                 start_utc=start_datetime.astimezone(dt.timezone.utc).isoformat() if hasattr(start_datetime, 'astimezone') else start_datetime.isoformat(),
                 end_utc=end_datetime.astimezone(dt.timezone.utc).isoformat() if hasattr(end_datetime, 'astimezone') else end_datetime.isoformat(),
+=======
+                title=f"SGM: {title}",
+                start_utc=start_utc,
+                end_utc=end_utc,
+>>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
                 attendee_emails=attendee_emails,
-                description=description or f"Small Group Mentoring session scheduled by Supervisor {supervisor.name}"
+                description=description or f"Small Group Mentoring session scheduled by {organizer_role_label} {organizer.name}"
             )
             if teams_meet_link:
                 meet_link = teams_meet_link
@@ -17556,14 +17812,23 @@ def supervisor_schedule_sgm_ajax():
             service = get_calendar_service()
             if service:
                 event_body = {
+<<<<<<< HEAD
                     "summary": canonical_title,
                     "description": f"Small Group Mentoring session scheduled by Supervisor {supervisor.name}.\nMentors: {mentor_names_str}\nMentees: {', '.join([m.name for m in mentees])}\n\n{description}",
+=======
+                    "summary": f"SGM: {title}",
+                    "description": f"Small Group Mentoring session scheduled by {organizer_role_label} {organizer.name}.\nMentors: {', '.join([m.name for m in mentors])}\nMentees: {', '.join([m.name for m in mentees])}\n\n{description}",
+>>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
                     "start": {"dateTime": start_str, "timeZone": timezone},
                     "end": {"dateTime": end_str, "timeZone": timezone},
                     "attendees": [{"email": em} for em in attendee_emails if em],
                     "conferenceData": {
                         "createRequest": {
+<<<<<<< HEAD
                             "requestId": f"sgm-{int(time.time())}-{lead_mentor.id}",
+=======
+                            "requestId": f"sgm-{int(time.time())}-{primary_mentor.id}",
+>>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
                             "conferenceSolutionKey": {"type": "hangoutsMeet"}
                         }
                     }
@@ -17583,8 +17848,13 @@ def supervisor_schedule_sgm_ajax():
         meet_link = f"https://meet.google.com/lookup/sgm-{int(time.time())}"
 
     # Build description and embed participants metadata
+    mentor_names_str = ", ".join([m.name for m in mentors])
     mentee_names_str = ", ".join([m.name for m in mentees])
+<<<<<<< HEAD
     full_description = f"Small Group Mentoring (SGM) session scheduled by Supervisor {supervisor.name}.\nMentors: {mentor_names_str}\nMentees ({len(mentees)}): {mentee_names_str}"
+=======
+    full_description = f"Small Group Mentoring (SGM) session scheduled by {organizer_role_label} {organizer.name}.\nMentors ({len(mentors)}): {mentor_names_str}\nMentees ({len(mentees)}): {mentee_names_str}"
+>>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
     if description:
         full_description += f"\n\nAgenda / Notes:\n{description}"
 
@@ -17600,10 +17870,17 @@ def supervisor_schedule_sgm_ajax():
 
     try:
         meeting = MeetingRequest(
+<<<<<<< HEAD
             requester_id=supervisor.id,
             requested_to_id=lead_mentor.id,
             meeting_title=canonical_title,
             meeting_description=full_description + f"\n\nAuto-assigned SGM Task (category: SGM): {sgm_task_title} - {sgm_task_description}",
+=======
+            requester_id=organizer.id,
+            requested_to_id=primary_mentor.id,
+            meeting_title=f"SGM: {title}" if not title.upper().startswith("SGM") else title,
+            meeting_description=full_description,
+>>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
             meeting_date=start_datetime.date(),
             meeting_time=start_datetime.time(),
             meeting_duration=duration_minutes,
@@ -17613,17 +17890,43 @@ def supervisor_schedule_sgm_ajax():
             meeting_type="sgm"
         )
         db.session.add(meeting)
-        db.session.commit()
+        db.session.flush()
+
+        # Automatically assign a custom learning & feedback task to each mentee
+        assigned_task_ids = []
+        task_due = meeting.meeting_date + dt.timedelta(days=3)
+        for mentee in mentees:
+            pt = PersonalTask(
+                mentee_id=mentee.id,
+                mentor_id=primary_mentor.id,
+                title=f"Learning & Feedback: {meeting.meeting_title}",
+                description=f"Reflect on discussion, summarize key learnings, and provide feedback for the SGM session held on {meeting.meeting_date.strftime('%B %d, %Y')} with mentor(s): {mentor_names_str}.",
+                due_date=dt.datetime.combine(task_due, dt.time(23, 59, 59)),
+                priority="medium",
+                status="pending",
+                progress=0,
+                created_date=dt.datetime.utcnow()
+            )
+            db.session.add(pt)
+            db.session.flush()
+            assigned_task_ids.append(pt.id)
 
         participants_data = {
+<<<<<<< HEAD
             "mentor_id": lead_mentor.id,
             "mentor_name": lead_mentor.name,
+=======
+            "mentor_id": primary_mentor.id,
+            "mentor_name": primary_mentor.name,
+>>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
             "mentor_ids": [m.id for m in mentors],
             "mentor_names": [m.name for m in mentors],
             "mentee_ids": [m.id for m in mentees],
             "mentee_names": [m.name for m in mentees],
+            "task_ids": assigned_task_ids,
             "is_sgm": True,
             "meeting_type": "sgm",
+<<<<<<< HEAD
             "created_by": supervisor.id,
             "created_by_name": supervisor.name,
             "scheduled_by": "supervisor",
@@ -17665,6 +17968,17 @@ def supervisor_schedule_sgm_ajax():
 
         # Send email notifications to every mentor and all participating mentees
         try:
+=======
+            "created_by": organizer.id,
+            "created_by_name": organizer.name,
+            "scheduled_by": "coordinator" if is_institution else "supervisor"
+        }
+        _save_meeting_participants(meeting.id, participants_data)
+        db.session.commit()
+
+        # Send email notifications to all mentors and all participating mentees
+        try:
+>>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
             for recipient in mentors + mentees:
                 if recipient.email:
                     subj = f"New SGM Session Scheduled: {meeting.meeting_title}"
@@ -17672,20 +17986,28 @@ def supervisor_schedule_sgm_ajax():
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
                         <h2 style="color: #059669; margin-top: 0;">Small Group Mentoring (SGM) Session</h2>
                         <p>Hello <strong>{recipient.name}</strong>,</p>
+<<<<<<< HEAD
                         <p>Supervisor <strong>{supervisor.name}</strong> has scheduled a Small Group Mentoring session with mentors <strong>{mentor_names_str}</strong>.</p>
+=======
+                        <p>{organizer_role_label} <strong>{organizer.name}</strong> has scheduled a Small Group Mentoring session.</p>
+>>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
                         <div style="background: #ecfdf5; padding: 15px; border-left: 4px solid #059669; border-radius: 6px; margin: 20px 0;">
                             <p style="margin: 4px 0;"><strong>Topic:</strong> {meeting.meeting_title}</p>
                             <p style="margin: 4px 0;"><strong>Date:</strong> {meeting.meeting_date.strftime('%B %d, %Y')}</p>
                             <p style="margin: 4px 0;"><strong>Time:</strong> {meeting.meeting_time.strftime('%I:%M %p')}</p>
                             <p style="margin: 4px 0;"><strong>Duration:</strong> {duration_minutes} minutes</p>
+<<<<<<< HEAD
                             <p style="margin: 4px 0;"><strong>Mentors:</strong> {mentor_names_str}</p>
+=======
+                            <p style="margin: 4px 0;"><strong>Mentor(s):</strong> {mentor_names_str}</p>
+>>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
                             <p style="margin: 4px 0;"><strong>Mentees in Group ({len(mentees)}):</strong> {mentee_names_str}</p>
                             <p style="margin: 4px 0;"><strong>SGM Task:</strong> {sgm_task_title} (category: SGM) &mdash; one mentor's feedback completes it.</p>
                         </div>
                         <div style="text-align: center; margin: 25px 0;">
                             <a href="{meet_link}" style="background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Video Call</a>
                         </div>
-                        <p style="color: #64748b; font-size: 13px;">Please make sure to join on time from your dashboard or calendar.</p>
+                        <p style="color: #64748b; font-size: 13px;">A learning & feedback task has been created for all participating mentees. Please join on time from your dashboard or calendar.</p>
                     </div>
                     """
                     send_email_reminder(recipient.email, subj, body_html)
@@ -17694,7 +18016,11 @@ def supervisor_schedule_sgm_ajax():
 
         return jsonify({
             "success": True,
+<<<<<<< HEAD
             "message": f"SGM meeting scheduled successfully with {mentor_names_str} and {len(mentees)} mentee(s)!",
+=======
+            "message": f"SGM meeting scheduled successfully with {len(mentors)} mentor(s) and {len(mentees)} mentee(s)! Learning & feedback task assigned to mentees.",
+>>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
             "meeting_id": meeting.id,
             "meet_link": meet_link,
             "title": meeting.meeting_title,
@@ -17775,7 +18101,8 @@ def update_meeting_ajax():
         meeting.meeting_date = meeting_date
         meeting.meeting_time = meeting_time
         meeting.meeting_duration = meeting_duration
-        meeting.meet_link = meet_link if meet_link else meeting.meet_link
+        if meet_link and not meet_link.endswith("/new") and not meet_link.endswith("/create"):
+            meeting.meet_link = meet_link
 
         # Preserve and re-save participants metadata
         participants = _get_meeting_participants(meeting.id) or {}
@@ -17807,8 +18134,10 @@ def update_meeting_ajax():
         meeting.meeting_description = _embed_meeting_participants(new_desc, participants)
 
         # Update calendar event if exists (Google Calendar or MS Teams)
+        calendar_updated = False
         if meeting.gcal_event_id:
-            if meeting.meet_link and "teams" in str(meeting.meet_link).lower():
+            is_teams = str(meeting.gcal_event_id).startswith("AAMk") or ("teams" in str(meeting.meet_link or "").lower())
+            if is_teams:
                 try:
                     try:
                         from zoneinfo import ZoneInfo
@@ -17816,13 +18145,14 @@ def update_meeting_ajax():
                     except Exception:
                         tzobj = dt.timezone.utc
                     new_start_utc = new_dt.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
-                    new_end_utc = (new_dt + dt.timedelta(minutes=meeting_duration)).replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
-                    update_teams_calendar_event(meeting.gcal_event_id, new_start_utc, new_end_utc, title=title, description=new_desc)
+                    new_end_utc = (new_dt + timedelta(minutes=meeting_duration)).replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
+                    calendar_updated = update_teams_calendar_event(meeting.gcal_event_id, new_start_utc, new_end_utc, title=title, description=new_desc)
+                    app.logger.info(f"Teams event {meeting.gcal_event_id} update result on edit: {calendar_updated}")
                 except Exception as e:
                     app.logger.error(f"Error updating Teams calendar event on edit: {e}")
             else:
                 try:
-                    update_google_calendar_event(
+                    calendar_updated = update_google_calendar_event(
                         event_id=meeting.gcal_event_id,
                         new_start_datetime=new_dt,
                         duration_minutes=meeting_duration,
@@ -17830,6 +18160,7 @@ def update_meeting_ajax():
                         title=title,
                         description=new_desc
                     )
+                    app.logger.info(f"Google Calendar event {meeting.gcal_event_id} update result on edit: {calendar_updated}")
                 except Exception as e:
                     app.logger.error(f"Error updating Google Calendar event on edit: {e}")
 
@@ -17877,7 +18208,7 @@ def update_meeting_ajax():
             except Exception as e:
                 app.logger.error(f"Failed to send institution notification on edit: {e}")
 
-        return jsonify({"success": True, "message": "Meeting updated successfully"})
+        return jsonify({"success": True, "message": "Meeting updated successfully", "calendar_updated": calendar_updated})
     except ValueError as e:
         db.session.rollback()
         return jsonify({"error": f"Invalid date or time format: {e}"}), 400
@@ -20090,9 +20421,25 @@ def generate_qr(url=None):
     try:
         target_url = url or request.args.get("url")
         if not target_url:
-            target_url = request.host_url.rstrip('/') + '/programs'
-        elif not (target_url.startswith("http://") or target_url.startswith("https://")):
-            target_url = request.host_url.rstrip('/') + '/' + target_url.lstrip('/')
+            target_url = "programs"
+
+        # Collect additional query params if passed in query string
+        extra_args = {k: v for k, v in request.args.items() if k != "url"}
+        if extra_args:
+            from urllib.parse import urlencode
+            delimiter = "&" if "?" in target_url else "?"
+            target_url = f"{target_url}{delimiter}{urlencode(extra_args)}"
+
+        if not (target_url.startswith("http://") or target_url.startswith("https://")):
+            base = os.getenv("BASE_URL") or os.getenv("APP_URL") or os.getenv("SITE_URL")
+            if not base:
+                forwarded_host = request.headers.get("X-Forwarded-Host")
+                forwarded_proto = request.headers.get("X-Forwarded-Proto", "https" if request.is_secure else "http")
+                if forwarded_host:
+                    base = f"{forwarded_proto}://{forwarded_host}"
+                else:
+                    base = request.host_url.rstrip('/')
+            target_url = base.rstrip('/') + '/' + target_url.lstrip('/')
 
         try:
             import qrcode

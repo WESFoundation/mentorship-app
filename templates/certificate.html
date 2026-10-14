@@ -992,6 +992,16 @@
                 padding: 0.75rem !important;
             }
 
+            #certQrContainer {
+                margin-top: 0.5rem !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            #certQrContainer a {
+                pointer-events: none !important;
+            }
+
             #certificatePage2 {
                 page-break-before: always !important;
                 break-before: page !important;
@@ -1393,11 +1403,16 @@
             <div class="certificate-footer">
                 <div class="footer-text">WES Foundation | Mentorship Program</div>
                 <div class="footer-contact">mentorship.weslux.lu | info@wazireducationsociety.com</div>
-                <div style="margin-top: 1rem; display: flex; justify-content: center; align-items: center; gap: 0.75rem;">
-                    <span style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">Scan for program details:</span>
-                    <div style="width: 88px; height: 88px; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 4px; background: white; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                        <img src="{{ url_for('generate_qr', url='programs') }}" alt="QR Code" crossorigin="anonymous" style="width: 80px; height: 80px; display: block; image-rendering: pixelated;">
+                <div id="certQrContainer" style="margin-top: 1rem; display: flex; justify-content: center; align-items: center; gap: 0.85rem; flex-wrap: wrap;">
+                    <div style="text-align: right;">
+                        <span style="font-size: 0.75rem; color: #4b5563; font-weight: 600; display: block;">Scan to view programs:</span>
+                        <span style="font-size: 0.7rem; color: #9ca3af; display: block;">Certificate ID: WES-{{ user_type }}-{{ user_id }}</span>
                     </div>
+                    <a href="{{ url_for('programs', source='certificate', cert_id='WES-' ~ user_type ~ '-' ~ user_id) }}" target="_blank" rel="noopener noreferrer" title="Click or scan to open program details" style="text-decoration: none; display: inline-block;">
+                        <div style="width: 88px; height: 88px; border: 1.5px solid #dbeafe; border-radius: 0.65rem; padding: 4px; background: white; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(37,99,235,0.08); transition: transform 0.2s, box-shadow 0.2s; cursor: pointer;">
+                            <img id="certQrImage" src="{{ url_for('generate_qr') }}?url=programs&source=certificate&cert_id=WES-{{ user_type }}-{{ user_id }}" alt="QR Code - WES Programs" crossorigin="anonymous" onerror="this.onerror=null; this.src='/static/img/logo.jpg';" style="width: 80px; height: 80px; display: block; image-rendering: pixelated; border-radius: 0.25rem;">
+                        </div>
+                    </a>
                 </div>
             </div>
         </div>
