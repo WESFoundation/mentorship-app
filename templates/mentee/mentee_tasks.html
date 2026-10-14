@@ -718,7 +718,7 @@
             <!-- Mentor Support Rating -->
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-2">How helpful was your mentor for this task?</label>
-                <div class="flex gap-2" id="mentee-mentor-rating">
+                <div class="flex gap-2" id="mentee-mentor-star-rating">
                     <button type="button" class="mentee-mentor-star text-3xl text-slate-300 hover:text-blue-400 transition" data-value="1">★</button>
                     <button type="button" class="mentee-mentor-star text-3xl text-slate-300 hover:text-blue-400 transition" data-value="2">★</button>
                     <button type="button" class="mentee-mentor-star text-3xl text-slate-300 hover:text-blue-400 transition" data-value="3">★</button>
@@ -1450,7 +1450,7 @@
             updateTaskCardBadge(taskId, taskType, isCompleted ? 'done' : (taskStatus === 'committed' ? 'committed' : (taskStatus === 'not-started' && !data.text && !data.rating && !data.mentorRating ? 'not-started' : 'in-progress')));
             var dateEl = document.getElementById('mentee-display-date');
             if (dateEl) {
-                const hasRating = (data.rating && data.rating > 0) || (data.mentor_rating && data.mentor_rating > 0);
+                const hasRating = (data.rating && data.rating > 0) || ((data.mentor_rating || data.mentorRating) && (data.mentor_rating || data.mentorRating) > 0);
                 const hasText = (data.text && data.text.trim()) || (data.challenges && data.challenges.trim()) || (data.nextSteps || data.next_steps ? (data.nextSteps || data.next_steps).trim() : false) || (data.extra && data.extra.trim());
                 if (data.date && (hasRating || hasText)) {
                     dateEl.textContent = new Date(data.date).toLocaleDateString();

@@ -11469,7 +11469,6 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
 
     Stages:
       done        : All 3 personas (mentee, mentor, and institute) have submitted feedback/ratings.
-                     Exception -> SGM tasks: a SINGLE mentor's feedback completes the task.
       in-progress : Any one (or two) personas have submitted feedback, but not all three.
       committed   : Task is attached to a scheduled meeting, but no feedback/ratings submitted yet.
       not-started : Neither feedback from anyone NOR a meeting scheduled for this task.
@@ -11520,16 +11519,9 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
     any_feedback = bool(has_mentee_fb or mentor_submitted or has_inst_refl)
 
     # Determine which personas are required for 'done':
-    # Normally mentee AND mentor AND institute must all have given feedback.
-    # SGM exception: the task is shared by a group of mentors, so ONE mentor's
-    # feedback is enough to complete it.
-    if _sgm_task:
-        all_feedback = bool(mentor_submitted)
-    elif task_type == 'master':
-        all_feedback = bool(has_mentee_fb and mentor_submitted and has_inst_refl)
-    else:
-        mentor_req = mentor_submitted if mentor_id else True
-        all_feedback = bool(has_mentee_fb and mentor_req and has_inst_refl)
+    # All 3 personas (mentee, mentor, and institute) must have given feedback.
+    mentor_req = mentor_submitted if (mentor_id or _sgm_task) else True
+    all_feedback = bool(has_mentee_fb and mentor_req and has_inst_refl)
 
     has_meeting = _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id, all_pdata=all_pdata, meetings_map=meetings_map)
 
@@ -11951,10 +11943,9 @@ def get_all_mentor_feedback(task_type, task_id):
         app.logger.error(f"get_all_mentor_feedback failed: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
-# ===== INSTITUTION TASK REFLECTION SYNC =====
 @app.route('/save_institution_reflection', methods=['POST'])
 def save_institution_reflection():
-    if "email" not in session or session.get("user_type") != "3":
+    if "email" not in session or str(session.get("user_type", "")) not in ("3", "0", "admin", "supervisor", "institution"):
         return jsonify({'success': False, 'message': 'Unauthorized'})
     try:
         user = User.query.filter_by(email=session["email"]).first()
@@ -17804,8 +17795,7 @@ def supervisor_schedule_sgm_ajax():
         f"Meeting: {canonical_title}\n"
         f"Mentors: {mentor_names_str}\n"
         f"Mentees: {mentee_names_str}\n\n"
-        "Every mentor on this SGM can add their own feedback below. The task is "
-        "marked complete as soon as one mentor has submitted."
+        "Feedback from mentee, mentor, and institute completes the task."
     )
 
     try:
@@ -17908,9 +17898,9 @@ def supervisor_schedule_sgm_ajax():
                             <p style="margin: 4px 0;"><strong>Date:</strong> {meeting.meeting_date.strftime('%B %d, %Y')}</p>
                             <p style="margin: 4px 0;"><strong>Time:</strong> {meeting.meeting_time.strftime('%I:%M %p')}</p>
                             <p style="margin: 4px 0;"><strong>Duration:</strong> {duration_minutes} minutes</p>
-                            <p style="margin: 4px 0;"><strong>Mentor(s):</strong> {mentor_names_str}</p>
+                            <p style="margin: 4px 0;"><strong>Mentors:</strong> {mentor_names_str}</p>
                             <p style="margin: 4px 0;"><strong>Mentees in Group ({len(mentees)}):</strong> {mentee_names_str}</p>
-                            <p style="margin: 4px 0;"><strong>SGM Task:</strong> {sgm_task_title} (category: SGM) &mdash; one mentor's feedback completes it.</p>
+                            <p style="margin: 4px 0;"><strong>SGM Task:</strong> {sgm_task_title} (category: SGM)</p>
                         </div>
                         <div style="text-align: center; margin: 25px 0;">
                             <a href="{meet_link}" style="background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Video Call</a>
