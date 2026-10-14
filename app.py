@@ -3252,6 +3252,27 @@ def auto_migrate_schema():
             if db.engine.dialect.name == "postgresql":
                 sync_postgres_sequences()
 
+            # 6. Auto-standardize mentor locations (country, state, city)
+            try:
+                unnormalized_mentors = MentorProfile.query.filter(
+                    (MentorProfile.country.is_(None)) | (MentorProfile.country == '')
+                ).all()
+                if unnormalized_mentors:
+                    updated_count = 0
+                    for prof in unnormalized_mentors:
+                        res = resolve_location(prof.country, prof.state, prof.city, prof.location)
+                        prof.country = res['country'] or None
+                        prof.state = res['state'] or None
+                        prof.city = res['city'] or None
+                        if res['location']:
+                            prof.location = res['location']
+                        updated_count += 1
+                    db.session.commit()
+                    print(f"✅ Auto-standardized {updated_count} mentor location(s) in database.")
+            except Exception as loc_err:
+                db.session.rollback()
+                print(f"⚠️ Mentor location auto-migrate notice: {loc_err}")
+
             _schema_migrated = True
     except Exception as e:
         print(f"⚠️ Auto-migrate schema notice: {e}")

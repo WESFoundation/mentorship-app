@@ -29,5 +29,8 @@ with app.app_context():
         print(f'⚠️ Scheduler notice: {e}')
 " || true
 
+echo "=== Normalizing Mentor Locations in Database ==="
+python fix_mentor_locations_live.py --apply || true
+
 echo "=== Starting Gunicorn Server on Port ${PORT:-5000} ==="
 exec gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 1 --threads 8 --timeout 120 app:app
