@@ -1253,11 +1253,20 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             or_(MeetingRequest.requester_id == user.id, MeetingRequest.requested_to_id == user.id)
         ).order_by(MeetingRequest.meeting_date.desc(), MeetingRequest.meeting_time.desc()).all()
 
+        import re
+        import hashlib
+
         result = []
         for m in meetings:
             other_id = m.requested_to_id if m.requester_id == user.id else m.requester_id
             other_user = User.query.get(other_id)
             other_name = other_user.name if other_user else f"User #{other_id}"
+
+            clean_desc = re.sub(r'<!--.*?-->', '', m.meeting_description or '', flags=re.DOTALL).strip()
+            meet_link = (m.meet_link or "").strip()
+            if not meet_link:
+                code = hashlib.md5(f"meet_{m.id}_{m.requester_id}_{m.requested_to_id}".encode()).hexdigest()
+                meet_link = f"https://meet.google.com/{code[:3]}-{code[3:7]}-{code[7:10]}"
 
             result.append({
                 "id": m.id,
@@ -1265,15 +1274,15 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "requested_to_id": m.requested_to_id,
                 "title": m.meeting_title,
                 "meeting_title": m.meeting_title,
-                "description": m.meeting_description or "",
-                "meeting_description": m.meeting_description or "",
+                "description": clean_desc,
+                "meeting_description": clean_desc,
                 "date": m.meeting_date.strftime("%Y-%m-%d") if m.meeting_date else "",
                 "meeting_date": m.meeting_date.strftime("%Y-%m-%d") if m.meeting_date else "",
                 "time": m.meeting_time.strftime("%I:%M %p") if m.meeting_time else "",
                 "meeting_time": m.meeting_time.strftime("%I:%M %p") if m.meeting_time else "",
-                "status": m.status or "pending",
+                "status": m.status or "scheduled",
                 "other_party_name": other_name,
-                "meet_link": m.meet_link or ""
+                "meet_link": meet_link
             })
 
         return jsonify({"success": True, "meetings": result})
@@ -1294,13 +1303,29 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         if not requested_to_id or not date_str:
             return jsonify({"success": False, "message": "Participant and Date are required"}), 400
 
+        # Enforce that mentee can only schedule meetings with mentors in an active, approved mentorship
+        if getattr(user, "user_type", None) in ("2", "mentee"):
+            approved = MentorshipRequest.query.filter(
+                MentorshipRequest.mentee_id == user.id,
+                MentorshipRequest.mentor_id == int(requested_to_id),
+                or_(
+                    MentorshipRequest.final_status == "approved",
+                    MentorshipRequest.supervisor_status == "approved",
+                    MentorshipRequest.mentor_status == "accepted"
+                )
+            ).first()
+            if not approved:
+                return jsonify({
+                    "success": False,
+                    "message": "You can only schedule meetings with mentors in an approved mentorship with you."
+                }), 403
+
         try:
             m_date = datetime.strptime(date_str[:10], "%Y-%m-%d").date()
         except Exception:
             m_date = datetime.utcnow().date()
 
         try:
-            # Parse time flexibly (e.g. "10:00 AM" or "10:00:00")
             clean_time = time_str.strip()
             if "AM" in clean_time.upper() or "PM" in clean_time.upper():
                 m_time = datetime.strptime(clean_time, "%I:%M %p").time()
@@ -1326,12 +1351,17 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             meeting_time=m_time,
             meeting_duration=duration,
             meet_link=meet_link,
-            status="pending"
+            status="scheduled"
         )
         db.session.add(new_meeting)
         db.session.commit()
 
-        return jsonify({"success": True, "message": "Meeting scheduled successfully", "id": new_meeting.id}), 201
+        return jsonify({
+            "success": True,
+            "message": "Meeting scheduled successfully",
+            "id": new_meeting.id,
+            "meet_link": meet_link
+        }), 201
 
     # -------------------------------------------------------------
     # 5. TASKS ENDPOINTS (MENTEE CURRICULUM + PERSONAL)
