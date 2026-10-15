@@ -550,7 +550,15 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "name": u.name,
                 "profession": prof,
                 "organisation": org,
+                "organization": org,
                 "location": loc,
+                "industry": mp.industry if mp and mp.industry else "",
+                "years_of_experience": mp.years_of_experience if mp and mp.years_of_experience else "",
+                "education": mp.education if mp and mp.education else "",
+                "bio": mp.bio if mp and mp.bio else "",
+                "key_skills": mp.key_skills if mp and mp.key_skills else "",
+                "mobile_number": mp.mobile_number if mp and mp.mobile_number else "",
+                "linkedin_link": mp.linkedin_link if mp and mp.linkedin_link else "",
                 "supervisor_rating": comp_rating,
                 "profile_picture": pic,
                 "status": getattr(mp, "status", "active") if mp else "active"
@@ -731,6 +739,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             goal = mp.career_goal or mp.goal or "Career Development" if mp else "Mentee"
             inst = mp.institution_name or mp.school_college_name or "Student" if mp else "Student"
 
+            m_rating = calc_mentee_rating_helper(mentee_u.id, db)
+
             connected.append({
                 "id": mentee_u.id,
                 "user_id": str(mentee_u.id),
@@ -738,6 +748,14 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "career_goal": goal,
                 "goal": goal,
                 "institution_name": inst,
+                "education_level": mp.education_level if mp and mp.education_level else "",
+                "who_am_i": mp.who_am_i if mp and mp.who_am_i else "",
+                "key_skills": mp.key_skills if mp and mp.key_skills else "",
+                "course_stream": mp.course_stream if mp and mp.course_stream else "",
+                "city": mp.city if mp and mp.city else "",
+                "state": mp.state if mp and mp.state else "",
+                "country": mp.country if mp and mp.country else "",
+                "rating": m_rating,
                 "profile_picture": pic,
                 "status": "active"
             })
@@ -757,6 +775,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             pic = format_pic_url(mp.profile_picture if mp else None)
             goal = mp.career_goal or mp.goal or "Career Guidance" if mp else "Mentee"
             inst = mp.institution_name or mp.school_college_name or "Student" if mp else "Student"
+            m_rating = calc_mentee_rating_helper(u.id, db)
 
             result.append({
                 "id": u.id,
@@ -765,6 +784,14 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "career_goal": goal,
                 "goal": goal,
                 "institution_name": inst,
+                "education_level": mp.education_level if mp and mp.education_level else "",
+                "who_am_i": mp.who_am_i if mp and mp.who_am_i else "",
+                "key_skills": mp.key_skills if mp and mp.key_skills else "",
+                "course_stream": mp.course_stream if mp and mp.course_stream else "",
+                "city": mp.city if mp and mp.city else "",
+                "state": mp.state if mp and mp.state else "",
+                "country": mp.country if mp and mp.country else "",
+                "rating": m_rating,
                 "profile_picture": pic,
                 "status": getattr(mp, "status", "active") if mp else "active"
             })
@@ -798,6 +825,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         return jsonify({"success": True, "requests": result})
 
     @api_bp.route("/mentor/requests/<int:req_id>/action", methods=["POST"])
+    @api_bp.route("/mentor/requests/<int:req_id>", methods=["POST", "PUT"])
     def api_mentor_request_action(req_id):
         user = get_current_user_from_req(User)
         if not user:
@@ -1262,6 +1290,14 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         except Exception:
             m_time = datetime.strptime("10:00", "%H:%M").time()
 
+        duration = int(data.get("duration") or data.get("meeting_duration") or 60)
+        meet_link = (data.get("meet_link") or "").strip()
+        if not meet_link:
+            import hashlib
+            seed = f"{user.id}_{requested_to_id}_{m_date}_{m_time}"
+            code = hashlib.md5(seed.encode()).hexdigest()
+            meet_link = f"https://meet.google.com/{code[:3]}-{code[3:7]}-{code[7:10]}"
+
         new_meeting = MeetingRequest(
             requester_id=user.id,
             requested_to_id=int(requested_to_id),
@@ -1269,6 +1305,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             meeting_description=desc,
             meeting_date=m_date,
             meeting_time=m_time,
+            meeting_duration=duration,
+            meet_link=meet_link,
             status="pending"
         )
         db.session.add(new_meeting)
