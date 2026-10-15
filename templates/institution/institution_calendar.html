@@ -605,7 +605,7 @@
           {% for mentor in mentors %}
           <label class="sgm-mentor-row flex items-center justify-between p-2 rounded-lg hover:bg-white cursor-pointer transition text-xs border border-transparent hover:border-gray-200" data-name="{{ (mentor.name or '') | lower }}" data-email="{{ (mentor.email or '') | lower }}">
             <div class="flex items-center gap-2.5">
-              <input type="checkbox" value="{{ mentor.id }}" onchange="updateSgmMentorsSelectedCount()" class="sgm-mentor-cb rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4">
+              <input type="checkbox" value="{{ mentor.id }}" data-mentor-name="{{ mentor.name }}" onchange="updateSgmMentorsSelectedCount()" class="sgm-mentor-cb rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4">
               <div>
                 <p class="font-semibold text-gray-800">{{ mentor.name }}</p>
                 <p class="text-[11px] text-gray-500">{{ mentor.email }}</p>
@@ -663,8 +663,10 @@
       <div>
         <label class="block text-sm font-semibold text-gray-700 mb-1">SGM Session Title <span class="text-red-500">*</span></label>
         <input type="text" id="sgm-title" name="title" required maxlength="200"
-          value="SGM: Group Mentoring & Discussion"
+          value="SGM: Group Mentoring &amp; Fireside chat with [Mentor's Name]"
+          placeholder="SGM: Group Mentoring &amp; Fireside chat with [Mentor's Name]"
           class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm">
+        <p class="mt-1 text-[11px] text-gray-500">The mentor's name is filled in automatically inside square brackets when you select mentors.</p>
       </div>
 
       <!-- SGM Topic / Agenda -->
@@ -2795,7 +2797,50 @@ function updateSgmMentorsSelectedCount() {
       badge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200';
     }
   }
+  syncSgmDefaultTitle();
 }
+
+const SGM_TITLE_PREFIX = 'SGM: Group Mentoring & Fireside chat with';
+const SGM_DEFAULT_MENTOR_PLACEHOLDER = "[Mentor's Name]";
+
+function syncSgmDefaultTitle() {
+  const input = document.getElementById('sgm-title');
+  if (!input) return;
+
+  const current = (input.value || '').trim();
+  const pattern = /^SGM:\s*Group\s*Mentoring\s*&\s*Fireside\s*chat\s*with(\s*\[.*\])?$/i;
+  const legacyPattern = /^SGM:\s*Group\s*Mentoring\s*&\s*Discussion$/i;
+
+  const isDefaultOrEmpty = !current || pattern.test(current) || legacyPattern.test(current);
+  if (!isDefaultOrEmpty && input.dataset.manuallyEdited === 'true') {
+    return;
+  }
+
+  const checkedCbs = Array.from(document.querySelectorAll('#schedule-sgm-modal .sgm-mentor-cb:checked'));
+  const mentorNames = checkedCbs.map(cb => {
+    return cb.getAttribute('data-mentor-name') ||
+      cb.closest('.sgm-mentor-row')?.querySelector('p.font-semibold')?.textContent?.trim() || '';
+  }).filter(Boolean);
+
+  const bracketContent = mentorNames.length > 0 ? `[${mentorNames.join(', ')}]` : SGM_DEFAULT_MENTOR_PLACEHOLDER;
+  input.value = `${SGM_TITLE_PREFIX} ${bracketContent}`;
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const titleInput = document.getElementById('sgm-title');
+  if (titleInput) {
+    titleInput.addEventListener('input', function () {
+      const val = (this.value || '').trim();
+      const pattern = /^SGM:\s*Group\s*Mentoring\s*&\s*Fireside\s*chat\s*with(\s*\[.*\])?$/i;
+      const legacyPattern = /^SGM:\s*Group\s*Mentoring\s*&\s*Discussion$/i;
+      if (!val || pattern.test(val) || legacyPattern.test(val)) {
+        this.dataset.manuallyEdited = 'false';
+      } else {
+        this.dataset.manuallyEdited = 'true';
+      }
+    });
+  }
+});
 
 function filterSgmMenteesList(query) {
   const q = (query || '').toLowerCase().trim();

@@ -17751,6 +17751,11 @@ def supervisor_schedule_sgm_ajax():
     legacy_default_titles = {"", "sgm: group mentoring & discussion", "sgm: group mentoring & fireside chat"}
     if title.strip().lower() in legacy_default_titles or title.strip() == SGM_TITLE_PREFIX:
         title = f"{SGM_TITLE_PREFIX} {lead_mentor.name}"
+    elif title.strip().lower() in {
+        "sgm: group mentoring & fireside chat with [mentor's name]",
+        f"{SGM_TITLE_PREFIX.lower()} [mentor's name]"
+    }:
+        title = f"{SGM_TITLE_PREFIX} [{mentor_names_str}]"
     canonical_title = title if title.upper().startswith("SGM") else f"SGM: {title}"
 
     if platform == "custom":
