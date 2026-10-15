@@ -82,9 +82,25 @@ def format_pic_url(pic):
         return p
     if p.startswith("static/uploads/"):
         return f"/{p}"
+    if p.startswith("/static/"):
+        return p
+    if p.startswith("static/"):
+        return f"/{p}"
     if p.startswith("uploads/"):
         return f"/static/{p}"
+    if p.startswith("/"):
+        return p
     return f"/static/uploads/{p}"
+
+
+def resolve_profile_pic(profile_obj, user_obj=None):
+    """Resolve picture preferring profile_picture on profile, falling back to user's profile_picture_url."""
+    pic = None
+    if profile_obj and getattr(profile_obj, "profile_picture", None):
+        pic = profile_obj.profile_picture
+    if not pic and user_obj and getattr(user_obj, "profile_picture_url", None):
+        pic = user_obj.profile_picture_url
+    return format_pic_url(pic)
 
 
 def calc_mentor_rating_helper(mentor_id, mp, MenteeTask, db):
@@ -401,7 +417,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "mentorship_expectations": profile.mentorship_expectations or "",
                 "linkedin_link": profile.linkedin_link or "",
                 "terms_agreement": profile.terms_agreement or "",
-                "profile_picture": format_pic_url(profile.profile_picture),
+                "profile_picture": resolve_profile_pic(profile, user),
                 "status": profile.status or "active"
             }
         })
@@ -541,7 +557,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             prof = mp.profession if mp and mp.profession else "Expert Mentor"
             org = mp.organisation if mp and mp.organisation else "Verified Organisation"
             loc = mp.location if mp and mp.location else ""
-            pic = format_pic_url(mp.profile_picture if mp else None)
+            pic = resolve_profile_pic(mp, u)
             comp_rating = calc_mentor_rating_helper(u.id, mp, MenteeTask, db)
 
             mentor_list.append({
@@ -552,7 +568,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "organisation": org,
                 "organization": org,
                 "location": loc,
-                "industry": mp.industry if mp and mp.industry else "",
+                "industry": getattr(mp, "industry_sector", getattr(mp, "industry", "")) if mp else "",
                 "years_of_experience": mp.years_of_experience if mp and mp.years_of_experience else "",
                 "education": mp.education if mp and mp.education else "",
                 "bio": mp.bio if mp and mp.bio else "",
@@ -594,7 +610,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 continue
 
             mp = MentorProfile.query.filter_by(user_id=mentor_user.id).first()
-            pic = format_pic_url(mp.profile_picture if mp else None)
+            pic = resolve_profile_pic(mp, mentor_user)
             comp_rating = calc_mentor_rating_helper(mentor_user.id, mp, MenteeTask, db)
 
             connected.append({
@@ -661,7 +677,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "mentorship_philosophy": mp.mentorship_philosophy if mp else "",
                 "mentorship_motto": mp.mentorship_motto if mp else "",
                 "additional_info": mp.additional_info if mp else "",
-                "profile_picture": format_pic_url(mp.profile_picture if mp else None),
+                "profile_picture": resolve_profile_pic(mp, user),
                 "criminal_certificate": format_pic_url(mp.criminal_certificate if mp else None),
                 "supervisor_rating": comp_rating,
                 "status": mp.status if mp else "active"
@@ -735,7 +751,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 continue
 
             mp = MenteeProfile.query.filter_by(user_id=mentee_u.id).first()
-            pic = format_pic_url(mp.profile_picture if mp else None)
+            pic = resolve_profile_pic(mp, mentee_u)
             goal = mp.career_goal or mp.goal or "Career Development" if mp else "Mentee"
             inst = mp.institution_name or mp.school_college_name or "Student" if mp else "Student"
 
@@ -772,7 +788,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
         result = []
         for u, mp in mentees:
-            pic = format_pic_url(mp.profile_picture if mp else None)
+            pic = resolve_profile_pic(mp, u)
             goal = mp.career_goal or mp.goal or "Career Guidance" if mp else "Mentee"
             inst = mp.institution_name or mp.school_college_name or "Student" if mp else "Student"
             m_rating = calc_mentee_rating_helper(u.id, db)
@@ -814,7 +830,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "id": r.id,
                 "mentee_id": r.mentee_id,
                 "mentee_name": mentee_name,
-                "profile_picture": format_pic_url(mp.profile_picture if mp else None),
+                "profile_picture": resolve_profile_pic(mp, mentee),
                 "purpose": getattr(r, "purpose", "") or "Mentorship Request",
                 "duration_months": getattr(r, "duration_months", 3),
                 "mentor_status": getattr(r, "mentor_status", "pending"),
@@ -1664,7 +1680,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "name": u.name,
                 "profession": mp.profession if mp and mp.profession else "Mentor",
                 "organisation": mp.organisation if mp and mp.organisation else "Organisation",
-                "profile_picture": format_pic_url(mp.profile_picture if mp else None),
+                "profile_picture": resolve_profile_pic(mp, u),
                 "role": "Mentor"
             })
 
@@ -1676,7 +1692,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "name": u.name,
                 "institution_name": mp.institution_name if mp and mp.institution_name else "Student",
                 "career_goal": mp.career_goal or mp.goal if mp else "Career Guidance",
-                "profile_picture": format_pic_url(mp.profile_picture if mp else None),
+                "profile_picture": resolve_profile_pic(mp, u),
                 "role": "Mentee"
             })
 
@@ -1756,7 +1772,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "profession": mp.profession if mp and mp.profession else "Mentor",
                 "organisation": mp.organisation if mp and mp.organisation else "Organisation",
                 "supervisor_rating": calc_mentor_rating_helper(u.id, mp, MenteeTask, db),
-                "profile_picture": format_pic_url(mp.profile_picture if mp else None),
+                "profile_picture": resolve_profile_pic(mp, u),
                 "role": "Mentor"
             })
 
@@ -1769,7 +1785,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "email": u.email,
                 "institution_name": mp.institution_name if mp and mp.institution_name else "Student",
                 "career_goal": mp.career_goal or mp.goal if mp else "Career Guidance",
-                "profile_picture": format_pic_url(mp.profile_picture if mp else None),
+                "profile_picture": resolve_profile_pic(mp, u),
                 "role": "Mentee"
             })
 
