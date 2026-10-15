@@ -64,13 +64,13 @@
         </div>
         <input type="text" id="findMentorSearch" placeholder="Search mentors by name, profession, or company..."
           class="w-full pl-10 sm:pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 focus:bg-white shadow-sm"
-          onkeyup="filterMentors()">
+          onkeyup="filterMentors()" oninput="filterMentors()">
       </div>
 
       <!-- Filters -->
       <form method="GET" action="{{ url_for('find_mentor') }}" class="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 sm:gap-4">
 
-<div class="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3 sm:gap-4">
+        <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
           <!-- Profession -->
           <div class="relative">
             <select name="profession"
@@ -135,9 +135,8 @@
               </svg>
             </div>
           </div>
-          </div>
 
-<!-- Education -->
+          <!-- Education -->
           <div class="relative">
             <select name="education"
               class="w-full appearance-none pl-3.5 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 hover:border-blue-300 cursor-pointer">
@@ -157,7 +156,7 @@
           <!-- Experience -->
           <div class="relative">
             <select name="experience"
-              class="w-full appearance-none pl-3.5 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 hover:border-blue-300 cursor-pointer">
+              class="w-full appearance-none pl-3.5 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 hover:border-blue-300 cursor-pointer">
               <option value="" {% if not request.args.get('experience') %}selected{% endif %}>Experience</option>
               <option value="0-2" {% if request.args.get('experience')=='0-2' %}selected{% endif %}>0-2 Years</option>
               <option value="3-5" {% if request.args.get('experience')=='3-5' %}selected{% endif %}>3-5 Years</option>
@@ -174,7 +173,7 @@
         </div>
 
         <button type="submit"
-          class="w-full lg:w-auto px-6 py-2.5 rounded-xl bg-blue-600 text-white font-semibold shadow-lg shadow-blue-500/30 hover:bg-blue-700 hover:shadow-blue-600/40 flex items-center justify-center gap-2">
+          class="w-full lg:w-auto px-6 py-2.5 rounded-xl bg-blue-600 text-white font-semibold shadow-lg shadow-blue-500/30 hover:bg-blue-700 hover:shadow-blue-600/40 flex items-center justify-center gap-2 shrink-0">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z">
@@ -211,7 +210,7 @@
     <div class="py-4 px-0 sm:p-4 md:p-6">
       <!-- Suggested Mentors Section -->
       {% if suggested_mentors and suggested_mentors|length > 0 %}
-      <div class="mb-12">
+      <div class="mb-12" id="suggestedMentorsSection">
         <!-- Section Header -->
         <div class="flex items-center gap-3 mb-6">
           <div class="flex items-center gap-2">
@@ -224,11 +223,12 @@
         </div>
         
         <!-- Suggested Mentors Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8" id="suggestedMentorsGrid">
           {% for suggestion in suggested_mentors %}
           {% set mentor = suggestion.mentor %}
           {% set percentage = suggestion.suggestion_percentage %}
-          <div class="mentor-card group relative bg-white rounded-lg shadow-md border border-blue-300 flex flex-col h-full">
+          {% if mentor %}
+          <div class="mentor-card suggested-mentor-card group relative bg-white rounded-lg shadow-md border border-blue-300 flex flex-col h-full">
 
             <!-- Suggested Badge -->
             <div class="absolute top-3 right-3 z-20">
@@ -252,37 +252,37 @@
             <!-- Card Header / Banner -->
             <div class="h-16 bg-blue-600 relative overflow-hidden">
               <div class="absolute top-0 right-0 w-20 h-20 bg-blue-500 opacity-30 rounded-full transform translate-x-1/2 -translate-y-1/2"></div>
-              
-
             </div>
 
             <div class="px-4 relative flex-grow">
               <!-- Avatar -->
-              <div class="w-16 h-16 rounded-lg border-3 border-white shadow-lg bg-white -mt-8 mb-3 relative z-10 overflow-hidden">
+              <div class="w-16 h-16 rounded-lg border-2 border-white shadow-md bg-gradient-to-br from-blue-600 to-indigo-700 -mt-8 mb-3 relative z-10 overflow-hidden flex items-center justify-center text-white font-bold text-lg select-none">
+                {% set mentor_display_name = (mentor.user.name if (mentor.user and mentor.user.name) else (mentor.name if mentor.name else 'Mentor')) %}
+                {% set name_parts = mentor_display_name.strip().split() %}
+                {% set initials = (name_parts[0][0] ~ (name_parts[-1][0] if name_parts|length > 1 else ''))|upper %}
+                <span class="flex items-center justify-center w-full h-full">{{ initials }}</span>
                 {% if mentor.profile_picture %}
-                  {% if mentor.profile_picture.startswith('http') %}
-                  <img src="{{ mentor.profile_picture }}" alt="{{ mentor.user.name }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='{{ mentor.user.profile_picture_url if mentor.user and mentor.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentor.user.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
-                  {% else %}
-                  <img src="{{ url_for('static', filename='uploads/' ~ mentor.profile_picture) }}" alt="{{ mentor.user.name }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='{{ mentor.user.profile_picture_url if mentor.user and mentor.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentor.user.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
-                  {% endif %}
+                  <img src="{{ mentor.profile_picture if mentor.profile_picture.startswith('http') else url_for('static', filename='uploads/' ~ mentor.profile_picture) }}"
+                    alt="{{ mentor_display_name }}" class="w-full h-full object-cover absolute inset-0"
+                    onload="if(this.src && this.src.includes('name=User')) this.remove();"
+                    onerror="this.remove();">
                 {% elif mentor.user and mentor.user.profile_picture_url %}
-                  <img src="{{ mentor.user.profile_picture_url }}" alt="{{ mentor.user.name }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ mentor.user.name|urlencode }}&background=2563eb&color=fff';">
-                {% else %}
-                <div class="w-full h-full bg-gray-100 flex items-center justify-center text-blue-600 text-lg font-bold">
-                  {{ mentor.user.name[0] if mentor.user.name else '?' }}
-                </div>
+                  <img src="{{ mentor.user.profile_picture_url }}"
+                    alt="{{ mentor_display_name }}" class="w-full h-full object-cover absolute inset-0"
+                    onload="if(this.src && this.src.includes('name=User')) this.remove();"
+                    onerror="this.remove();">
                 {% endif %}
               </div>
 
               <!-- Info -->
               <div class="mb-4">
-                <h3 class="text-lg font-bold text-gray-900 mentor-name">{{ mentor.user.name }}{% if mentor.user.premium %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}{% if mentor.is_corporate or (mentor.user and mentor.user.is_corporate) %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200" title="Corporate Verified"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg> Corporate</span>{% endif %}</h3>
+                <h3 class="text-lg font-bold text-gray-900 mentor-name">{{ mentor.user.name if mentor.user else 'Mentor' }}{% if mentor.user and mentor.user.premium %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}{% if mentor.is_corporate or (mentor.user and mentor.user.is_corporate) %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200" title="Corporate Verified"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg> Corporate</span>{% endif %}</h3>
                 <p class="text-xs font-medium text-blue-600 mb-1 mentor-profession tracking-wide uppercase">{{ mentor.profession }}</p>
-                <p class="text-xs text-gray-500 flex items-center gap-1.5 mb-2">
-                  <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <p class="text-xs text-gray-500 flex items-center gap-1.5 mb-2 mentor-organisation">
+                  <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
                   </svg>
-                  {{ mentor.organisation }}
+                  <span>{{ mentor.organisation }}</span>
                 </p>
 
                 <!-- Rating -->
@@ -393,7 +393,7 @@
 
       <!-- All Mentors Section -->
       {% if all_mentors and all_mentors|length > 0 %}
-      <div>
+      <div id="allMentorsSection">
         <!-- Section Header -->
         <div class="flex items-center gap-3 mb-6">
           <div class="flex items-center gap-2">
@@ -408,47 +408,46 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="mentorsContainer">
         {% for mentor in all_mentors %}
         <div
-          class="mentor-card group relative bg-white rounded-lg shadow-md border border-gray-200 flex flex-col h-full">
+          class="mentor-card all-mentor-card group relative bg-white rounded-lg shadow-md border border-gray-200 flex flex-col h-full">
 
           <!-- Card Header / Banner -->
           <div class="h-16 bg-gray-600 relative overflow-hidden">
             <div class="absolute top-0 right-0 w-20 h-20 bg-gray-500 opacity-30 rounded-full transform translate-x-1/2 -translate-y-1/2"></div>
-            
-
           </div>
 
           <div class="px-4 relative flex-grow">
             <!-- Avatar -->
             <div
-              class="w-16 h-16 rounded-lg border-3 border-white shadow-md bg-white -mt-8 mb-3 relative z-10 overflow-hidden">
+              class="w-16 h-16 rounded-lg border-2 border-white shadow-md bg-gradient-to-br from-blue-600 to-indigo-700 -mt-8 mb-3 relative z-10 overflow-hidden flex items-center justify-center text-white font-bold text-lg select-none">
+              {% set mentor_display_name = (mentor.user.name if (mentor.user and mentor.user.name) else (mentor.name if mentor.name else 'Mentor')) %}
+              {% set name_parts = mentor_display_name.strip().split() %}
+              {% set initials = (name_parts[0][0] ~ (name_parts[-1][0] if name_parts|length > 1 else ''))|upper %}
+              <span class="flex items-center justify-center w-full h-full">{{ initials }}</span>
               {% if mentor.profile_picture %}
-                {% if mentor.profile_picture.startswith('http') %}
-                <img src="{{ mentor.profile_picture }}" alt="{{ mentor.user.name }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='{{ mentor.user.profile_picture_url if mentor.user and mentor.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentor.user.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
-                {% else %}
-                <img src="{{ url_for('static', filename='uploads/' ~ mentor.profile_picture) }}"
-                  alt="{{ mentor.user.name }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='{{ mentor.user.profile_picture_url if mentor.user and mentor.user.profile_picture_url else 'https://ui-avatars.com/api/?name=' ~ (mentor.user.name|urlencode) ~ '&background=2563eb&color=fff' }}';">
-                {% endif %}
+                <img src="{{ mentor.profile_picture if mentor.profile_picture.startswith('http') else url_for('static', filename='uploads/' ~ mentor.profile_picture) }}"
+                  alt="{{ mentor_display_name }}" class="w-full h-full object-cover absolute inset-0"
+                  onload="if(this.src && this.src.includes('name=User')) this.remove();"
+                  onerror="this.remove();">
               {% elif mentor.user and mentor.user.profile_picture_url %}
-                <img src="{{ mentor.user.profile_picture_url }}" alt="{{ mentor.user.name }}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ mentor.user.name|urlencode }}&background=2563eb&color=fff';">
-              {% else %}
-              <div class="w-full h-full bg-gray-100 flex items-center justify-center text-gray-600 text-lg font-bold">
-                {{ mentor.user.name[0] if mentor.user.name else '?' }}
-              </div>
+                <img src="{{ mentor.user.profile_picture_url }}"
+                  alt="{{ mentor_display_name }}" class="w-full h-full object-cover absolute inset-0"
+                  onload="if(this.src && this.src.includes('name=User')) this.remove();"
+                  onerror="this.remove();">
               {% endif %}
             </div>
 
             <!-- Info -->
             <div class="mb-4">
-              <h3 class="text-lg font-bold text-gray-900 mentor-name">{{ mentor.user.name }}{% if mentor.user.premium %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}{% if mentor.is_corporate or (mentor.user and mentor.user.is_corporate) %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200" title="Corporate Verified"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg> Corporate</span>{% endif %}</h3>
+              <h3 class="text-lg font-bold text-gray-900 mentor-name">{{ mentor.user.name if mentor.user else 'Mentor' }}{% if mentor.user and mentor.user.premium %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}{% if mentor.is_corporate or (mentor.user and mentor.user.is_corporate) %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200" title="Corporate Verified"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg> Corporate</span>{% endif %}</h3>
               <p class="text-xs font-medium text-blue-600 mb-1 mentor-profession tracking-wide uppercase">{{
                 mentor.profession }}</p>
-              <p class="text-xs text-gray-500 flex items-center gap-1.5 mb-2">
-                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <p class="text-xs text-gray-500 flex items-center gap-1.5 mb-2 mentor-organisation">
+                <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4">
                   </path>
                 </svg>
-                {{ mentor.organisation }}
+                <span>{{ mentor.organisation }}</span>
               </p>
 
               <!-- Rating -->
@@ -542,6 +541,7 @@
         </div>
         {% endfor %}
       </div>
+      </div>
       {% else %}
       <div class="text-center py-12">
         <div class="mx-auto w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mb-4">
@@ -555,6 +555,17 @@
         <p class="text-gray-500">Check back later for new mentor opportunities.</p>
       </div>
       {% endif %}
+
+      <!-- Search No Results State -->
+      <div id="searchNoResultsMessage" class="hidden text-center py-16">
+        <div class="mx-auto w-20 h-20 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-4">
+          <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </div>
+        <h3 class="text-lg font-bold text-gray-900 mb-1">No matching mentors found</h3>
+        <p class="text-sm text-gray-500 max-w-sm mx-auto">Try adjusting your search query or removing filters to discover mentors.</p>
+      </div>
 
     </div>
 </section>
@@ -762,11 +773,12 @@
     <div class="p-4 sm:p-6 md:p-8">
       <!-- Profile Picture + Basic Info -->
       <div class="flex flex-col md:flex-row items-center gap-4 sm:gap-6 mb-6 sm:mb-8">
-        <div class="relative">
+        <div class="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-blue-50 shadow-sm shrink-0 bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white text-2xl font-bold uppercase select-none overflow-hidden">
+          <span id="modalAvatarFallback">M</span>
           <img id="modalProfilePic" src="" alt="Profile Picture"
-            class="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-4 border-blue-50 shadow-sm"
-            onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent(document.getElementById('modalName')?.textContent || 'User') + '&background=2563eb&color=fff';">
-          <div class="absolute -bottom-2 -right-2 bg-blue-600 text-white p-1.5 sm:p-2 rounded-full">
+            class="w-full h-full object-cover absolute inset-0" style="display:none;"
+            onerror="this.style.display='none';">
+          <div class="absolute -bottom-2 -right-2 bg-blue-600 text-white p-1.5 sm:p-2 rounded-full z-10">
             <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
               xmlns="http://www.w3.org/2000/svg">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -1214,19 +1226,49 @@
 
   // Filter mentors
   function filterMentors() {
-    const input = document.getElementById('findMentorSearch').value.toLowerCase();
-    const mentorCards = document.querySelectorAll('.mentor-card');
+    const input = (document.getElementById('findMentorSearch')?.value || '').trim().toLowerCase();
 
-    mentorCards.forEach(card => {
-      const name = card.querySelector('.mentor-name').textContent.toLowerCase();
-      const profession = card.querySelector('.mentor-profession').textContent.toLowerCase();
-      const location = card.querySelector('.mentor-location').textContent.toLowerCase();
+    function cardMatches(card) {
+      if (!input) return true;
+      const name = card.querySelector('.mentor-name')?.textContent.toLowerCase() || '';
+      const profession = card.querySelector('.mentor-profession')?.textContent.toLowerCase() || '';
+      const location = card.querySelector('.mentor-location')?.textContent.toLowerCase() || '';
+      const org = card.querySelector('.mentor-organisation')?.textContent.toLowerCase() || '';
+      return name.includes(input) || profession.includes(input) || location.includes(input) || org.includes(input);
+    }
 
-      card.style.display =
-        name.includes(input) || profession.includes(input) || location.includes(input)
-          ? 'block'
-          : 'none';
+    const suggestedSection = document.getElementById('suggestedMentorsSection');
+    const suggestedCards = document.querySelectorAll('#suggestedMentorsGrid .mentor-card');
+    let visibleSuggested = 0;
+    suggestedCards.forEach(card => {
+      const match = cardMatches(card);
+      card.style.display = match ? 'flex' : 'none';
+      if (match) visibleSuggested++;
     });
+    if (suggestedSection) {
+      suggestedSection.style.display = (visibleSuggested > 0 || !input) && suggestedCards.length > 0 ? '' : 'none';
+    }
+
+    const allSection = document.getElementById('allMentorsSection');
+    const allCards = document.querySelectorAll('#mentorsContainer .mentor-card');
+    let visibleAll = 0;
+    allCards.forEach(card => {
+      const match = cardMatches(card);
+      card.style.display = match ? 'flex' : 'none';
+      if (match) visibleAll++;
+    });
+    if (allSection) {
+      allSection.style.display = (visibleAll > 0 || !input) && allCards.length > 0 ? '' : 'none';
+    }
+
+    const noResultsMsg = document.getElementById('searchNoResultsMessage');
+    if (noResultsMsg) {
+      if (input && visibleSuggested === 0 && visibleAll === 0) {
+        noResultsMsg.classList.remove('hidden');
+      } else {
+        noResultsMsg.classList.add('hidden');
+      }
+    }
   }
 
   // Cascading location picklists: reload so state narrows by country, city by state.
@@ -1386,22 +1428,43 @@
 
     // ===== PROFILE PICTURE =====
     const profilePicElement = document.getElementById('modalProfilePic');
+    const modalAvatarFallback = document.getElementById('modalAvatarFallback');
+    const mentorName = mentor.user?.name || mentor.name || 'Mentor';
+
+    if (modalAvatarFallback) {
+      const parts = mentorName.trim().split(/\s+/);
+      const initials = (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+      modalAvatarFallback.textContent = initials || 'M';
+    }
+
     if (profilePicElement) {
+      profilePicElement.style.display = 'none';
       profilePicElement.onerror = function() {
-        this.onerror = null;
-        this.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentor.user?.name || mentor.name || 'Mentor') + "&background=2563eb&color=fff";
+        this.style.display = 'none';
       };
+      profilePicElement.onload = function() {
+        if (this.src && this.src.includes('name=User')) {
+          this.style.display = 'none';
+        } else {
+          this.style.display = 'block';
+        }
+      };
+
+      let picSrc = '';
       if (mentor.profile_picture && mentor.profile_picture.trim()) {
         if (mentor.profile_picture.startsWith('http')) {
-          profilePicElement.src = mentor.profile_picture;
+          picSrc = mentor.profile_picture;
         } else {
-          profilePicElement.src = "/static/uploads/" + mentor.profile_picture;
+          picSrc = "/static/uploads/" + mentor.profile_picture;
         }
       } else if (mentor.user && mentor.user.profile_picture_url) {
-        profilePicElement.src = mentor.user.profile_picture_url;
+        picSrc = mentor.user.profile_picture_url;
+      }
+
+      if (picSrc && !picSrc.includes('name=User')) {
+        profilePicElement.src = picSrc;
       } else {
-        const mentorName = mentor.user?.name || mentor.name || '?';
-        profilePicElement.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(mentorName) + "&background=2563eb&color=fff";
+        profilePicElement.removeAttribute('src');
       }
     }
 

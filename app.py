@@ -1,4 +1,4 @@
-from flask import Flask, redirect, url_for, render_template, request, session, flash, jsonify, g
+from flask import Flask, redirect, url_for, render_template, request, session, flash, jsonify, g, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, login_user, LoginManager, login_required, logout_user, current_user
 from sqlalchemy import cast, Integer, or_, and_, text, func
@@ -109,7 +109,7 @@ import storage_service
 @app.route('/uploads/<path:filename>')
 def serve_uploaded_file(filename):
     if not filename:
-        return redirect('https://ui-avatars.com/api/?name=User&background=2563eb&color=fff', code=302)
+        abort(404)
 
     clean_name = filename.strip()
     for pfx in ['/static/uploads/', 'static/uploads/', '/uploads/', 'uploads/']:
@@ -175,7 +175,7 @@ def serve_uploaded_file(filename):
 
         return _send_with_cache(app.config["UPLOAD_FOLDER"], clean_name)
 
-    return redirect('https://ui-avatars.com/api/?name=User&background=2563eb&color=fff', code=302)
+    abort(404)
 
 @app.route('/api/upload', methods=['POST'])
 def api_upload_file():
