@@ -82,9 +82,25 @@ def format_pic_url(pic):
         return p
     if p.startswith("static/uploads/"):
         return f"/{p}"
+    if p.startswith("/static/"):
+        return p
+    if p.startswith("static/"):
+        return f"/{p}"
     if p.startswith("uploads/"):
         return f"/static/{p}"
+    if p.startswith("/"):
+        return p
     return f"/static/uploads/{p}"
+
+
+def resolve_profile_pic(profile_obj, user_obj=None):
+    """Resolve picture preferring profile_picture on profile, falling back to user's profile_picture_url."""
+    pic = None
+    if profile_obj and getattr(profile_obj, "profile_picture", None):
+        pic = profile_obj.profile_picture
+    if not pic and user_obj and getattr(user_obj, "profile_picture_url", None):
+        pic = user_obj.profile_picture_url
+    return format_pic_url(pic)
 
 
 def calc_mentor_rating_helper(mentor_id, mp, MenteeTask, db):
@@ -401,7 +417,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "mentorship_expectations": profile.mentorship_expectations or "",
                 "linkedin_link": profile.linkedin_link or "",
                 "terms_agreement": profile.terms_agreement or "",
-                "profile_picture": format_pic_url(profile.profile_picture),
+                "profile_picture": resolve_profile_pic(profile, user),
                 "status": profile.status or "active"
             }
         })
@@ -541,7 +557,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             prof = mp.profession if mp and mp.profession else "Expert Mentor"
             org = mp.organisation if mp and mp.organisation else "Verified Organisation"
             loc = mp.location if mp and mp.location else ""
-            pic = format_pic_url(mp.profile_picture if mp else None)
+            pic = resolve_profile_pic(mp, u)
             comp_rating = calc_mentor_rating_helper(u.id, mp, MenteeTask, db)
 
             mentor_list.append({
@@ -550,7 +566,18 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "name": u.name,
                 "profession": prof,
                 "organisation": org,
+                "organization": org,
                 "location": loc,
+                "industry": getattr(mp, "industry_sector", getattr(mp, "industry", "")) if mp else "",
+                "years_of_experience": getattr(mp, "years_of_experience", "") if mp else "",
+                "education": getattr(mp, "education", getattr(mp, "highest_qualification", "")) if mp else "",
+                "bio": getattr(mp, "bio", getattr(mp, "mentorship_philosophy", getattr(mp, "additional_info", ""))) if mp else "",
+                "about_me": getattr(mp, "mentorship_philosophy", getattr(mp, "additional_info", "")) if mp else "",
+                "key_skills": getattr(mp, "key_skills", getattr(mp, "skills", "")) if mp else "",
+                "skills": getattr(mp, "skills", getattr(mp, "key_skills", "")) if mp else "",
+                "mobile_number": getattr(mp, "mobile_number", getattr(mp, "whatsapp", "")) if mp else "",
+                "whatsapp": getattr(mp, "whatsapp", getattr(mp, "mobile_number", "")) if mp else "",
+                "linkedin_link": getattr(mp, "linkedin_link", "") if mp else "",
                 "supervisor_rating": comp_rating,
                 "profile_picture": pic,
                 "status": getattr(mp, "status", "active") if mp else "active"
@@ -586,7 +613,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 continue
 
             mp = MentorProfile.query.filter_by(user_id=mentor_user.id).first()
-            pic = format_pic_url(mp.profile_picture if mp else None)
+            pic = resolve_profile_pic(mp, mentor_user)
             comp_rating = calc_mentor_rating_helper(mentor_user.id, mp, MenteeTask, db)
 
             connected.append({
@@ -653,7 +680,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "mentorship_philosophy": mp.mentorship_philosophy if mp else "",
                 "mentorship_motto": mp.mentorship_motto if mp else "",
                 "additional_info": mp.additional_info if mp else "",
-                "profile_picture": format_pic_url(mp.profile_picture if mp else None),
+                "profile_picture": resolve_profile_pic(mp, user),
                 "criminal_certificate": format_pic_url(mp.criminal_certificate if mp else None),
                 "supervisor_rating": comp_rating,
                 "status": mp.status if mp else "active"
@@ -727,9 +754,11 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 continue
 
             mp = MenteeProfile.query.filter_by(user_id=mentee_u.id).first()
-            pic = format_pic_url(mp.profile_picture if mp else None)
+            pic = resolve_profile_pic(mp, mentee_u)
             goal = mp.career_goal or mp.goal or "Career Development" if mp else "Mentee"
             inst = mp.institution_name or mp.school_college_name or "Student" if mp else "Student"
+
+            m_rating = calc_mentee_rating_helper(mentee_u.id, db)
 
             connected.append({
                 "id": mentee_u.id,
@@ -738,6 +767,14 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "career_goal": goal,
                 "goal": goal,
                 "institution_name": inst,
+                "education_level": mp.education_level if mp and mp.education_level else "",
+                "who_am_i": mp.who_am_i if mp and mp.who_am_i else "",
+                "key_skills": mp.key_skills if mp and mp.key_skills else "",
+                "course_stream": mp.course_stream if mp and mp.course_stream else "",
+                "city": mp.city if mp and mp.city else "",
+                "state": mp.state if mp and mp.state else "",
+                "country": mp.country if mp and mp.country else "",
+                "rating": m_rating,
                 "profile_picture": pic,
                 "status": "active"
             })
@@ -754,9 +791,10 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
         result = []
         for u, mp in mentees:
-            pic = format_pic_url(mp.profile_picture if mp else None)
+            pic = resolve_profile_pic(mp, u)
             goal = mp.career_goal or mp.goal or "Career Guidance" if mp else "Mentee"
             inst = mp.institution_name or mp.school_college_name or "Student" if mp else "Student"
+            m_rating = calc_mentee_rating_helper(u.id, db)
 
             result.append({
                 "id": u.id,
@@ -765,6 +803,14 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "career_goal": goal,
                 "goal": goal,
                 "institution_name": inst,
+                "education_level": mp.education_level if mp and mp.education_level else "",
+                "who_am_i": mp.who_am_i if mp and mp.who_am_i else "",
+                "key_skills": mp.key_skills if mp and mp.key_skills else "",
+                "course_stream": mp.course_stream if mp and mp.course_stream else "",
+                "city": mp.city if mp and mp.city else "",
+                "state": mp.state if mp and mp.state else "",
+                "country": mp.country if mp and mp.country else "",
+                "rating": m_rating,
                 "profile_picture": pic,
                 "status": getattr(mp, "status", "active") if mp else "active"
             })
@@ -787,7 +833,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "id": r.id,
                 "mentee_id": r.mentee_id,
                 "mentee_name": mentee_name,
-                "profile_picture": format_pic_url(mp.profile_picture if mp else None),
+                "profile_picture": resolve_profile_pic(mp, mentee),
                 "purpose": getattr(r, "purpose", "") or "Mentorship Request",
                 "duration_months": getattr(r, "duration_months", 3),
                 "mentor_status": getattr(r, "mentor_status", "pending"),
@@ -798,6 +844,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         return jsonify({"success": True, "requests": result})
 
     @api_bp.route("/mentor/requests/<int:req_id>/action", methods=["POST"])
+    @api_bp.route("/mentor/requests/<int:req_id>", methods=["POST", "PUT"])
     def api_mentor_request_action(req_id):
         user = get_current_user_from_req(User)
         if not user:
@@ -1206,11 +1253,20 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             or_(MeetingRequest.requester_id == user.id, MeetingRequest.requested_to_id == user.id)
         ).order_by(MeetingRequest.meeting_date.desc(), MeetingRequest.meeting_time.desc()).all()
 
+        import re
+        import hashlib
+
         result = []
         for m in meetings:
             other_id = m.requested_to_id if m.requester_id == user.id else m.requester_id
             other_user = User.query.get(other_id)
             other_name = other_user.name if other_user else f"User #{other_id}"
+
+            clean_desc = re.sub(r'<!--.*?-->', '', m.meeting_description or '', flags=re.DOTALL).strip()
+            meet_link = (m.meet_link or "").strip()
+            if not meet_link:
+                code = hashlib.md5(f"meet_{m.id}_{m.requester_id}_{m.requested_to_id}".encode()).hexdigest()
+                meet_link = f"https://meet.google.com/{code[:3]}-{code[3:7]}-{code[7:10]}"
 
             result.append({
                 "id": m.id,
@@ -1218,15 +1274,15 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "requested_to_id": m.requested_to_id,
                 "title": m.meeting_title,
                 "meeting_title": m.meeting_title,
-                "description": m.meeting_description or "",
-                "meeting_description": m.meeting_description or "",
+                "description": clean_desc,
+                "meeting_description": clean_desc,
                 "date": m.meeting_date.strftime("%Y-%m-%d") if m.meeting_date else "",
                 "meeting_date": m.meeting_date.strftime("%Y-%m-%d") if m.meeting_date else "",
                 "time": m.meeting_time.strftime("%I:%M %p") if m.meeting_time else "",
                 "meeting_time": m.meeting_time.strftime("%I:%M %p") if m.meeting_time else "",
-                "status": m.status or "pending",
+                "status": m.status or "scheduled",
                 "other_party_name": other_name,
-                "meet_link": m.meet_link or ""
+                "meet_link": meet_link
             })
 
         return jsonify({"success": True, "meetings": result})
@@ -1247,13 +1303,29 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         if not requested_to_id or not date_str:
             return jsonify({"success": False, "message": "Participant and Date are required"}), 400
 
+        # Enforce that mentee can only schedule meetings with mentors in an active, approved mentorship
+        if getattr(user, "user_type", None) in ("2", "mentee"):
+            approved = MentorshipRequest.query.filter(
+                MentorshipRequest.mentee_id == user.id,
+                MentorshipRequest.mentor_id == int(requested_to_id),
+                or_(
+                    MentorshipRequest.final_status == "approved",
+                    MentorshipRequest.supervisor_status == "approved",
+                    MentorshipRequest.mentor_status == "accepted"
+                )
+            ).first()
+            if not approved:
+                return jsonify({
+                    "success": False,
+                    "message": "You can only schedule meetings with mentors in an approved mentorship with you."
+                }), 403
+
         try:
             m_date = datetime.strptime(date_str[:10], "%Y-%m-%d").date()
         except Exception:
             m_date = datetime.utcnow().date()
 
         try:
-            # Parse time flexibly (e.g. "10:00 AM" or "10:00:00")
             clean_time = time_str.strip()
             if "AM" in clean_time.upper() or "PM" in clean_time.upper():
                 m_time = datetime.strptime(clean_time, "%I:%M %p").time()
@@ -1262,6 +1334,14 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         except Exception:
             m_time = datetime.strptime("10:00", "%H:%M").time()
 
+        duration = int(data.get("duration") or data.get("meeting_duration") or 60)
+        meet_link = (data.get("meet_link") or "").strip()
+        if not meet_link:
+            import hashlib
+            seed = f"{user.id}_{requested_to_id}_{m_date}_{m_time}"
+            code = hashlib.md5(seed.encode()).hexdigest()
+            meet_link = f"https://meet.google.com/{code[:3]}-{code[3:7]}-{code[7:10]}"
+
         new_meeting = MeetingRequest(
             requester_id=user.id,
             requested_to_id=int(requested_to_id),
@@ -1269,12 +1349,19 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             meeting_description=desc,
             meeting_date=m_date,
             meeting_time=m_time,
-            status="pending"
+            meeting_duration=duration,
+            meet_link=meet_link,
+            status="scheduled"
         )
         db.session.add(new_meeting)
         db.session.commit()
 
-        return jsonify({"success": True, "message": "Meeting scheduled successfully", "id": new_meeting.id}), 201
+        return jsonify({
+            "success": True,
+            "message": "Meeting scheduled successfully",
+            "id": new_meeting.id,
+            "meet_link": meet_link
+        }), 201
 
     # -------------------------------------------------------------
     # 5. TASKS ENDPOINTS (MENTEE CURRICULUM + PERSONAL)
@@ -1626,7 +1713,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "name": u.name,
                 "profession": mp.profession if mp and mp.profession else "Mentor",
                 "organisation": mp.organisation if mp and mp.organisation else "Organisation",
-                "profile_picture": format_pic_url(mp.profile_picture if mp else None),
+                "profile_picture": resolve_profile_pic(mp, u),
                 "role": "Mentor"
             })
 
@@ -1638,7 +1725,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "name": u.name,
                 "institution_name": mp.institution_name if mp and mp.institution_name else "Student",
                 "career_goal": mp.career_goal or mp.goal if mp else "Career Guidance",
-                "profile_picture": format_pic_url(mp.profile_picture if mp else None),
+                "profile_picture": resolve_profile_pic(mp, u),
                 "role": "Mentee"
             })
 
@@ -1718,7 +1805,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "profession": mp.profession if mp and mp.profession else "Mentor",
                 "organisation": mp.organisation if mp and mp.organisation else "Organisation",
                 "supervisor_rating": calc_mentor_rating_helper(u.id, mp, MenteeTask, db),
-                "profile_picture": format_pic_url(mp.profile_picture if mp else None),
+                "profile_picture": resolve_profile_pic(mp, u),
                 "role": "Mentor"
             })
 
@@ -1731,7 +1818,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "email": u.email,
                 "institution_name": mp.institution_name if mp and mp.institution_name else "Student",
                 "career_goal": mp.career_goal or mp.goal if mp else "Career Guidance",
-                "profile_picture": format_pic_url(mp.profile_picture if mp else None),
+                "profile_picture": resolve_profile_pic(mp, u),
                 "role": "Mentee"
             })
 

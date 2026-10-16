@@ -88,7 +88,7 @@ with app.app_context():
     st = compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id, task_obj=task)
     check("before feedback the task is 'committed'", st == "committed", st)
 
-# ---- first mentor submits: task completes ----
+# ---- first mentor submits: task becomes in-progress (not done until mentee + institute also submit) ----
 with client.session_transaction() as s:
     s.clear()
     s["email"] = m1_email
@@ -99,12 +99,12 @@ r = client.post("/save_mentor_reflection", json={
     "task_type": "personal", "task_id": task_id, "text": "Great fireside chat.", "extra": "M1"})
 res = r.get_json()
 check("mentor reflection saved", res.get("success") is True, res)
-check("task COMPLETE after the FIRST mentor submits", res.get("status") == "done", res.get("status"))
+check("task in-progress after only mentor submits", res.get("status") == "in-progress", res.get("status"))
 check("submission count is 1", res.get("submission_count") == 1, res.get("submission_count"))
 
 with app.app_context():
-    check("db status synced to completed",
-          db.session.get(PersonalTask, task_id).status == "completed")
+    check("db status synced to in-progress",
+          db.session.get(PersonalTask, task_id).status == "in-progress")
 
 # ---- a second mentor also contributes ----
 with client.session_transaction() as s:
@@ -127,7 +127,7 @@ r = client.post("/save_mentor_reflection", json={
     "task_type": "personal", "task_id": task_id, "text": "Strong turnout."})
 res = r.get_json()
 check("second SGM mentor can also submit", res.get("success") is True, res)
-check("still complete", res.get("status") == "done", res.get("status"))
+check("still in-progress (waiting for mentee and institute)", res.get("status") == "in-progress", res.get("status"))
 check("submission count is now 2", res.get("submission_count") == 2, res.get("submission_count"))
 
 with app.app_context():
@@ -157,6 +157,34 @@ p = r.get_json()
 check("combined feedback endpoint", p.get("success") and p.get("submitted_count") == 2, p)
 check("flagged as SGM", p.get("is_sgm") is True)
 
+# ---- mentee submits feedback ----
+with client.session_transaction() as s:
+    s.clear()
+    s["email"] = e1.email
+    s["user_id"] = e1.id
+    s["user_type"] = "2"
+r = client.post("/save_mentee_feedback", json={
+    "task_type": "personal", "task_id": task_id, "rating": 5, "text": "Learned a lot from mentors."})
+check("mentee feedback saved", r.get_json().get("success") is True, r.get_json())
+
+with app.app_context():
+    st_after_mentee = compute_task_progress_status("personal", task_id, e1_id, m1_id)
+    check("after mentor + mentee, status is still in-progress", st_after_mentee == "in-progress", st_after_mentee)
+
+# ---- institute submits reflection: now all 3 have submitted, task becomes done ----
+with client.session_transaction() as s:
+    s.clear()
+    s["email"] = sup_email
+    s["user_id"] = sup.id
+    s["user_type"] = "0"
+r = client.post("/save_institution_reflection", json={
+    "task_type": "personal", "task_id": task_id, "text": "Great group session organized."})
+check("institution reflection saved", r.get_json().get("success") is True, r.get_json())
+
+with app.app_context():
+    st_all_three = compute_task_progress_status("personal", task_id, e1_id, m1_id)
+    check("task COMPLETE only after all 3 (mentee, mentor, institute) submit", st_all_three == "done", st_all_three)
+
 # ---- supervisor sees SGM in the category filter ----
 with client.session_transaction() as s:
     s.clear()
@@ -171,7 +199,7 @@ sgm_task = next((t for t in tasks if t["id"] == f"personal_{task_id}"), None)
 check("SGM task present in supervisor payload", sgm_task is not None)
 if sgm_task:
     check("supervisor sees isSGM", sgm_task["isSGM"] is True)
-    check("supervisor sees 'done' status", sgm_task["status"] == "done", sgm_task["status"])
+    check("supervisor sees 'done' status after all 3 submitted", sgm_task["status"] == "done", sgm_task["status"])
     check("supervisor sees all mentors' feedback", len(sgm_task["mentorFeedbacks"]) >= 2,
           sgm_task["mentorFeedbacks"])
 

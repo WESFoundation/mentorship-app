@@ -776,21 +776,12 @@
     const minRating = ratingFilterEl && ratingFilterEl.value ? parseFloat(ratingFilterEl.value) : 0;
     const rows = document.querySelectorAll('.mentor-row');
 
-    rows.forEach(row => {
-<<<<<<< HEAD
-      const name = row.querySelector('.mentor-name').innerText.toLowerCase();
-      const profession = row.querySelector('.mentor-profession').innerText.toLowerCase();
-      const email = row.querySelector('.mentor-email').innerText.toLowerCase();
-      const place = ['.mentor-country', '.mentor-state', '.mentor-city']
-        .map(sel => { const c = row.querySelector(sel); return c ? c.innerText.toLowerCase() : ''; })
-        .join(' ');
-
-      if (name.includes(input) || profession.includes(input) || email.includes(input) || place.includes(input)) {
-=======
       const name = row.querySelector('.mentor-name') ? row.querySelector('.mentor-name').innerText.toLowerCase() : '';
       const profession = row.querySelector('.mentor-profession') ? row.querySelector('.mentor-profession').innerText.toLowerCase() : '';
       const email = row.querySelector('.mentor-email') ? row.querySelector('.mentor-email').innerText.toLowerCase() : '';
-      const location = row.querySelector('.mentor-location') ? row.querySelector('.mentor-location').innerText.toLowerCase() : '';
+      const location = ['.mentor-country', '.mentor-state', '.mentor-city', '.mentor-location']
+        .map(sel => { const c = row.querySelector(sel); return c ? c.innerText.toLowerCase() : ''; })
+        .join(' ');
       
       const numEl = row.querySelector('.sup-rating-num');
       let mentorRating = 0;
@@ -802,7 +793,6 @@
       const matchesRating = minRating === 0 || mentorRating >= minRating;
 
       if (matchesSearch && matchesRating) {
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
         row.style.display = '';
       } else {
         row.style.display = 'none';

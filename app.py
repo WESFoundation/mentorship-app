@@ -1,4 +1,4 @@
-from flask import Flask, redirect, url_for, render_template, request, session, flash, jsonify, g
+from flask import Flask, redirect, url_for, render_template, request, session, flash, jsonify, g, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, login_user, LoginManager, login_required, logout_user, current_user
 from sqlalchemy import cast, Integer, or_, and_, text, func
@@ -109,7 +109,7 @@ import storage_service
 @app.route('/uploads/<path:filename>')
 def serve_uploaded_file(filename):
     if not filename:
-        return redirect('https://ui-avatars.com/api/?name=User&background=2563eb&color=fff', code=302)
+        abort(404)
 
     clean_name = filename.strip()
     for pfx in ['/static/uploads/', 'static/uploads/', '/uploads/', 'uploads/']:
@@ -175,7 +175,7 @@ def serve_uploaded_file(filename):
 
         return _send_with_cache(app.config["UPLOAD_FOLDER"], clean_name)
 
-    return redirect('https://ui-avatars.com/api/?name=User&background=2563eb&color=fff', code=302)
+    abort(404)
 
 @app.route('/api/upload', methods=['POST'])
 def api_upload_file():
@@ -3251,6 +3251,27 @@ def auto_migrate_schema():
             # 5. Synchronize PostgreSQL sequences to prevent duplicate key UniqueViolation
             if db.engine.dialect.name == "postgresql":
                 sync_postgres_sequences()
+
+            # 6. Auto-standardize mentor locations (country, state, city)
+            try:
+                unnormalized_mentors = MentorProfile.query.filter(
+                    (MentorProfile.country.is_(None)) | (MentorProfile.country == '')
+                ).all()
+                if unnormalized_mentors:
+                    updated_count = 0
+                    for prof in unnormalized_mentors:
+                        res = resolve_location(prof.country, prof.state, prof.city, prof.location)
+                        prof.country = res['country'] or None
+                        prof.state = res['state'] or None
+                        prof.city = res['city'] or None
+                        if res['location']:
+                            prof.location = res['location']
+                        updated_count += 1
+                    db.session.commit()
+                    print(f"✅ Auto-standardized {updated_count} mentor location(s) in database.")
+            except Exception as loc_err:
+                db.session.rollback()
+                print(f"⚠️ Mentor location auto-migrate notice: {loc_err}")
 
             _schema_migrated = True
     except Exception as e:
@@ -6562,11 +6583,7 @@ def get_institution_tasks_data():
         t_status = compute_task_progress_status(
             "personal", task.id, task.mentee_id, task.mentor_id or None,
             ratings_set=ratings_set, meetings_map=meetings_map, all_pdata=all_pdata,
-<<<<<<< HEAD
-            task_obj=task
-=======
             task_obj=task, mentee_fb_set=mentee_fb_set, mentor_refl_set=mentor_refl_set, inst_refl_set=inst_refl_set
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
         )
         _cat_key = (getattr(task, 'category', None) or 'personal').lower()
         _is_sgm = _cat_key == 'sgm'
@@ -11473,7 +11490,6 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
 
     Stages:
       done        : All 3 personas (mentee, mentor, and institute) have submitted feedback/ratings.
-                     Exception -> SGM tasks: a SINGLE mentor's feedback completes the task.
       in-progress : Any one (or two) personas have submitted feedback, but not all three.
       committed   : Task is attached to a scheduled meeting, but no feedback/ratings submitted yet.
       not-started : Neither feedback from anyone NOR a meeting scheduled for this task.
@@ -11524,16 +11540,9 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
     any_feedback = bool(has_mentee_fb or mentor_submitted or has_inst_refl)
 
     # Determine which personas are required for 'done':
-    # Normally mentee AND mentor AND institute must all have given feedback.
-    # SGM exception: the task is shared by a group of mentors, so ONE mentor's
-    # feedback is enough to complete it.
-    if _sgm_task:
-        all_feedback = bool(mentor_submitted)
-    elif task_type == 'master':
-        all_feedback = bool(has_mentee_fb and mentor_submitted and has_inst_refl)
-    else:
-        mentor_req = mentor_submitted if mentor_id else True
-        all_feedback = bool(has_mentee_fb and mentor_req and has_inst_refl)
+    # All 3 personas (mentee, mentor, and institute) must have given feedback.
+    mentor_req = mentor_submitted if (mentor_id or _sgm_task) else True
+    all_feedback = bool(has_mentee_fb and mentor_req and has_inst_refl)
 
     has_meeting = _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id, all_pdata=all_pdata, meetings_map=meetings_map)
 
@@ -11955,10 +11964,9 @@ def get_all_mentor_feedback(task_type, task_id):
         app.logger.error(f"get_all_mentor_feedback failed: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
-# ===== INSTITUTION TASK REFLECTION SYNC =====
 @app.route('/save_institution_reflection', methods=['POST'])
 def save_institution_reflection():
-    if "email" not in session or session.get("user_type") != "3":
+    if "email" not in session or str(session.get("user_type", "")) not in ("3", "0", "admin", "supervisor", "institution"):
         return jsonify({'success': False, 'message': 'Unauthorized'})
     try:
         user = User.query.filter_by(email=session["email"]).first()
@@ -17640,14 +17648,10 @@ def supervisor_schedule_sgm_ajax():
 
     data = request.get_json(silent=True) or {}
     title = (data.get("title") or "").strip()
-<<<<<<< HEAD
-    mentor_id = data.get("mentor_id")
-    raw_mentor_ids = data.get("mentor_ids") or []
-=======
     raw_mentor_ids = data.get("mentor_ids") or []
     if not raw_mentor_ids and data.get("mentor_id"):
         raw_mentor_ids = [data.get("mentor_id")]
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
+    mentor_id = data.get("mentor_id")
     raw_mentee_ids = data.get("mentee_ids") or []
     date_str = (data.get("date") or "").strip()
     start_time_str = (data.get("start_time") or "").strip()
@@ -17656,33 +17660,6 @@ def supervisor_schedule_sgm_ajax():
     platform = (data.get("platform") or "google").strip().lower()
     custom_link = (data.get("custom_link") or "").strip()
     description = (data.get("description") or "").strip()
-
-<<<<<<< HEAD
-    # Field validations. The title is optional - when left blank it becomes the
-    # standard SGM title carrying the lead mentor's name (resolved below).
-    if not mentor_id and not raw_mentor_ids:
-        return jsonify({"error": "Please select a Mentor for this SGM session."}), 400
-=======
-    # Field validations
-    if not title:
-        return jsonify({"error": "Meeting Title is required."}), 400
-
-    # Parse mentor_ids (can be list or comma-separated string)
-    mentor_ids = []
-    if isinstance(raw_mentor_ids, list):
-        for mid in raw_mentor_ids:
-            try:
-                mentor_ids.append(int(mid))
-            except (ValueError, TypeError):
-                pass
-    elif isinstance(raw_mentor_ids, str):
-        for mid in raw_mentor_ids.split(","):
-            if mid.strip().isdigit():
-                mentor_ids.append(int(mid.strip()))
-
-    if not mentor_ids:
-        return jsonify({"error": "Please select at least one mentor for this SGM session."}), 400
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
 
     # Parse ids (list or comma-separated string)
     mentor_ids = []
@@ -17716,18 +17693,16 @@ def supervisor_schedule_sgm_ajax():
         return jsonify({"error": "Please select a Mentor for this SGM session."}), 400
 
     mentors = User.query.filter(User.id.in_(mentor_ids), User.user_type == "1").all()
-<<<<<<< HEAD
-    if len(mentors) != len(mentor_ids):
-        return jsonify({"error": "One or more selected mentors are invalid or not registered as a mentor."}), 400
-    # Keep the order the scheduler picked, so mentors[0] is the lead mentor.
-    mentors.sort(key=lambda m: mentor_ids.index(m.id))
-    lead_mentor = mentors[0]
-    mentor_names_str = ", ".join(m.name for m in mentors)
-=======
     if not mentors:
         return jsonify({"error": "No valid mentors were found for the selected IDs."}), 400
-    primary_mentor = mentors[0]
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
+    if len(mentors) != len(mentor_ids):
+        return jsonify({"error": "One or more selected mentors are invalid or not registered as a mentor."}), 400
+
+    # Keep the order the scheduler picked, so mentors[0] is the lead/primary mentor.
+    mentors.sort(key=lambda m: mentor_ids.index(m.id))
+    lead_mentor = mentors[0]
+    primary_mentor = lead_mentor
+    mentor_names_str = ", ".join(m.name for m in mentors)
 
     mentees = User.query.filter(User.id.in_(mentee_ids), User.user_type == "2").all()
     if not mentees:
@@ -17767,8 +17742,7 @@ def supervisor_schedule_sgm_ajax():
     # Link generation
     meet_link = None
     gcal_event_id = None
-<<<<<<< HEAD
-    attendee_emails = [supervisor.email] + [m.email for m in mentors if m.email] \
+    attendee_emails = [organizer.email] + [m.email for m in mentors if m.email] \
         + [m.email for m in mentees if m.email]
 
     # Default SGM title names the lead mentor:
@@ -17777,25 +17751,21 @@ def supervisor_schedule_sgm_ajax():
     legacy_default_titles = {"", "sgm: group mentoring & discussion", "sgm: group mentoring & fireside chat"}
     if title.strip().lower() in legacy_default_titles or title.strip() == SGM_TITLE_PREFIX:
         title = f"{SGM_TITLE_PREFIX} {lead_mentor.name}"
+    elif title.strip().lower() in {
+        "sgm: group mentoring & fireside chat with [mentor's name]",
+        f"{SGM_TITLE_PREFIX.lower()} [mentor's name]"
+    }:
+        title = f"{SGM_TITLE_PREFIX} [{mentor_names_str}]"
     canonical_title = title if title.upper().startswith("SGM") else f"SGM: {title}"
-=======
-    attendee_emails = [organizer.email] + [m.email for m in mentors if m.email] + [m.email for m in mentees if m.email]
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
 
     if platform == "custom":
         meet_link = custom_link or f"https://meet.google.com/new"
     elif platform == "teams":
         try:
             teams_meet_link, teams_event_id = create_teams_calendar_event(
-<<<<<<< HEAD
                 title=canonical_title,
                 start_utc=start_datetime.astimezone(dt.timezone.utc).isoformat() if hasattr(start_datetime, 'astimezone') else start_datetime.isoformat(),
                 end_utc=end_datetime.astimezone(dt.timezone.utc).isoformat() if hasattr(end_datetime, 'astimezone') else end_datetime.isoformat(),
-=======
-                title=f"SGM: {title}",
-                start_utc=start_utc,
-                end_utc=end_utc,
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
                 attendee_emails=attendee_emails,
                 description=description or f"Small Group Mentoring session scheduled by {organizer_role_label} {organizer.name}"
             )
@@ -17812,23 +17782,14 @@ def supervisor_schedule_sgm_ajax():
             service = get_calendar_service()
             if service:
                 event_body = {
-<<<<<<< HEAD
                     "summary": canonical_title,
-                    "description": f"Small Group Mentoring session scheduled by Supervisor {supervisor.name}.\nMentors: {mentor_names_str}\nMentees: {', '.join([m.name for m in mentees])}\n\n{description}",
-=======
-                    "summary": f"SGM: {title}",
-                    "description": f"Small Group Mentoring session scheduled by {organizer_role_label} {organizer.name}.\nMentors: {', '.join([m.name for m in mentors])}\nMentees: {', '.join([m.name for m in mentees])}\n\n{description}",
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
+                    "description": f"Small Group Mentoring session scheduled by {organizer_role_label} {organizer.name}.\nMentors: {mentor_names_str}\nMentees: {', '.join([m.name for m in mentees])}\n\n{description}",
                     "start": {"dateTime": start_str, "timeZone": timezone},
                     "end": {"dateTime": end_str, "timeZone": timezone},
                     "attendees": [{"email": em} for em in attendee_emails if em],
                     "conferenceData": {
                         "createRequest": {
-<<<<<<< HEAD
                             "requestId": f"sgm-{int(time.time())}-{lead_mentor.id}",
-=======
-                            "requestId": f"sgm-{int(time.time())}-{primary_mentor.id}",
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
                             "conferenceSolutionKey": {"type": "hangoutsMeet"}
                         }
                     }
@@ -17850,11 +17811,7 @@ def supervisor_schedule_sgm_ajax():
     # Build description and embed participants metadata
     mentor_names_str = ", ".join([m.name for m in mentors])
     mentee_names_str = ", ".join([m.name for m in mentees])
-<<<<<<< HEAD
-    full_description = f"Small Group Mentoring (SGM) session scheduled by Supervisor {supervisor.name}.\nMentors: {mentor_names_str}\nMentees ({len(mentees)}): {mentee_names_str}"
-=======
     full_description = f"Small Group Mentoring (SGM) session scheduled by {organizer_role_label} {organizer.name}.\nMentors ({len(mentors)}): {mentor_names_str}\nMentees ({len(mentees)}): {mentee_names_str}"
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
     if description:
         full_description += f"\n\nAgenda / Notes:\n{description}"
 
@@ -17864,23 +17821,15 @@ def supervisor_schedule_sgm_ajax():
         f"Meeting: {canonical_title}\n"
         f"Mentors: {mentor_names_str}\n"
         f"Mentees: {mentee_names_str}\n\n"
-        "Every mentor on this SGM can add their own feedback below. The task is "
-        "marked complete as soon as one mentor has submitted."
+        "Feedback from mentee, mentor, and institute completes the task."
     )
 
     try:
         meeting = MeetingRequest(
-<<<<<<< HEAD
-            requester_id=supervisor.id,
+            requester_id=organizer.id,
             requested_to_id=lead_mentor.id,
             meeting_title=canonical_title,
             meeting_description=full_description + f"\n\nAuto-assigned SGM Task (category: SGM): {sgm_task_title} - {sgm_task_description}",
-=======
-            requester_id=organizer.id,
-            requested_to_id=primary_mentor.id,
-            meeting_title=f"SGM: {title}" if not title.upper().startswith("SGM") else title,
-            meeting_description=full_description,
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
             meeting_date=start_datetime.date(),
             meeting_time=start_datetime.time(),
             meeting_duration=duration_minutes,
@@ -17912,13 +17861,8 @@ def supervisor_schedule_sgm_ajax():
             assigned_task_ids.append(pt.id)
 
         participants_data = {
-<<<<<<< HEAD
             "mentor_id": lead_mentor.id,
             "mentor_name": lead_mentor.name,
-=======
-            "mentor_id": primary_mentor.id,
-            "mentor_name": primary_mentor.name,
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
             "mentor_ids": [m.id for m in mentors],
             "mentor_names": [m.name for m in mentors],
             "mentee_ids": [m.id for m in mentees],
@@ -17926,10 +17870,9 @@ def supervisor_schedule_sgm_ajax():
             "task_ids": assigned_task_ids,
             "is_sgm": True,
             "meeting_type": "sgm",
-<<<<<<< HEAD
-            "created_by": supervisor.id,
-            "created_by_name": supervisor.name,
-            "scheduled_by": "supervisor",
+            "created_by": organizer.id,
+            "created_by_name": organizer.name,
+            "scheduled_by": "coordinator" if is_institution else "supervisor",
             "custom_task": {
                 "title": sgm_task_title,
                 "description": sgm_task_description,
@@ -17968,17 +17911,6 @@ def supervisor_schedule_sgm_ajax():
 
         # Send email notifications to every mentor and all participating mentees
         try:
-=======
-            "created_by": organizer.id,
-            "created_by_name": organizer.name,
-            "scheduled_by": "coordinator" if is_institution else "supervisor"
-        }
-        _save_meeting_participants(meeting.id, participants_data)
-        db.session.commit()
-
-        # Send email notifications to all mentors and all participating mentees
-        try:
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
             for recipient in mentors + mentees:
                 if recipient.email:
                     subj = f"New SGM Session Scheduled: {meeting.meeting_title}"
@@ -17986,23 +17918,15 @@ def supervisor_schedule_sgm_ajax():
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
                         <h2 style="color: #059669; margin-top: 0;">Small Group Mentoring (SGM) Session</h2>
                         <p>Hello <strong>{recipient.name}</strong>,</p>
-<<<<<<< HEAD
-                        <p>Supervisor <strong>{supervisor.name}</strong> has scheduled a Small Group Mentoring session with mentors <strong>{mentor_names_str}</strong>.</p>
-=======
-                        <p>{organizer_role_label} <strong>{organizer.name}</strong> has scheduled a Small Group Mentoring session.</p>
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
+                        <p>{organizer_role_label} <strong>{organizer.name}</strong> has scheduled a Small Group Mentoring session with mentors <strong>{mentor_names_str}</strong>.</p>
                         <div style="background: #ecfdf5; padding: 15px; border-left: 4px solid #059669; border-radius: 6px; margin: 20px 0;">
                             <p style="margin: 4px 0;"><strong>Topic:</strong> {meeting.meeting_title}</p>
                             <p style="margin: 4px 0;"><strong>Date:</strong> {meeting.meeting_date.strftime('%B %d, %Y')}</p>
                             <p style="margin: 4px 0;"><strong>Time:</strong> {meeting.meeting_time.strftime('%I:%M %p')}</p>
                             <p style="margin: 4px 0;"><strong>Duration:</strong> {duration_minutes} minutes</p>
-<<<<<<< HEAD
                             <p style="margin: 4px 0;"><strong>Mentors:</strong> {mentor_names_str}</p>
-=======
-                            <p style="margin: 4px 0;"><strong>Mentor(s):</strong> {mentor_names_str}</p>
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
                             <p style="margin: 4px 0;"><strong>Mentees in Group ({len(mentees)}):</strong> {mentee_names_str}</p>
-                            <p style="margin: 4px 0;"><strong>SGM Task:</strong> {sgm_task_title} (category: SGM) &mdash; one mentor's feedback completes it.</p>
+                            <p style="margin: 4px 0;"><strong>SGM Task:</strong> {sgm_task_title} (category: SGM)</p>
                         </div>
                         <div style="text-align: center; margin: 25px 0;">
                             <a href="{meet_link}" style="background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Video Call</a>
@@ -18016,11 +17940,7 @@ def supervisor_schedule_sgm_ajax():
 
         return jsonify({
             "success": True,
-<<<<<<< HEAD
             "message": f"SGM meeting scheduled successfully with {mentor_names_str} and {len(mentees)} mentee(s)!",
-=======
-            "message": f"SGM meeting scheduled successfully with {len(mentors)} mentor(s) and {len(mentees)} mentee(s)! Learning & feedback task assigned to mentees.",
->>>>>>> 964cdf50744774823123f48644ad9ccb0041a58f
             "meeting_id": meeting.id,
             "meet_link": meet_link,
             "title": meeting.meeting_title,
