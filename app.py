@@ -1847,10 +1847,11 @@ def to_json(value):
 # ============================================================
 # EMAIL CONFIGURATION FOR OTP
 # ============================================================
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_EMAIL = os.environ.get("SMTP_EMAIL", "mentorship@wazireducationsociety.com")  # Change this
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "kmbiechgqjxtfoef")  # Gmail App Password
+SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
+SMTP_EMAIL = os.environ.get("SMTP_EMAIL", "mentorship@wazireducationsociety.com")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "kmbiechgqjxtfoef")
+SMTP_USE_SSL = os.environ.get("SMTP_USE_SSL", "false").lower() in ("true", "1", "yes")
 
 # ------------------------------------------------------------
 # EXTERNAL EXPORT API CONFIG
@@ -17909,34 +17910,69 @@ def supervisor_schedule_sgm_ajax():
             sgm_task = None
             _save_meeting_participants(meeting.id, participants_data)
 
-        # Send email notifications to every mentor and all participating mentees
+        # In-app notifications for all participants (guaranteed delivery even if SMTP fails)
         try:
-            for recipient in mentors + mentees:
-                if recipient.email:
-                    subj = f"New SGM Session Scheduled: {meeting.meeting_title}"
+            date_fmt = meeting.meeting_date.strftime('%B %d, %Y')
+            time_fmt = meeting.meeting_time.strftime('%I:%M %p')
+            sgm_notif_msg = f'New SGM Session "{meeting.meeting_title}" scheduled for {date_fmt} at {time_fmt}'
+            if meet_link:
+                sgm_notif_msg += f' — <a href="{meet_link}">Join Video Call</a>'
+            for participant in mentors + mentees:
+                create_notification(participant.id, sgm_notif_msg, link=meet_link)
+        except Exception as notif_err:
+            app.logger.warning(f"Error creating in-app notifications for SGM session: {notif_err}")
+
+        # Send email notifications in a background daemon thread to avoid blocking the HTTP request
+        def _send_sgm_emails_worker(app_ctx, recipients_info, m_title, m_date_str, m_time_str, dur_min, m_names, me_names, s_task_title, m_link, org_label, org_name):
+            with app_ctx:
+                for r_name, r_email in recipients_info:
+                    if not r_email:
+                        continue
+                    subj = f"New SGM Session Scheduled: {m_title}"
                     body_html = f"""
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
                         <h2 style="color: #059669; margin-top: 0;">Small Group Mentoring (SGM) Session</h2>
-                        <p>Hello <strong>{recipient.name}</strong>,</p>
-                        <p>{organizer_role_label} <strong>{organizer.name}</strong> has scheduled a Small Group Mentoring session with mentors <strong>{mentor_names_str}</strong>.</p>
+                        <p>Hello <strong>{r_name}</strong>,</p>
+                        <p>{org_label} <strong>{org_name}</strong> has scheduled a Small Group Mentoring session with mentors <strong>{m_names}</strong>.</p>
                         <div style="background: #ecfdf5; padding: 15px; border-left: 4px solid #059669; border-radius: 6px; margin: 20px 0;">
-                            <p style="margin: 4px 0;"><strong>Topic:</strong> {meeting.meeting_title}</p>
-                            <p style="margin: 4px 0;"><strong>Date:</strong> {meeting.meeting_date.strftime('%B %d, %Y')}</p>
-                            <p style="margin: 4px 0;"><strong>Time:</strong> {meeting.meeting_time.strftime('%I:%M %p')}</p>
-                            <p style="margin: 4px 0;"><strong>Duration:</strong> {duration_minutes} minutes</p>
-                            <p style="margin: 4px 0;"><strong>Mentors:</strong> {mentor_names_str}</p>
-                            <p style="margin: 4px 0;"><strong>Mentees in Group ({len(mentees)}):</strong> {mentee_names_str}</p>
-                            <p style="margin: 4px 0;"><strong>SGM Task:</strong> {sgm_task_title} (category: SGM)</p>
+                            <p style="margin: 4px 0;"><strong>Topic:</strong> {m_title}</p>
+                            <p style="margin: 4px 0;"><strong>Date:</strong> {m_date_str}</p>
+                            <p style="margin: 4px 0;"><strong>Time:</strong> {m_time_str}</p>
+                            <p style="margin: 4px 0;"><strong>Duration:</strong> {dur_min} minutes</p>
+                            <p style="margin: 4px 0;"><strong>Mentors:</strong> {m_names}</p>
+                            <p style="margin: 4px 0;"><strong>Mentees in Group:</strong> {me_names}</p>
+                            <p style="margin: 4px 0;"><strong>SGM Task:</strong> {s_task_title} (category: SGM)</p>
                         </div>
                         <div style="text-align: center; margin: 25px 0;">
-                            <a href="{meet_link}" style="background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Video Call</a>
+                            <a href="{m_link}" style="background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Video Call</a>
                         </div>
                         <p style="color: #64748b; font-size: 13px;">A learning & feedback task has been created for all participating mentees. Please join on time from your dashboard or calendar.</p>
                     </div>
                     """
-                    send_email_reminder(recipient.email, subj, body_html)
+                    send_email_reminder(r_email, subj, body_html)
+
+        try:
+            recipients_data = [(u.name, u.email) for u in (mentors + mentees) if u.email]
+            threading.Thread(
+                target=_send_sgm_emails_worker,
+                args=(
+                    app.app_context(),
+                    recipients_data,
+                    meeting.meeting_title,
+                    meeting.meeting_date.strftime('%B %d, %Y'),
+                    meeting.meeting_time.strftime('%I:%M %p'),
+                    duration_minutes,
+                    mentor_names_str,
+                    mentee_names_str,
+                    sgm_task_title,
+                    meet_link,
+                    organizer_role_label,
+                    organizer.name
+                ),
+                daemon=True
+            ).start()
         except Exception as e:
-            app.logger.warning(f"Error sending SGM meeting notification emails: {e}")
+            app.logger.warning(f"Error launching SGM meeting notification thread: {e}")
 
         return jsonify({
             "success": True,
@@ -19302,39 +19338,51 @@ def generate_profile_completion_email(user_id, user_type):
 
 def send_email_reminder(user_email, subject, html_content):
     """
-    Send email reminder using SMTP - uses app's existing email configuration
+    Send email reminder using SMTP - uses app's existing email configuration.
+    Non-blocking timeout and supports both STARTTLS and SSL.
     """
     try:
-        # Use app's existing email configuration (same as OTP emails)
-        SENDER_EMAIL = SMTP_EMAIL  # From line 284
-        SENDER_PASSWORD = SMTP_PASSWORD  # From line 286
-        REMINDER_SMTP_SERVER = SMTP_SERVER  # From line 281
-        REMINDER_SMTP_PORT = SMTP_PORT  # From line 283
-        
-        # For development/testing - can be disabled
-        if not SENDER_PASSWORD:
-            print(f"⚠️ Email service not configured. Would send to: {user_email}")
+        sender_email = os.environ.get("SMTP_EMAIL", SMTP_EMAIL)
+        sender_password = os.environ.get("SMTP_PASSWORD", SMTP_PASSWORD)
+        smtp_server = os.environ.get("SMTP_SERVER", SMTP_SERVER)
+        try:
+            smtp_port = int(os.environ.get("SMTP_PORT", SMTP_PORT))
+        except (ValueError, TypeError):
+            smtp_port = 587
+        use_ssl = os.environ.get("SMTP_USE_SSL", "false").lower() in ("true", "1", "yes") or smtp_port == 465
+
+        # For development/testing - skip if password unset
+        if not sender_password:
+            print(f"⚠️ Email service not configured (no SMTP_PASSWORD). Would send to: {user_email}")
             print(f"Subject: {subject}")
             return True
-        
+
         # Create message
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = SENDER_EMAIL
+        msg["From"] = sender_email
         msg["To"] = user_email
-        
+
         # Attach HTML content
         part = MIMEText(html_content, "html")
         msg.attach(part)
-        
-        # Send email
-        with smtplib.SMTP(REMINDER_SMTP_SERVER, REMINDER_SMTP_PORT) as server:
-            server.starttls()
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.sendmail(SENDER_EMAIL, [user_email], msg.as_string())
-        
+
+        # Send email with 10s timeout
+        if use_ssl:
+            with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10) as server:
+                server.login(sender_email, sender_password)
+                server.sendmail(sender_email, [user_email], msg.as_string())
+        else:
+            with smtplib.SMTP(smtp_server, smtp_port, timeout=10) as server:
+                server.starttls()
+                server.login(sender_email, sender_password)
+                server.sendmail(sender_email, [user_email], msg.as_string())
+
         print(f"✅ Reminder email sent successfully to {user_email}")
         return True
+    except smtplib.SMTPAuthenticationError as auth_err:
+        print(f"❌ SMTP Authentication failed for {user_email}: {auth_err}. Check SMTP_EMAIL and SMTP_PASSWORD in .env")
+        return False
     except Exception as e:
         print(f"❌ Error sending email to {user_email}: {str(e)}")
         return False
