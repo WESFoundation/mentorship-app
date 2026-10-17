@@ -41,10 +41,14 @@ def get_current_user_from_req(User):
                 return User.query.get(int(token))
 
     if not email:
-        email = request.args.get("email") or (request.is_json and request.json.get("email"))
+        email = (
+            request.args.get("email")
+            or request.args.get("mentee_email")
+            or (request.is_json and (request.json.get("email") or request.json.get("mentee_email")))
+        )
 
     if email:
-        return User.query.filter(func.lower(User.email) == email.strip().lower()).first()
+        return User.query.filter(func.lower(User.email) == str(email).strip().lower()).first()
 
     # Fallback to user_id, mentor_id, or mentee_id parameter if provided
     user_id = (
@@ -482,6 +486,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             return jsonify({"success": False, "message": str(e)}), 500
 
     @api_bp.route("/mentee/stats", methods=["GET"])
+    @api_bp.route("/mentee/dashboard", methods=["GET"])
     def api_get_mentee_stats():
         user = get_current_user_from_req(User)
         if not user:
@@ -629,6 +634,130 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             })
 
         return jsonify({"success": True, "mentors": connected})
+
+    @api_bp.route("/mentee/request_mentorship", methods=["POST"])
+    @api_bp.route("/request_mentorship", methods=["POST"])
+    def api_request_mentorship():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+        data = request.get_json(silent=True) or {}
+        mentor_id = data.get("mentor_id")
+        purpose = data.get("purpose")
+        mentor_type = data.get("mentor_type") or "anchor"
+        term = data.get("term") or "long"
+        duration_months = data.get("duration_months")
+        why_need_mentor = data.get("why_need_mentor")
+        linkedin_profile = (data.get("linkedin_profile") or "").strip()
+        if linkedin_profile and not linkedin_profile.startswith(("http://", "https://")):
+            linkedin_profile = f"https://{linkedin_profile}"
+
+        if not all([mentor_id, purpose, mentor_type, term, duration_months, why_need_mentor]):
+            return jsonify({"success": False, "message": "Missing required fields"}), 400
+
+        try:
+            mentor_id = int(mentor_id)
+        except (ValueError, TypeError):
+            return jsonify({"success": False, "message": "Invalid mentor ID"}), 400
+
+        try:
+            if isinstance(duration_months, str):
+                import re
+                nums = re.findall(r'\d+', duration_months)
+                duration_months = int(nums[0]) if nums else int(duration_months)
+            else:
+                duration_months = int(duration_months)
+            if duration_months <= 0:
+                return jsonify({"success": False, "message": "Duration must be positive"}), 400
+        except (ValueError, TypeError):
+            return jsonify({"success": False, "message": "Invalid duration value"}), 400
+
+        if user.id == mentor_id:
+            return jsonify({"success": False, "message": "Cannot request mentorship from yourself"}), 400
+
+        mentor_user_id = data.get("mentor_user_id")
+        mentor_profile_id = data.get("mentor_profile_id")
+
+        mentor_user = None
+        if mentor_user_id:
+            try:
+                mentor_user = User.query.get(int(mentor_user_id))
+            except Exception:
+                pass
+
+        if not mentor_user and mentor_profile_id:
+            try:
+                m_prof = MentorProfile.query.get(int(mentor_profile_id))
+                if m_prof:
+                    mentor_user = User.query.get(m_prof.user_id)
+            except Exception:
+                pass
+
+        if not mentor_user:
+            mentor_user = User.query.get(mentor_id)
+
+        # If mentor_user is not found or is not a mentor, check if mentor_id is a MentorProfile.id
+        if not mentor_user or str(getattr(mentor_user, "user_type", "")) not in ("1", "mentor"):
+            m_prof = MentorProfile.query.get(mentor_id)
+            if m_prof:
+                resolved_user = User.query.get(m_prof.user_id)
+                if resolved_user:
+                    mentor_user = resolved_user
+
+        if not mentor_user:
+            return jsonify({"success": False, "message": "Mentor not found"}), 404
+
+        mentor_id = mentor_user.id
+
+        existing_reqs = MentorshipRequest.query.filter_by(
+            mentee_id=user.id,
+            mentor_id=mentor_id,
+        ).all()
+
+        for req in existing_reqs:
+            if req.mentor_status == "pending" or req.supervisor_status == "pending":
+                return jsonify({"success": False, "message": "You already have a pending request with this mentor."}), 400
+            if req.mentor_status == "accepted" and req.supervisor_status == "approved" and req.final_status == "approved":
+                return jsonify({"success": False, "message": "You are already connected to this mentor."}), 400
+
+        try:
+            new_request = MentorshipRequest(
+                mentee_id=user.id,
+                mentor_id=mentor_id,
+                purpose=str(purpose).strip()[:1000] if purpose else "",
+                mentor_type=str(mentor_type).strip()[:20] if mentor_type else "",
+                term=str(term).strip()[:20] if term else "",
+                duration_months=duration_months,
+                why_need_mentor=str(why_need_mentor).strip() if why_need_mentor else "",
+                linkedin_profile=linkedin_profile[:500] if linkedin_profile else None,
+                mentor_status="pending",
+                institution_status="pending",
+                supervisor_status="pending",
+                final_status="pending",
+                created_at=datetime.utcnow()
+            )
+            db.session.add(new_request)
+            db.session.commit()
+
+            # Create in-app notification for mentor
+            if Notification:
+                try:
+                    notif = Notification(
+                        user_id=mentor_id,
+                        message=f"You have a new mentorship request from {user.name or 'a mentee'}.",
+                        link="/mentor_mentorship_request"
+                    )
+                    db.session.add(notif)
+                    db.session.commit()
+                except Exception as notif_err:
+                    db.session.rollback()
+                    logger.warning(f"Failed to create mentor notification: {notif_err}")
+
+            return jsonify({"success": True, "message": "Mentorship request sent successfully!", "request_id": new_request.id})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": f"Failed to submit request: {str(e)}"}), 500
 
     # -------------------------------------------------------------
     # 3. MENTOR ENDPOINTS (ALL 38 FIELDS + MENTEES + TASKS)
@@ -1264,9 +1393,19 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
             clean_desc = re.sub(r'<!--.*?-->', '', m.meeting_description or '', flags=re.DOTALL).strip()
             meet_link = (m.meet_link or "").strip()
-            if not meet_link:
-                code = hashlib.md5(f"meet_{m.id}_{m.requester_id}_{m.requested_to_id}".encode()).hexdigest()
-                meet_link = f"https://meet.google.com/{code[:3]}-{code[3:7]}-{code[7:10]}"
+            bogus_match = re.match(r"^https?://meet\.google\.com/[a-f0-9]{3}-[a-f0-9]{4}-[a-f0-9]{3}$", meet_link, re.I)
+            if not meet_link or bogus_match or meet_link.lower() == "not specified":
+                meet_link = "https://meet.google.com/new"
+
+            req_user = User.query.get(m.requester_id)
+            to_user = User.query.get(m.requested_to_id)
+            req_name = req_user.name if req_user else "User"
+            to_name = to_user.name if to_user else "User"
+
+            # Determine who is mentor and mentee
+            # user_type: 1=mentor, 2=mentee, 3=institution, 4=supervisor
+            mentor_name = to_name if getattr(to_user, "user_type", None) == 1 else (req_name if getattr(req_user, "user_type", None) == 1 else other_name)
+            mentee_name = req_name if getattr(req_user, "user_type", None) == 2 else (to_name if getattr(to_user, "user_type", None) == 2 else user.name)
 
             result.append({
                 "id": m.id,
@@ -1282,6 +1421,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "meeting_time": m.meeting_time.strftime("%I:%M %p") if m.meeting_time else "",
                 "status": m.status or "scheduled",
                 "other_party_name": other_name,
+                "mentor_name": mentor_name,
+                "mentee_name": mentee_name,
                 "meet_link": meet_link
             })
 
@@ -1336,11 +1477,13 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
         duration = int(data.get("duration") or data.get("meeting_duration") or 60)
         meet_link = (data.get("meet_link") or "").strip()
-        if not meet_link:
-            import hashlib
-            seed = f"{user.id}_{requested_to_id}_{m_date}_{m_time}"
-            code = hashlib.md5(seed.encode()).hexdigest()
-            meet_link = f"https://meet.google.com/{code[:3]}-{code[3:7]}-{code[7:10]}"
+        bogus_match = re.match(r"^https?://meet\.google\.com/[a-f0-9]{3}-[a-f0-9]{4}-[a-f0-9]{3}$", meet_link, re.I)
+        if not meet_link or bogus_match:
+            platform = (data.get("platform") or "").lower()
+            if "team" in platform:
+                meet_link = "https://teams.live.com/meet/create"
+            else:
+                meet_link = "https://meet.google.com/new"
 
         new_meeting = MeetingRequest(
             requester_id=user.id,

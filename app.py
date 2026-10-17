@@ -18171,6 +18171,7 @@ def supervisor_schedule_sgm_ajax():
                     </div>
                     """
                     send_email_reminder(r_email, subj, body_html)
+<<<<<<< HEAD
 
                 # Extra invitees: notified, but told that approval is required first.
                 for p_name, p_email in pending_info:
@@ -18193,6 +18194,8 @@ def supervisor_schedule_sgm_ajax():
                     </div>
                     """
                     send_email_reminder(p_email, p_subj, p_body_html)
+=======
+>>>>>>> 87161fe32c79ada57408bcc2a6b7559f13a2206b
 
         try:
             recipients_data = [(u.name, u.email) for u in (mentors + mentees) if u.email]
