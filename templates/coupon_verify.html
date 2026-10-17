@@ -129,13 +129,44 @@
 
                     <!-- Action -->
                     {% if not show_result and coupon.status == 'active' and not coupon.expired %}
+                    {% if verified_sellers %}
                     <form method="POST" class="mt-5">
-                        <label for="seller" class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">
-                            Your shop / seller name <span class="font-normal normal-case text-gray-400">(optional)</span>
+                        <label for="seller_account"
+                            class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">
+                            Your shop / market <span class="text-red-500">*</span>
                         </label>
-                        <input type="text" id="seller" name="seller" maxlength="200"
-                            placeholder="e.g. Weslux Store, Berlin"
-                            class="w-full px-3.5 py-2.5 mb-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <select id="seller_account" name="seller_account" required
+                            class="w-full px-3.5 py-2.5 mb-3 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select your verified shop...</option>
+                            {% for sp in verified_sellers %}
+                            <option value="{{ sp.user_id }}">
+                                {{ sp.display_name }}{% if sp.partner_label and sp.partner_label != 'Partner' %} ({{ sp.partner_label }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+
+                        {% if coupon_candidates|length > 1 %}
+                        <label for="redeemer"
+                            class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">
+                            Who is redeeming this coupon? <span class="text-red-500">*</span>
+                        </label>
+                        <select id="redeemer" name="redeemer_id" required
+                            class="w-full px-3.5 py-2.5 mb-3 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">Select the person...</option>
+                            {% for c in coupon_candidates %}
+                            <option value="{{ c.id }}">
+                                {{ c.name }} &mdash; {{ 'Mentor' if c.user_type == '1' else 'Mentee' }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% elif coupon_candidates|length == 1 %}
+                        <input type="hidden" name="redeemer_id" value="{{ coupon_candidates[0].id }}">
+                        <p class="text-xs text-gray-500 mb-3">
+                            Redeemed by <strong>{{ coupon_candidates[0].name }}</strong>
+                            ({{ 'Mentor' if coupon_candidates[0].user_type == '1' else 'Mentee' }}).
+                        </p>
+                        {% endif %}
+
                         <button type="submit"
                             class="w-full py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm shadow-lg shadow-green-600/25 flex items-center justify-center gap-2 transition">
                             <i class="fas fa-check-circle"></i>
@@ -143,9 +174,21 @@
                         </button>
                         <p class="text-[11px] text-gray-500 mt-3 text-center leading-relaxed">
                             This marks the key as used in the WES database. <strong>Apply the discount yourself</strong>
-                            after verification - this page does not charge anything.
+                            after verification - this page does not charge anything. A confirmation email is sent
+                            to the person who redeemed it and to your shop.
                         </p>
                     </form>
+                    {% else %}
+                    <div class="mt-5 rounded-xl bg-amber-50 border border-amber-200 p-4 text-left">
+                        <p class="text-xs font-semibold uppercase tracking-wider text-amber-700 mb-1">
+                            No verified shops yet
+                        </p>
+                        <p class="text-sm text-amber-900">
+                            This coupon looks valid, but no partner shop has been verified on the platform yet.
+                            A supervisor needs to verify your account before coupons can be redeemed.
+                        </p>
+                    </div>
+                    {% endif %}
                     {% elif not show_result %}
                     <p class="mt-5 text-center text-xs text-gray-400">
                         No further action is needed for this coupon.
@@ -157,7 +200,8 @@
                         <p class="text-xs font-semibold uppercase tracking-wider text-blue-700 mb-1">Next step for the seller</p>
                         <p class="text-sm text-blue-900">
                             Apply <strong>{{ coupon.discount_label or 'the discount described above' }}</strong>
-                            for <strong>{{ coupon.mentor_name or 'this mentor' }}</strong>.
+                            {% if coupon.redeemed_by_name %}for <strong>{{ coupon.redeemed_by_name }}</strong>{% endif %}
+                            at <strong>{{ coupon.seller_name or 'your shop' }}</strong>.
                             This coupon cannot be used again.
                         </p>
                     </div>

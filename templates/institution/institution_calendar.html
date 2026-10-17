@@ -657,6 +657,18 @@
           </label>
           {% endfor %}
         </div>
+
+        <!-- Invite all institution mentees (approval required) -->
+        <label class="flex items-start gap-2.5 p-2.5 rounded-xl border border-amber-200 bg-amber-50 cursor-pointer hover:bg-amber-100/70 transition">
+          <input type="checkbox" id="sgm-invite-all-mentees" onchange="updateSgmInviteAllHint()"
+            class="mt-0.5 rounded text-amber-600 focus:ring-amber-500 w-4 h-4 shrink-0">
+          <span>
+            <span class="block text-xs font-semibold text-amber-900">Invite all mentees of my institution</span>
+            <span class="block text-[11px] text-amber-800 mt-0.5" id="sgm-invite-all-hint">
+              Everyone at your institution receives this invite, including mentees you have not selected. They must request to join and be approved by you before they can enter the meeting.
+            </span>
+          </span>
+        </label>
       </div>
 
       <!-- Meeting Title -->
@@ -2842,6 +2854,22 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 
+function updateSgmInviteAllHint() {
+  const box = document.getElementById('sgm-invite-all-mentees');
+  const hint = document.getElementById('sgm-invite-all-hint');
+  const label = document.querySelector('label[for="sgm-invite-all-mentees"]');
+  if (!box || !hint) return;
+  if (box.checked) {
+    hint.textContent = 'All institution mentees will be invited. Anyone you have NOT selected must request to join and be approved by you before entering. Selected mentees join as usual.';
+    const wrap = box.closest('label');
+    if (wrap) wrap.classList.add('ring-2', 'ring-amber-400');
+  } else {
+    hint.textContent = 'Everyone at your institution receives this invite, including mentees you have not selected. They must request to join and be approved by you before they can enter the meeting.';
+    const wrap = box.closest('label');
+    if (wrap) wrap.classList.remove('ring-2', 'ring-amber-400');
+  }
+}
+
 function filterSgmMenteesList(query) {
   const q = (query || '').toLowerCase().trim();
   document.querySelectorAll('#schedule-sgm-modal .sgm-mentee-row').forEach(row => {
@@ -2947,7 +2975,8 @@ async function handleScheduleSgm(e) {
         start_time: startTime24,
         duration: parseInt(duration),
         platform: platform,
-        custom_link: customLink
+        custom_link: customLink,
+        invite_all_mentees: (document.getElementById('sgm-invite-all-mentees') || {}).checked === true
       })
     });
 
