@@ -24,12 +24,9 @@ RUN pip install --upgrade pip && \
 # Copy all project files into container
 COPY . /app/
 
-# Ensure upload directory and instance directory exist with proper permissions
+# Ensure upload and instance directories exist, and make entrypoint script executable
 RUN mkdir -p static/uploads instance && \
-    chmod -R 777 instance static/uploads
-
-# Convert line endings and make entrypoint script executable
-RUN sed -i 's/\r$//' /app/entrypoint.sh && \
+    sed -i 's/\r$//' /app/entrypoint.sh && \
     chmod +x /app/entrypoint.sh
 
 # Declare persistent volumes for database and user uploads

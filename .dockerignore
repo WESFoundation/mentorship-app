@@ -15,3 +15,6 @@ zextra/
 *.sqlite
 instance/
 !instance/mentors_connect.db
+static/uploads/_orig_backup/
+static/uploads/.cache/
+*.log
