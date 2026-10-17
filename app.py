@@ -18164,29 +18164,6 @@ def supervisor_schedule_sgm_ajax():
                         <p style="color: #64748b; font-size: 13px;">A learning & feedback task has been created for all participating mentees. Please join on time from your dashboard or calendar.</p>
                     </div>
                     """
-<<<<<<< HEAD
-                    send_email_reminder(recipient.email, subj, body_html)
-            # Extra invitees: notified, but explicitly told approval is required first.
-            for recipient in extra_mentee_users:
-                if recipient.email:
-                    subj = f"Invited: {meeting.meeting_title} (approval required)"
-                    body_html = f"""
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
-                        <h2 style="color: #b45309; margin-top: 0;">You've been invited to an SGM Session</h2>
-                        <p>Hello <strong>{recipient.name}</strong>,</p>
-                        <p>{organizer_role_label} <strong>{organizer.name}</strong> has scheduled a Small Group Mentoring session that all institution mentees were invited to.</p>
-                        <div style="background: #fffbeb; padding: 15px; border-left: 4px solid #b45309; border-radius: 6px; margin: 20px 0;">
-                            <p style="margin: 4px 0;"><strong>Topic:</strong> {meeting.meeting_title}</p>
-                            <p style="margin: 4px 0;"><strong>Date:</strong> {meeting.meeting_date.strftime('%B %d, %Y')}</p>
-                            <p style="margin: 4px 0;"><strong>Time:</strong> {meeting.meeting_time.strftime('%I:%M %p')}</p>
-                            <p style="margin: 4px 0;"><strong>Mentors:</strong> {mentor_names_str}</p>
-                        </div>
-                        <p><strong>Coordinator approval is required.</strong> Open your calendar, send your
-                        request to join, and wait for {organizer.name} to approve it before you can join.</p>
-                    </div>
-                    """
-                    send_email_reminder(recipient.email, subj, body_html)
-=======
                     send_email_reminder(r_email, subj, body_html)
 
         try:
@@ -18209,7 +18186,6 @@ def supervisor_schedule_sgm_ajax():
                 ),
                 daemon=True
             ).start()
->>>>>>> a8f0387ec830eb88da7d6779200f96743591bb21
         except Exception as e:
             app.logger.warning(f"Error launching SGM meeting notification thread: {e}")
 
