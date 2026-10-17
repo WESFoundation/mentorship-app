@@ -34,7 +34,20 @@ def check_and_fix_anchor_tasks(mentorship_id=None, mentee_id=None, mentor_id=Non
     Returns:
         dict: Detailed audit and remediation report.
     """
-    from app import app, db, MentorshipRequest, MenteeTask, MasterTask, is_anchor_mentorship, calculate_due_date
+    import sys
+    from flask import has_app_context
+
+    app_module = sys.modules.get("app")
+    if app_module and hasattr(app_module, "app"):
+        app = app_module.app
+        db = app_module.db
+        MentorshipRequest = app_module.MentorshipRequest
+        MenteeTask = app_module.MenteeTask
+        MasterTask = app_module.MasterTask
+        is_anchor_mentorship = app_module.is_anchor_mentorship
+        calculate_due_date = app_module.calculate_due_date
+    else:
+        from app import app, db, MentorshipRequest, MenteeTask, MasterTask, is_anchor_mentorship, calculate_due_date
 
     report = {
         "timestamp": datetime.utcnow().isoformat(),
@@ -45,7 +58,10 @@ def check_and_fix_anchor_tasks(mentorship_id=None, mentee_id=None, mentor_id=Non
         "details": []
     }
 
-    with app.app_context():
+    ctx = app.app_context() if not has_app_context() else None
+    try:
+        if ctx:
+            ctx.push()
         # Retrieve all master tasks templates (ordered 1 to 20)
         master_tasks = MasterTask.query.order_by(MasterTask.meeting_number).all()
         if not master_tasks:
@@ -152,6 +168,9 @@ def check_and_fix_anchor_tasks(mentorship_id=None, mentee_id=None, mentor_id=Non
                 db.session.rollback()
                 logger.error(f"Failed to commit anchor tasks: {e}")
                 report["commit_error"] = str(e)
+    finally:
+        if ctx:
+            ctx.pop()
 
     return report
 
