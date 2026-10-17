@@ -526,6 +526,15 @@
                     Reminder Settings
                 </a>
 
+                <a href="{{ url_for('supervisor_coupons')}}"
+                    class="sidebar-nav-item {% if request.endpoint in ['supervisor_coupons', 'supervisor_coupon_create', 'supervisor_coupon_status', 'supervisor_coupon_assign', 'supervisor_verify_seller', 'coupon_request_status'] %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M2 9V6a2 2 0 012-2h16a2 2 0 012 2v3M2 9a2 2 0 012 2h2l2 3h6l2-3h2a2 2 0 012-2M2 9v9a2 2 0 002 2h16a2 2 0 002-2v-9M9 14h.01M15 14h.01" />
+                    </svg>
+                    All Coupons
+                </a>
+
 
                 {% elif session.get('user_type') == '1' %}
 
@@ -775,6 +784,15 @@
                             d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                     My Mentors
+                </a>
+
+                <a href="{{ url_for('mentor_coupons')}}"
+                    class="sidebar-nav-item {% if request.endpoint == 'mentor_coupons' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M2 9V6a2 2 0 012-2h16a2 2 0 012 2v3M2 9a2 2 0 012 2h2l2 3h6l2-3h2a2 2 0 012-2M2 9v9a2 2 0 002 2h16a2 2 0 002-2v-9M9 14h.01M15 14h.01" />
+                    </svg>
+                    My Coupons
                 </a>
 
                 <!-- My Requests (Collapsible Accordion) -->

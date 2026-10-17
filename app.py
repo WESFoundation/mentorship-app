@@ -8821,7 +8821,13 @@ def mentee_calendar():
     all_participants = _get_all_meeting_participants()
     extra_meeting_ids = []
     for mid, pdata in all_participants.items():
-        if pdata.get("mentee_id") == mentee.id or (pdata.get("mentee_ids") and mentee.id in pdata.get("mentee_ids")):
+        # An institution-wide SGM invite keeps unconfirmed mentees in
+        # pending_mentee_ids / requested_mentee_ids rather than mentee_ids, so
+        # they must be matched here too or they never see the meeting at all.
+        visible_ids = set(pdata.get("mentee_ids") or [])
+        visible_ids |= set(pdata.get("pending_mentee_ids") or [])
+        visible_ids |= set(pdata.get("requested_mentee_ids") or [])
+        if pdata.get("mentee_id") == mentee.id or mentee.id in visible_ids:
             extra_meeting_ids.append(mid)
 
     extra_meetings = []
@@ -18138,7 +18144,7 @@ def supervisor_schedule_sgm_ajax():
             app.logger.warning(f"Error creating in-app notifications for SGM session: {notif_err}")
 
         # Send email notifications in a background daemon thread to avoid blocking the HTTP request
-        def _send_sgm_emails_worker(app_ctx, recipients_info, m_title, m_date_str, m_time_str, dur_min, m_names, me_names, s_task_title, m_link, org_label, org_name):
+        def _send_sgm_emails_worker(app_ctx, recipients_info, pending_info, m_title, m_date_str, m_time_str, dur_min, m_names, me_names, s_task_title, m_link, org_label, org_name):
             with app_ctx:
                 for r_name, r_email in recipients_info:
                     if not r_email:
@@ -18164,38 +18170,39 @@ def supervisor_schedule_sgm_ajax():
                         <p style="color: #64748b; font-size: 13px;">A learning & feedback task has been created for all participating mentees. Please join on time from your dashboard or calendar.</p>
                     </div>
                     """
-<<<<<<< HEAD
-                    send_email_reminder(recipient.email, subj, body_html)
-            # Extra invitees: notified, but explicitly told approval is required first.
-            for recipient in extra_mentee_users:
-                if recipient.email:
-                    subj = f"Invited: {meeting.meeting_title} (approval required)"
-                    body_html = f"""
+                    send_email_reminder(r_email, subj, body_html)
+
+                # Extra invitees: notified, but told that approval is required first.
+                for p_name, p_email in pending_info:
+                    if not p_email:
+                        continue
+                    p_subj = f"Invited: {m_title} (approval required)"
+                    p_body_html = f"""
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
                         <h2 style="color: #b45309; margin-top: 0;">You've been invited to an SGM Session</h2>
-                        <p>Hello <strong>{recipient.name}</strong>,</p>
-                        <p>{organizer_role_label} <strong>{organizer.name}</strong> has scheduled a Small Group Mentoring session that all institution mentees were invited to.</p>
+                        <p>Hello <strong>{p_name}</strong>,</p>
+                        <p>{org_label} <strong>{org_name}</strong> has scheduled a Small Group Mentoring session that all institution mentees were invited to.</p>
                         <div style="background: #fffbeb; padding: 15px; border-left: 4px solid #b45309; border-radius: 6px; margin: 20px 0;">
-                            <p style="margin: 4px 0;"><strong>Topic:</strong> {meeting.meeting_title}</p>
-                            <p style="margin: 4px 0;"><strong>Date:</strong> {meeting.meeting_date.strftime('%B %d, %Y')}</p>
-                            <p style="margin: 4px 0;"><strong>Time:</strong> {meeting.meeting_time.strftime('%I:%M %p')}</p>
-                            <p style="margin: 4px 0;"><strong>Mentors:</strong> {mentor_names_str}</p>
+                            <p style="margin: 4px 0;"><strong>Topic:</strong> {m_title}</p>
+                            <p style="margin: 4px 0;"><strong>Date:</strong> {m_date_str}</p>
+                            <p style="margin: 4px 0;"><strong>Time:</strong> {m_time_str}</p>
+                            <p style="margin: 4px 0;"><strong>Mentors:</strong> {m_names}</p>
                         </div>
                         <p><strong>Coordinator approval is required.</strong> Open your calendar, send your
-                        request to join, and wait for {organizer.name} to approve it before you can join.</p>
+                        request to join, and wait for {org_name} to approve it before you can join.</p>
                     </div>
                     """
-                    send_email_reminder(recipient.email, subj, body_html)
-=======
-                    send_email_reminder(r_email, subj, body_html)
+                    send_email_reminder(p_email, p_subj, p_body_html)
 
         try:
             recipients_data = [(u.name, u.email) for u in (mentors + mentees) if u.email]
+            pending_data = [(u.name, u.email) for u in extra_mentee_users if u.email]
             threading.Thread(
                 target=_send_sgm_emails_worker,
                 args=(
                     app.app_context(),
                     recipients_data,
+                    pending_data,
                     meeting.meeting_title,
                     meeting.meeting_date.strftime('%B %d, %Y'),
                     meeting.meeting_time.strftime('%I:%M %p'),
@@ -18209,7 +18216,6 @@ def supervisor_schedule_sgm_ajax():
                 ),
                 daemon=True
             ).start()
->>>>>>> a8f0387ec830eb88da7d6779200f96743591bb21
         except Exception as e:
             app.logger.warning(f"Error launching SGM meeting notification thread: {e}")
 

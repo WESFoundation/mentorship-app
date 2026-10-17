@@ -37,8 +37,15 @@
         }
         .no-print { display: none !important; }
 
-        /* Kill the app chrome that constrains width on screen. */
-        #sidebar, #sidebarToggle, header, footer, .sidebar,
+        /* Hide ALL app chrome. This layout uses <nav class="glass-nav">, not
+           <header>, and it also mounts modal overlays and a floating chat
+           widget that would otherwise print straight over the sheet. */
+        #sidebar, #sidebarToggle, #overlay,
+        header, footer,
+        nav.glass-nav, .glass-nav, .sidebar,
+        #profile-complete-popup, .popup-z-index,
+        #premiumModal, #scholarlyModal, #corporateModal,
+        .fixed.bottom-8.right-8,
         .max-w-7xl, .max-w-6xl, .mx-auto, .overflow-x-hidden {
             display: none !important;
         }

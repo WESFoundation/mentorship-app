@@ -85,6 +85,24 @@ check("My Coupons offers a request form",
 check("My Coupons no longer offers generation",
       "Generate coupons" not in r.get_data(as_text=True))
 
+# The print sheet used to clip its right-hand side and to print the app chrome.
+body = r.get_data(as_text=True)
+check("print stylesheet exists", "@media print" in body)
+check("print page size is pinned", "@page" in body and "A4" in body)
+check("print sheet uses a printable fixed width", "88mm" in body)
+check("print grid is NOT the overflowing 3-column layout",
+      "repeat(3, 1fr)" not in body)
+for sel, label in (
+    ("nav.glass-nav", "the top nav bar"),
+    (".glass-nav", "the top nav bar (class)"),
+    ("#profile-complete-popup", "the Complete Your Profile modal"),
+    (".popup-z-index", "modal overlays"),
+    ("#premiumModal", "the premium modal"),
+    (".fixed.bottom-8.right-8", "the floating chat widget"),
+    ("#sidebar", "the sidebar"),
+):
+    check(f"print CSS hides {label}", sel in body, sel)
+
 r = mentor_client.post("/mentor/coupons/create", json={"title": "nope"})
 check("mentors can no longer self-issue",
       r.status_code == 403 and "mentorships team" in (r.get_json() or {}).get("message", ""), r.status_code)
