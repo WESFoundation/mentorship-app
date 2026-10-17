@@ -18171,7 +18171,6 @@ def supervisor_schedule_sgm_ajax():
                     </div>
                     """
                     send_email_reminder(r_email, subj, body_html)
-<<<<<<< HEAD
 
                 # Extra invitees: notified, but told that approval is required first.
                 for p_name, p_email in pending_info:
@@ -18194,8 +18193,6 @@ def supervisor_schedule_sgm_ajax():
                     </div>
                     """
                     send_email_reminder(p_email, p_subj, p_body_html)
-=======
->>>>>>> 87161fe32c79ada57408bcc2a6b7559f13a2206b
 
         try:
             recipients_data = [(u.name, u.email) for u in (mentors + mentees) if u.email]
@@ -21717,6 +21714,20 @@ if __name__ == '__main__':
         try:
             init_scheduler()
         except Exception as e:
-            print(f"⚠️ Could not initialize scheduler: {e}")
+            print(f"?? Could not initialize scheduler: {e}")
 
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Configurable so the same code runs locally and in production.
+    #   FLASK_DEBUG=1        -> reloader + debugger (local only)
+    #   HOST / PORT          -> bind address
+    # Debug is OFF by default: the Werkzeug debugger is a remote-code-execution hole
+    # and its reloader is the usual reason a long-running server keeps serving
+    # stale code after a fix.
+    _debug = os.environ.get("FLASK_DEBUG", "0").strip().lower() in ("1", "true", "yes", "on")
+    _host = os.environ.get("HOST", "0.0.0.0").strip() or "0.0.0.0"
+    try:
+        _port = int(os.environ.get("PORT", "5000"))
+    except ValueError:
+        _port = 5000
+
+    print(f"🚀 Starting Mentor Connect  debug={_debug}  http://{_host}:{_port}")
+    app.run(debug=_debug, host=_host, port=_port, use_reloader=_debug)
