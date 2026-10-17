@@ -2855,7 +2855,17 @@ class MentorCoupon(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     # The QR key. Unambiguous alphabet (no O/0, I/1) so it can be read aloud.
     code = db.Column(db.String(40), unique=True, nullable=False, index=True)
+    # DEPRECATED / legacy owner. Kept NOT NULL for existing rows; new coupons set
+    # this to the issuer purely to satisfy the constraint. Real ownership now lives
+    # in coupon_assignments.
     mentor_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False, index=True)
+
+    # Who issued the coupon (supervisor/admin).
+    issued_by_user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), index=True)
+    # The verified partner/seller who redeemed it.
+    seller_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), index=True)
+    # Which mentor/mentee actually presented the coupon at the counter.
+    redeemed_by_user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), index=True)
 
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
@@ -2896,6 +2906,11 @@ class MentorCoupon(db.Model):
             'used_at': self.used_at.isoformat() if self.used_at else None,
             'used_by': self.used_by or '',
             'verification_count': self.verification_count or 0,
+            'issued_by_user_id': self.issued_by_user_id,
+            'seller_id': self.seller_id,
+            'redeemed_by_user_id': self.redeemed_by_user_id,
+            'redeemed_by_name': (self.redeemed_by.name if self.redeemed_by else ''),
+            'seller_name': self.seller_display_name,
         }
         if include_mentor:
             data['mentor_id'] = self.mentor_id
@@ -2905,6 +2920,146 @@ class MentorCoupon(db.Model):
                 if self.mentor and self.mentor.mentor_profile else ''
             )
         return data
+
+    @property
+    def issuer(self):
+        """The supervisor/admin who issued the coupon (falls back to the legacy mentor_id)."""
+        if self.issued_by_user_id:
+            return db.session.get(User, self.issued_by_user_id)
+        return self.mentor
+
+    @property
+    def seller(self):
+        return db.session.get(User, self.seller_id) if self.seller_id else None
+
+    @property
+    def seller_profile(self):
+        """The verified partner shop, if the redeeming user has one."""
+        return SellerProfile.query.filter_by(user_id=self.seller_id).first() if self.seller_id else None
+
+    @property
+    def seller_display_name(self):
+        """Prefer the shop's trading name; fall back to the account holder's name."""
+        profile = self.seller_profile
+        if profile is not None and profile.display_name:
+            return profile.display_name
+        return (self.seller.name if self.seller else "") or (self.used_by or "")
+
+    @property
+    def redeemed_by(self):
+        return db.session.get(User, self.redeemed_by_user_id) if self.redeemed_by_user_id else None
+
+    @property
+    def assignees(self):
+        """Every mentor/mentee this coupon was assigned to, in assignment order."""
+        rows = (
+            CouponAssignment.query.filter_by(coupon_id=self.id)
+            .order_by(CouponAssignment.id.asc())
+            .all()
+        )
+        return [r.user for r in rows if r.user]
+
+
+class SellerProfile(db.Model):
+    """A partner/seller who redeems coupons at their shop or market.
+
+    A seller account only becomes selectable on the verification page once a
+    supervisor sets `is_verified`.
+    """
+    __tablename__ = "seller_profiles"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False, unique=True, index=True)
+
+    # The label the seller picked for their own role, e.g. "Outreach Partner".
+    partner_label = db.Column(db.String(60), default="Partner")
+    shop_name = db.Column(db.String(200))
+    market_name = db.Column(db.String(200))
+    contact_phone = db.Column(db.String(40))
+    address = db.Column(db.Text)
+
+    is_verified = db.Column(db.Boolean, default=False, nullable=False, server_default="0")
+    verified_by = db.Column(db.Integer, db.ForeignKey("signup_details.id"))
+    verified_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", foreign_keys=[user_id])
+    verifier = db.relationship("User", foreign_keys=[verified_by])
+
+    @property
+    def display_name(self):
+        return self.shop_name or self.market_name or (self.user.name if self.user else "Partner")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "partner_label": self.partner_label or "Partner",
+            "shop_name": self.shop_name or "",
+            "market_name": self.market_name or "",
+            "contact_phone": self.contact_phone or "",
+            "address": self.address or "",
+            "is_verified": bool(self.is_verified),
+            "display_name": self.display_name,
+            "user_name": self.user.name if self.user else "",
+            "user_email": self.user.email if self.user else "",
+            "verified_at": self.verified_at.isoformat() if self.verified_at else None,
+        }
+
+
+class CouponAssignment(db.Model):
+    """Links one coupon to one mentor/mentee. A coupon can have many holders."""
+    __tablename__ = "coupon_assignments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    coupon_id = db.Column(db.Integer, db.ForeignKey("mentor_coupons.id", ondelete="CASCADE"),
+                          nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False, index=True)
+    assigned_by = db.Column(db.Integer, db.ForeignKey("signup_details.id"))
+    assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    coupon = db.relationship("MentorCoupon", foreign_keys=[coupon_id])
+    user = db.relationship("User", foreign_keys=[user_id])
+
+    __table_args__ = (
+        db.UniqueConstraint("coupon_id", "user_id", name="uq_coupon_assignment"),
+    )
+
+
+class CouponRequest(db.Model):
+    """A mentor/mentee asking a supervisor to issue coupons."""
+    __tablename__ = "coupon_requests"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False, index=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    discount_label = db.Column(db.String(120))
+    quantity = db.Column(db.Integer, default=1)
+    status = db.Column(db.String(20), default="pending", nullable=False, server_default="pending")
+    handled_by = db.Column(db.Integer, db.ForeignKey("signup_details.id"))
+    handled_at = db.Column(db.DateTime)
+    admin_note = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", foreign_keys=[user_id])
+    handler = db.relationship("User", foreign_keys=[handled_by])
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "user_name": self.user.name if self.user else "",
+            "user_email": self.user.email if self.user else "",
+            "title": self.title,
+            "description": self.description or "",
+            "discount_label": self.discount_label or "",
+            "quantity": self.quantity or 1,
+            "status": self.status,
+            "admin_note": self.admin_note or "",
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "handled_at": self.handled_at.isoformat() if self.handled_at else None,
+        }
 
 
 #------------Chat System Tables-------------------
@@ -4305,13 +4460,15 @@ def select_user_type():
             return redirect(url_for("supervisordashboard"))
         elif user.user_type == "3":
             return redirect(url_for("institutiondashboard"))
+        elif user.user_type == "4":
+            return redirect(url_for("seller_dashboard"))
     
     if request.method == "POST":
         user_type = request.form.get("user_type")
         
         print(f"📝 User selected type: {user_type}")
         
-        if user_type not in ["0", "1", "2", "3"]:
+        if user_type not in ["0", "1", "2", "3", "4"]:
             flash("Invalid user type selected", "error")
             return redirect(url_for("select_user_type"))
         
@@ -4342,6 +4499,10 @@ def select_user_type():
         elif user_type == "3":
             flash("Welcome! Please complete your institution profile to continue.", "info")
             return redirect(url_for("editinstitutionprofile"))
+        elif user_type == "4":
+            _ensure_seller_profile(user)
+            flash("Welcome! Please tell us about your shop or market to continue.", "info")
+            return redirect(url_for("seller_profile"))
     
     return render_template("auth/select_user_type.html", user=user)
 
@@ -6293,6 +6454,9 @@ def institution_all_meetings():
             "created_at": meeting.created_at.strftime("%d-%m-%Y %I:%M %p") if meeting.created_at else "",
             "is_upcoming": is_upcoming,
             "meet_link": meeting.meet_link,
+            # institution-wide SGM invite review (coordinator side)
+            "sgm_invited_all": bool((participants_info or {}).get("invited_all_mentees")),
+            "sgm_pending_requests": _sgm_pending_review_list(participants_info),
         })
 
     return render_template(
@@ -8709,10 +8873,12 @@ def mentee_calendar():
             "hex_color": tinfo["hex_color"],
             "status": status,
             "description": _clean_meeting_description(meeting.meeting_description) or "No description provided",
-            "meet_link": meeting.meet_link
+            "meet_link": meeting.meet_link,
+            # institution-wide SGM invite state for THIS mentee
+            "sgm_invite_state": _sgm_invite_state(pdata, mentee.id) if pdata else "none",
+            "invited_all_mentees": bool((pdata or {}).get("invited_all_mentees")),
+            "coordinator_name": (pdata or {}).get("created_by_name") or ""
         })
-    
-    # Fetch mentee's approved mentors for the Schedule Meeting button
     accepted_requests = MentorshipRequest.query.filter_by(
         mentee_id=mentee.id,
         supervisor_status="approved",
@@ -11541,9 +11707,14 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
     any_feedback = bool(has_mentee_fb or mentor_submitted or has_inst_refl)
 
     # Determine which personas are required for 'done':
-    # All 3 personas (mentee, mentor, and institute) must have given feedback.
-    mentor_req = mentor_submitted if (mentor_id or _sgm_task) else True
-    all_feedback = bool(has_mentee_fb and mentor_req and has_inst_refl)
+    # Normally all 3 personas (mentee, mentor, institute) must have given feedback.
+    # SGM exception: the task is shared by a group of mentors, so ONE mentor's
+    # feedback is enough to complete it.
+    if _sgm_task:
+        all_feedback = bool(mentor_submitted)
+    else:
+        mentor_req = mentor_submitted if mentor_id else True
+        all_feedback = bool(has_mentee_fb and mentor_req and has_inst_refl)
 
     has_meeting = _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id, all_pdata=all_pdata, meetings_map=meetings_map)
 
@@ -17709,6 +17880,37 @@ def supervisor_schedule_sgm_ajax():
     if not mentees:
         return jsonify({"error": "No valid mentees were found for the selected IDs."}), 400
 
+    # ---- Option: invite every mentee of this institution, not just the selected ones ----
+    # Extra invitees are recorded as PENDING: they receive the invite but cannot join
+    # until they request access and the coordinator approves it.
+    invite_all_mentees = bool(data.get("invite_all_mentees"))
+    pending_mentee_ids = []
+    extra_mentee_users = []
+    institution_mentee_ids = []
+    if invite_all_mentees and is_institution:
+        _inst_id = getattr(organizer, "institution_id", None)
+        _inst_name = (getattr(organizer, "institution", None) or "").strip()
+        if not _inst_id and not _inst_name:
+            return jsonify({"error": "Your coordinator account is not linked to an institution, so all mentees cannot be invited."}), 400
+        _pool = {}
+        if _inst_id:
+            for _u in User.query.filter(User.institution_id == _inst_id, User.user_type == "2").all():
+                _pool[_u.id] = _u
+        if _inst_name:
+            for _u in User.query.filter(
+                User.institution == _inst_name,
+                User.institution_id.is_(None),
+                User.user_type == "2"
+            ).all():
+                _pool[_u.id] = _u
+        if not _pool:
+            return jsonify({"error": "No mentees are registered with your institution yet."}), 400
+        _selected = set(mentee_ids)
+        extra_mentee_users = [u for u in _pool.values() if u.id not in _selected]
+        extra_mentee_users.sort(key=lambda u: (u.name or "").lower())
+        pending_mentee_ids = [u.id for u in extra_mentee_users]
+        institution_mentee_ids = sorted(_pool.keys())
+
     if not date_str or not start_time_str:
         return jsonify({"error": "Date and Start Time are required."}), 400
 
@@ -17744,7 +17946,8 @@ def supervisor_schedule_sgm_ajax():
     meet_link = None
     gcal_event_id = None
     attendee_emails = [organizer.email] + [m.email for m in mentors if m.email] \
-        + [m.email for m in mentees if m.email]
+        + [m.email for m in mentees if m.email] \
+        + [m.email for m in extra_mentee_users if m.email]
 
     # Default SGM title names the lead mentor:
     # "SGM: Group Mentoring & Fireside chat with [Mentor's Name]"
@@ -17815,6 +18018,11 @@ def supervisor_schedule_sgm_ajax():
     full_description = f"Small Group Mentoring (SGM) session scheduled by {organizer_role_label} {organizer.name}.\nMentors ({len(mentors)}): {mentor_names_str}\nMentees ({len(mentees)}): {mentee_names_str}"
     if description:
         full_description += f"\n\nAgenda / Notes:\n{description}"
+    if pending_mentee_ids:
+        full_description += (
+            f"\n\nInvited but awaiting coordinator approval: {len(pending_mentee_ids)} "
+            f"institution mentee(s). They must request access and be approved before joining."
+        )
 
     sgm_task_title = f"{canonical_title}: Feedback & Learning Task"
     sgm_task_description = (
@@ -17874,6 +18082,13 @@ def supervisor_schedule_sgm_ajax():
             "created_by": organizer.id,
             "created_by_name": organizer.name,
             "scheduled_by": "coordinator" if is_institution else "supervisor",
+            # institution-wide invitation state (kept inside meeting_description, no schema change)
+            "invited_all_mentees": bool(invite_all_mentees and is_institution),
+            "institution_mentee_ids": institution_mentee_ids,
+            "pending_mentee_ids": pending_mentee_ids,
+            "requested_mentee_ids": [],
+            "approved_mentee_ids": [],
+            "rejected_mentee_ids": [],
             "custom_task": {
                 "title": sgm_task_title,
                 "description": sgm_task_description,
@@ -17949,6 +18164,29 @@ def supervisor_schedule_sgm_ajax():
                         <p style="color: #64748b; font-size: 13px;">A learning & feedback task has been created for all participating mentees. Please join on time from your dashboard or calendar.</p>
                     </div>
                     """
+<<<<<<< HEAD
+                    send_email_reminder(recipient.email, subj, body_html)
+            # Extra invitees: notified, but explicitly told approval is required first.
+            for recipient in extra_mentee_users:
+                if recipient.email:
+                    subj = f"Invited: {meeting.meeting_title} (approval required)"
+                    body_html = f"""
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+                        <h2 style="color: #b45309; margin-top: 0;">You've been invited to an SGM Session</h2>
+                        <p>Hello <strong>{recipient.name}</strong>,</p>
+                        <p>{organizer_role_label} <strong>{organizer.name}</strong> has scheduled a Small Group Mentoring session that all institution mentees were invited to.</p>
+                        <div style="background: #fffbeb; padding: 15px; border-left: 4px solid #b45309; border-radius: 6px; margin: 20px 0;">
+                            <p style="margin: 4px 0;"><strong>Topic:</strong> {meeting.meeting_title}</p>
+                            <p style="margin: 4px 0;"><strong>Date:</strong> {meeting.meeting_date.strftime('%B %d, %Y')}</p>
+                            <p style="margin: 4px 0;"><strong>Time:</strong> {meeting.meeting_time.strftime('%I:%M %p')}</p>
+                            <p style="margin: 4px 0;"><strong>Mentors:</strong> {mentor_names_str}</p>
+                        </div>
+                        <p><strong>Coordinator approval is required.</strong> Open your calendar, send your
+                        request to join, and wait for {organizer.name} to approve it before you can join.</p>
+                    </div>
+                    """
+                    send_email_reminder(recipient.email, subj, body_html)
+=======
                     send_email_reminder(r_email, subj, body_html)
 
         try:
@@ -17971,23 +18209,207 @@ def supervisor_schedule_sgm_ajax():
                 ),
                 daemon=True
             ).start()
+>>>>>>> a8f0387ec830eb88da7d6779200f96743591bb21
         except Exception as e:
             app.logger.warning(f"Error launching SGM meeting notification thread: {e}")
 
+        _pending_note = (
+            f" {len(pending_mentee_ids)} additional institution mentee(s) were invited and are "
+            f"pending coordinator approval."
+            if pending_mentee_ids else ""
+        )
         return jsonify({
             "success": True,
-            "message": f"SGM meeting scheduled successfully with {mentor_names_str} and {len(mentees)} mentee(s)!",
+            "message": f"SGM meeting scheduled successfully with {mentor_names_str} and {len(mentees)} mentee(s)!{_pending_note}",
             "meeting_id": meeting.id,
             "meet_link": meet_link,
             "title": meeting.meeting_title,
             "task_id": sgm_task.id if sgm_task is not None else None,
             "task_category": "SGM",
+            "invited_all_mentees": bool(invite_all_mentees and is_institution),
+            "pending_mentee_ids": pending_mentee_ids,
+            "pending_mentee_count": len(pending_mentee_ids),
         })
 
     except Exception as e:
         db.session.rollback()
         app.logger.error(f"Failed to schedule SGM meeting: {e}")
         return jsonify({"error": f"Failed to schedule SGM meeting: {str(e)}"}), 500
+
+
+def _sgm_invite_state(pdata, user_id):
+    """Return the invite state of one user for an institution-wide SGM invite."""
+    uid = int(user_id)
+    pending = [int(x) for x in (pdata.get("pending_mentee_ids") or [])]
+    requested = [int(x) for x in (pdata.get("requested_mentee_ids") or [])]
+    approved = [int(x) for x in (pdata.get("approved_mentee_ids") or [])]
+    rejected = [int(x) for x in (pdata.get("rejected_mentee_ids") or [])]
+    selected = [int(x) for x in (pdata.get("mentee_ids") or [])]
+    if uid in approved or uid in selected:
+        return "approved"
+    if uid in rejected:
+        return "rejected"
+    if uid in requested:
+        return "requested"
+    if uid in pending:
+        return "pending"
+    return "none"
+
+
+def _sgm_pending_review_list(pdata):
+    """Mentors/mentees awaiting coordinator review for an institution-wide SGM invite."""
+    if not pdata:
+        return []
+    if not pdata.get("invited_all_mentees"):
+        return []
+    out = []
+    seen = set()
+    requested = [int(x) for x in (pdata.get("requested_mentee_ids") or [])]
+    pending = [int(x) for x in (pdata.get("pending_mentee_ids") or [])]
+    # People who asked to join come first; others are simply awaiting a decision.
+    for uid in requested + [x for x in pending if x not in requested]:
+        if uid in seen:
+            continue
+        seen.add(uid)
+        user = db.session.get(User, uid)
+        if not user:
+            continue
+        out.append({
+            "id": uid,
+            "name": user.name or f"Mentee {uid}",
+            "email": user.email or "",
+            "has_requested": uid in requested,
+        })
+    return out
+
+
+@app.route("/sgm_request_to_join/<int:meeting_id>", methods=["POST"])
+def sgm_request_to_join(meeting_id):
+    """Mentee asks the coordinator for approval to attend an SGM they were invited to."""
+    if "email" not in session or str(session.get("user_type", "")) != "2":
+        return jsonify({"success": False,
+                        "error": "Only mentees can request to join an SGM session."}), 403
+    mentee = User.query.filter_by(email=session["email"]).first()
+    meeting = db.session.get(MeetingRequest, int(meeting_id))
+    if not mentee or not meeting:
+        return jsonify({"success": False, "error": "Meeting not found."}), 404
+
+    pdata = _get_meeting_participants(meeting.id) or {}
+    state = _sgm_invite_state(pdata, mentee.id)
+    if state == "approved":
+        return jsonify({"success": False,
+                        "error": "You are already confirmed for this session."}), 400
+    if state == "rejected":
+        return jsonify({"success": False,
+                        "error": "Your request was declined for this session."}), 400
+    if state == "requested":
+        return jsonify({"success": False,
+                        "error": "Your request is already waiting for approval."}), 400
+    if state == "none":
+        return jsonify({"success": False,
+                        "error": "You were not invited to this session."}), 403
+
+    requested = [int(x) for x in (pdata.get("requested_mentee_ids") or [])]
+    if mentee.id not in requested:
+        requested.append(mentee.id)
+    pdata["requested_mentee_ids"] = requested
+    _save_meeting_participants(meeting.id, pdata)
+    return jsonify({"success": True, "state": "requested",
+                    "message": "Request sent. The coordinator must approve it before you can join."})
+
+
+@app.route("/sgm_review_invitee/<int:meeting_id>/<int:mentee_id>", methods=["POST"])
+def sgm_review_invitee(meeting_id, mentee_id):
+    """Coordinator approves or rejects a mentee's request to join an SGM session."""
+    if "email" not in session or str(session.get("user_type", "")) != "3":
+        return jsonify({"success": False,
+                        "error": "Only institution coordinators can review join requests."}), 403
+    organizer = User.query.filter_by(email=session["email"]).first()
+    meeting = db.session.get(MeetingRequest, int(meeting_id))
+    if not organizer or not meeting:
+        return jsonify({"success": False, "error": "Meeting not found."}), 404
+
+    pdata = _get_meeting_participants(meeting.id) or {}
+    creator = pdata.get("created_by")
+    if creator is not None and int(creator) != int(organizer.id):
+        return jsonify({"success": False,
+                        "error": "Only the coordinator who scheduled this session can review requests."}), 403
+
+    uid = int(mentee_id)
+    state = _sgm_invite_state(pdata, uid)
+    if state not in ("pending", "requested"):
+        return jsonify({"success": False,
+                        "error": "This mentee has already been reviewed."}), 400
+
+    decision = ((request.get_json(silent=True) or {}).get("decision") or "").strip().lower()
+    if decision not in ("approve", "reject"):
+        return jsonify({"success": False, "error": "decision must be 'approve' or 'reject'"}), 400
+
+    requested = [int(x) for x in (pdata.get("requested_mentee_ids") or [])]
+    pending = [int(x) for x in (pdata.get("pending_mentee_ids") or [])]
+    approved = [int(x) for x in (pdata.get("approved_mentee_ids") or [])]
+    rejected = [int(x) for x in (pdata.get("rejected_mentee_ids") or [])]
+    for bucket in (requested, pending):
+        if uid in bucket:
+            bucket.remove(uid)
+
+    if decision == "approve":
+        if uid not in approved:
+            approved.append(uid)
+        # Confirming a mentee makes them a full participant.
+        mentee_ids = [int(x) for x in (pdata.get("mentee_ids") or [])]
+        if uid not in mentee_ids:
+            mentee_ids.append(uid)
+        pdata["mentee_ids"] = mentee_ids
+        names = list(pdata.get("mentee_names") or [])
+        mentee = db.session.get(User, uid)
+        if mentee is not None and mentee.name not in names:
+            names.append(mentee.name)
+        pdata["mentee_names"] = names
+    else:
+        if uid not in rejected:
+            rejected.append(uid)
+
+    pdata["requested_mentee_ids"] = requested
+    pdata["pending_mentee_ids"] = pending
+    pdata["approved_mentee_ids"] = approved
+    pdata["rejected_mentee_ids"] = rejected
+
+    # An approved mentee gets the same learning task as the originally selected mentees.
+    if decision == "approve" and meeting.meeting_date:
+        mentor_id = pdata.get("mentor_id") or meeting.requested_to_id
+        if mentor_id and not PersonalTask.query.filter_by(
+            mentee_id=uid, mentor_id=mentor_id,
+            title=f"Learning & Feedback: {meeting.meeting_title}"
+        ).first():
+            import datetime as _dt
+            due = dt.datetime.combine(
+                meeting.meeting_date + _dt.timedelta(days=3), dt.time(23, 59, 59))
+            db.session.add(PersonalTask(
+                mentee_id=uid,
+                mentor_id=mentor_id,
+                title=f"Learning & Feedback: {meeting.meeting_title}",
+                description=(
+                    "Reflect on discussion, summarize key learnings, and provide feedback "
+                    f"for the SGM session held on {meeting.meeting_date.strftime('%B %d, %Y')}."
+                ),
+                due_date=due,
+                priority="medium",
+                status="pending",
+                progress=0,
+                created_date=dt.datetime.utcnow(),
+            ))
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.warning(f"Could not create task for approved mentee: {e}")
+
+    _save_meeting_participants(meeting.id, pdata)
+    return jsonify({"success": True, "decision": decision,
+                    "state": "approved" if decision == "approve" else "rejected",
+                    "pending_count": len(pending),
+                    "requested_count": len(requested)})
 
 
 @app.route("/update_meeting_ajax", methods=["POST"])
@@ -20149,50 +20571,650 @@ def _mentor_or_none():
     return User.query.filter_by(email=session["email"]).first()
 
 
+def _holder_or_none():
+    """The signed-in mentor or mentee (the people who hold coupons)."""
+    if "email" not in session or str(session.get("user_type")) not in ("1", "2"):
+        return None
+    return User.query.filter_by(email=session["email"]).first()
+
+
 @app.route("/mentor/coupons")
 def mentor_coupons():
-    """Coupon dashboard: generate keys, view the QR codes, revoke, see usage."""
-    mentor = _mentor_or_none()
-    if not mentor:
+    """'My Coupons' for a mentor or mentee.
+
+    Issuance now lives with the supervisor, so this page only shows what you were
+    assigned: coupons you can hand out now, and the ones already redeemed. There is a
+    request form for asking for more, and a copy-link button. Revoke/reset is
+    supervisor-only.
+    """
+    holder = _holder_or_none()
+    if not holder:
         return redirect(url_for("signin"))
 
-    all_coupons = (
-        MentorCoupon.query.filter_by(mentor_id=mentor.id)
-        .order_by(MentorCoupon.created_at.desc())
+    assigned = _coupon_assignments_for_user(holder.id)
+    # Legacy rows created before coupon_assignments existed still belong to the mentor.
+    if not assigned and str(holder.user_type) == "1":
+        assigned = MentorCoupon.query.filter_by(mentor_id=holder.id).all()
+
+    for c in assigned:
+        if c.status == "active" and c.is_expired:
+            c.status = "expired"
+    db.session.commit()
+
+    active = [c for c in assigned if c.status == "active"]
+    redeemed = [c for c in assigned if c.status == "used"]
+    inactive = [c for c in assigned if c.status in ("revoked", "expired")]
+
+    my_requests = (
+        CouponRequest.query.filter_by(user_id=holder.id)
+        .order_by(CouponRequest.created_at.desc())
         .all()
     )
-    # Expire anything past its date so the dashboard and the verify page agree.
-    stale = [c for c in all_coupons if c.status == "active" and c.is_expired]
-    if stale:
-        for c in stale:
-            c.status = "expired"
-        db.session.commit()
-        all_coupons.sort(key=lambda c: c.created_at, reverse=True)
 
     stats = {
-        "total": len(all_coupons),
-        "active": sum(1 for c in all_coupons if c.status == "active"),
-        "used": sum(1 for c in all_coupons if c.status == "used"),
-        "expired": sum(1 for c in all_coupons if c.status in ("expired", "revoked")),
+        "total": len(assigned),
+        "active": len(active),
+        "used": len(redeemed),
+        "expired": len(inactive),
+        "pending_requests": sum(1 for r in my_requests if r.status == "pending"),
     }
 
     return render_template(
         "mentor/mentor_coupons.html",
         show_sidebar=True,
         active_section="coupons",
-        mentor=mentor,
-        coupons=[c.to_dict(include_mentor=True) for c in all_coupons],
-        coupon_urls={c.code: coupon_verify_url(c.code) for c in all_coupons},
+        mentor=holder,
+        holder=holder,
+        holder_role="Mentor" if str(holder.user_type) == "1" else "Mentee",
+        active_coupons=[c.to_dict() for c in active],
+        redeemed_coupons=[c.to_dict() for c in redeemed],
+        inactive_coupons=[c.to_dict() for c in inactive],
+        my_requests=[r.to_dict() for r in my_requests],
+        coupon_urls={c.code: coupon_verify_url(c.code) for c in assigned},
         stats=stats,
         public_base_url=_public_base_url(),
     )
 
 
+# --------------------------------------------------------------------------
+# Partners / sellers  (user_type == "4")
+# --------------------------------------------------------------------------
+SELLER_USER_TYPE = "4"
+PARTNER_LABELS = [
+    "Partner", "Outreach Partner", "Retail Partner",
+    "Vendor", "Shop Owner", "Market Partner",
+]
+
+
+def _seller_or_none():
+    """The signed-in partner/seller, or None."""
+    if "email" not in session or str(session.get("user_type")) != SELLER_USER_TYPE:
+        return None
+    return User.query.filter_by(email=session["email"]).first()
+
+
+def _ensure_seller_profile(user):
+    """Get (or create) the seller profile row for a user."""
+    if not user:
+        return None
+    profile = SellerProfile.query.filter_by(user_id=user.id).first()
+    if not profile:
+        profile = SellerProfile(user_id=user.id, partner_label="Partner", is_verified=False)
+        db.session.add(profile)
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.warning(f"Could not create seller profile for user {user.id}: {e}")
+            return None
+    return profile
+
+
+def _verified_sellers():
+    """Every supervisor-verified partner, for the redemption dropdown."""
+    rows = SellerProfile.query.filter_by(is_verified=True).all()
+    return sorted(rows, key=lambda p: (p.display_name or "").lower())
+
+
+def _coupon_assignments_for_user(user_id):
+    """Every coupon assigned to this mentor/mentee, newest first."""
+    coupon_ids = [
+        a.coupon_id for a in
+        CouponAssignment.query.filter_by(user_id=user_id).order_by(CouponAssignment.id.desc()).all()
+    ]
+    if not coupon_ids:
+        return []
+    return (
+        MentorCoupon.query.filter(MentorCoupon.id.in_(coupon_ids))
+        .order_by(MentorCoupon.created_at.desc())
+        .all()
+    )
+
+
+def _parse_coupon_window(args):
+    """Turn ?window= / ?since= into a (label, cutoff datetime) pair."""
+    import datetime as _dt
+    now = _dt.datetime.utcnow()
+    window = (args.get("window") or "").strip().lower()
+    since = (args.get("since") or "").strip()
+
+    if window == "today":
+        return "Today", _dt.datetime.combine(now.date(), _dt.time(0, 0, 0))
+    if window == "7d":
+        return "Last 7 days", now - _dt.timedelta(days=7)
+    if window == "30d":
+        return "Last 30 days", now - _dt.timedelta(days=30)
+    if since:
+        for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y"):
+            try:
+                parsed = _dt.datetime.strptime(since, fmt)
+                return f"Since {parsed.strftime('%d %b %Y')}", parsed
+            except ValueError:
+                continue
+    return "All time", None
+
+
+def _coupon_audit_row(coupon, redeemer, seller_profile):
+    """Full detail of one redemption, for the seller dashboard + emails."""
+    return {
+        "id": coupon.id,
+        "code": coupon.code,
+        "title": coupon.title,
+        "description": coupon.description or "",
+        "discount_label": coupon.discount_label or "",
+        "status": coupon.status,
+        "issued_at": coupon.created_at,
+        "expires_at": coupon.expires_at,
+        "redeemed_at": coupon.used_at,
+        "redeemer_name": redeemer.name if redeemer else "",
+        "redeemer_email": redeemer.email if redeemer else "",
+        "redeemer_type": (str(redeemer.user_type) if redeemer else ""),
+        "redeemer_role": {"1": "Mentor", "2": "Mentee"}.get(str(redeemer.user_type) if redeemer else "", ""),
+        "seller_name": seller_profile.display_name if seller_profile else (coupon.used_by or ""),
+        "seller_label": seller_profile.partner_label if seller_profile else "Partner",
+        "issued_by": (coupon.issuer.name if coupon.issuer else ""),
+    }
+
+
+@app.route("/seller/profile", methods=["GET", "POST"])
+def seller_profile():
+    seller = _seller_or_none()
+    if not seller:
+        return redirect(url_for("signin"))
+    profile = _ensure_seller_profile(seller)
+
+    if request.method == "POST":
+        data = request.get_json(silent=True) or request.form or {}
+        label = (data.get("partner_label") or "Partner").strip()
+        if label not in PARTNER_LABELS:
+            label = "Partner"
+        profile.partner_label = label
+        profile.shop_name = (data.get("shop_name") or "").strip() or None
+        profile.market_name = (data.get("market_name") or "").strip() or None
+        profile.contact_phone = (data.get("contact_phone") or "").strip() or None
+        profile.address = (data.get("address") or "").strip() or None
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Seller profile save failed: {e}")
+            return jsonify({"success": False, "message": str(e)}), 500
+        if request.is_json:
+            return jsonify({"success": True, "profile": profile.to_dict()})
+        flash("Your partner details have been saved.", "success")
+        return redirect(url_for("seller_dashboard"))
+
+    return render_template(
+        "seller/seller_profile.html",
+        show_sidebar=True,
+        active_section="profile",
+        seller=seller,
+        profile=profile,
+        partner_labels=PARTNER_LABELS,
+    )
+
+
+@app.route("/seller/dashboard")
+def seller_dashboard():
+    """How many coupons have been redeemed at this partner's shop, and every detail."""
+    seller = _seller_or_none()
+    if not seller:
+        return redirect(url_for("signin"))
+    profile = _ensure_seller_profile(seller)
+
+    label, cutoff = _parse_coupon_window(request.args)
+
+    query = MentorCoupon.query.filter(MentorCoupon.seller_id == seller.id)
+    if cutoff is not None:
+        query = query.filter(MentorCoupon.used_at.isnot(None), MentorCoupon.used_at >= cutoff)
+    rows = query.order_by(MentorCoupon.used_at.desc()).all()
+
+    entries = [_coupon_audit_row(c, c.redeemed_by, profile) for c in rows]
+
+    # Everything this partner has ever verified, for the "all time" headline number.
+    lifetime = MentorCoupon.query.filter(
+        MentorCoupon.seller_id == seller.id,
+        MentorCoupon.used_at.isnot(None),
+    ).count()
+
+    by_discount = {}
+    for e in entries:
+        by_discount[e["discount_label"] or "No discount label"] = \
+            by_discount.get(e["discount_label"] or "No discount label", 0) + 1
+
+    return render_template(
+        "seller/seller_dashboard.html",
+        show_sidebar=True,
+        active_section="dashboard",
+        seller=seller,
+        profile=profile,
+        entries=entries,
+        stats={
+            "redeemed": len(entries),
+            "lifetime": lifetime,
+            "filter_label": label,
+            "distinct_offers": len(by_discount),
+        },
+        by_discount=sorted(by_discount.items(), key=lambda kv: kv[1], reverse=True),
+    )
+
+
+@app.route("/seller/coupons")
+def seller_coupons():
+    """Alias so the sidebar can use a stable URL."""
+    return redirect(url_for("seller_dashboard"))
+
+
+# --------------------------------------------------------------------------
+# Supervisor / admin: coupon issuing and partner verification
+# --------------------------------------------------------------------------
+def _supervisor_or_none():
+    if "email" not in session or str(session.get("user_type")) != "0":
+        return None
+    return User.query.filter_by(email=session["email"]).first()
+
+
+@app.route("/supervisor/coupons")
+def supervisor_coupons():
+    """'All Coupons' - every coupon on the platform, with issuing and controls.
+
+    Coupon creation moved here from the mentor dashboard, and a coupon can be
+    assigned to many mentors/mentees at once.
+    """
+    supervisor = _supervisor_or_none()
+    if not supervisor:
+        return redirect(url_for("signin"))
+
+    coupons = MentorCoupon.query.order_by(MentorCoupon.created_at.desc()).limit(500).all()
+    for c in coupons:
+        if c.status == "active" and c.is_expired:
+            c.status = "expired"
+    db.session.commit()
+
+    rows = []
+    for c in coupons:
+        holders = c.assignees
+        rows.append({
+            "id": c.id,
+            "code": c.code,
+            "title": c.title,
+            "description": c.description or "",
+            "discount_label": c.discount_label or "",
+            "status": c.status,
+            "created_at": c.created_at,
+            "expires_at": c.expires_at,
+            "used_at": c.used_at,
+            "seller_name": c.seller_display_name,
+            "redeemed_by_name": (c.redeemed_by.name if c.redeemed_by else ""),
+            "holders": [{"id": h.id, "name": h.name,
+                         "role": {"1": "Mentor", "2": "Mentee"}.get(str(h.user_type), "")}
+                        for h in holders],
+        })
+
+    mentors = User.query.filter_by(user_type="1").order_by(User.name).all()
+    mentees = User.query.filter_by(user_type="2").order_by(User.name).all()
+
+    requests = (
+        CouponRequest.query.order_by(CouponRequest.created_at.desc()).limit(200).all()
+    )
+
+    sellers = SellerProfile.query.order_by(SellerProfile.created_at.desc()).all()
+
+    stats = {
+        "total": len(coupons),
+        "active": sum(1 for c in coupons if c.status == "active"),
+        "used": sum(1 for c in coupons if c.status == "used"),
+        "revoked": sum(1 for c in coupons if c.status in ("revoked", "expired")),
+        "pending_requests": sum(1 for r in requests if r.status == "pending"),
+        "unverified_sellers": sum(1 for s in sellers if not s.is_verified),
+    }
+
+    return render_template(
+        "supervisor/supervisor_all_coupons.html",
+        show_sidebar=True,
+        active_section="coupons",
+        supervisor=supervisor,
+        coupons=rows,
+        mentors=[{"id": m.id, "name": m.name, "email": m.email} for m in mentors],
+        mentees=[{"id": m.id, "name": m.name, "email": m.email} for m in mentees],
+        coupon_requests=[r.to_dict() for r in requests],
+        sellers=[s.to_dict() for s in sellers],
+        stats=stats,
+        public_base_url=_public_base_url(),
+    )
+
+
+@app.route("/supervisor/coupons/create", methods=["POST"])
+def supervisor_coupon_create():
+    """Issue coupons and assign each one to any number of mentors/mentees."""
+    supervisor = _supervisor_or_none()
+    if not supervisor:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    data = request.get_json(silent=True) or request.form or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"success": False, "message": "Please give the coupon a title."}), 400
+
+    assignee_ids = []
+    for raw in (data.get("assignee_ids") or []):
+        try:
+            assignee_ids.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    assignee_ids = list(dict.fromkeys(assignee_ids))
+
+    holders = []
+    if assignee_ids:
+        holders = User.query.filter(
+            User.id.in_(assignee_ids), User.user_type.in_(["1", "2"])
+        ).all()
+
+    quantity = 1
+    try:
+        quantity = max(1, min(200, int(data.get("quantity") or 1)))
+    except (TypeError, ValueError):
+        quantity = 1
+
+    expires_at = None
+    raw_expiry = (data.get("expires_at") or "").strip()
+    if raw_expiry:
+        for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+            try:
+                expires_at = datetime.strptime(raw_expiry, fmt)
+                break
+            except ValueError:
+                continue
+
+    # mentor_id is legacy + NOT NULL, so it takes the issuer when there are no
+    # mentor holders. Real ownership always lives in coupon_assignments.
+    holder_ids = [h.id for h in holders]
+    legacy_mentor_id = next(
+        (h.id for h in holders if str(h.user_type) == "1"), supervisor.id
+    )
+
+    created = []
+    try:
+        for _ in range(quantity):
+            coupon = MentorCoupon(
+                code=generate_coupon_code(),
+                mentor_id=legacy_mentor_id,
+                issued_by_user_id=supervisor.id,
+                title=title,
+                description=(data.get("description") or "").strip() or None,
+                discount_label=(data.get("discount_label") or "").strip() or None,
+                status="active",
+                expires_at=expires_at,
+            )
+            db.session.add(coupon)
+            db.session.flush()
+            for holder in holders:
+                db.session.add(CouponAssignment(
+                    coupon_id=coupon.id, user_id=holder.id, assigned_by=supervisor.id
+                ))
+            created.append(coupon)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Supervisor coupon creation failed: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+    return jsonify({
+        "success": True,
+        "message": f"{len(created)} coupon(s) issued"
+                   + (f" and assigned to {len(holders)} user(s)." if holders else " with no holder yet."),
+        "coupons": [c.to_dict() for c in created],
+        "urls": {c.code: coupon_verify_url(c.code) for c in created},
+        "assigned_to": len(holders),
+    })
+
+
+@app.route("/supervisor/coupons/<int:coupon_id>/status", methods=["POST"])
+def supervisor_coupon_status(coupon_id):
+    """Revoke / reinstate / reset usage. This moved off the mentor dashboard."""
+    supervisor = _supervisor_or_none()
+    if not supervisor:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    coupon = db.session.get(MentorCoupon, coupon_id)
+    if not coupon:
+        return jsonify({"success": False, "message": "Coupon not found"}), 404
+
+    data = request.get_json(silent=True) or request.form or {}
+    action = (data.get("action") or "").strip().lower()
+
+    if action == "revoke":
+        if coupon.status == "used":
+            return jsonify({"success": False,
+                            "message": "A coupon that has already been used cannot be revoked. "
+                                       "Use 'Reset usage' first."}), 400
+        coupon.status = "revoked"
+    elif action == "reinstate":
+        if coupon.status == "used":
+            return jsonify({"success": False,
+                            "message": "A used coupon cannot be reinstated. Use 'Reset usage' first."}), 400
+        coupon.status = "active"
+    elif action == "reset":
+        coupon.status = "active"
+        coupon.used_at = None
+        coupon.used_by = None
+        coupon.seller_id = None
+        coupon.redeemed_by_user_id = None
+    elif action == "expire":
+        coupon.status = "expired"
+    else:
+        return jsonify({"success": False, "message": "Unknown action."}), 400
+
+    db.session.commit()
+    return jsonify({"success": True, "coupon": coupon.to_dict()})
+
+
+@app.route("/supervisor/coupons/assign", methods=["POST"])
+def supervisor_coupon_assign():
+    """Add or remove holders on an existing coupon."""
+    supervisor = _supervisor_or_none()
+    if not supervisor:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    data = request.get_json(silent=True) or request.form or {}
+    coupon = db.session.get(MentorCoupon, int(data.get("coupon_id") or 0))
+    if not coupon:
+        return jsonify({"success": False, "message": "Coupon not found"}), 404
+
+    action = (data.get("action") or "add").strip().lower()
+    try:
+        uid = int(data.get("user_id") or 0)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "A user is required."}), 400
+
+    user = db.session.get(User, uid)
+    if not user or str(user.user_type) not in ("1", "2"):
+        return jsonify({"success": False, "message": "Only mentors and mentees can hold coupons."}), 400
+
+    existing = CouponAssignment.query.filter_by(coupon_id=coupon.id, user_id=uid).first()
+    try:
+        if action == "remove":
+            if existing:
+                db.session.delete(existing)
+            db.session.commit()
+            return jsonify({"success": True, "removed": uid})
+        if action == "add" and not existing:
+            db.session.add(CouponAssignment(coupon_id=coupon.id, user_id=uid, assigned_by=supervisor.id))
+            db.session.commit()
+        return jsonify({"success": True, "assigned": uid})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Coupon assignment failed: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/supervisor/sellers/verify", methods=["POST"])
+def supervisor_verify_seller():
+    """Approve or withdraw a partner shop so it can (or cannot) redeem coupons."""
+    supervisor = _supervisor_or_none()
+    if not supervisor:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    data = request.get_json(silent=True) or request.form or {}
+    profile = SellerProfile.query.filter_by(user_id=int(data.get("user_id") or 0)).first()
+    if not profile:
+        return jsonify({"success": False, "message": "Partner not found"}), 404
+
+    decision = (data.get("decision") or "").strip().lower()
+    if decision == "verify":
+        profile.is_verified = True
+        profile.verified_by = supervisor.id
+        profile.verified_at = datetime.utcnow()
+    elif decision == "revoke":
+        profile.is_verified = False
+        profile.verified_by = supervisor.id
+        profile.verified_at = datetime.utcnow()
+    else:
+        return jsonify({"success": False, "message": "decision must be 'verify' or 'revoke'"}), 400
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+    # Let the partner know either way.
+    if profile.user and profile.user.email:
+        if decision == "verify":
+            subj = "Your partner account is verified"
+            line = "You can now redeem coupons at your shop. Your shop appears in the verification dropdown."
+        else:
+            subj = "Your partner account is no longer verified"
+            line = "You can no longer redeem coupons. Please contact your supervisor if this is unexpected."
+        try:
+            send_email_reminder(
+                profile.user.email, subj,
+                f"<p>Hello {profile.user.name},</p><p>{line}</p>"
+                f"<p>Shop: {profile.display_name}</p>",
+            )
+        except Exception as e:
+            app.logger.warning(f"Partner verification email failed: {e}")
+
+    return jsonify({"success": True, "seller": profile.to_dict()})
+
+
+@app.route("/coupon/request", methods=["POST"])
+def coupon_request_create():
+    """A mentor/mentee asking a supervisor to issue them coupons."""
+    if "email" not in session or str(session.get("user_type")) not in ("1", "2"):
+        return jsonify({"success": False, "message": "Only mentors and mentees can request coupons."}), 403
+
+    user = User.query.filter_by(email=session["email"]).first()
+    if not user:
+        return jsonify({"success": False, "message": "User not found."}), 404
+
+    data = request.get_json(silent=True) or request.form or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"success": False, "message": "Please give your request a title."}), 400
+
+    quantity = 1
+    try:
+        quantity = max(1, min(200, int(data.get("quantity") or 1)))
+    except (TypeError, ValueError):
+        quantity = 1
+
+    req = CouponRequest(
+        user_id=user.id,
+        title=title,
+        description=(data.get("description") or "").strip() or None,
+        discount_label=(data.get("discount_label") or "").strip() or None,
+        quantity=quantity,
+        status="pending",
+    )
+    db.session.add(req)
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+    return jsonify({"success": True, "request": req.to_dict(),
+                    "message": "Your coupon request has been sent to the mentorships team."})
+
+
+@app.route("/coupon/request/<int:request_id>/status", methods=["POST"])
+def coupon_request_status(request_id):
+    """Supervisor handles a coupon request."""
+    supervisor = _supervisor_or_none()
+    if not supervisor:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    req = db.session.get(CouponRequest, request_id)
+    if not req:
+        return jsonify({"success": False, "message": "Request not found"}), 404
+
+    data = request.get_json(silent=True) or request.form or {}
+    decision = (data.get("decision") or "").strip().lower()
+    if decision not in ("approve", "reject"):
+        return jsonify({"success": False, "message": "decision must be 'approve' or 'reject'"}), 400
+
+    req.status = "approved" if decision == "approve" else "rejected"
+    req.handled_by = supervisor.id
+    req.handled_at = datetime.utcnow()
+    req.admin_note = (data.get("note") or "").strip() or None
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+    if req.user and req.user.email:
+        try:
+            send_email_reminder(
+                req.user.email,
+                f"Coupon request {req.status}",
+                f"<p>Hello {req.user.name},</p>"
+                f"<p>Your coupon request <strong>{req.title}</strong> was "
+                f"<strong>{req.status}</strong>."
+                + (f"<br/>Note: {req.admin_note}" if req.admin_note else "")
+                + "</p>",
+            )
+        except Exception as e:
+            app.logger.warning(f"Coupon request email failed: {e}")
+
+    return jsonify({"success": True, "request": req.to_dict()})
+
+
 @app.route("/mentor/coupons/create", methods=["POST"])
 def mentor_coupon_create():
-    mentor = _mentor_or_none()
+    """DEPRECATED: coupon issuance moved to the supervisor's All Coupons page.
+
+    Kept so any stale bookmark gets a clear message instead of a 404.
+    """
+    mentor = _holder_or_none()
     if not mentor:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
+    return jsonify({
+        "success": False,
+        "message": "Coupons are now issued by the mentorships team. Use the 'Request coupons' "
+                   "form on your My Coupons page.",
+    }), 403
 
     data = request.get_json(silent=True) or request.form or {}
     title = (data.get("title") or "").strip()
@@ -20270,6 +21292,8 @@ def mentor_coupon_status(coupon_id):
         coupon.status = "active"
         coupon.used_at = None
         coupon.used_by = None
+        coupon.seller_id = None
+        coupon.redeemed_by_user_id = None
     else:
         return jsonify({"success": False, "message": "Unknown action."}), 400
 
@@ -20279,15 +21303,29 @@ def mentor_coupon_status(coupon_id):
 
 @app.route("/coupon/qr/<code>.png")
 def coupon_qr(code):
-    """QR image for a coupon key. Only the owning mentor can fetch it."""
+    """QR image for a coupon key. Only somebody the coupon is assigned to can fetch it.
+
+    Coupons now go to mentors *and* mentees, so this accepts any holder rather
+    than just the mentor. It stays login-gated: anonymous visitors get 401.
+    """
     from flask import send_file
 
-    mentor = _mentor_or_none()
-    if not mentor:
+    holder = _holder_or_none()
+    if not holder:
         return jsonify({"error": "Unauthorized"}), 401
-    coupon = MentorCoupon.query.filter_by(code=code, mentor_id=mentor.id).first()
+
+    code = (code or "").strip().upper()
+    coupon = MentorCoupon.query.filter_by(code=code).first()
     if not coupon:
         return jsonify({"error": "Coupon not found"}), 404
+
+    # The holder must actually be assigned to this coupon. Legacy coupons created
+    # before coupon_assignments existed still list their mentor in mentor_id.
+    if holder.id not in {u.id for u in coupon.assignees} and not (
+        str(holder.user_type) == "1" and coupon.mentor_id == holder.id
+    ):
+        return jsonify({"error": "Coupon not found"}), 404
+
     try:
         box_size = 10 if request.args.get("size") == "large" else 6
         buf = _coupon_qr_png(coupon_verify_url(coupon.code), box_size=box_size)
@@ -20301,22 +21339,28 @@ def coupon_qr(code):
 
 @app.route("/coupon/verify/<code>", methods=["GET", "POST"])
 def coupon_verify(code):
-    """Public page a seller lands on after scanning the mentor's QR code.
+    """Public page a partner lands on after scanning the QR code.
 
-    GET  -> show the coupon and whether it is still valid.
-    POST -> mark the key used. The seller then applies the discount themselves.
+    GET  -> show the coupon and whether it is still valid, plus the dropdown of
+            supervisor-verified shops and the people it is assigned to.
+    POST -> record the redemption: which shop verified it and who redeemed it,
+            then email both parties with the full detail.
     """
     code = (code or "").strip().upper()
     coupon = MentorCoupon.query.filter_by(code=code).first()
+
     if not coupon:
         return render_template(
             "coupon_verify.html", coupon=None, code=code, show_result=False,
             message="This coupon code is not recognised. Please ask the mentor for a valid coupon.",
+            verified_sellers=[], coupon_candidates=[],
         ), 404
+
+    verified_sellers = _verified_sellers()
+    coupon_candidates = coupon.assignees
 
     if request.method == "POST":
         payload = request.get_json(silent=True) or request.form or {}
-        seller = (payload.get("seller") or "").strip()
 
         # Re-check under the current DB state so a double scan cannot re-use a key.
         if coupon.status == "used":
@@ -20324,12 +21368,14 @@ def coupon_verify(code):
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False,
                 message="This coupon has already been used.",
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
             ), 409
         if coupon.status == "revoked":
             return render_template(
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False,
                 message="This coupon has been withdrawn by the mentor.",
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
             ), 409
         if coupon.is_expired:
             coupon.status = "expired"
@@ -20338,11 +21384,44 @@ def coupon_verify(code):
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False,
                 message="This coupon has expired.",
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
             ), 410
+
+        # The shop must be one of the supervisor-verified accounts.
+        seller_profile = None
+        raw_seller = str(payload.get("seller_account") or "").strip()
+        if raw_seller.isdigit():
+            seller_profile = SellerProfile.query.filter_by(
+                user_id=int(raw_seller), is_verified=True
+            ).first()
+        if not seller_profile:
+            return render_template(
+                "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
+                code=code, show_result=False,
+                message="Please choose your shop from the list of verified shops.",
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
+            ), 400
+
+        # The redeemer must be somebody this coupon was actually assigned to.
+        redeemer = None
+        raw_redeemer = str(payload.get("redeemer_id") or "").strip()
+        if raw_redeemer.isdigit():
+            allowed = {u.id for u in coupon_candidates}
+            if int(raw_redeemer) in allowed:
+                redeemer = db.session.get(User, int(raw_redeemer))
+        if not redeemer:
+            return render_template(
+                "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
+                code=code, show_result=False,
+                message="Please select who is redeeming this coupon.",
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
+            ), 400
 
         coupon.status = "used"
         coupon.used_at = datetime.utcnow()
-        coupon.used_by = seller or None
+        coupon.seller_id = seller_profile.user_id
+        coupon.redeemed_by_user_id = redeemer.id
+        coupon.used_by = seller_profile.display_name
         coupon.verification_count = (coupon.verification_count or 0) + 1
         try:
             db.session.commit()
@@ -20352,25 +21431,19 @@ def coupon_verify(code):
             return render_template(
                 "coupon_verify.html", coupon=None, code=code, show_result=False,
                 message="We could not record this coupon right now. Please try again.",
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
             ), 500
 
-        app.logger.info(f"Coupon {code} verified by {seller or 'unknown seller'}")
-        if coupon.mentor and coupon.mentor.email:
-            try:
-                send_email_reminder(
-                    coupon.mentor.email,
-                    f"Coupon used: {coupon.title}",
-                    f"<p>Your coupon <strong>{coupon.code}</strong> ({coupon.title}) was verified"
-                    + (f" at <strong>{seller}</strong>" if seller else "")
-                    + f" on {coupon.used_at.strftime('%d %B %Y, %H:%M')} UTC.</p>",
-                )
-            except Exception as e:
-                app.logger.warning(f"Coupon usage email failed: {e}")
+        app.logger.info(
+            f"Coupon {code} verified by {seller_profile.display_name} for {redeemer.name}"
+        )
+        _send_coupon_redemption_emails(coupon, redeemer, seller_profile)
 
         return render_template(
             "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
             code=code, show_result=True,
             message="Coupon verified and marked as used.",
+            verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
         )
 
     return render_template(
@@ -20379,7 +21452,59 @@ def coupon_verify(code):
         code=code,
         show_result=False,
         message="",
+        verified_sellers=verified_sellers,
+        coupon_candidates=coupon_candidates,
     )
+
+
+def _send_coupon_redemption_emails(coupon, redeemer, seller_profile):
+    """Email BOTH the person who redeemed it and the shop, with every detail."""
+    role = "Mentor" if str(redeemer.user_type) == "1" else "Mentee"
+    when = coupon.used_at.strftime("%d %B %Y at %H:%M UTC") if coupon.used_at else "just now"
+
+    rows = "".join(
+        f"<tr><td style='padding:4px 12px 4px 0;color:#64748b'>{label}</td>"
+        f"<td style='padding:4px 0;color:#0f172a;font-weight:600'>{value}</td></tr>"
+        for label, value in (
+            ("Coupon code", coupon.code),
+            ("Offer", coupon.title or "-"),
+            ("Discount", coupon.discount_label or "-"),
+            ("Details", coupon.description or "-"),
+            ("Redeemed by", f"{redeemer.name} ({role})"),
+            ("Redeemer email", redeemer.email or "-"),
+            ("Redeemed at", when),
+            ("Shop / market", seller_profile.display_name),
+            ("Partner type", seller_profile.partner_label or "Partner"),
+            ("Issued by", (coupon.issuer.name if coupon.issuer else "-")),
+        )
+    )
+    body = f"""
+    <div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:20px;
+                border:1px solid #e2e8f0;border-radius:10px">
+      <h2 style="color:#059669;margin-top:0">Coupon redeemed</h2>
+      <p style="color:#334155">
+        A coupon has been verified at <strong>{seller_profile.display_name}</strong>.
+      </p>
+      <table style="border-collapse:collapse;margin:16px 0;font-size:14px;width:100%">
+        {rows}
+      </table>
+      <p style="color:#64748b;font-size:12px">
+        This coupon is now used and cannot be redeemed again.
+      </p>
+    </div>
+    """
+
+    targets = []
+    if redeemer.email:
+        targets.append((redeemer.email, f"Coupon used: {coupon.title}"))
+    if seller_profile.user and seller_profile.user.email:
+        targets.append((seller_profile.user.email, f"Coupon redeemed: {coupon.title}"))
+
+    for address, subject in targets:
+        try:
+            send_email_reminder(address, subject, body)
+        except Exception as e:
+            app.logger.warning(f"Coupon redemption email to {address} failed: {e}")
 
 
 @app.route("/api/generate_qr", defaults={"url": None})

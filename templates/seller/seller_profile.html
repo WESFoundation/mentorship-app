@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}My Shop{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-900">My Shop</h1>
+      <p class="text-sm text-slate-500 mt-1">Tell customers who you are when they redeem a coupon.</p>
+    </div>
+    <nav class="flex items-center gap-2">
+      <a href="{{ url_for('seller_dashboard') }}"
+         class="px-4 py-2 rounded-lg text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200">
+        Redemptions
+      </a>
+    </nav>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+      <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+        {{ message }}
+      </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  {% if not profile.is_verified %}
+  <div class="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+    <p class="text-sm font-semibold text-amber-900">Waiting for supervisor verification</p>
+    <p class="text-xs text-amber-800 mt-1">
+      Your shop will appear in the redemption dropdown once a supervisor approves your account.
+    </p>
+  </div>
+  {% endif %}
+
+  <form method="POST" action="{{ url_for('seller_profile') }}"
+        class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+
+    <div>
+      <label for="partner_label" class="block text-sm font-semibold text-slate-700 mb-1">
+        What best describes you?
+      </label>
+      <select id="partner_label" name="partner_label"
+              class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm bg-white">
+        {% for label in partner_labels %}
+        <option value="{{ label }}" {% if profile.partner_label == label %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label for="shop_name" class="block text-sm font-semibold text-slate-700 mb-1">Shop name</label>
+      <input type="text" id="shop_name" name="shop_name" maxlength="200"
+             value="{{ profile.shop_name or '' }}" placeholder="e.g. Weslux Store Berlin"
+             class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+    </div>
+
+    <div>
+      <label for="market_name" class="block text-sm font-semibold text-slate-700 mb-1">
+        Market / venue <span class="font-normal text-slate-400">(optional)</span>
+      </label>
+      <input type="text" id="market_name" name="market_name" maxlength="200"
+             value="{{ profile.market_name or '' }}" placeholder="e.g. Alexanderplatz Market"
+             class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+    </div>
+
+    <div>
+      <label for="contact_phone" class="block text-sm font-semibold text-slate-700 mb-1">
+        Contact phone <span class="font-normal text-slate-400">(optional)</span>
+      </label>
+      <input type="text" id="contact_phone" name="contact_phone" maxlength="40"
+             value="{{ profile.contact_phone or '' }}"
+             class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+    </div>
+
+    <div>
+      <label for="address" class="block text-sm font-semibold text-slate-700 mb-1">
+        Address <span class="font-normal text-slate-400">(optional)</span>
+      </label>
+      <textarea id="address" name="address" rows="2"
+                class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">{{ profile.address or '' }}</textarea>
+    </div>
+
+    <button type="submit" class="px-6 py-2.5 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700">
+      Save details
+    </button>
+  </form>
+
+</div>
+{% endblock %}

@@ -1,6 +1,6 @@
 {% extends "base2.html" %}
 {% block title %}My Coupons{% endblock %}
-{% block user %}Mentor{% endblock %}
+{% block user %}{{ holder_role }}{% endblock %}
 {% block profiledrop %}{% endblock %}
 {% block content %}
 
@@ -16,23 +16,83 @@
     .stat-tile { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .06em; }
 
+    /* ---- Print sheet -------------------------------------------------
+       The sheet used to be clipped on the right because a fixed-width grid
+       overflowed the printable area. Pin the page size, drop every max-width,
+       and let the grid size itself from the printable width instead.
+       ------------------------------------------------------------------ */
+    .print-sheet { display: none; }
+
+    @page {
+        size: A4 portrait;
+        margin: 10mm;
+    }
+
     @media print {
-        body { background: #fff !important; }
+        html, body {
+            background: #fff !important;
+            width: 100% !important;
+            max-width: none !important;
+            overflow: visible !important;
+        }
         .no-print { display: none !important; }
-        .print-sheet { display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 12px !important; }
-        .coupon-card { break-inside: avoid; box-shadow: none !important; }
+
+        /* Kill the app chrome that constrains width on screen. */
+        #sidebar, #sidebarToggle, header, footer, .sidebar,
+        .max-w-7xl, .max-w-6xl, .mx-auto, .overflow-x-hidden {
+            display: none !important;
+        }
+        main, main > div, .p-4, .p-6, .sm\:p-6, .md\:p-8 {
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: none !important;
+            width: 100% !important;
+        }
+
+        .print-sheet {
+            display: grid !important;
+            /* 2 columns of fixed width keeps every card fully inside the page. */
+            grid-template-columns: repeat(2, 88mm) !important;
+            gap: 8mm !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            overflow: visible !important;
+            justify-content: start !important;
+        }
+        .print-sheet .coupon-card {
+            width: 88mm !important;
+            max-width: 88mm !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+            box-shadow: none !important;
+        }
+        .print-sheet .qr-frame {
+            width: 52mm !important;
+            height: 52mm !important;
+            padding: 2mm !important;
+            box-sizing: border-box !important;
+        }
+        .print-sheet .qr-frame img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: contain !important;
+            display: block !important;
+        }
     }
 </style>
 
-<div class="mb-6">
+<div class="mb-6 no-print">
     <h1 class="text-2xl font-bold text-gray-800">My Coupons</h1>
     <p class="text-gray-600 text-sm mt-1">
-        Generate coupon keys, show the QR codes to your customers, and see which ones have been used.
+        Coupons are issued by the mentorships team. Show the QR code to your customer,
+        and track which ones have been redeemed.
     </p>
 </div>
 
 <!-- Stat tiles -->
-<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 no-print">
     <div class="stat-tile">
         <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Total</p>
         <p class="text-2xl font-bold text-gray-900 mt-1">{{ stats.total }}</p>
@@ -42,7 +102,7 @@
         <p class="text-2xl font-bold text-emerald-600 mt-1">{{ stats.active }}</p>
     </div>
     <div class="stat-tile">
-        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Used</p>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Redeemed</p>
         <p class="text-2xl font-bold text-blue-600 mt-1">{{ stats.used }}</p>
     </div>
     <div class="stat-tile">
@@ -55,260 +115,264 @@
 <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-sm text-blue-900 no-print">
     <p class="font-semibold mb-2">How a coupon works</p>
     <ol class="list-decimal list-inside space-y-1 text-blue-800">
-        <li>Generate one or more coupon keys below.</li>
+        <li>Request coupons below &ndash; the mentorships team issues them.</li>
         <li>Show the QR code on your screen, or print a sheet and hand it out.</li>
-        <li>Your customer scans the QR &rarr; lands on the verify page &rarr; presses
+        <li>Your customer scans the QR &rarr; picks your verified shop &rarr; presses
             <strong>Verify coupon</strong>.</li>
-        <li>The key is marked as used in the database so it can never be reused.
+        <li>The key is marked used so it can never be reused, and both you and the
+            customer get an email with all the details.
             <strong>You apply the discount yourself.</strong></li>
     </ol>
-    <p class="text-xs text-blue-700 mt-3">
-        QR codes point to <span class="mono">{{ public_base_url }}/coupon/verify/&lt;KEY&gt;</span>
-    </p>
 </div>
 
-<!-- Create form -->
+<!-- Request coupons -->
 <div class="coupon-card p-5 mb-6 no-print">
-    <h2 class="text-lg font-semibold text-gray-800 mb-4">Generate coupons</h2>
-    <form id="createCouponForm" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <h2 class="text-lg font-semibold text-gray-800 mb-1">Request coupons</h2>
+    <p class="text-xs text-gray-500 mb-4">Need more coupons? Ask the mentorships team.</p>
+
+    <div id="reqMsg" class="hidden mb-4 rounded-lg px-4 py-3 text-sm"></div>
+
+    <form id="requestForm" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="sm:col-span-2">
-            <label for="couponTitle" class="block text-sm font-medium text-gray-700 mb-1.5">Title *</label>
-            <input type="text" id="couponTitle" maxlength="200" required
-                placeholder="e.g. Free 30-minute mentoring call"
-                class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <label for="reqTitle" class="block text-sm font-medium text-gray-700 mb-1.5">What is the offer? *</label>
+            <input type="text" id="reqTitle" maxlength="200" required
+                   placeholder="Free 30-min mentoring call"
+                   class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm">
         </div>
         <div>
-            <label for="couponDiscount" class="block text-sm font-medium text-gray-700 mb-1.5">Discount</label>
-            <input type="text" id="couponDiscount" maxlength="120"
-                placeholder="e.g. 20% off, 1 free session"
-                class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <label for="reqDiscount" class="block text-sm font-medium text-gray-700 mb-1.5">Discount label</label>
+            <input type="text" id="reqDiscount" maxlength="120" placeholder="1 free session / 10% off"
+                   class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm">
         </div>
         <div>
-            <label for="couponQty" class="block text-sm font-medium text-gray-700 mb-1.5">How many keys</label>
-            <input type="number" id="couponQty" value="1" min="1" max="50"
-                class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <label for="reqQuantity" class="block text-sm font-medium text-gray-700 mb-1.5">How many?</label>
+            <input type="number" id="reqQuantity" min="1" max="200" value="1"
+                   class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm">
         </div>
         <div class="sm:col-span-2">
-            <label for="couponDesc" class="block text-sm font-medium text-gray-700 mb-1.5">Description (optional)</label>
-            <textarea id="couponDesc" rows="2" maxlength="1000"
-                placeholder="Shown to the customer on the verification page"
-                class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+            <label for="reqDescription" class="block text-sm font-medium text-gray-700 mb-1.5">Details</label>
+            <textarea id="reqDescription" rows="2" placeholder="What the customer gets..."
+                      class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm"></textarea>
         </div>
-        <div>
-            <label for="couponExpiry" class="block text-sm font-medium text-gray-700 mb-1.5">Expires at (optional)</label>
-            <input type="datetime-local" id="couponExpiry"
-                class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-        </div>
-        <div class="flex items-end">
-            <button type="submit" id="createCouponBtn"
-                class="w-full px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition">
-                Generate QR keys
+        <div class="sm:col-span-2">
+            <button type="submit" id="reqBtn"
+                    class="px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">
+                Send request
             </button>
         </div>
     </form>
-    <p id="createCouponMsg" class="mt-3 text-sm hidden"></p>
-</div>
 
-<!-- Toolbar -->
-<div class="flex flex-wrap items-center justify-between gap-3 mb-4 no-print">
-    <div class="flex items-center gap-2">
-        <input type="text" id="couponSearch" placeholder="Search by title, key or discount..."
-            oninput="filterCoupons()"
-            class="px-3.5 py-2 border border-gray-300 rounded-lg text-sm">
-        <select id="couponStatusFilter" onchange="filterCoupons()"
-            class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
-            <option value="">All statuses</option>
-            <option value="active">Active</option>
-            <option value="used">Used</option>
-            <option value="expired">Expired</option>
-            <option value="revoked">Revoked</option>
-        </select>
+    {% if my_requests %}
+    <div class="mt-5 border-t border-gray-100 pt-4">
+        <h3 class="text-sm font-semibold text-gray-700 mb-2">My requests</h3>
+        <div class="space-y-2">
+            {% for r in my_requests %}
+            <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2">
+                <div>
+                    <p class="text-sm font-medium text-gray-800">{{ r.title }}</p>
+                    <p class="text-[11px] text-gray-500">
+                        x{{ r.quantity }}
+                        {% if r.discount_label %} &middot; {{ r.discount_label }}{% endif %}
+                        {% if r.created_at %} &middot; {{ r.created_at[:10] }}{% endif %}
+                    </p>
+                    {% if r.admin_note %}
+                    <p class="text-[11px] text-gray-600 mt-0.5">Note: {{ r.admin_note }}</p>
+                    {% endif %}
+                </div>
+                <span class="rounded-full px-2.5 py-0.5 text-[11px] font-semibold
+                    {{ 'bg-amber-100 text-amber-700' if r.status == 'pending' else
+                       'bg-emerald-100 text-emerald-700' if r.status == 'approved' else
+                       'bg-gray-100 text-gray-600' }}">
+                    {{ r.status|capitalize }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
     </div>
-    <button type="button" onclick="window.print()"
-        class="px-4 py-2 rounded-lg border border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium">
-        Print QR sheet
-    </button>
+    {% endif %}
 </div>
 
-{% if not coupons %}
-<div class="coupon-card p-10 text-center text-gray-500">
-    <i class="fas fa-qrcode text-3xl text-gray-300 mb-3 block"></i>
-    <p class="text-sm">No coupons yet. Generate your first QR key above.</p>
-</div>
-{% else %}
-<div id="couponGrid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 print-sheet">
-    {% for c in coupons %}
-    <div class="coupon-card p-4 coupon-item flex flex-col"
-        data-status="{{ c.status }}" data-search="{{ (c.title ~ ' ' ~ c.code ~ ' ' ~ c.discount_label)|lower }}">
-
-        <div class="flex items-start justify-between gap-2 mb-2">
+<!-- Active coupons -->
+<h2 class="text-lg font-semibold text-gray-800 mb-3 no-print">Active coupons</h2>
+{% if active_coupons %}
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-6" id="couponGrid">
+    {% for c in active_coupons %}
+    <div class="coupon-card p-5">
+        <div class="flex items-start justify-between gap-2 mb-3">
             <div class="min-w-0">
-                <p class="font-semibold text-gray-900 text-sm leading-tight truncate">{{ c.title }}</p>
-                {% if c.discount_label %}
-                <p class="text-xs text-blue-700 font-medium mt-0.5">{{ c.discount_label }}</p>
-                {% endif %}
+                <h3 class="font-semibold text-gray-900 truncate">{{ c.title }}</h3>
+                <p class="text-[11px] text-gray-500 mono">{{ c.code }}</p>
             </div>
-            {% if c.status == 'active' and not c.expired %}
-            <span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Active</span>
-            {% elif c.status == 'used' %}
-            <span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">Used</span>
-            {% elif c.status == 'revoked' %}
-            <span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">Revoked</span>
-            {% else %}
-            <span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">Expired</span>
-            {% endif %}
+            <span class="shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                Active
+            </span>
         </div>
-
-        <div class="flex items-center gap-3 flex-1">
-            <div class="qr-frame shrink-0">
-                <img src="{{ url_for('coupon_qr', code=c.code) }}"
-                    alt="QR code for coupon {{ c.code }}" width="120" height="120"
-                    class="block" style="image-rendering: pixelated">
-            </div>
-            <div class="min-w-0 text-xs text-gray-600 space-y-1">
-                <p class="mono text-gray-800 break-all">{{ c.code }}</p>
-                {% if c.status == 'used' %}
-                <p class="text-blue-700 font-medium">Used {{ c.used_at }} UTC</p>
-                {% if c.used_by %}
-                <p class="text-gray-500 truncate">at {{ c.used_by }}</p>
-                {% endif %}
-                {% elif c.expired %}
-                <p class="text-gray-500">Expired {{ c.expires_at }} UTC</p>
-                {% else %}
-                <p class="text-gray-500">Created {{ c.created_at[:16] }} UTC</p>
-                {% if c.expires_at %}
-                <p class="text-gray-500">Valid until {{ c.expires_at[:16] }} UTC</p>
-                {% endif %}
-                {% endif %}
-                <p class="text-[11px] text-gray-400 break-all">{{ coupon_urls[c.code] }}</p>
-            </div>
+        {% if c.discount_label %}
+        <p class="text-sm font-medium text-gray-700 mb-2">{{ c.discount_label }}</p>
+        {% endif %}
+        {% if c.description %}
+        <p class="text-xs text-gray-500 mb-3">{{ c.description }}</p>
+        {% endif %}
+        <div class="qr-frame mb-3">
+            <img src="{{ url_for('coupon_qr', code=c.code) }}" alt="QR code for {{ c.code }}"
+                 class="w-40 h-40 block">
         </div>
-
-        <div class="flex items-center gap-2 mt-3 no-print">
-            <button type="button" onclick="copyLink('{{ coupon_urls[c.code] }}')"
-                class="px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-medium">
+        <p class="text-[11px] text-gray-400 mb-3">
+            {% if c.expires_at %}Valid until {{ c.expires_at[:10] }}{% else %}No expiry{% endif %}
+        </p>
+        <div class="flex flex-wrap gap-2">
+            <button type="button" onclick="copyLink('{{ coupon_urls.get(c.code, '') }}')"
+                    class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200">
                 Copy link
             </button>
-            {% if c.status == 'active' %}
-            <button type="button" onclick="setStatus({{ c.id }}, 'revoke')"
-                class="px-2.5 py-1.5 text-xs rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-medium">
-                Revoke
-            </button>
-            {% elif c.status in ('revoked', 'expired') %}
-            <button type="button" onclick="setStatus({{ c.id }}, 'reinstate')"
-                class="px-2.5 py-1.5 text-xs rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium">
-                Reinstate
-            </button>
-            {% elif c.status == 'used' %}
-            <button type="button" onclick="setStatus({{ c.id }}, 'reset')"
-                class="px-2.5 py-1.5 text-xs rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium">
-                Reset usage
-            </button>
-            {% endif %}
+            <a href="{{ coupon_urls.get(c.code, '#') }}" target="_blank"
+               class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200">
+                Open
+            </a>
         </div>
     </div>
     {% endfor %}
 </div>
-<p id="noCouponMatch" class="hidden text-center text-sm text-gray-500 py-8">No coupons match your filters.</p>
+{% else %}
+<div class="coupon-card p-6 mb-6 text-center no-print">
+    <p class="text-sm font-medium text-gray-700">No active coupons</p>
+    <p class="text-xs text-gray-500 mt-1">Use the request form above to ask for some.</p>
+</div>
+{% endif %}
+
+<!-- Redeemed coupons -->
+<h2 class="text-lg font-semibold text-gray-800 mb-3 no-print">Redeemed coupons</h2>
+{% if redeemed_coupons %}
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
+    {% for c in redeemed_coupons %}
+    <div class="coupon-card p-5 opacity-95">
+        <div class="flex items-start justify-between gap-2 mb-3">
+            <div class="min-w-0">
+                <h3 class="font-semibold text-gray-900 truncate">{{ c.title }}</h3>
+                <p class="text-[11px] text-gray-500 mono">{{ c.code }}</p>
+            </div>
+            <span class="shrink-0 rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700">
+                Redeemed
+            </span>
+        </div>
+        {% if c.discount_label %}
+        <p class="text-sm font-medium text-gray-700 mb-2">{{ c.discount_label }}</p>
+        {% endif %}
+        <dl class="text-xs text-gray-600 space-y-1">
+            <div class="flex gap-2"><dt class="text-gray-400 w-24">Redeemed by</dt>
+                <dd class="font-medium text-gray-800">{{ c.redeemed_by_name or 'Unknown' }}</dd></div>
+            <div class="flex gap-2"><dt class="text-gray-400 w-24">At</dt>
+                <dd class="text-gray-800">{{ c.seller_name or '-' }}</dd></div>
+            <div class="flex gap-2"><dt class="text-gray-400 w-24">When</dt>
+                <dd class="text-gray-800">{{ c.used_at[:16].replace('T', ' ') if c.used_at else '-' }} UTC</dd></div>
+        </dl>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="coupon-card p-6 mb-6 text-center no-print">
+    <p class="text-sm font-medium text-gray-700">Nothing redeemed yet</p>
+    <p class="text-xs text-gray-500 mt-1">Coupons appear here once a customer uses one.</p>
+</div>
+{% endif %}
+
+{% if inactive_coupons %}
+<h2 class="text-lg font-semibold text-gray-800 mb-3 no-print">Expired / revoked</h2>
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-6 no-print">
+    {% for c in inactive_coupons %}
+    <div class="coupon-card p-4 opacity-70">
+        <h3 class="font-medium text-gray-700 truncate">{{ c.title }}</h3>
+        <p class="text-[11px] text-gray-400 mono">{{ c.code }}</p>
+        <p class="text-xs text-gray-500 mt-2 capitalize">{{ c.status }}</p>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Printable sheet -->
+{% if active_coupons %}
+<div class="flex items-center gap-3 mt-8 no-print">
+    <button type="button" onclick="window.print()"
+            class="px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-900">
+        Print QR sheet
+    </button>
+    <span class="text-xs text-gray-500">
+        {{ active_coupons|length }} active coupon{{ '' if active_coupons|length == 1 else 's' }}
+    </span>
+</div>
+
+<div class="print-sheet mt-6">
+    {% for c in active_coupons %}
+    <div class="coupon-card p-4">
+        <h3 class="font-semibold text-gray-900 text-sm truncate">{{ c.title }}</h3>
+        <p class="text-[10px] text-gray-500 mono">{{ c.code }}</p>
+        {% if c.discount_label %}
+        <p class="text-xs font-semibold text-gray-700 mt-1">{{ c.discount_label }}</p>
+        {% endif %}
+        <div class="qr-frame mt-2">
+            <img src="{{ url_for('coupon_qr', code=c.code) }}" alt="QR code for {{ c.code }}">
+        </div>
+        <p class="text-[10px] text-gray-500 mt-2 leading-snug">
+            Scan to redeem. {% if c.expires_at %}Valid until {{ c.expires_at[:10] }}.{% else %}No expiry.{% endif %}
+        </p>
+    </div>
+    {% endfor %}
+</div>
 {% endif %}
 
 <script>
-    function filterCoupons() {
-        const q = (document.getElementById('couponSearch')?.value || '').toLowerCase();
-        const status = document.getElementById('couponStatusFilter')?.value || '';
-        let visible = 0;
-        document.querySelectorAll('.coupon-item').forEach(el => {
-            const matchQ = !q || (el.dataset.search || '').includes(q);
-            const matchS = !status || el.dataset.status === status;
-            const show = matchQ && matchS;
-            el.style.display = show ? '' : 'none';
-            if (show) visible++;
-        });
-        const empty = document.getElementById('noCouponMatch');
-        if (empty) empty.classList.toggle('hidden', visible > 0);
-    }
-
-    function copyLink(text) {
-        const done = () => alert('Verification link copied.');
-        if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
-        } else {
-            fallbackCopy(text, done);
-        }
-    }
-
-    function fallbackCopy(text, done) {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        try { document.execCommand('copy'); done(); } catch (e) { alert(text); }
-        document.body.removeChild(ta);
-    }
-
-    async function setStatus(id, action) {
-        if (action === 'revoke' && !confirm('Revoke this coupon key? It will stop working immediately.')) return;
-        if (action === 'reset' && !confirm('Reset this coupon to active? It can then be used again.')) return;
-        try {
-            const res = await fetch(`/mentor/coupons/${id}/status`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                body: JSON.stringify({ action: action })
-            });
-            const data = await res.json();
-            if (data.success) {
-                window.location.reload();
-            } else {
-                alert(data.message || 'Could not update the coupon.');
-            }
-        } catch (e) {
-            alert('Could not update the coupon.');
-        }
-    }
-
-    document.getElementById('createCouponForm')?.addEventListener('submit', async function (e) {
-        e.preventDefault();
-        const btn = document.getElementById('createCouponBtn');
-        const msg = document.getElementById('createCouponMsg');
-        const title = document.getElementById('couponTitle').value.trim();
-        if (!title) { alert('Please enter a title.'); return; }
-        btn.disabled = true;
-        btn.textContent = 'Generating...';
-        msg.className = 'mt-3 text-sm text-gray-500';
-        msg.textContent = 'Please wait...';
-        try {
-            const res = await fetch('/mentor/coupons/create', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    title: title,
-                    description: document.getElementById('couponDesc').value,
-                    discount_label: document.getElementById('couponDiscount').value,
-                    quantity: document.getElementById('couponQty').value,
-                    expires_at: document.getElementById('couponExpiry').value
-                })
-            });
-            const data = await res.json();
-            if (data.success) {
-                msg.className = 'mt-3 text-sm text-emerald-700 font-medium';
-                msg.textContent = data.message;
-                setTimeout(() => window.location.reload(), 700);
-            } else {
-                msg.className = 'mt-3 text-sm text-red-600 font-medium';
-                msg.textContent = data.message || 'Could not generate coupons.';
-            }
-        } catch (err) {
-            msg.className = 'mt-3 text-sm text-red-600 font-medium';
-            msg.textContent = 'Could not generate coupons.';
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Generate QR keys';
-        }
+function copyLink(link) {
+    if (!link) return;
+    navigator.clipboard.writeText(link).then(function () {
+        window.dispatchEvent(new CustomEvent('couponCopied', { detail: link }));
     });
-</script>
+}
 
+document.getElementById('requestForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = document.getElementById('reqBtn');
+    var msg = document.getElementById('reqMsg');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    fetch('/coupon/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            title: document.getElementById('reqTitle').value,
+            description: document.getElementById('reqDescription').value,
+            discount_label: document.getElementById('reqDiscount').value,
+            quantity: document.getElementById('reqQuantity').value
+        })
+    })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+        .then(function (res) {
+            msg.className = 'mb-4 rounded-lg px-4 py-3 text-sm ' +
+                (res.ok && res.body.success
+                    ? 'bg-green-50 text-green-800 border border-green-200'
+                    : 'bg-rose-50 text-rose-800 border border-rose-200');
+            msg.textContent = (res.body && res.body.message) || 'Something went wrong.';
+            if (res.ok && res.body.success) {
+                document.getElementById('requestForm').reset();
+                setTimeout(function () { window.location.reload(); }, 1200);
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Send request';
+            }
+        })
+        .catch(function () {
+            msg.className = 'mb-4 rounded-lg px-4 py-3 text-sm bg-rose-50 text-rose-800 border border-rose-200';
+            msg.textContent = 'Network error. Please try again.';
+            btn.disabled = false;
+            btn.textContent = 'Send request';
+        });
+});
+
+document.addEventListener('click', function (e) {
+    var btn = e.target.closest('button[onclick^="copyLink"]');
+    if (!btn) return;
+    var old = btn.textContent;
+    btn.textContent = 'Copied';
+    setTimeout(function () { btn.textContent = old; }, 1200);
+});
+</script>
 {% endblock %}

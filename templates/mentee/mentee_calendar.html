@@ -253,8 +253,11 @@
         <span class="text-slate-500">Agenda:</span>
         <p id="event-description" class="mt-1 text-slate-700 leading-relaxed">—</p>
       </div>
+      <div id="sgm-invite-banner" class="hidden"></div>
     </div>
     <div class="flex items-center justify-end gap-2 mt-6 pt-4 border-t border-slate-100">
+      <span id="sgm-request-note" class="hidden mr-auto text-xs text-slate-500"></span>
+      <button id="sgm-request-btn" class="hidden px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition">Request to join</button>
       <button id="join-meeting-btn" class="hidden px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">Join Meeting</button>
     </div>
   </div>
@@ -285,7 +288,10 @@ function initializeEvents() {
       hex_color: {{ (meeting.hex_color or '#0284c7') | tojson }},
       status: {{ (meeting.status or '') | tojson }},
       description: {{ (meeting.description or '') | tojson }},
-      meet_link: {{ (meeting.meet_link or '') | tojson }}
+      meet_link: {{ (meeting.meet_link or '') | tojson }},
+      sgm_invite_state: {{ (meeting.sgm_invite_state or 'none') | tojson }},
+      invited_all_mentees: {{ (meeting.invited_all_mentees or false) | tojson }},
+      coordinator_name: {{ (meeting.coordinator_name or '') | tojson }}
     }{% if not loop.last %},{% endif %}
     {% endfor %}
   ];
@@ -375,6 +381,7 @@ function renderCalendar() {
 
 function showEventDetails(event) {
   const modal = document.getElementById('event-details-modal');
+  window.__sgmOpenEvent = event;
   const ed = new Date(event.date);
   document.getElementById('event-title').textContent = event.title;
   document.getElementById('event-mentor').textContent = event.mentor;
@@ -402,8 +409,52 @@ function showEventDetails(event) {
 
   document.getElementById('event-description').textContent = event.description || '—';
 
+  // Institution-wide SGM invitation state.
+  var state = event.sgm_invite_state || 'none';
+  var banner = document.getElementById('sgm-invite-banner');
+  var requestBtn = document.getElementById('sgm-request-btn');
+  var requestNote = document.getElementById('sgm-request-note');
+  var gated = (state === 'pending' || state === 'requested' || state === 'rejected');
+  if (banner) {
+    if (state === 'pending') {
+      banner.className = 'mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3';
+      banner.innerHTML = '<p class="text-sm font-semibold text-amber-900">Invited - approval required</p>' +
+        '<p class="text-xs text-amber-800 mt-1">You were invited to this institution SGM because it is open to all ' +
+        'institution mentees. Send your request and wait for ' +
+        (event.coordinator_name ? '<strong>' + event.coordinator_name + '</strong>' : 'the coordinator') +
+        ' to approve it before you can join.</p>';
+    } else if (state === 'requested') {
+      banner.className = 'mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3';
+      banner.innerHTML = '<p class="text-sm font-semibold text-blue-900">Request sent - awaiting approval</p>' +
+        '<p class="text-xs text-blue-800 mt-1">' +
+        (event.coordinator_name ? event.coordinator_name : 'The coordinator') +
+        ' must approve your request before you can join this session.</p>';
+    } else if (state === 'rejected') {
+      banner.className = 'mb-3 rounded-lg border border-rose-200 bg-rose-50 p-3';
+      banner.innerHTML = '<p class="text-sm font-semibold text-rose-900">Not approved for this session</p>' +
+        '<p class="text-xs text-rose-800 mt-1">Your request to join was not approved. Please contact your coordinator if this looks wrong.</p>';
+    } else {
+      banner.className = 'hidden';
+      banner.innerHTML = '';
+    }
+  }
+  if (requestBtn) {
+    if (state === 'pending') {
+      requestBtn.classList.remove('hidden');
+      requestBtn.disabled = false;
+      requestBtn.textContent = 'Request to join';
+    } else {
+      requestBtn.classList.add('hidden');
+    }
+  }
+  if (requestNote) requestNote.classList.add('hidden');
+
   var joinBtn = document.getElementById('join-meeting-btn');
-  if (event.status === 'upcoming' && event.meet_link && ed > new Date()) {
+  if (gated) {
+    // Approval is required, so the join link is withheld until then.
+    joinBtn.classList.add('hidden');
+    joinBtn.onclick = null;
+  } else if (event.status === 'upcoming' && event.meet_link && ed > new Date()) {
     joinBtn.classList.remove('hidden');
     joinBtn.onclick = function() { window.open(event.meet_link, '_blank'); };
   } else {
@@ -416,6 +467,50 @@ function showEventDetails(event) {
 document.addEventListener('DOMContentLoaded', function() {
   initializeEvents();
   renderCalendar();
+
+  var reqBtn = document.getElementById('sgm-request-btn');
+  var reqNote = document.getElementById('sgm-request-note');
+  if (reqBtn) {
+    reqBtn.addEventListener('click', function() {
+      var ev = window.__sgmOpenEvent;
+      if (!ev) return;
+      reqBtn.disabled = true;
+      reqBtn.textContent = 'Sending...';
+      fetch('/sgm_request_to_join/' + ev.id, { method: 'POST' })
+        .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, body: j }; }); })
+        .then(function(res) {
+          if (res.ok && res.body.success) {
+            ev.sgm_invite_state = 'requested';
+            reqBtn.classList.add('hidden');
+            if (reqNote) {
+              reqNote.textContent = 'Request sent - waiting for coordinator approval.';
+              reqNote.className = 'mr-auto text-xs font-medium text-blue-700';
+            }
+            var banner = document.getElementById('sgm-invite-banner');
+            if (banner) {
+              banner.className = 'mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3';
+              banner.innerHTML = '<p class="text-sm font-semibold text-blue-900">Request sent - awaiting approval</p>' +
+                '<p class="text-xs text-blue-800 mt-1">The coordinator must approve your request before you can join.</p>';
+            }
+          } else {
+            reqBtn.disabled = false;
+            reqBtn.textContent = 'Request to join';
+            if (reqNote) {
+              reqNote.textContent = (res.body && res.body.error) || 'Could not send your request.';
+              reqNote.className = 'mr-auto text-xs font-medium text-rose-600';
+            }
+          }
+        })
+        .catch(function() {
+          reqBtn.disabled = false;
+          reqBtn.textContent = 'Request to join';
+          if (reqNote) {
+            reqNote.textContent = 'Network error. Please try again.';
+            reqNote.className = 'mr-auto text-xs font-medium text-rose-600';
+          }
+        });
+    });
+  }
 
   document.getElementById('prev-month').addEventListener('click', function() {
     currentDate.setMonth(currentDate.getMonth() - 1);

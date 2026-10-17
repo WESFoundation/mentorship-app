@@ -88,7 +88,7 @@ with app.app_context():
     st = compute_task_progress_status("personal", task.id, task.mentee_id, task.mentor_id, task_obj=task)
     check("before feedback the task is 'committed'", st == "committed", st)
 
-# ---- first mentor submits: task becomes in-progress (not done until mentee + institute also submit) ----
+# ---- first mentor submits: SGM task is COMPLETE (completion is per-mentee, no mentee/institute gate) ----
 with client.session_transaction() as s:
     s.clear()
     s["email"] = m1_email
@@ -99,12 +99,12 @@ r = client.post("/save_mentor_reflection", json={
     "task_type": "personal", "task_id": task_id, "text": "Great fireside chat.", "extra": "M1"})
 res = r.get_json()
 check("mentor reflection saved", res.get("success") is True, res)
-check("task in-progress after only mentor submits", res.get("status") == "in-progress", res.get("status"))
+check("task complete after the FIRST mentor submits", res.get("status") == "done", res.get("status"))
 check("submission count is 1", res.get("submission_count") == 1, res.get("submission_count"))
 
 with app.app_context():
-    check("db status synced to in-progress",
-          db.session.get(PersonalTask, task_id).status == "in-progress")
+    check("db status synced to completed",
+          db.session.get(PersonalTask, task_id).status == "completed")
 
 # ---- a second mentor also contributes ----
 with client.session_transaction() as s:
@@ -127,7 +127,7 @@ r = client.post("/save_mentor_reflection", json={
     "task_type": "personal", "task_id": task_id, "text": "Strong turnout."})
 res = r.get_json()
 check("second SGM mentor can also submit", res.get("success") is True, res)
-check("still in-progress (waiting for mentee and institute)", res.get("status") == "in-progress", res.get("status"))
+check("status stays complete", res.get("status") == "done", res.get("status"))
 check("submission count is now 2", res.get("submission_count") == 2, res.get("submission_count"))
 
 with app.app_context():
@@ -169,7 +169,7 @@ check("mentee feedback saved", r.get_json().get("success") is True, r.get_json()
 
 with app.app_context():
     st_after_mentee = compute_task_progress_status("personal", task_id, e1_id, m1_id)
-    check("after mentor + mentee, status is still in-progress", st_after_mentee == "in-progress", st_after_mentee)
+    check("after mentor + mentee, status remains done", st_after_mentee == "done", st_after_mentee)
 
 # ---- institute submits reflection: now all 3 have submitted, task becomes done ----
 with client.session_transaction() as s:

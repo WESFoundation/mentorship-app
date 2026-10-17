@@ -17,6 +17,7 @@ os.environ.setdefault("COUPON_PUBLIC_BASE_URL", "https://mentorship.weslux.lu")
 
 from app import (  # noqa: E402
     app, db, User, MentorProfile, MenteeProfile, Institution, PersonalTask, MentorCoupon,
+    SellerProfile,
     MentorReflection, TaskRating, resolve_location, mentor_location_parts,
     _mentor_task_query_for_user, _mentee_task_query_for_user,
     _all_mentor_reflections, _mentor_submission_count, _location_key,
@@ -279,11 +280,16 @@ head("REQ11+12+13+14  QR coupon keys: scan -> verify button -> marked used")
 with app.app_context():
     cm = User(name=f"Coupon Mentor {stamp}", email=f"coupon_m_{stamp}@t.com",
               user_type="1", created_at=dt.datetime.utcnow())
-    db.session.add(cm)
+    shop = User(name=f"Weslux Store {stamp}", email=f"coupon_shop_{stamp}@t.com",
+                user_type="4", created_at=dt.datetime.utcnow())
+    db.session.add_all([cm, shop])
     db.session.commit()
     db.session.add(MentorProfile(user_id=cm.id, profession="Coach", organisation="Acme Coaching"))
+    db.session.add(SellerProfile(user_id=shop.id, partner_label="Retail Partner",
+                                 shop_name="Weslux Store Berlin", is_verified=True))
     db.session.commit()
     CM_ID = cm.id
+    SHOP_ID = shop.id
 
 mentor_client = app.test_client()
 login(mentor_client, type("U", (), {"email": f"coupon_m_{stamp}@t.com", "id": CM_ID, "user_type": "1"})())
@@ -291,14 +297,20 @@ login(mentor_client, type("U", (), {"email": f"coupon_m_{stamp}@t.com", "id": CM
 r = mentor_client.get("/mentor/coupons")
 check("REQ12 mentor coupon page renders", r.status_code == 200, r.status_code)
 check("REQ12 mentor coupon page renders a QR image per key",
-      "/coupon/qr/" in r.get_data(as_text=True) or "No coupons yet" in r.get_data(as_text=True))
+      "/coupon/qr/" in r.get_data(as_text=True) or "No active coupons" in r.get_data(as_text=True))
+check("REQ12 mentors no longer self-issue", mentor_client.post(
+    "/mentor/coupons/create", json={"title": "x"}).status_code == 403)
+check("REQ12 mentors can request coupons instead", "Request coupons" in r.get_data(as_text=True))
 
-r = mentor_client.post("/mentor/coupons/create", json={
+# Issuance is a supervisor responsibility, with multi-assign.
+sup_coupon_client = app.test_client()
+login(sup_coupon_client, type("U", (), {"email": EMAILS["sup"], "id": IDs["sup"], "user_type": "0"})())
+r = sup_coupon_client.post("/supervisor/coupons/create", json={
     "title": "Free 30-min mentoring call", "description": "One free call",
-    "discount_label": "1 free session", "quantity": 3})
+    "discount_label": "1 free session", "quantity": 3, "assignee_ids": [CM_ID]})
 data = r.get_json()
 codes = list((data.get("urls") or {}).keys())
-check("REQ12 mentor can generate several coupon keys at once", len(codes) == 3, codes)
+check("REQ12 supervisor can generate several coupon keys at once", len(codes) == 3, codes)
 KEY = codes[0]
 
 check("REQ13 QR points at the weslux page",
@@ -319,7 +331,7 @@ check("REQ11 verify page shows the mentor and discount",
 check("REQ14 page tells the seller to apply the discount themselves",
       "Apply the discount yourself" in html)
 
-r = anon.post(f"/coupon/verify/{KEY}", data={"seller": "Weslux Store Berlin"})
+r = anon.post(f"/coupon/verify/{KEY}", data={"seller_account": SHOP_ID, "redeemer_id": CM_ID})
 check("REQ11 seller presses the button", r.status_code == 200, r.status_code)
 check("REQ11 confirmation shown", "Coupon verified" in r.get_data(as_text=True))
 

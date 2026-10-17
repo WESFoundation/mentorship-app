@@ -1,0 +1,384 @@
+{% extends "base2.html" %}
+{% block title %}All Coupons{% endblock %}
+{% block content %}
+<div class="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto">
+
+  <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-900">All Coupons</h1>
+      <p class="text-sm text-slate-500 mt-1">
+        Issue coupons, assign them to any number of mentors or mentees, and control their usage.
+      </p>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+    {% for key, label, tone in [
+        ('total','Total','slate'), ('active','Active','emerald'), ('used','Redeemed','blue'),
+        ('revoked','Revoked / expired','rose'), ('pending_requests','Pending requests','amber'),
+        ('unverified_sellers','Unverified shops','orange')] %}
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+      <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ label }}</p>
+      <p class="mt-1 text-2xl font-bold text-slate-900">{{ stats[key] }}</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Issue coupons -->
+  <div class="rounded-xl border border-slate-200 bg-white p-6 mb-6">
+    <h2 class="text-lg font-semibold text-slate-900 mb-1">Issue new coupons</h2>
+    <p class="text-xs text-slate-500 mb-4">Same fields as before, plus assigning to many people at once.</p>
+
+    <div id="issueMsg" class="hidden mb-4 rounded-lg px-4 py-3 text-sm"></div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">Title <span class="text-red-500">*</span></label>
+        <input type="text" id="cp-title" maxlength="200" placeholder="Free 30-min mentoring call"
+               class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">Discount label</label>
+        <input type="text" id="cp-discount" maxlength="120" placeholder="1 free session / 10% off"
+               class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <label class="block text-sm font-semibold text-slate-700 mb-1">Description</label>
+      <textarea id="cp-description" rows="2" placeholder="What the customer gets..."
+                class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm"></textarea>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">Quantity</label>
+        <input type="number" id="cp-quantity" min="1" max="200" value="1"
+               class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">Expires at</label>
+        <input type="datetime-local" id="cp-expires"
+               class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+      </div>
+    </div>
+
+    <!-- Multi-assign -->
+    <div class="mb-4">
+      <label class="block text-sm font-semibold text-slate-700 mb-1">
+        Assign to <span class="font-normal text-slate-400">(optional - can be many mentors and mentees)</span>
+      </label>
+      <input type="text" id="cp-assignee-filter" oninput="filterAssignees()"
+             placeholder="Search by name or email..." autocomplete="off"
+             class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm mb-2">
+      <div class="flex flex-wrap gap-2 mb-2">
+        <button type="button" onclick="selectAllAssignees('mentor')"
+                class="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100">
+          Select all mentors
+        </button>
+        <button type="button" onclick="selectAllAssignees('mentee')"
+                class="px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100">
+          Select all mentees
+        </button>
+        <button type="button" onclick="clearAssignees()"
+                class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100">
+          Clear
+        </button>
+      </div>
+      <div class="max-h-56 overflow-y-auto border border-slate-200 rounded-lg p-2 bg-slate-50 space-y-1"
+           id="cp-assignee-list">
+        {% for m in mentors %}
+        <label class="cp-row flex items-center gap-2 p-1.5 rounded hover:bg-white cursor-pointer text-xs"
+               data-name="{{ (m.name ~ ' ' ~ m.email)|lower }}" data-role="mentor">
+          <input type="checkbox" value="{{ m.id }}" data-role="mentor" class="cp-assignee-cb rounded">
+          <span class="font-medium text-slate-800">{{ m.name }}</span>
+          <span class="text-slate-400">Mentor</span>
+        </label>
+        {% endfor %}
+        {% for m in mentees %}
+        <label class="cp-row flex items-center gap-2 p-1.5 rounded hover:bg-white cursor-pointer text-xs"
+               data-name="{{ (m.name ~ ' ' ~ m.email)|lower }}" data-role="mentee">
+          <input type="checkbox" value="{{ m.id }}" data-role="mentee" class="cp-assignee-cb rounded">
+          <span class="font-medium text-slate-800">{{ m.name }}</span>
+          <span class="text-slate-400">Mentee</span>
+        </label>
+        {% endfor %}
+      </div>
+      <p class="text-[11px] text-slate-500 mt-1">
+        <span id="cp-assignee-count">0</span> selected. Each generated coupon goes to every selected person.
+      </p>
+    </div>
+
+    <button type="button" id="cp-submit" onclick="issueCoupons()"
+            class="px-6 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">
+      Issue coupons
+    </button>
+  </div>
+
+  <!-- Partner verification -->
+  <div class="rounded-xl border border-slate-200 bg-white p-6 mb-6">
+    <h2 class="text-lg font-semibold text-slate-900 mb-1">Partner shops</h2>
+    <p class="text-xs text-slate-500 mb-4">
+      Only verified shops appear in the coupon verification dropdown.
+    </p>
+    {% if sellers %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <tr>
+            <th class="px-3 py-2">Shop</th><th class="px-3 py-2">Contact</th>
+            <th class="px-3 py-2">Type</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for s in sellers %}
+          <tr>
+            <td class="px-3 py-2 font-medium text-slate-800">{{ s.display_name }}</td>
+            <td class="px-3 py-2 text-slate-600">{{ s.user_email }}</td>
+            <td class="px-3 py-2 text-slate-600">{{ s.partner_label }}</td>
+            <td class="px-3 py-2">
+              {% if s.is_verified %}
+              <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">Verified</span>
+              {% else %}
+              <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Pending</span>
+              {% endif %}
+            </td>
+            <td class="px-3 py-2">
+              <button type="button" onclick="verifySeller({{ s.user_id }}, '{{ 'revoke' if s.is_verified else 'verify' }})"
+                      class="px-3 py-1.5 text-xs font-semibold rounded-lg {{ 'bg-slate-200 text-slate-700 hover:bg-slate-300' if s.is_verified else 'bg-emerald-600 text-white hover:bg-emerald-700' }}">
+                {{ 'Withdraw' if s.is_verified else 'Verify' }}
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-sm text-slate-500">No partner accounts have signed up yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- Coupon requests -->
+  <div class="rounded-xl border border-slate-200 bg-white p-6 mb-6">
+    <h2 class="text-lg font-semibold text-slate-900 mb-1">Coupon requests</h2>
+    <p class="text-xs text-slate-500 mb-4">Mentors and mentees asking for coupons.</p>
+    {% if coupon_requests %}
+    <div class="space-y-3">
+      {% for r in coupon_requests %}
+      <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3">
+        <div>
+          <p class="text-sm font-semibold text-slate-800">{{ r.title }}</p>
+          <p class="text-xs text-slate-500">
+            {{ r.user_name }} &middot; {{ r.user_email }} &middot; x{{ r.quantity }}
+            {% if r.discount_label %} &middot; {{ r.discount_label }}{% endif %}
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          {% if r.status == 'pending' %}
+          <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Pending</span>
+          <button type="button" onclick="handleRequest({{ r.id }}, 'approve')"
+                  class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Approve</button>
+          <button type="button" onclick="handleRequest({{ r.id }}, 'reject')"
+                  class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300">Reject</button>
+          {% else %}
+          <span class="rounded-full px-2 py-0.5 text-xs font-semibold {{ 'bg-emerald-100 text-emerald-700' if r.status == 'approved' else 'bg-slate-200 text-slate-600' }}">
+            {{ r.status|capitalize }}
+          </span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-slate-500">No coupon requests yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- All coupons -->
+  <h2 class="text-lg font-semibold text-slate-900 mb-3">All coupons</h2>
+  <div class="space-y-3">
+    {% for c in coupons %}
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p class="font-semibold text-slate-900">{{ c.title }}</p>
+          <p class="text-xs text-slate-500 mono mt-0.5">{{ c.code }}</p>
+        </div>
+        <div class="flex items-center gap-2">
+          {% if c.discount_label %}
+          <span class="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">{{ c.discount_label }}</span>
+          {% endif %}
+          <span class="rounded-full px-2.5 py-1 text-xs font-semibold
+            {{ 'bg-emerald-100 text-emerald-700' if c.status == 'active' else
+               'bg-green-100 text-green-700' if c.status == 'used' else
+               'bg-slate-200 text-slate-600' }}">
+            {{ c.status|capitalize }}
+          </span>
+        </div>
+      </div>
+
+      <div class="mt-3 flex flex-wrap gap-4 text-xs text-slate-600">
+        <span>Holders: <strong>{{ c.holders | length }}</strong></span>
+        {% if c.redeemed_by_name %}<span>Redeemed by: <strong>{{ c.redeemed_by_name }}</strong></span>{% endif %}
+        {% if c.seller_name %}<span>At: <strong>{{ c.seller_name }}</strong></span>{% endif %}
+        {% if c.used_at %}<span>{{ c.used_at.strftime('%d %b %Y, %H:%M') }} UTC</span>{% endif %}
+      </div>
+
+      {% if c.holders %}
+      <div class="mt-2 flex flex-wrap gap-1.5">
+        {% for h in c.holders %}
+        <span class="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-700">
+          {{ h.name }} <span class="text-slate-400">{{ h.role }}</span>
+        </span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+        <button type="button" class="js-copy px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                data-link="{{ public_base_url }}/coupon/verify/{{ c.code }}">
+          Copy link
+        </button>
+        {% if c.status != 'used' %}
+        <button type="button" onclick="couponAction({{ c.id }}, 'revoke')"
+                class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700">Revoke</button>
+        <button type="button" onclick="couponAction({{ c.id }}, 'reinstate')"
+                class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Reinstate</button>
+        {% else %}
+        <button type="button" onclick="couponAction({{ c.id }}, 'reset')"
+                class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700">Reset usage</button>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <p class="text-sm text-slate-500">No coupons have been issued yet.</p>
+    {% endfor %}
+  </div>
+
+</div>
+
+<script>
+  function filterAssignees() {
+    var q = (document.getElementById('cp-assignee-filter').value || '').toLowerCase().trim();
+    document.querySelectorAll('#cp-assignee-list .cp-row').forEach(function (row) {
+      var n = row.getAttribute('data-name') || '';
+      row.style.display = (!q || n.includes(q)) ? 'flex' : 'none';
+    });
+  }
+
+  function selectAllAssignees(role) {
+    document.querySelectorAll('#cp-assignee-list .cp-row').forEach(function (row) {
+      if (row.style.display === 'none') return;
+      if (row.getAttribute('data-role') === role) {
+        var cb = row.querySelector('.cp-assignee-cb');
+        if (cb) cb.checked = true;
+      }
+    });
+    updateAssigneeCount();
+  }
+
+  function clearAssignees() {
+    document.querySelectorAll('#cp-assignee-list .cp-assignee-cb').forEach(function (cb) { cb.checked = false; });
+    updateAssigneeCount();
+  }
+
+  function updateAssigneeCount() {
+    var n = document.querySelectorAll('#cp-assignee-list .cp-assignee-cb:checked').length;
+    document.getElementById('cp-assignee-count').textContent = n;
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('#cp-assignee-list .cp-assignee-cb')
+      .forEach(function (cb) { cb.addEventListener('change', updateAssigneeCount); });
+  });
+
+  function issueCoupons() {
+    var btn = document.getElementById('cp-submit');
+    var msg = document.getElementById('issueMsg');
+    var ids = Array.from(document.querySelectorAll('#cp-assignee-list .cp-assignee-cb:checked'))
+                     .map(function (cb) { return parseInt(cb.value); });
+    btn.disabled = true;
+    btn.textContent = 'Issuing...';
+    fetch('/supervisor/coupons/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: document.getElementById('cp-title').value,
+        description: document.getElementById('cp-description').value,
+        discount_label: document.getElementById('cp-discount').value,
+        quantity: document.getElementById('cp-quantity').value,
+        expires_at: document.getElementById('cp-expires').value,
+        assignee_ids: ids
+      })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        msg.className = 'mb-4 rounded-lg px-4 py-3 text-sm ' +
+          (res.success ? 'bg-green-50 text-green-800 border border-green-200'
+                       : 'bg-rose-50 text-rose-800 border border-rose-200');
+        msg.textContent = res.message || (res.success ? 'Done.' : 'Could not issue coupons.');
+        if (res.success) setTimeout(function () { window.location.reload(); }, 1100);
+      })
+      .catch(function () {
+        msg.className = 'mb-4 rounded-lg px-4 py-3 text-sm bg-rose-50 text-rose-800 border border-rose-200';
+        msg.textContent = 'Network error. Please try again.';
+      })
+      .finally(function () { btn.disabled = false; btn.textContent = 'Issue coupons'; });
+  }
+
+  function couponAction(couponId, action) {
+    fetch('/supervisor/coupons/' + couponId + '/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action })
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        if (res.ok && res.body.success) { window.location.reload(); }
+        else { alert((res.body && res.body.message) || 'That action failed.'); }
+      })
+      .catch(function () { alert('Network error. Please try again.'); });
+  }
+
+  function verifySeller(userId, decision) {
+    fetch('/supervisor/sellers/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, decision: decision })
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        if (res.ok && res.body.success) { window.location.reload(); }
+        else { alert((res.body && res.body.message) || 'That action failed.'); }
+      })
+      .catch(function () { alert('Network error. Please try again.'); });
+  }
+
+  function handleRequest(requestId, decision) {
+    fetch('/coupon/request/' + requestId + '/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision: decision })
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        if (res.ok && res.body.success) { window.location.reload(); }
+        else { alert((res.body && res.body.message) || 'That action failed.'); }
+      })
+      .catch(function () { alert('Network error. Please try again.'); });
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.js-copy');
+    if (!btn) return;
+    var link = btn.getAttribute('data-link');
+    navigator.clipboard.writeText(link).then(function () {
+      var old = btn.textContent;
+      btn.textContent = 'Copied';
+      setTimeout(function () { btn.textContent = old; }, 1200);
+    });
+  });
+</script>
+{% endblock %}
