@@ -2068,7 +2068,7 @@ class User(db.Model):
     premium = db.Column(db.Boolean, default=False)
 
     #connect form another table
-    mentor_profile = db.relationship("MentorProfile", backref="user", uselist=False)
+    mentor_profile = db.relationship("MentorProfile", backref="user", uselist=False, foreign_keys="MentorProfile.user_id")
     mentee_profile = db.relationship("MenteeProfile", backref="user_ref", uselist=False, foreign_keys="MenteeProfile.user_id", overlaps="mentee_profile_ref,user")
     institution_ref = db.relationship("Institution", backref="users", foreign_keys="User.institution_id")
 
@@ -2171,6 +2171,7 @@ class MentorProfile(db.Model):
     profile_picture = db.Column(db.String(100))
     criminal_certificate = db.Column(db.String(100))  # PDF file for criminal certificate (mandatory for Luxembourg)
     supervisor_rating = db.Column(db.Float, nullable=True)  # Supervisor's 1-5 rating of mentor
+    referred_by_seller_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=True)
     status = db.Column(db.String(20), default="pending")
 
 #------------ table mentee details-------------------
@@ -2263,6 +2264,48 @@ class MenteeProfile(db.Model):
     profile_picture = db.Column(db.String(100))  # store image filename
     status = db.Column(db.String(20), default="pending")
     user = db.relationship("User", backref=db.backref("mentee_profile_ref", uselist=False, overlaps="user_ref"), uselist=False, overlaps="mentee_profile,user_ref")
+
+#------------ Seller/Partner Profile (Outreach Partner) ---------------
+class SellerProfile(db.Model):
+    __tablename__ = "seller_profile"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False, unique=True)
+
+    # Partner type label (e.g., "Outreach Partner", "Retail Partner", "Vendor", "Shop Owner")
+    partner_label = db.Column(db.String(60), default="Outreach Partner")
+    shop_name = db.Column(db.String(200))
+    market_name = db.Column(db.String(200))
+    contact_phone = db.Column(db.String(40))
+    address = db.Column(db.Text)
+
+    # Verification status - only verified sellers can redeem coupons
+    is_verified = db.Column(db.Boolean, default=False, nullable=False, server_default="0")
+    verified_by = db.Column(db.Integer, db.ForeignKey("signup_details.id"))
+    verified_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", foreign_keys=[user_id])
+    verifier = db.relationship("User", foreign_keys=[verified_by])
+
+    @property
+    def display_name(self):
+        return self.shop_name or self.market_name or (self.user.name if self.user else "Partner")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "partner_label": self.partner_label or "Partner",
+            "shop_name": self.shop_name or "",
+            "market_name": self.market_name or "",
+            "contact_phone": self.contact_phone or "",
+            "address": self.address or "",
+            "is_verified": bool(self.is_verified),
+            "display_name": self.display_name,
+            "user_name": self.user.name if self.user else "",
+            "user_email": self.user.email if self.user else "",
+            "verified_at": self.verified_at.isoformat() if self.verified_at else None,
+        }
 
 #------------ table supervisor details-------------------
 class SupervisorProfile(db.Model):
@@ -15171,6 +15214,26 @@ def editmentorprofile():
         profile.portfolio_link = request.form.get("portfolio_link")
         profile.other_social_link = request.form.get("other_social_link")
         
+        # Referred by seller
+        referred_by_seller_id = request.form.get("referred_by_seller_id")
+        if referred_by_seller_id:
+            try:
+                profile.referred_by_seller_id = int(referred_by_seller_id)
+                # Notify the seller
+                seller = User.query.get(profile.referred_by_seller_id)
+                if seller:
+                    mentor_name = user.name
+                    try:
+                        send_email_reminder(
+                            seller.email,
+                            f"New Mentor Referred by Your Shop",
+                            f"<p>Hi {seller.name},</p><p>A new mentor <strong>{mentor_name}</strong> has joined and mentioned they were referred by your shop!</p>"
+                        )
+                    except Exception as e:
+                        app.logger.warning(f"Failed to send seller referral notification: {e}")
+            except (ValueError, TypeError):
+                pass
+        
         # Mentorship preferences
         profile.mentorship_topics = request.form.get("mentorship_topics") or None
         
@@ -15311,6 +15374,8 @@ def editmentorprofile():
         personal_email=user.personal_email if hasattr(user, 'personal_email') else '',
         institution=form_data.get('institution') if form_data else user.institution,
         institutions=institutions,
+        verified_sellers=SellerProfile.query.filter_by(is_verified=True).all(),
+        referred_by_seller_id=form_data.get('referred_by_seller_id') if form_data else (profile.referred_by_seller_id if profile else ""),
         profession=form_data.get('profession') if form_data else (profile.profession if profile else ""),
         other_profession=form_data.get('other_profession') if form_data else "",
         skills=form_data.get('skills') if form_data else (profile.skills if profile else ""),
@@ -18461,6 +18526,14 @@ def update_meeting_ajax():
     duration = data.get("duration")
     meet_link = data.get("meet_link", "").strip()
     timezone_val = data.get("timezone", "Asia/Kolkata")
+    
+    # SGM participant data
+    incoming_mentor_ids = data.get("mentor_ids") or []
+    incoming_mentee_ids = data.get("mentee_ids") or []
+    if isinstance(incoming_mentor_ids, int):
+        incoming_mentor_ids = [incoming_mentor_ids]
+    if isinstance(incoming_mentee_ids, int):
+        incoming_mentee_ids = [incoming_mentee_ids]
 
     if not title:
         return jsonify({"error": "Title is required"}), 400
@@ -18502,6 +18575,12 @@ def update_meeting_ajax():
                 participants["mentor_id"] = int(incoming_mentor_id)
             except (ValueError, TypeError):
                 pass
+
+        # Handle SGM multi-participant data
+        if incoming_mentor_ids:
+            participants["mentor_ids"] = [int(mid) for mid in incoming_mentor_ids if mid]
+        if incoming_mentee_ids:
+            participants["mentee_ids"] = [int(mid) for mid in incoming_mentee_ids if mid]
 
         if not participants.get("mentee_id") or not participants.get("mentor_id"):
             m_mentor, m_mentee, m_info = _resolve_meeting_participants(meeting)

@@ -173,13 +173,13 @@
                       <span class="font-medium text-gray-800">{{ req.name }}</span>
                       {% if req.has_requested %}
                       <span class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">requested</span>
-                      {% endif %}
                       <button type="button"
                         onclick="reviewSgmInvitee({{ meeting.id }}, {{ req.id }}, 'approve', this)"
                         class="rounded bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700">Approve</button>
                       <button type="button"
                         onclick="reviewSgmInvitee({{ meeting.id }}, {{ req.id }}, 'reject', this)"
                         class="rounded bg-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-300">Reject</button>
+                      {% endif %}
                     </span>
                     {% endfor %}
                   </div>

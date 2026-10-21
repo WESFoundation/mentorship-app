@@ -33,15 +33,56 @@
     <div id="issueMsg" class="hidden mb-4 rounded-lg px-4 py-3 text-sm"></div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-      <div>
+      <div class="md:col-span-2">
         <label class="block text-sm font-semibold text-slate-700 mb-1">Title <span class="text-red-500">*</span></label>
-        <input type="text" id="cp-title" maxlength="200" placeholder="Free 30-min mentoring call"
-               class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+        <div class="relative">
+          <select id="cp-title" class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm pr-10 appearance-none">
+            <option value="">Select a title...</option>
+            <option value="Joining Bonus">Joining Bonus</option>
+            <option value="Performance Bonus">Performance Bonus</option>
+            <option value="Referral Bonus">Referral Bonus</option>
+            <option value="Milestone Achievement">Milestone Achievement</option>
+            <option value="Holiday Bonus">Holiday Bonus</option>
+            <option value="Referral Reward">Referral Reward</option>
+            <option value="Loyalty Reward">Loyalty Reward</option>
+            <option value="Custom">Other (specify below)</option>
+          </select>
+          <div class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </div>
+        </div>
+        <div id="cp-title-other-wrap" class="hidden mt-3">
+          <label class="block text-sm font-semibold text-slate-700 mb-1">Custom Title</label>
+          <input type="text" id="cp-title-custom" maxlength="200" placeholder="Enter custom title..."
+                 class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+        </div>
       </div>
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-1">Discount label</label>
-        <input type="text" id="cp-discount" maxlength="120" placeholder="1 free session / 10% off"
-               class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+        <div class="relative">
+          <select id="cp-discount" class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm pr-10 appearance-none">
+            <option value="">Select a discount...</option>
+            <option value="5% off up to 5€">5% off up to 5€</option>
+            <option value="10% off up to 10€">10% off up to 10€</option>
+            <option value="15% off up to 15€">15% off up to 15€</option>
+            <option value="20% off up to 20€">20% off up to 20€</option>
+            <option value="5€ flat">5€ flat</option>
+            <option value="10€ flat">10€ flat</option>
+            <option value="15€ flat">15€ flat</option>
+            <option value="20€ flat">20€ flat</option>
+            <option value="Free session">Free session</option>
+            <option value="Free month">Free month</option>
+            <option value="Custom">Other (specify below)</option>
+          </select>
+          <div class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </div>
+        </div>
+        <div id="cp-discount-other-wrap" class="hidden mt-3">
+          <label class="block text-sm font-semibold text-slate-700 mb-1">Custom Discount Label</label>
+          <input type="text" id="cp-discount-custom" maxlength="120" placeholder="Enter custom discount..."
+                 class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+        </div>
       </div>
     </div>
 
@@ -53,14 +94,28 @@
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
       <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-1">Quantity</label>
-        <input type="number" id="cp-quantity" min="1" max="200" value="1"
-               class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
-      </div>
-      <div>
         <label class="block text-sm font-semibold text-slate-700 mb-1">Expires at</label>
         <input type="datetime-local" id="cp-expires"
                class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">Timezone</label>
+        <select id="cp-timezone" class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+          <option value="Asia/Kolkata" selected>India (IST, UTC+5:30)</option>
+          <option value="Asia/Dubai">Gulf (GST, UTC+4)</option>
+          <option value="Asia/Singapore">Singapore (SGT, UTC+8)</option>
+          <option value="Asia/Shanghai">China (CST, UTC+8)</option>
+          <option value="Asia/Tokyo">Japan (JST, UTC+9)</option>
+          <option value="Europe/London">UK (GMT/BST)</option>
+          <option value="Europe/Paris">Central Europe (CET)</option>
+          <option value="Europe/Moscow">Russia (MSK, UTC+3)</option>
+          <option value="America/New_York">US Eastern (ET)</option>
+          <option value="America/Chicago">US Central (CT)</option>
+          <option value="America/Los_Angeles">US Pacific (PT)</option>
+          <option value="America/Toronto">Canada Eastern (ET)</option>
+          <option value="Australia/Sydney">Australia Eastern (AEST)</option>
+          <option value="Pacific/Auckland">New Zealand (NZST)</option>
+        </select>
       </div>
     </div>
 
@@ -289,11 +344,40 @@
     document.getElementById('cp-assignee-count').textContent = n;
   }
 
-  document.addEventListener('DOMContentLoaded', function () {
-    document.querySelectorAll('#cp-assignee-list .cp-assignee-cb')
-      .forEach(function (cb) { cb.addEventListener('change', updateAssigneeCount); });
+document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.js-copy');
+    if (!btn) return;
+    var link = btn.getAttribute('data-link');
+    navigator.clipboard.writeText(link).then(function () {
+      var old = btn.textContent;
+      btn.textContent = 'Copied';
+      setTimeout(function () { btn.textContent = old; }, 1200);
+    });
   });
 
+  // Show/hide custom title field
+  document.getElementById('cp-title').addEventListener('change', function () {
+    var otherWrap = document.getElementById('cp-title-other-wrap');
+    if (this.value === 'Custom') {
+      otherWrap.classList.remove('hidden');
+    } else {
+      otherWrap.classList.add('hidden');
+      document.getElementById('cp-title-custom').value = '';
+    }
+  });
+
+  // Show/hide custom discount field
+  document.getElementById('cp-discount').addEventListener('change', function () {
+    var otherWrap = document.getElementById('cp-discount-other-wrap');
+    if (this.value === 'Custom') {
+      otherWrap.classList.remove('hidden');
+    } else {
+      otherWrap.classList.add('hidden');
+      document.getElementById('cp-discount-custom').value = '';
+    }
+  });
+
+  // When issuing coupons, use custom title/discount if selected
   function issueCoupons() {
     var btn = document.getElementById('cp-submit');
     var msg = document.getElementById('issueMsg');
@@ -301,14 +385,35 @@
                      .map(function (cb) { return parseInt(cb.value); });
     btn.disabled = true;
     btn.textContent = 'Issuing...';
+
+    // Get title (use custom if selected)
+    var titleSelect = document.getElementById('cp-title');
+    var title = titleSelect.value;
+    if (title === 'Custom') {
+      title = document.getElementById('cp-title-custom').value.trim();
+    }
+    if (!title) {
+      showMsg('Please enter a title.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Issue coupons';
+      return;
+    }
+
+    // Get discount label
+    var discountSelect = document.getElementById('cp-discount');
+    var discountLabel = discountSelect.value;
+    if (discountLabel === 'Custom') {
+      discountLabel = document.getElementById('cp-discount-custom').value.trim();
+    }
+
     fetch('/supervisor/coupons/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: document.getElementById('cp-title').value,
+        title: title,
         description: document.getElementById('cp-description').value,
-        discount_label: document.getElementById('cp-discount').value,
-        quantity: document.getElementById('cp-quantity').value,
+        discount_label: discountLabel,
+        quantity: 1,
         expires_at: document.getElementById('cp-expires').value,
         assignee_ids: ids
       })
