@@ -3755,6 +3755,18 @@ def profile_required(f):
 #-------------HOME----------------
 @app.route("/")
 def home():
+    if "email" in session and "user_type" in session:
+        ut = str(session.get("user_type"))
+        if ut == "1":
+            return redirect(url_for("mentordashboard"))
+        elif ut == "2":
+            return redirect(url_for("menteedashboard"))
+        elif ut == "0":
+            return redirect(url_for("supervisordashboard"))
+        elif ut == "3":
+            return redirect(url_for("institutiondashboard"))
+        elif ut == "4":
+            return redirect(url_for("seller_dashboard"))
     # Redirect to signin as the direct entry point
     return redirect(url_for("signin"))
 
@@ -3816,6 +3828,9 @@ def signin():
             return redirect(url_for("supervisordashboard"))
         elif user_type_str == "3":
             return redirect(url_for("institutiondashboard"))
+        elif user_type_str == "4":
+            _ensure_seller_profile(user)
+            return redirect(url_for("seller_dashboard"))
         
         return redirect(url_for("home"))
 

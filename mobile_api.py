@@ -248,6 +248,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             role = "1"
         elif raw_role in ("institution", "3"):
             role = "3"
+        elif raw_role in ("seller", "partner", "4"):
+            role = "4"
         else:
             role = "2"
 
