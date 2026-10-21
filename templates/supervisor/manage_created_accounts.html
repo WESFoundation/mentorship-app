@@ -56,31 +56,31 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <div class="bg-white p-4 rounded-lg border border-gray-200">
             <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Total</p>
             <p class="text-2xl font-bold text-gray-900 mt-1">{{ total_accounts }}</p>
         </div>
         <div class="bg-white p-4 rounded-lg border border-gray-200">
             <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Mentors</p>
-            <p class="text-2xl font-bold text-blue-600 mt-1">{{ mentors|length }}</p>
+            <p class="text-2xl font-bold text-blue-600 mt-1" id="mentorCount">{{ mentors|length }}</p>
         </div>
         <div class="bg-white p-4 rounded-lg border border-gray-200">
             <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Mentees</p>
-            <p class="text-2xl font-bold text-green-600 mt-1">{{ mentees|length }}</p>
+            <p class="text-2xl font-bold text-green-600 mt-1" id="menteeCount">{{ mentees|length }}</p>
         </div>
         <div class="bg-white p-4 rounded-lg border border-gray-200">
             <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Institutions</p>
-            <p class="text-2xl font-bold text-purple-600 mt-1">{{ institutions|length }}</p>
+            <p class="text-2xl font-bold text-purple-600 mt-1" id="institutionCount">{{ institutions|length }}</p>
         </div>
         <div class="bg-white p-4 rounded-lg border border-gray-200">
             <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Partners</p>
-            <p class="text-2xl font-bold text-amber-600 mt-1">{{ sellers|length }}</p>
+            <p class="text-2xl font-bold text-amber-600 mt-1" id="sellerCount">{{ sellers|length }}</p>
         </div>
     </div>
 
     <!-- Mentors Section -->
-    <div class="mb-8">
+    <div class="mb-8" id="section-mentor">
         <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4 rounded">
             <h2 class="text-2xl font-bold text-blue-800">👨‍🏫 Mentors ({{ mentors|length }})</h2>
         </div>
@@ -99,7 +99,7 @@
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
                         {% for mentor in mentors %}
-                        <tr class="hover:bg-gray-50">
+                        <tr class="account-row hover:bg-gray-50" data-name="{{ (mentor.name or '')|lower }}" data-email="{{ (mentor.email or '')|lower }}" data-type="mentor" data-institution="{{ (mentor.institution or '')|lower }}">
                             <td class="px-3 py-3">{{ mentor.serial }}</td>
                             <td class="px-3 py-3">{{ mentor.name }}</td>
                             <td class="px-3 py-3">{{ mentor.email }}</td>
@@ -120,20 +120,19 @@
                                         </form>
                                     </div>
                                 </div>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         {% else %}
         <p class="text-gray-500 p-4">No mentors created yet.</p>
         {% endif %}
     </div>
 
     <!-- Mentees Section -->
-    <div class="mb-8">
+    <div class="mb-8" id="section-mentee">
         <div class="bg-green-50 border-l-4 border-green-500 p-4 mb-4 rounded">
             <h2 class="text-2xl font-bold text-green-800">🎓 Mentees ({{ mentees|length }})</h2>
         </div>
@@ -152,7 +151,7 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         {% for mentee in mentees %}
-                        <tr class="hover:bg-gray-50">
+                        <tr class="account-row hover:bg-gray-50" data-name="{{ (mentee.name or '')|lower }}" data-email="{{ (mentee.email or '')|lower }}" data-type="mentee" data-institution="{{ (mentee.institution or '')|lower }}">
                             <td class="px-3 py-3">{{ mentee.serial }}</td>
                             <td class="px-3 py-3">{{ mentee.name }}</td>
                             <td class="px-3 py-3">{{ mentee.email }}</td>
@@ -173,20 +172,19 @@
                                         </form>
                                     </div>
                                 </div>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         {% else %}
         <p class="text-gray-500 p-4">No mentees created yet.</p>
         {% endif %}
     </div>
 
     <!-- Institutions Section -->
-    <div class="mb-8">
+    <div class="mb-8" id="section-institution">
         <div class="bg-purple-50 border-l-4 border-purple-500 p-4 mb-4 rounded">
             <h2 class="text-2xl font-bold text-purple-800">🏢 Institution Admins ({{ institutions|length }})</h2>
         </div>
@@ -205,7 +203,7 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     {% for institution in institutions %}
-                    <tr class="hover:bg-gray-50">
+                    <tr class="account-row hover:bg-gray-50" data-name="{{ (institution.name or '')|lower }}" data-email="{{ (institution.email or '')|lower }}" data-type="institution" data-institution="{{ (institution.name or '')|lower }}">
                         <td class="px-3 py-3">{{ institution.serial }}</td>
                         <td class="px-3 py-3">{{ institution.name }}</td>
                         <td class="px-3 py-3">{{ institution.email }}</td>
@@ -238,7 +236,7 @@
     </div>
 
     <!-- Partners / Sellers Section -->
-    <div class="mb-8">
+    <div class="mb-8" id="section-seller">
         <div class="bg-amber-50 border-l-4 border-amber-500 p-4 mb-4 rounded">
             <h2 class="text-2xl font-bold text-amber-800">🤝 Partners / Sellers ({{ sellers|length }})</h2>
         </div>
@@ -253,14 +251,15 @@
                         <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-amber-700 uppercase tracking-wider">Type</th>
                         <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-amber-700 uppercase tracking-wider">Status</th>
                         <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-amber-700 uppercase tracking-wider">Created</th>
+                        <th class="px-3 py-3 text-center text-xs font-medium text-amber-700 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-100">
                     {% for s in sellers %}
-                    <tr>
-                        <td class="px-3 sm:px-6 py-4">{{ s.id }}</td>
+                    <tr class="account-row hover:bg-gray-50" data-name="{{ (s.display_name or '')|lower }}" data-email="{{ (s.user_email or '')|lower }}" data-type="seller" data-institution="">
+                        <td class="px-3 sm:px-6 py-4">{{ s.serial or loop.index }}</td>
                         <td class="px-3 sm:px-6 py-4">
-                            <div class="font-medium text-gray-900">{{ s.display_name }}</td>
+                            <div class="font-medium text-gray-900">{{ s.display_name }}</div>
                         </td>
                         <td class="px-3 sm:px-6 py-4 text-gray-600">{{ s.user_email }}</td>
                         <td class="px-3 sm:px-6 py-4 text-gray-600">{{ s.partner_label }}</td>
@@ -272,6 +271,23 @@
                             {% endif %}
                         </td>
                         <td class="px-3 sm:px-6 py-4 text-sm text-gray-500">{{ s.created_at.strftime('%Y-%m-%d %H:%M') if s.created_at else 'N/A' }}</td>
+                        <td class="px-3 py-3 text-center">
+                            <div class="relative inline-block text-left">
+                                <button type="button" class="inline-flex items-center justify-center p-1.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 transition-all duration-150" onclick="toggleDropdown('actions-seller-{{ s.user_id }}', event)" aria-haspopup="true" aria-expanded="false" aria-label="Actions for {{ s.display_name }}" title="More options">
+                                    <i class="fas fa-ellipsis-v text-[14px]" aria-hidden="true"></i>
+                                </button>
+                                <div id="actions-seller-{{ s.user_id }}" class="hidden absolute right-0 z-10 mt-1 w-36 origin-top-right rounded-xl bg-white border border-slate-200 shadow-lg py-1 ring-1 ring-black/5 focus:outline-none" role="menu">
+                                    <a href="{{ url_for('edit_user', user_id=s.user_id) }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-blue-700 hover:bg-blue-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-seller-{{ s.user_id }}')"><i class="fas fa-edit text-[10px] text-blue-500" aria-hidden="true"></i> Edit</a>
+                                    <a href="{{ url_for('reset_user_password', user_id=s.user_id) }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-purple-700 hover:bg-purple-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-seller-{{ s.user_id }}')"><i class="fas fa-key text-[10px] text-purple-500" aria-hidden="true"></i> Password</a>
+                                    <a href="{{ url_for('supervisor_coupons') }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-amber-700 hover:bg-amber-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-seller-{{ s.user_id }}')"><i class="fas fa-check-circle text-[10px] text-amber-500" aria-hidden="true"></i> Verify/Coupons</a>
+                                    <form method="POST" action="{{ url_for('delete_user', user_id=s.user_id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this seller account? This action cannot be undone.');">
+                                        <button type="submit" class="flex w-full items-center gap-2 px-4 py-2.5 text-xs font-medium text-red-700 hover:bg-red-50 transition text-left" role="menuitem">
+                                            <i class="fas fa-trash text-[10px] text-red-500" aria-hidden="true"></i> Delete
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -286,5 +302,90 @@
         <p class="text-blue-800"><strong><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Info:</strong> You can reset passwords for any created account using the "Reset Password" button.</p>
     </div>
 </div>
+
+<script>
+function filterAccounts() {
+    const searchInput = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+    const typeFilter = (document.getElementById('typeFilter').value || '').toLowerCase().trim();
+    const institutionFilter = (document.getElementById('institutionFilter').value || '').toLowerCase().trim();
+    
+    const rows = document.querySelectorAll('.account-row');
+    let mentorCount = 0;
+    let menteeCount = 0;
+    let instCount = 0;
+    let sellerCount = 0;
+    
+    rows.forEach(row => {
+        const name = (row.getAttribute('data-name') || '');
+        const email = (row.getAttribute('data-email') || '');
+        const type = (row.getAttribute('data-type') || '');
+        const inst = (row.getAttribute('data-institution') || '');
+        
+        const matchesSearch = !searchInput || name.includes(searchInput) || email.includes(searchInput);
+        const matchesType = !typeFilter || type === typeFilter;
+        const matchesInst = !institutionFilter || inst.includes(institutionFilter);
+        
+        if (matchesSearch && matchesType && matchesInst) {
+            row.style.display = '';
+            if (type === 'mentor') mentorCount++;
+            if (type === 'mentee') menteeCount++;
+            if (type === 'institution') instCount++;
+            if (type === 'seller') sellerCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    // Toggle entire sections if filtering by type specifically
+    const secMentor = document.getElementById('section-mentor');
+    const secMentee = document.getElementById('section-mentee');
+    const secInst = document.getElementById('section-institution');
+    const secSeller = document.getElementById('section-seller');
+
+    if (secMentor) secMentor.style.display = (!typeFilter || typeFilter === 'mentor') ? '' : 'none';
+    if (secMentee) secMentee.style.display = (!typeFilter || typeFilter === 'mentee') ? '' : 'none';
+    if (secInst) secInst.style.display = (!typeFilter || typeFilter === 'institution') ? '' : 'none';
+    if (secSeller) secSeller.style.display = (!typeFilter || typeFilter === 'seller') ? '' : 'none';
+
+    if (document.getElementById('mentorCount')) document.getElementById('mentorCount').textContent = mentorCount;
+    if (document.getElementById('menteeCount')) document.getElementById('menteeCount').textContent = menteeCount;
+    if (document.getElementById('institutionCount')) document.getElementById('institutionCount').textContent = instCount;
+    if (document.getElementById('sellerCount')) document.getElementById('sellerCount').textContent = sellerCount;
+}
+
+function resetFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('typeFilter').value = '';
+    document.getElementById('institutionFilter').value = '';
+    filterAccounts();
+}
+
+const resetBtn = document.getElementById('resetFilters');
+if (resetBtn) {
+    resetBtn.addEventListener('click', resetFilters);
+}
+
+function toggleDropdown(dropdownId, event) {
+    if (event) event.stopPropagation();
+    const dropdown = document.getElementById(dropdownId);
+    if (!dropdown) return;
+    const isHidden = dropdown.classList.contains('hidden');
+    document.querySelectorAll('[id^="actions-"]').forEach(el => el.classList.add('hidden'));
+    if (isHidden) {
+        dropdown.classList.remove('hidden');
+        const btn = dropdown.previousElementSibling;
+        if (btn) btn.setAttribute('aria-expanded', 'true');
+    }
+}
+
+function closeOtherDropdown(dropdownId) {
+    document.querySelectorAll('[id^="actions-"]').forEach(el => el.classList.add('hidden'));
+}
+
+document.addEventListener('click', function() {
+    document.querySelectorAll('[id^="actions-"]').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('[aria-expanded]').forEach(el => el.setAttribute('aria-expanded', 'false'));
+});
+</script>
 
 {% endblock %}
