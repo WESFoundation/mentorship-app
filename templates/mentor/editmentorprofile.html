@@ -369,8 +369,6 @@
                                value="{% if institution and institution not in institutions|map(attribute='name')|list %}{{ institution }}{% endif %}">
                     </div>
                 </div>
-            </div>
-        </div>
 
         <!-- Contact & Location Information -->
         <div class="bg-white p-8 rounded-2xl shadow-lg border border-blue-100">
@@ -1903,8 +1901,9 @@ function validateForm() {
         { name: 'organisation', label: 'Organisation' },
         { name: 'years_of_experience', label: 'Years of Experience' },
         { name: 'whatsapp', label: 'WhatsApp Number' },
-        { name: 'city', label: 'District / City' },
         { name: 'country', label: 'Country' },
+        { name: 'state', label: 'State / Province' },
+        { name: 'city', label: 'District / City' },
         { name: 'highest_qualification', label: 'Highest Qualification' },
         { name: 'degree_name', label: 'Title Of Degree' },
         { name: 'field_of_study', label: 'Field of Study' },
@@ -1944,13 +1943,18 @@ function validateForm() {
             isEmpty = !element.value || element.value === '';
         }
 
+        const targetEl = (element && element.style) ? element : (element && element[0] ? element[0] : null);
         if (isEmpty) {
             emptyFields.push(field.label);
-            element.style.borderColor = '#ef4444';
-            element.style.borderWidth = '2px';
+            if (targetEl && targetEl.style) {
+                targetEl.style.borderColor = '#ef4444';
+                targetEl.style.borderWidth = '2px';
+            }
         } else {
-            element.style.borderColor = '';
-            element.style.borderWidth = '';
+            if (targetEl && targetEl.style) {
+                targetEl.style.borderColor = '';
+                targetEl.style.borderWidth = '';
+            }
         }
     });
 
@@ -1991,14 +1995,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // On page load, check if Luxembourg is already selected
-    if (countrySelect && countrySelect.value === 'Luxembourg') {
-        if (criminalCertificateField) criminalCertificateField.style.display = 'block';
-        if (luxembourgBadge) luxembourgBadge.style.display = 'inline';
-        if (luxembourgMessage) luxembourgMessage.style.display = 'inline';
-        if (optionalMessage) optionalMessage.style.display = 'none';
+    const countrySel = document.getElementById('country_select');
+    const crimField = document.getElementById('criminal_certificate_field');
+    const luxBadge = document.getElementById('luxembourg_required_badge');
+    const luxMsg = document.getElementById('luxembourg_message');
+    const optMsg = document.getElementById('optional_message');
+    if (countrySel && countrySel.value === 'Luxembourg') {
+        if (crimField) crimField.style.display = 'block';
+        if (luxBadge) luxBadge.style.display = 'inline';
+        if (luxMsg) luxMsg.style.display = 'inline';
+        if (optMsg) optMsg.style.display = 'none';
         console.log('Page loaded with Luxembourg selected');
     } else {
-        if (criminalCertificateField) criminalCertificateField.style.display = 'none';
+        if (crimField) crimField.style.display = 'none';
     }
 });
 
@@ -2231,15 +2240,16 @@ document.addEventListener('DOMContentLoaded', function() {
             return true;
         }
     }
+    window.validateLanguages = validateLanguages;
 
     // Update form validation to include languages
     const originalValidateForm = window.validateForm;
     window.validateForm = function() {
-        if (!validateLanguages()) {
+        if (typeof window.validateLanguages === 'function' && !window.validateLanguages()) {
             alert('❌ Please select at least one language');
             return false;
         }
-        return originalValidateForm();
+        return typeof originalValidateForm === 'function' ? originalValidateForm() : true;
     };
 });
 
@@ -2386,15 +2396,16 @@ document.addEventListener('DOMContentLoaded', function() {
             return true;
         }
     }
+    window.validateMentorshipPrefs = validateMentorshipPrefs;
 
     // Update form validation to include mentorship preferences
     const originalValidateForm = window.validateForm;
     window.validateForm = function() {
-        if (!validateMentorshipPrefs()) {
+        if (typeof window.validateMentorshipPrefs === 'function' && !window.validateMentorshipPrefs()) {
             alert('❌ Please select at least one mentorship type preference');
             return false;
         }
-        return originalValidateForm();
+        return typeof originalValidateForm === 'function' ? originalValidateForm() : true;
     };
 });
 
@@ -2521,23 +2532,24 @@ document.addEventListener('DOMContentLoaded', function() {
             return true;
         }
     }
+    window.validateMentorshipTopics = validateMentorshipTopics;
 
     // Update form validation to include mentorship topics
     const originalValidateForm = window.validateForm;
     window.validateForm = function() {
-        if (!validateLanguages()) {
+        if (typeof window.validateLanguages === 'function' && !window.validateLanguages()) {
             alert('❌ Please select at least one language');
             return false;
         }
-        if (!validateMentorshipPrefs()) {
+        if (typeof window.validateMentorshipPrefs === 'function' && !window.validateMentorshipPrefs()) {
             alert('❌ Please select at least one mentorship type preference');
             return false;
         }
-        if (!validateMentorshipTopics()) {
+        if (typeof window.validateMentorshipTopics === 'function' && !window.validateMentorshipTopics()) {
             alert('❌ Please select at least one mentorship topic');
             return false;
         }
-        return originalValidateForm();
+        return typeof originalValidateForm === 'function' ? originalValidateForm() : true;
     };
 });
 

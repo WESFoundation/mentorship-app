@@ -181,6 +181,27 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         except Exception:
             MentorReflection = None
 
+    SellerProfile = kwargs.get("SellerProfile")
+    if SellerProfile is None:
+        try:
+            SellerProfile = db.Model._decl_class_registry.get("SellerProfile")
+        except Exception:
+            SellerProfile = None
+
+    MentorCoupon = kwargs.get("MentorCoupon")
+    if MentorCoupon is None:
+        try:
+            MentorCoupon = db.Model._decl_class_registry.get("MentorCoupon")
+        except Exception:
+            MentorCoupon = None
+
+    CouponAssignment = kwargs.get("CouponAssignment")
+    if CouponAssignment is None:
+        try:
+            CouponAssignment = db.Model._decl_class_registry.get("CouponAssignment")
+        except Exception:
+            CouponAssignment = None
+
     # -------------------------------------------------------------
     # 0. UNIVERSAL FILE / PHOTO UPLOAD
     # -------------------------------------------------------------
@@ -304,6 +325,14 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             elif user_type == "2":
                 mentee_p = MenteeProfile(user_id=new_user.id, name=new_user.name, email=new_user.email)
                 db.session.add(mentee_p)
+                db.session.commit()
+            elif user_type == "3":
+                inst_p = Institution(user_id=new_user.id, status="active")
+                db.session.add(inst_p)
+                db.session.commit()
+            elif user_type == "4" and SellerProfile:
+                seller_p = SellerProfile(user_id=new_user.id, partner_label="Outreach Partner", shop_name=new_user.name, is_verified=False)
+                db.session.add(seller_p)
                 db.session.commit()
         except Exception as e:
             logger.warning("Could not auto-create profile row: %s", e)
@@ -811,6 +840,12 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "mentorship_philosophy": mp.mentorship_philosophy if mp else "",
                 "mentorship_motto": mp.mentorship_motto if mp else "",
                 "additional_info": mp.additional_info if mp else "",
+                "referred_by_seller_id": mp.referred_by_seller_id if mp else None,
+                "referring_seller_name": (
+                    (SellerProfile.query.filter_by(user_id=mp.referred_by_seller_id).first().display_name
+                     if SellerProfile and SellerProfile.query.filter_by(user_id=mp.referred_by_seller_id).first()
+                     else (User.query.get(mp.referred_by_seller_id).name if User.query.get(mp.referred_by_seller_id) else None))
+                ) if (mp and mp.referred_by_seller_id) else None,
                 "profile_picture": resolve_profile_pic(mp, user),
                 "criminal_certificate": format_pic_url(mp.criminal_certificate if mp else None),
                 "supervisor_rating": comp_rating,
@@ -848,6 +883,43 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         for field in direct_fields:
             if field in data:
                 setattr(mp, field, data[field])
+
+        # Handle seller referral
+        if "has_seller_referral" in data or "referred_by_seller_id" in data:
+            has_ref = data.get("has_seller_referral") in (True, "yes", "true", 1, "1")
+            ref_id = data.get("referred_by_seller_id") if has_ref else None
+            prev_seller_id = mp.referred_by_seller_id
+            if ref_id:
+                try:
+                    new_seller_id = int(ref_id)
+                    mp.referred_by_seller_id = new_seller_id
+                    if prev_seller_id != new_seller_id:
+                        seller = User.query.get(new_seller_id)
+                        if seller:
+                            import sys
+                            send_fn = getattr(sys.modules.get('__main__'), 'send_email_reminder', None) or getattr(sys.modules.get('app'), 'send_email_reminder', None)
+                            if send_fn:
+                                try:
+                                    send_fn(
+                                        seller.email,
+                                        "New Mentor Referred by Your Shop",
+                                        f"<p>Hi {seller.name},</p><p>Mentor <strong>{user.name}</strong> has indicated they were referred by your shop!</p>"
+                                    )
+                                except Exception as e:
+                                    logger.warning("Failed to send seller referral email: %s", e)
+                                for sup in User.query.filter_by(user_type="0").all():
+                                    try:
+                                        send_fn(
+                                            sup.email,
+                                            f"New Mentor Referral from {seller.name}",
+                                            f"<p>Hi {sup.name},</p><p>Mentor <strong>{user.name}</strong> was referred by partner/seller <strong>{seller.name}</strong> ({seller.email}).</p>"
+                                        )
+                                    except Exception as e:
+                                        logger.warning("Failed to send supervisor referral email: %s", e)
+                except (ValueError, TypeError):
+                    mp.referred_by_seller_id = None
+            else:
+                mp.referred_by_seller_id = None
 
         try:
             db.session.commit()
@@ -1915,6 +1987,10 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
     def api_get_admin_metrics():
         total_mentors = User.query.filter_by(user_type="1").count()
         total_mentees = User.query.filter_by(user_type="2").count()
+        total_sellers = User.query.filter(or_(User.user_type == "4", User.user_type == "seller", User.user_type == "partner")).count()
+        unverified_sellers = 0
+        if SellerProfile:
+            unverified_sellers = SellerProfile.query.filter_by(is_verified=False).count()
         active_pairs = MentorshipRequest.query.filter_by(final_status="approved").count()
         pending_requests = MentorshipRequest.query.filter_by(supervisor_status="pending").count()
 
@@ -1923,6 +1999,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             "metrics": {
                 "total_mentors": total_mentors,
                 "total_mentees": total_mentees,
+                "total_sellers": total_sellers,
+                "unverified_sellers": unverified_sellers,
                 "active_mentorships": active_pairs,
                 "pending_requests": pending_requests
             }
@@ -1939,6 +2017,15 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         mentees = db.session.query(User, MenteeProfile).outerjoin(
             MenteeProfile, User.id == MenteeProfile.user_id
         ).filter(or_(User.user_type == "2", User.user_type == "mentee")).all()
+
+        sellers = []
+        if SellerProfile:
+            sellers = db.session.query(User, SellerProfile).outerjoin(
+                SellerProfile, User.id == SellerProfile.user_id
+            ).filter(or_(User.user_type == "4", User.user_type == "seller", User.user_type == "partner")).all()
+        else:
+            seller_users = User.query.filter(or_(User.user_type == "4", User.user_type == "seller", User.user_type == "partner")).all()
+            sellers = [(u, None) for u in seller_users]
 
         m_list = []
         for u, mp in mentors:
@@ -1967,16 +2054,34 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "role": "Mentee"
             })
 
+        s_list = []
+        for u, sp in sellers:
+            s_list.append({
+                "id": u.id,
+                "user_id": str(u.id),
+                "name": u.name,
+                "email": u.email,
+                "partner_label": sp.partner_label if sp and sp.partner_label else "Partner",
+                "shop_name": sp.shop_name if sp and sp.shop_name else "",
+                "display_name": sp.display_name if sp else u.name,
+                "is_verified": bool(sp.is_verified) if sp else False,
+                "profile_picture": resolve_profile_pic(sp, u),
+                "role": "Partner"
+            })
+
         if user_type_param in ("mentors", "mentor"):
-            return jsonify({"success": True, "users": m_list, "mentors": m_list, "mentees": []})
+            return jsonify({"success": True, "users": m_list, "mentors": m_list, "mentees": [], "sellers": []})
         elif user_type_param in ("mentees", "mentee"):
-            return jsonify({"success": True, "users": me_list, "mentors": [], "mentees": me_list})
+            return jsonify({"success": True, "users": me_list, "mentors": [], "mentees": me_list, "sellers": []})
+        elif user_type_param in ("sellers", "seller", "partner", "partners"):
+            return jsonify({"success": True, "users": s_list, "mentors": [], "mentees": [], "sellers": s_list})
 
         return jsonify({
             "success": True,
-            "users": m_list + me_list,
+            "users": m_list + me_list + s_list,
             "mentors": m_list,
-            "mentees": me_list
+            "mentees": me_list,
+            "sellers": s_list
         })
 
     @api_bp.route("/admin/requests", methods=["GET"])
@@ -2116,6 +2221,357 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             "success": True,
             "notes": resource_items,
             "resources": resource_items
+        })
+
+    # -------------------------------------------------------------
+    # 10. SELLER & COUPON ENDPOINTS
+    # -------------------------------------------------------------
+    @api_bp.route("/sellers/verified", methods=["GET"])
+    def api_get_verified_sellers():
+        if not SellerProfile:
+            return jsonify({"success": True, "sellers": []})
+        profiles = SellerProfile.query.filter_by(is_verified=True).all()
+        result = []
+        for sp in profiles:
+            result.append({
+                "id": sp.id,
+                "user_id": sp.user_id,
+                "display_name": sp.display_name,
+                "partner_label": sp.partner_label or "Partner",
+                "shop_name": sp.shop_name or "",
+                "market_name": sp.market_name or "",
+                "contact_phone": sp.contact_phone or "",
+                "address": sp.address or "",
+                "user_name": sp.user.name if sp.user else "",
+                "user_email": sp.user.email if sp.user else ""
+            })
+        return jsonify({"success": True, "sellers": result})
+
+    @api_bp.route("/admin/sellers", methods=["GET"])
+    def api_get_admin_sellers():
+        if not SellerProfile:
+            return jsonify({"success": True, "sellers": []})
+        profiles = SellerProfile.query.all()
+        result = []
+        for sp in profiles:
+            u = sp.user or User.query.get(sp.user_id)
+            redeemed_count = 0
+            if MentorCoupon:
+                redeemed_count = MentorCoupon.query.filter_by(seller_id=sp.user_id).filter(MentorCoupon.used_at.isnot(None)).count()
+            result.append({
+                "id": sp.id,
+                "user_id": sp.user_id,
+                "name": u.name if u else "",
+                "email": u.email if u else "",
+                "display_name": sp.display_name,
+                "partner_label": sp.partner_label or "Partner",
+                "shop_name": sp.shop_name or "",
+                "market_name": sp.market_name or "",
+                "contact_phone": sp.contact_phone or "",
+                "address": sp.address or "",
+                "is_verified": bool(sp.is_verified),
+                "verified_at": sp.verified_at.isoformat() if sp.verified_at else None,
+                "redeemed_count": redeemed_count
+            })
+        return jsonify({"success": True, "sellers": result})
+
+    @api_bp.route("/admin/sellers/<int:seller_id>/verify", methods=["POST"])
+    def api_admin_verify_seller(seller_id):
+        user = get_current_user_from_req(User)
+        sp = None
+        if SellerProfile:
+            sp = SellerProfile.query.filter((SellerProfile.id == seller_id) | (SellerProfile.user_id == seller_id)).first()
+        if not sp:
+            return jsonify({"success": False, "message": "Seller profile not found"}), 404
+
+        data = request.get_json(silent=True) or {}
+        new_val = data.get("is_verified")
+        if new_val is None:
+            sp.is_verified = not bool(sp.is_verified)
+        else:
+            sp.is_verified = bool(new_val)
+
+        if sp.is_verified:
+            sp.verified_by = user.id if user else None
+            sp.verified_at = datetime.utcnow()
+        else:
+            sp.verified_by = None
+            sp.verified_at = None
+
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "message": f"Seller verification status updated to {sp.is_verified}",
+            "is_verified": bool(sp.is_verified)
+        })
+
+    @api_bp.route("/coupons/my_coupons", methods=["GET"])
+    def api_get_my_coupons():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        coupons = []
+        seen_ids = set()
+        if CouponAssignment:
+            assignments = CouponAssignment.query.filter_by(user_id=user.id).order_by(CouponAssignment.id.desc()).all()
+            for a in assignments:
+                if a.coupon and a.coupon.id not in seen_ids:
+                    coupons.append(a.coupon)
+                    seen_ids.add(a.coupon.id)
+
+        if MentorCoupon:
+            legacy = MentorCoupon.query.filter_by(mentor_id=user.id).order_by(MentorCoupon.id.desc()).all()
+            for c in legacy:
+                if c.id not in seen_ids:
+                    coupons.append(c)
+                    seen_ids.add(c.id)
+
+        res = []
+        for c in coupons:
+            res.append({
+                "id": c.id,
+                "code": c.code,
+                "title": c.title,
+                "description": c.description or "",
+                "discount_label": c.discount_label or "",
+                "status": c.status,
+                "is_usable": getattr(c, "is_usable", c.status == "active" and not getattr(c, "is_expired", False)),
+                "is_expired": getattr(c, "is_expired", False),
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+                "expires_at": c.expires_at.isoformat() if c.expires_at else None,
+                "used_at": c.used_at.isoformat() if c.used_at else None,
+                "used_by": c.used_by or "",
+                "verification_count": c.verification_count or 0,
+                "verify_url": f"/coupon/verify/{c.code}"
+            })
+        return jsonify({"success": True, "coupons": res})
+
+    @api_bp.route("/coupons/verify/<string:code>", methods=["GET"])
+    def api_get_coupon_verify_details(code):
+        code = (code or "").strip().upper()
+        if not MentorCoupon:
+            return jsonify({"success": False, "message": "Coupon service unavailable"}), 503
+
+        coupon = MentorCoupon.query.filter_by(code=code).first()
+        if not coupon:
+            return jsonify({"success": False, "message": "Coupon not found"}), 404
+
+        verified_sellers = []
+        if SellerProfile:
+            vs_list = SellerProfile.query.filter_by(is_verified=True).all()
+            for sp in vs_list:
+                verified_sellers.append({
+                    "id": sp.id,
+                    "user_id": sp.user_id,
+                    "display_name": sp.display_name,
+                    "partner_label": sp.partner_label or "Partner",
+                    "shop_name": sp.shop_name or ""
+                })
+
+        candidates = []
+        assignees = getattr(coupon, "assignees", [])
+        if not assignees and coupon.mentor:
+            assignees = [coupon.mentor]
+        for u in assignees:
+            candidates.append({
+                "id": u.id,
+                "name": u.name,
+                "email": u.email,
+                "role": "Mentor" if str(u.user_type) == "1" else "Mentee"
+            })
+
+        return jsonify({
+            "success": True,
+            "coupon": {
+                "id": coupon.id,
+                "code": coupon.code,
+                "title": coupon.title,
+                "description": coupon.description or "",
+                "discount_label": coupon.discount_label or "",
+                "status": coupon.status,
+                "is_usable": getattr(coupon, "is_usable", coupon.status == "active"),
+                "is_expired": getattr(coupon, "is_expired", False),
+                "used_at": coupon.used_at.isoformat() if coupon.used_at else None,
+                "used_by": coupon.used_by or ""
+            },
+            "verified_sellers": verified_sellers,
+            "candidates": candidates
+        })
+
+    @api_bp.route("/coupons/verify/<string:code>", methods=["POST"])
+    def api_post_coupon_verify(code):
+        code = (code or "").strip().upper()
+        if not MentorCoupon:
+            return jsonify({"success": False, "message": "Coupon service unavailable"}), 503
+
+        coupon = MentorCoupon.query.filter_by(code=code).first()
+        if not coupon:
+            return jsonify({"success": False, "message": "Coupon not found"}), 404
+
+        if coupon.status == "used":
+            return jsonify({"success": False, "message": "This coupon has already been used."}), 409
+        if coupon.status == "revoked":
+            return jsonify({"success": False, "message": "This coupon has been withdrawn."}), 409
+        if getattr(coupon, "is_expired", False):
+            coupon.status = "expired"
+            db.session.commit()
+            return jsonify({"success": False, "message": "This coupon has expired."}), 410
+
+        data = request.get_json(silent=True) or {}
+        raw_seller = str(data.get("seller_account") or data.get("seller_id") or "").strip()
+        seller_profile = None
+        if raw_seller.isdigit() and SellerProfile:
+            seller_profile = SellerProfile.query.filter(
+                (SellerProfile.user_id == int(raw_seller)) | (SellerProfile.id == int(raw_seller)),
+                SellerProfile.is_verified == True
+            ).first()
+
+        if not seller_profile:
+            return jsonify({"success": False, "message": "Please choose a verified partner shop."}), 400
+
+        assignees = getattr(coupon, "assignees", [])
+        if not assignees and coupon.mentor:
+            assignees = [coupon.mentor]
+
+        raw_redeemer = str(data.get("redeemer_id") or "").strip()
+        redeemer = None
+        if raw_redeemer.isdigit():
+            allowed = {u.id for u in assignees}
+            if int(raw_redeemer) in allowed:
+                redeemer = User.query.get(int(raw_redeemer))
+
+        if not redeemer:
+            return jsonify({"success": False, "message": "Please select a valid redeemer for this coupon."}), 400
+
+        coupon.status = "used"
+        coupon.used_at = datetime.utcnow()
+        coupon.seller_id = seller_profile.user_id
+        coupon.redeemed_by_user_id = redeemer.id
+        coupon.used_by = seller_profile.display_name
+        coupon.verification_count = (coupon.verification_count or 0) + 1
+
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": f"Verification error: {str(e)}"}), 500
+
+        import sys
+        send_fn = getattr(sys.modules.get('__main__'), 'send_email_reminder', None) or getattr(sys.modules.get('app'), 'send_email_reminder', None)
+        if send_fn:
+            role = "Mentor" if str(redeemer.user_type) == "1" else "Mentee"
+            when = coupon.used_at.strftime("%d %B %Y at %H:%M UTC") if coupon.used_at else "just now"
+            html = f"""
+            <div style="font-family:sans-serif;max-width:560px;margin:auto;">
+                <h2 style="color:#0f172a;">Coupon Successfully Redeemed</h2>
+                <p>The following coupon has been verified and used:</p>
+                <ul>
+                    <li><strong>Code:</strong> {coupon.code}</li>
+                    <li><strong>Offer:</strong> {coupon.title}</li>
+                    <li><strong>Discount:</strong> {coupon.discount_label or '-'}</li>
+                    <li><strong>Redeemed by:</strong> {redeemer.name} ({role})</li>
+                    <li><strong>Redeemed at:</strong> {seller_profile.display_name}</li>
+                    <li><strong>Date/Time:</strong> {when}</li>
+                </ul>
+            </div>
+            """
+            try:
+                if redeemer.email:
+                    send_fn(redeemer.email, f"Coupon Redeemed: {coupon.code}", html)
+                seller_user = User.query.get(seller_profile.user_id)
+                if seller_user and seller_user.email:
+                    send_fn(seller_user.email, f"Coupon Verification Confirmation: {coupon.code}", html)
+            except Exception as e:
+                logger.warning("Failed to send coupon redemption email: %s", e)
+
+        return jsonify({
+            "success": True,
+            "message": "Coupon successfully verified and marked as used.",
+            "coupon": {
+                "id": coupon.id,
+                "code": coupon.code,
+                "title": coupon.title,
+                "discount_label": coupon.discount_label or "",
+                "status": coupon.status,
+                "used_at": coupon.used_at.isoformat() if coupon.used_at else None,
+                "used_by": coupon.used_by,
+                "redeemed_by_name": redeemer.name
+            }
+        })
+
+    @api_bp.route("/seller/dashboard", methods=["GET"])
+    def api_get_seller_dashboard():
+        user = get_current_user_from_req(User)
+        seller_id_param = request.args.get("seller_id")
+        seller = None
+        if seller_id_param and seller_id_param.isdigit():
+            seller = User.query.get(int(seller_id_param))
+        elif user:
+            seller = user
+
+        if not seller:
+            return jsonify({"success": False, "message": "Seller not identified"}), 404
+
+        sp = None
+        if SellerProfile:
+            sp = SellerProfile.query.filter_by(user_id=seller.id).first()
+
+        window = (request.args.get("window") or "all").lower()
+        now = datetime.utcnow()
+        cutoff = None
+        if window in ("today", "day", "1d"):
+            cutoff = datetime(now.year, now.month, now.day)
+        elif window in ("week", "7d"):
+            from datetime import timedelta
+            cutoff = now - timedelta(days=7)
+        elif window in ("month", "30d"):
+            from datetime import timedelta
+            cutoff = now - timedelta(days=30)
+
+        query = MentorCoupon.query.filter(MentorCoupon.seller_id == seller.id, MentorCoupon.used_at.isnot(None)) if MentorCoupon else None
+        if query is not None and cutoff is not None:
+            query = query.filter(MentorCoupon.used_at >= cutoff)
+
+        rows = query.order_by(MentorCoupon.used_at.desc()).all() if query is not None else []
+        lifetime = MentorCoupon.query.filter(MentorCoupon.seller_id == seller.id, MentorCoupon.used_at.isnot(None)).count() if MentorCoupon else 0
+
+        entries = []
+        by_discount = {}
+        for c in rows:
+            r_user = db.session.get(User, c.redeemed_by_user_id) if c.redeemed_by_user_id else None
+            role = "Mentor" if r_user and str(r_user.user_type) == "1" else "Mentee"
+            label = c.discount_label or "Standard Discount"
+            by_discount[label] = by_discount.get(label, 0) + 1
+            entries.append({
+                "id": c.id,
+                "code": c.code,
+                "title": c.title,
+                "discount_label": label,
+                "used_at": c.used_at.isoformat() if c.used_at else None,
+                "redeemer_name": r_user.name if r_user else "Member",
+                "redeemer_email": r_user.email if r_user else "",
+                "redeemer_role": role
+            })
+
+        return jsonify({
+            "success": True,
+            "seller": {
+                "id": seller.id,
+                "name": seller.name,
+                "email": seller.email,
+                "display_name": sp.display_name if sp else seller.name,
+                "is_verified": bool(sp.is_verified) if sp else False,
+                "partner_label": sp.partner_label if sp else "Partner"
+            },
+            "stats": {
+                "redeemed": len(entries),
+                "lifetime": lifetime,
+                "filter_window": window,
+                "distinct_offers": len(by_discount)
+            },
+            "by_discount": [{"label": k, "count": v} for k, v in by_discount.items()],
+            "entries": entries
         })
 
     @api_bp.errorhandler(Exception)

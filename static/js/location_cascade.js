@@ -282,8 +282,10 @@ class LocationCascade {
             
             // Restore currentState on initial load
             if (isInitial && this.currentState) {
+                const normState = this.currentState.toLowerCase().replace(/[^a-z0-9]/g, '');
                 const foundOpt = Array.from(this.stateSelect.options).find(
-                    o => o.value.toLowerCase() === this.currentState.toLowerCase()
+                    o => o.value.toLowerCase() === this.currentState.toLowerCase() ||
+                         (o.value && o.value.toLowerCase().replace(/[^a-z0-9]/g, '') === normState)
                 );
                 if (foundOpt) {
                     this.stateSelect.value = foundOpt.value;
@@ -295,6 +297,9 @@ class LocationCascade {
                     this.stateSelect.appendChild(savedOpt);
                     this.stateSelect.value = this.currentState;
                 }
+            } else if (!isInitial && statesList.length === 0) {
+                // If only 1 national fallback option exists, auto-select it
+                this.stateSelect.value = country;
             }
         }
         
@@ -333,18 +338,23 @@ class LocationCascade {
                     opt.textContent = c;
                     this.citySelect.appendChild(opt);
                 });
-            } else if (!isIndia) {
-                // If detailed city data is not available for a non-India region, provide state/region option
+            } else {
+                // If detailed city data is not available, provide state/region option as default
                 const opt = document.createElement('option');
                 opt.value = state;
-                opt.textContent = state + ' (Main District / City)';
+                opt.textContent = state + (isIndia ? ' (District / City)' : ' (Main District / City)');
                 this.citySelect.appendChild(opt);
+                if (!isInitial || !this.currentCity) {
+                    this.citySelect.value = state;
+                }
             }
             
             // Restore current city on initial load
             if (isInitial && this.currentCity) {
+                const normCity = this.currentCity.toLowerCase().replace(/[^a-z0-9]/g, '');
                 const foundOpt = Array.from(this.citySelect.options).find(
-                    o => o.value.toLowerCase() === this.currentCity.toLowerCase()
+                    o => o.value.toLowerCase() === this.currentCity.toLowerCase() ||
+                         (o.value && o.value.toLowerCase().replace(/[^a-z0-9]/g, '') === normCity)
                 );
                 if (foundOpt) {
                     this.citySelect.value = foundOpt.value;

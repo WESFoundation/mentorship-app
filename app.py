@@ -3460,7 +3460,8 @@ register_mobile_api(
     app, db, User, MentorProfile, MenteeProfile, Institution,
     SupervisorProfile, MenteeTask, MentorshipRequest, MeetingRequest, Notification,
     PersonalTask=PersonalTask, MasterTask=MasterTask, TaskRating=TaskRating,
-    MenteeFeedback=MenteeFeedback, MentorReflection=MentorReflection
+    MenteeFeedback=MenteeFeedback, MentorReflection=MentorReflection,
+    SellerProfile=SellerProfile, MentorCoupon=MentorCoupon, CouponAssignment=CouponAssignment
 )
 
 
