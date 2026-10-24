@@ -3494,12 +3494,9 @@ register_mobile_api(
     SupervisorProfile, MenteeTask, MentorshipRequest, MeetingRequest, Notification,
     PersonalTask=PersonalTask, MasterTask=MasterTask, TaskRating=TaskRating,
     MenteeFeedback=MenteeFeedback, MentorReflection=MentorReflection,
-<<<<<<< HEAD
     account_needs_otp=lambda user_id: _account_needs_otp(user_id),
     mark_account_unverified=lambda user_id: _mark_account_unverified(user_id),
-=======
     SellerProfile=SellerProfile, MentorCoupon=MentorCoupon, CouponAssignment=CouponAssignment
->>>>>>> 793fbeb8c82c869235e408488c92984e9348690d
 )
 
 
@@ -15390,50 +15387,10 @@ def editmentorprofile():
         profile.other_social_link = request.form.get("other_social_link")
         
         # Referred by seller
-<<<<<<< HEAD
         # (locked once saved; the seller is asked to confirm)
         new_referral = _apply_referral_from_form(user, request.form)
         if new_referral:
             profile.referred_by_seller_id = new_referral.seller_id
-
-=======
-        has_referral = request.form.get("has_seller_referral") == "yes"
-        referred_by_seller_id = request.form.get("referred_by_seller_id") if has_referral else None
-        prev_seller_id = profile.referred_by_seller_id
-        if referred_by_seller_id:
-            try:
-                new_seller_id = int(referred_by_seller_id)
-                profile.referred_by_seller_id = new_seller_id
-                if prev_seller_id != new_seller_id:
-                    seller = User.query.get(new_seller_id)
-                    if seller:
-                        mentor_name = user.name
-                        try:
-                            send_email_reminder(
-                                seller.email,
-                                "New Mentor Referred by Your Shop",
-                                f"<p>Hi {seller.name},</p><p>Mentor <strong>{mentor_name}</strong> has indicated they were referred by your shop!</p>"
-                            )
-                        except Exception as e:
-                            app.logger.warning(f"Failed to send seller referral notification: {e}")
-                        
-                        # Notify admin/supervisor so they can assign coupon
-                        supervisors = User.query.filter_by(user_type="0").all()
-                        for sup in supervisors:
-                            try:
-                                send_email_reminder(
-                                    sup.email,
-                                    f"New Mentor Referral from {seller.name}",
-                                    f"<p>Hi {sup.name},</p><p>Mentor <strong>{mentor_name}</strong> was referred by partner/seller <strong>{seller.name}</strong> ({seller.email}).</p><p>You can assign a coupon to this mentor from the <a href='{_public_base_url()}/supervisor/coupons'>Coupons Dashboard</a>.</p>"
-                                )
-                            except Exception as e:
-                                app.logger.warning(f"Failed to send supervisor referral notification: {e}")
-            except (ValueError, TypeError):
-                profile.referred_by_seller_id = None
-        else:
-            profile.referred_by_seller_id = None
-        
->>>>>>> 793fbeb8c82c869235e408488c92984e9348690d
         # Mentorship preferences
         profile.mentorship_topics = request.form.get("mentorship_topics") or None
         
