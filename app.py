@@ -3494,12 +3494,9 @@ register_mobile_api(
     SupervisorProfile, MenteeTask, MentorshipRequest, MeetingRequest, Notification,
     PersonalTask=PersonalTask, MasterTask=MasterTask, TaskRating=TaskRating,
     MenteeFeedback=MenteeFeedback, MentorReflection=MentorReflection,
-<<<<<<< HEAD
     account_needs_otp=lambda user_id: _account_needs_otp(user_id),
     mark_account_unverified=lambda user_id: _mark_account_unverified(user_id),
-=======
     SellerProfile=SellerProfile, MentorCoupon=MentorCoupon, CouponAssignment=CouponAssignment
->>>>>>> 793fbeb8c82c869235e408488c92984e9348690d
 )
 
 
@@ -4378,10 +4375,13 @@ def callback():
             for key in ("email", "user_id", "user_type", "user_name"):
                 session.pop(key, None)
             
-            # Google OAuth is inherently email-verified by Google's servers
-            session["otp_verified"] = True
-            print("   ✅ Direct Google Sign-Up approved — redirecting to select_user_type")
-            return redirect(url_for("select_user_type"))
+            # New accounts must confirm the mailbox with an emailed OTP
+            session.pop("otp_verified", None)
+            otp = _issue_signup_otp()
+            if not send_signup_otp_email(email, otp):
+                flash("We could not send the verification email. Please use 'Resend code'.", "error")
+            print("   ✉️ Signup OTP issued — redirecting to verify_signup_otp")
+            return redirect(url_for("verify_signup_otp"))
     
     except Exception as e:
         print(f"\n❌ ERROR in callback: {str(e)}")
@@ -4446,6 +4446,13 @@ def verify_signup_otp():
         return redirect(url_for("signin"))
 
     masked = _mask_email(pending["email"])
+
+    # Safety net: if the page is reached without a code having been sent, send one now
+    if request.method == "GET" and "signup_otp_hash" not in session:
+        if send_signup_otp_email(pending["email"], _issue_signup_otp()):
+            flash(f"A verification code was sent to {masked}.", "success")
+        else:
+            flash("We could not send the verification email. Please use 'Resend code'.", "error")
 
     if request.method == "POST":
         # Support both a single input and six separate digit boxes
@@ -6035,7 +6042,7 @@ def create_account():
                     user_id=new_user.id,
                     partner_label="Outreach Partner",
                     shop_name=name,
-                    is_verified=False
+                    is_verified=True
                 )
                 db.session.add(profile)
                 db.session.commit()
@@ -15390,50 +15397,11 @@ def editmentorprofile():
         profile.other_social_link = request.form.get("other_social_link")
         
         # Referred by seller
-<<<<<<< HEAD
         # (locked once saved; the seller is asked to confirm)
         new_referral = _apply_referral_from_form(user, request.form)
         if new_referral:
             profile.referred_by_seller_id = new_referral.seller_id
 
-=======
-        has_referral = request.form.get("has_seller_referral") == "yes"
-        referred_by_seller_id = request.form.get("referred_by_seller_id") if has_referral else None
-        prev_seller_id = profile.referred_by_seller_id
-        if referred_by_seller_id:
-            try:
-                new_seller_id = int(referred_by_seller_id)
-                profile.referred_by_seller_id = new_seller_id
-                if prev_seller_id != new_seller_id:
-                    seller = User.query.get(new_seller_id)
-                    if seller:
-                        mentor_name = user.name
-                        try:
-                            send_email_reminder(
-                                seller.email,
-                                "New Mentor Referred by Your Shop",
-                                f"<p>Hi {seller.name},</p><p>Mentor <strong>{mentor_name}</strong> has indicated they were referred by your shop!</p>"
-                            )
-                        except Exception as e:
-                            app.logger.warning(f"Failed to send seller referral notification: {e}")
-                        
-                        # Notify admin/supervisor so they can assign coupon
-                        supervisors = User.query.filter_by(user_type="0").all()
-                        for sup in supervisors:
-                            try:
-                                send_email_reminder(
-                                    sup.email,
-                                    f"New Mentor Referral from {seller.name}",
-                                    f"<p>Hi {sup.name},</p><p>Mentor <strong>{mentor_name}</strong> was referred by partner/seller <strong>{seller.name}</strong> ({seller.email}).</p><p>You can assign a coupon to this mentor from the <a href='{_public_base_url()}/supervisor/coupons'>Coupons Dashboard</a>.</p>"
-                                )
-                            except Exception as e:
-                                app.logger.warning(f"Failed to send supervisor referral notification: {e}")
-            except (ValueError, TypeError):
-                profile.referred_by_seller_id = None
-        else:
-            profile.referred_by_seller_id = None
-        
->>>>>>> 793fbeb8c82c869235e408488c92984e9348690d
         # Mentorship preferences
         profile.mentorship_topics = request.form.get("mentorship_topics") or None
         
@@ -21339,7 +21307,6 @@ def supervisor_coupons():
         "used": sum(1 for c in coupons if c.status == "used"),
         "revoked": sum(1 for c in coupons if c.status in ("revoked", "expired")),
         "pending_requests": sum(1 for r in requests if r.status == "pending"),
-        "unverified_sellers": sum(1 for s in sellers if not s.is_verified),
     }
 
     return render_template(
@@ -21519,56 +21486,6 @@ def supervisor_coupon_assign():
         db.session.rollback()
         app.logger.error(f"Coupon assignment failed: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
-
-
-@app.route("/supervisor/sellers/verify", methods=["POST"])
-def supervisor_verify_seller():
-    """Approve or withdraw a partner shop so it can (or cannot) redeem coupons."""
-    supervisor = _supervisor_or_none()
-    if not supervisor:
-        return jsonify({"success": False, "message": "Unauthorized"}), 401
-
-    data = request.get_json(silent=True) or request.form or {}
-    profile = SellerProfile.query.filter_by(user_id=int(data.get("user_id") or 0)).first()
-    if not profile:
-        return jsonify({"success": False, "message": "Partner not found"}), 404
-
-    decision = (data.get("decision") or "").strip().lower()
-    if decision == "verify":
-        profile.is_verified = True
-        profile.verified_by = supervisor.id
-        profile.verified_at = datetime.utcnow()
-    elif decision == "revoke":
-        profile.is_verified = False
-        profile.verified_by = supervisor.id
-        profile.verified_at = datetime.utcnow()
-    else:
-        return jsonify({"success": False, "message": "decision must be 'verify' or 'revoke'"}), 400
-
-    try:
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"success": False, "message": str(e)}), 500
-
-    # Let the partner know either way.
-    if profile.user and profile.user.email:
-        if decision == "verify":
-            subj = "Your partner account is verified"
-            line = "You can now redeem coupons at your shop. Your shop appears in the verification dropdown."
-        else:
-            subj = "Your partner account is no longer verified"
-            line = "You can no longer redeem coupons. Please contact your supervisor if this is unexpected."
-        try:
-            send_email_reminder(
-                profile.user.email, subj,
-                f"<p>Hello {profile.user.name},</p><p>{line}</p>"
-                f"<p>Shop: {profile.display_name}</p>",
-            )
-        except Exception as e:
-            app.logger.warning(f"Partner verification email failed: {e}")
-
-    return jsonify({"success": True, "seller": profile.to_dict()})
 
 
 @app.route("/coupon/request", methods=["POST"])
@@ -21840,7 +21757,7 @@ def coupon_verify(code):
                 verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
             ), 410
 
-        # The shop must be one of the supervisor-verified accounts.
+        # The shop must be one of the partner accounts.
         seller_profile = None
         raw_seller = str(payload.get("seller_account") or "").strip()
         if raw_seller.isdigit():
@@ -21851,7 +21768,7 @@ def coupon_verify(code):
             return render_template(
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False,
-                message="Please choose your shop from the list of verified shops.",
+                message="Please choose your shop from the list.",
                 verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
             ), 400
 

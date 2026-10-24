@@ -13,11 +13,10 @@
   </div>
 
   <!-- Stats -->
-  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
     {% for key, label, tone in [
         ('total','Total','slate'), ('active','Active','emerald'), ('used','Redeemed','blue'),
-        ('revoked','Revoked / expired','rose'), ('pending_requests','Pending requests','amber'),
-        ('unverified_sellers','Unverified shops','orange')] %}
+        ('revoked','Revoked / expired','rose'), ('pending_requests','Pending requests','amber')] %}
     <div class="rounded-xl border border-slate-200 bg-white p-4">
       <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ label }}</p>
       <p class="mt-1 text-2xl font-bold text-slate-900">{{ stats[key] }}</p>
@@ -169,50 +168,6 @@
             class="px-6 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">
       Issue coupons
     </button>
-  </div>
-
-  <!-- Partner verification -->
-  <div class="rounded-xl border border-slate-200 bg-white p-6 mb-6">
-    <h2 class="text-lg font-semibold text-slate-900 mb-1">Partner shops</h2>
-    <p class="text-xs text-slate-500 mb-4">
-      Only verified shops appear in the coupon verification dropdown.
-    </p>
-    {% if sellers %}
-    <div class="overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-          <tr>
-            <th class="px-3 py-2">Shop</th><th class="px-3 py-2">Contact</th>
-            <th class="px-3 py-2">Type</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Action</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100">
-          {% for s in sellers %}
-          <tr>
-            <td class="px-3 py-2 font-medium text-slate-800">{{ s.display_name }}</td>
-            <td class="px-3 py-2 text-slate-600">{{ s.user_email }}</td>
-            <td class="px-3 py-2 text-slate-600">{{ s.partner_label }}</td>
-            <td class="px-3 py-2">
-              {% if s.is_verified %}
-              <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">Verified</span>
-              {% else %}
-              <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Pending</span>
-              {% endif %}
-            </td>
-            <td class="px-3 py-2">
-              <button type="button" onclick="verifySeller({{ s.user_id }}, '{{ 'revoke' if s.is_verified else 'verify' }})"
-                      class="px-3 py-1.5 text-xs font-semibold rounded-lg {{ 'bg-slate-200 text-slate-700 hover:bg-slate-300' if s.is_verified else 'bg-emerald-600 text-white hover:bg-emerald-700' }}">
-                {{ 'Withdraw' if s.is_verified else 'Verify' }}
-              </button>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p class="text-sm text-slate-500">No partner accounts have signed up yet.</p>
-    {% endif %}
   </div>
 
   <!-- Coupon requests -->
@@ -438,20 +393,6 @@ document.addEventListener('click', function (e) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: action })
-    })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
-      .then(function (res) {
-        if (res.ok && res.body.success) { window.location.reload(); }
-        else { alert((res.body && res.body.message) || 'That action failed.'); }
-      })
-      .catch(function () { alert('Network error. Please try again.'); });
-  }
-
-  function verifySeller(userId, decision) {
-    fetch('/supervisor/sellers/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId, decision: decision })
     })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
       .then(function (res) {

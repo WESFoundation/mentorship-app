@@ -341,7 +341,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 db.session.add(inst_p)
                 db.session.commit()
             elif user_type == "4" and SellerProfile:
-                seller_p = SellerProfile(user_id=new_user.id, partner_label="Outreach Partner", shop_name=new_user.name, is_verified=False)
+                seller_p = SellerProfile(user_id=new_user.id, partner_label="Outreach Partner", shop_name=new_user.name, is_verified=True)
                 db.session.add(seller_p)
                 db.session.commit()
         except Exception as e:
@@ -2000,7 +2000,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         total_sellers = User.query.filter(or_(User.user_type == "4", User.user_type == "seller", User.user_type == "partner")).count()
         unverified_sellers = 0
         if SellerProfile:
-            unverified_sellers = SellerProfile.query.filter_by(is_verified=False).count()
+            unverified_sellers = 0
         active_pairs = MentorshipRequest.query.filter_by(final_status="approved").count()
         pending_requests = MentorshipRequest.query.filter_by(supervisor_status="pending").count()
 
@@ -2240,7 +2240,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
     def api_get_verified_sellers():
         if not SellerProfile:
             return jsonify({"success": True, "sellers": []})
-        profiles = SellerProfile.query.filter_by(is_verified=True).all()
+        profiles = SellerProfile.query.all()
         result = []
         for sp in profiles:
             result.append({
@@ -2369,7 +2369,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
         verified_sellers = []
         if SellerProfile:
-            vs_list = SellerProfile.query.filter_by(is_verified=True).all()
+            vs_list = SellerProfile.query.all()
             for sp in vs_list:
                 verified_sellers.append({
                     "id": sp.id,
@@ -2433,12 +2433,11 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         seller_profile = None
         if raw_seller.isdigit() and SellerProfile:
             seller_profile = SellerProfile.query.filter(
-                (SellerProfile.user_id == int(raw_seller)) | (SellerProfile.id == int(raw_seller)),
-                SellerProfile.is_verified == True
+                (SellerProfile.user_id == int(raw_seller)) | (SellerProfile.id == int(raw_seller))
             ).first()
 
         if not seller_profile:
-            return jsonify({"success": False, "message": "Please choose a verified partner shop."}), 400
+            return jsonify({"success": False, "message": "Please choose a partner shop."}), 400
 
         assignees = getattr(coupon, "assignees", [])
         if not assignees and coupon.mentor:

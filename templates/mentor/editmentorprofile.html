@@ -331,38 +331,8 @@
             </div>
             
             <!-- Referred by Seller -->
-<<<<<<< HEAD
             <div>
                 {% include "_seller_referral.html" %}
-=======
-            <div class="p-4 bg-gray-50 rounded-xl border border-gray-200">
-                <label class="block text-gray-700 font-semibold mb-2">Were you referred by a seller / partner? <span class="text-gray-400 font-normal">(optional)</span></label>
-                <div class="flex items-center gap-6 mb-3">
-                    <label class="inline-flex items-center cursor-pointer">
-                        <input type="radio" name="has_seller_referral" value="yes" {% if referred_by_seller_id %}checked{% endif %} class="w-4 h-4 text-blue-600 focus:ring-blue-500" onchange="toggleSellerDropdown(true)">
-                        <span class="ml-2 text-sm font-medium text-gray-700">Yes</span>
-                    </label>
-                    <label class="inline-flex items-center cursor-pointer">
-                        <input type="radio" name="has_seller_referral" value="no" {% if not referred_by_seller_id %}checked{% endif %} class="w-4 h-4 text-blue-600 focus:ring-blue-500" onchange="toggleSellerDropdown(false)">
-                        <span class="ml-2 text-sm font-medium text-gray-700">No</span>
-                    </label>
-                </div>
-                
-                <div id="seller_dropdown_container" style="display: {% if referred_by_seller_id %}block{% else %}none{% endif %};">
-                    <label class="block text-gray-700 font-medium mb-1 text-sm">Select Verified Seller / Partner</label>
-                    <div class="relative">
-                        <select name="referred_by_seller_id" id="referred_by_seller_id" class="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition duration-300 bg-white">
-                            <option value="">Select a verified partner</option>
-                            {% for seller in verified_sellers %}
-                            <option value="{{ seller.user_id }}" {% if referred_by_seller_id|string == seller.user_id|string %}selected{% endif %}>
-                                {{ seller.display_name }}{% if seller.partner_label and seller.partner_label != 'Partner' %} ({{ seller.partner_label }}){% endif %}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-1">Both the partner and administrator will be notified so you can be assigned a coupon.</p>
-                </div>
->>>>>>> 793fbeb8c82c869235e408488c92984e9348690d
             </div>
             
             <!-- Other Institution Field -->
