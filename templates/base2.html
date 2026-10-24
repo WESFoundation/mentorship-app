@@ -1244,8 +1244,9 @@
                     grpLabel.textContent = node.label;
                     optionsList.appendChild(grpLabel);
                     var grpItems = [];
-                    for (var j = 0; j < node.options.length; j++) {
-                        var opt = node.options[j];
+                    var grpOptions = node.options || node.querySelectorAll('option');
+                    for (var j = 0; j < grpOptions.length; j++) {
+                        var opt = grpOptions[j];
                         var optEl = document.createElement('div');
                         optEl.className = 'ss-option';
                         optEl.textContent = opt.text;

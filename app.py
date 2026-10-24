@@ -2265,47 +2265,6 @@ class MenteeProfile(db.Model):
     status = db.Column(db.String(20), default="pending")
     user = db.relationship("User", backref=db.backref("mentee_profile_ref", uselist=False, overlaps="user_ref"), uselist=False, overlaps="mentee_profile,user_ref")
 
-#------------ Seller/Partner Profile (Outreach Partner) ---------------
-class SellerProfile(db.Model):
-    __tablename__ = "seller_profile"
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False, unique=True)
-
-    # Partner type label (e.g., "Outreach Partner", "Retail Partner", "Vendor", "Shop Owner")
-    partner_label = db.Column(db.String(60), default="Outreach Partner")
-    shop_name = db.Column(db.String(200))
-    market_name = db.Column(db.String(200))
-    contact_phone = db.Column(db.String(40))
-    address = db.Column(db.Text)
-
-    # Verification status - only verified sellers can redeem coupons
-    is_verified = db.Column(db.Boolean, default=False, nullable=False, server_default="0")
-    verified_by = db.Column(db.Integer, db.ForeignKey("signup_details.id"))
-    verified_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    user = db.relationship("User", foreign_keys=[user_id])
-    verifier = db.relationship("User", foreign_keys=[verified_by])
-
-    @property
-    def display_name(self):
-        return self.shop_name or self.market_name or (self.user.name if self.user else "Partner")
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "user_id": self.user_id,
-            "partner_label": self.partner_label or "Partner",
-            "shop_name": self.shop_name or "",
-            "market_name": self.market_name or "",
-            "contact_phone": self.contact_phone or "",
-            "address": self.address or "",
-            "is_verified": bool(self.is_verified),
-            "display_name": self.display_name,
-            "user_name": self.user.name if self.user else "",
-            "user_email": self.user.email if self.user else "",
-            "verified_at": self.verified_at.isoformat() if self.verified_at else None,
-        }
 
 #------------ table supervisor details-------------------
 class SupervisorProfile(db.Model):
@@ -3033,6 +2992,14 @@ class SellerProfile(db.Model):
     def display_name(self):
         return self.shop_name or self.market_name or (self.user.name if self.user else "Partner")
 
+    @property
+    def user_email(self):
+        return self.user.email if self.user else ""
+
+    @property
+    def user_name(self):
+        return self.user.name if self.user else ""
+
     def to_dict(self):
         return {
             "id": self.id,
@@ -3527,8 +3494,12 @@ register_mobile_api(
     SupervisorProfile, MenteeTask, MentorshipRequest, MeetingRequest, Notification,
     PersonalTask=PersonalTask, MasterTask=MasterTask, TaskRating=TaskRating,
     MenteeFeedback=MenteeFeedback, MentorReflection=MentorReflection,
+<<<<<<< HEAD
     account_needs_otp=lambda user_id: _account_needs_otp(user_id),
     mark_account_unverified=lambda user_id: _mark_account_unverified(user_id),
+=======
+    SellerProfile=SellerProfile, MentorCoupon=MentorCoupon, CouponAssignment=CouponAssignment
+>>>>>>> 793fbeb8c82c869235e408488c92984e9348690d
 )
 
 
@@ -3823,6 +3794,18 @@ def profile_required(f):
 #-------------HOME----------------
 @app.route("/")
 def home():
+    if "email" in session and "user_type" in session:
+        ut = str(session.get("user_type"))
+        if ut == "1":
+            return redirect(url_for("mentordashboard"))
+        elif ut == "2":
+            return redirect(url_for("menteedashboard"))
+        elif ut == "0":
+            return redirect(url_for("supervisordashboard"))
+        elif ut == "3":
+            return redirect(url_for("institutiondashboard"))
+        elif ut == "4":
+            return redirect(url_for("seller_dashboard"))
     # Redirect to signin as the direct entry point
     return redirect(url_for("signin"))
 
@@ -3889,6 +3872,9 @@ def signin():
             return redirect(url_for("supervisordashboard"))
         elif user_type_str == "3":
             return redirect(url_for("institutiondashboard"))
+        elif user_type_str == "4":
+            _ensure_seller_profile(user)
+            return redirect(url_for("seller_dashboard"))
         
         return redirect(url_for("home"))
 
@@ -6044,6 +6030,15 @@ def create_account():
                 
                 new_user.institution_id = institution.id
                 db.session.commit()
+            elif user_type == "4":
+                profile = SellerProfile(
+                    user_id=new_user.id,
+                    partner_label="Outreach Partner",
+                    shop_name=name,
+                    is_verified=False
+                )
+                db.session.add(profile)
+                db.session.commit()
             elif institution_obj:
                 db.session.commit()
             else:
@@ -6081,6 +6076,12 @@ def manage_created_accounts():
     mentors = [u for u in all_users if u.user_type == "1"]
     mentees = [u for u in all_users if u.user_type == "2"]
     institutions = [u for u in all_users if u.user_type == "3"]
+    seller_users = [u for u in all_users if u.user_type == "4"]
+    
+    for u in seller_users:
+        _ensure_seller_profile(u)
+        
+    sellers = SellerProfile.query.order_by(SellerProfile.created_at.desc()).all()
     
     # Add serial numbers (no DB changes)
     for idx, mentor in enumerate(mentors, 1):
@@ -6089,6 +6090,8 @@ def manage_created_accounts():
         mentee.serial = idx
     for idx, institution in enumerate(institutions, 1):
         institution.serial = idx
+    for idx, seller in enumerate(sellers, 1):
+        seller.serial = idx
     
     return render_template(
         "supervisor/manage_created_accounts.html",
@@ -6096,6 +6099,7 @@ def manage_created_accounts():
         mentors=mentors,
         mentees=mentees,
         institutions=institutions,
+        sellers=sellers,
         total_accounts=len(all_users)
     )
 
@@ -6189,6 +6193,8 @@ def delete_user(user_id):
             ("personal_tasks", "mentor_id"),
             ("task_ratings", "mentee_id"),
             ("task_ratings", "mentor_id"),
+            ("seller_profiles", "user_id"),
+            ("coupon_assignments", "user_id"),
             # Chat messages and conversations
             ("chat_messages", "sender_id"),
             ("chat_conversations", "participant1_id"),
@@ -15384,11 +15390,50 @@ def editmentorprofile():
         profile.other_social_link = request.form.get("other_social_link")
         
         # Referred by seller
+<<<<<<< HEAD
         # (locked once saved; the seller is asked to confirm)
         new_referral = _apply_referral_from_form(user, request.form)
         if new_referral:
             profile.referred_by_seller_id = new_referral.seller_id
 
+=======
+        has_referral = request.form.get("has_seller_referral") == "yes"
+        referred_by_seller_id = request.form.get("referred_by_seller_id") if has_referral else None
+        prev_seller_id = profile.referred_by_seller_id
+        if referred_by_seller_id:
+            try:
+                new_seller_id = int(referred_by_seller_id)
+                profile.referred_by_seller_id = new_seller_id
+                if prev_seller_id != new_seller_id:
+                    seller = User.query.get(new_seller_id)
+                    if seller:
+                        mentor_name = user.name
+                        try:
+                            send_email_reminder(
+                                seller.email,
+                                "New Mentor Referred by Your Shop",
+                                f"<p>Hi {seller.name},</p><p>Mentor <strong>{mentor_name}</strong> has indicated they were referred by your shop!</p>"
+                            )
+                        except Exception as e:
+                            app.logger.warning(f"Failed to send seller referral notification: {e}")
+                        
+                        # Notify admin/supervisor so they can assign coupon
+                        supervisors = User.query.filter_by(user_type="0").all()
+                        for sup in supervisors:
+                            try:
+                                send_email_reminder(
+                                    sup.email,
+                                    f"New Mentor Referral from {seller.name}",
+                                    f"<p>Hi {sup.name},</p><p>Mentor <strong>{mentor_name}</strong> was referred by partner/seller <strong>{seller.name}</strong> ({seller.email}).</p><p>You can assign a coupon to this mentor from the <a href='{_public_base_url()}/supervisor/coupons'>Coupons Dashboard</a>.</p>"
+                                )
+                            except Exception as e:
+                                app.logger.warning(f"Failed to send supervisor referral notification: {e}")
+            except (ValueError, TypeError):
+                profile.referred_by_seller_id = None
+        else:
+            profile.referred_by_seller_id = None
+        
+>>>>>>> 793fbeb8c82c869235e408488c92984e9348690d
         # Mentorship preferences
         profile.mentorship_topics = request.form.get("mentorship_topics") or None
         
