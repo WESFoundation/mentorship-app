@@ -15401,7 +15401,10 @@ def editmentorprofile():
         new_referral = _apply_referral_from_form(user, request.form)
         if new_referral:
             profile.referred_by_seller_id = new_referral.seller_id
+<<<<<<< HEAD
 
+=======
+>>>>>>> 625da55d5b08ebefa4644cd9f3ba2831283ec678
         # Mentorship preferences
         profile.mentorship_topics = request.form.get("mentorship_topics") or None
         
