@@ -240,6 +240,14 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             if not valid and password != user.password:
                 return jsonify({"success": False, "message": "Invalid password"}), 401
 
+        needs_otp = kwargs.get("account_needs_otp")
+        if needs_otp and needs_otp(user.id):
+            return jsonify({
+                "success": False,
+                "otp_required": True,
+                "message": "Please sign in once on the website to verify your email, then try again."
+            }), 403
+
         raw_role = str(user.user_type or "2").strip()
         role = raw_role
         if raw_role in ("admin", "supervisor", "0"):
@@ -293,6 +301,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         )
         db.session.add(new_user)
         db.session.commit()
+        if kwargs.get("mark_account_unverified"):
+            kwargs["mark_account_unverified"](new_user.id)
 
         try:
             if user_type == "1":

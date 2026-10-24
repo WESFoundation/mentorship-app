@@ -141,6 +141,8 @@
                 {{ url_for('menteedashboard') }}
             {% elif session.get('user_type') == '3' %}
                 {{ url_for('institutiondashboard') }}
+            {% elif session.get('user_type') == '4' %}
+                {{ url_for('seller_dashboard') }}
             {% else %}
                 {{ url_for('home') }}
             {% endif %}

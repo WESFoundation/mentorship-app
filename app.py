@@ -3050,6 +3050,39 @@ class SellerProfile(db.Model):
         }
 
 
+class SellerReferral(db.Model):
+    """A mentor/mentee saying which partner/seller referred them.
+
+    One row per user. Once created it is locked: the user can't change or remove
+    it. The seller then confirms or denies that they really referred the person.
+    """
+    __tablename__ = "seller_referrals"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False, unique=True, index=True)
+    seller_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False, index=True)
+    status = db.Column(db.String(20), default="pending", nullable=False)  # pending | confirmed | denied
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    responded_at = db.Column(db.DateTime)
+
+    user = db.relationship("User", foreign_keys=[user_id])
+    seller = db.relationship("User", foreign_keys=[seller_id])
+
+
+class AccountVerification(db.Model):
+    """Marks an account that must confirm its email with an OTP at first sign-in.
+
+    Only accounts created after this feature shipped get a row, so existing
+    accounts are unaffected. `verified_at` is set once the OTP is entered.
+    """
+    __tablename__ = "account_verifications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False, unique=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    verified_at = db.Column(db.DateTime)
+
+
 class CouponAssignment(db.Model):
     """Links one coupon to one mentor/mentee. A coupon can have many holders."""
     __tablename__ = "coupon_assignments"
@@ -3493,7 +3526,9 @@ register_mobile_api(
     app, db, User, MentorProfile, MenteeProfile, Institution,
     SupervisorProfile, MenteeTask, MentorshipRequest, MeetingRequest, Notification,
     PersonalTask=PersonalTask, MasterTask=MasterTask, TaskRating=TaskRating,
-    MenteeFeedback=MenteeFeedback, MentorReflection=MentorReflection
+    MenteeFeedback=MenteeFeedback, MentorReflection=MentorReflection,
+    account_needs_otp=lambda user_id: _account_needs_otp(user_id),
+    mark_account_unverified=lambda user_id: _mark_account_unverified(user_id),
 )
 
 
@@ -3833,6 +3868,11 @@ def signin():
             flash("Incorrect password! Please try again.", "error")
             return render_template("auth/signin.html")
 
+        # New accounts must confirm their email with an OTP before they get in
+        if _account_needs_otp(user.id):
+            _start_login_otp(user)
+            return redirect(url_for("verify_login_otp"))
+
         # Save session
         user_type_str = str(user.user_type).strip() if user.user_type is not None else ""
         session["email"] = user.email
@@ -3854,6 +3894,134 @@ def signin():
 
    
     return render_template("auth/signin.html")
+
+# ------------------- LOGIN OTP (new accounts) -------------------
+LOGIN_OTP_MAX_ATTEMPTS = 5
+
+
+def _account_needs_otp(user_id):
+    row = AccountVerification.query.filter_by(user_id=user_id).first()
+    return bool(row and not row.verified_at)
+
+
+def _mark_account_unverified(user_id):
+    """Flag a freshly created account so its first sign-in asks for an OTP."""
+    try:
+        if not AccountVerification.query.filter_by(user_id=user_id).first():
+            db.session.add(AccountVerification(user_id=user_id))
+            db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Could not flag account {user_id} for OTP: {e}")
+
+
+def _login_otp_hash(otp):
+    return hashlib.sha256((str(otp) + app.config.get("SECRET_KEY", "")).encode()).hexdigest()
+
+
+def _start_login_otp(user):
+    """Email a fresh OTP and park the user (not yet logged in) on the verify page."""
+    otp = f"{secrets.randbelow(1000000):06d}"
+    session["login_otp_user_id"] = user.id
+    session["login_otp_hash"] = _login_otp_hash(otp)
+    session["login_otp_expiry"] = (dt.datetime.utcnow() + dt.timedelta(minutes=10)).isoformat()
+    session["login_otp_attempts"] = 0
+    if not send_login_otp_email(user.email, otp):
+        flash("We could not send the verification email. Please use 'Resend code'.", "error")
+    return otp
+
+
+def _clear_login_otp():
+    for key in ("login_otp_user_id", "login_otp_hash", "login_otp_expiry", "login_otp_attempts"):
+        session.pop(key, None)
+
+
+def send_login_otp_email(to_email, otp):
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = SMTP_EMAIL
+        msg['To'] = to_email
+        msg['Subject'] = "Your sign-in code - Mentor Connect"
+        body = f"""
+        <html><body style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2 style="color: #2563eb;">Confirm your Mentor Connect account</h2>
+            <p>Use this code to finish signing in and confirm your email:</p>
+            <h1 style="color: #2563eb; font-size: 32px; letter-spacing: 5px;">{otp}</h1>
+            <p>This code expires in <strong>10 minutes</strong>.</p>
+            <p>If you did not try to sign in, you can ignore this email.</p>
+            <hr><p style="color: #666; font-size: 12px;">Mentor Connect - Wazir Education Society</p>
+        </body></html>
+        """
+        msg.attach(MIMEText(body, 'html'))
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_EMAIL, SMTP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Error sending login OTP email: {e}")
+        return False
+
+
+@app.route("/signin/verify", methods=["GET", "POST"])
+def verify_login_otp():
+    user_id = session.get("login_otp_user_id")
+    user = db.session.get(User, user_id) if user_id else None
+    if not user:
+        flash("Please sign in first.", "info")
+        return redirect(url_for("signin"))
+
+    if request.method == "POST":
+        code = (request.form.get("otp") or "").strip()
+        expiry = session.get("login_otp_expiry")
+        if not expiry or "login_otp_hash" not in session or dt.datetime.fromisoformat(expiry) < dt.datetime.utcnow():
+            _start_login_otp(user)
+            flash("Your code expired. A fresh code has been sent to your email.", "warning")
+            return redirect(url_for("verify_login_otp"))
+
+        attempts = session.get("login_otp_attempts", 0)
+        if attempts >= LOGIN_OTP_MAX_ATTEMPTS:
+            _clear_login_otp()
+            flash("Too many incorrect attempts. Please sign in again.", "error")
+            return redirect(url_for("signin"))
+
+        if not code or _login_otp_hash(code) != session["login_otp_hash"]:
+            session["login_otp_attempts"] = attempts + 1
+            flash(f"Incorrect code. {LOGIN_OTP_MAX_ATTEMPTS - attempts - 1} attempt(s) remaining.", "error")
+            return redirect(url_for("verify_login_otp"))
+
+        # Verified: mark the account and finish the sign-in
+        row = AccountVerification.query.filter_by(user_id=user.id).first()
+        if row:
+            row.verified_at = datetime.utcnow()
+            db.session.commit()
+        _clear_login_otp()
+
+        user_type_str = str(user.user_type).strip() if user.user_type is not None else ""
+        session.permanent = True
+        session["email"] = user.email
+        session["user_type"] = user_type_str
+        session["user_id"] = user.id
+        session["user_name"] = user.name
+        flash("Email verified. Welcome!", "success")
+        dest = {"1": "mentordashboard", "2": "menteedashboard", "0": "supervisordashboard",
+                "3": "institutiondashboard", "4": "seller_dashboard"}.get(user_type_str, "home")
+        return redirect(url_for(dest))
+
+    return render_template("auth/verify_login_otp.html", masked_email=_mask_email(user.email))
+
+
+@app.route("/signin/resend_otp", methods=["POST"])
+def resend_login_otp():
+    user_id = session.get("login_otp_user_id")
+    user = db.session.get(User, user_id) if user_id else None
+    if not user:
+        return redirect(url_for("signin"))
+    _start_login_otp(user)
+    flash(f"A new code was sent to {_mask_email(user.email)}.", "success")
+    return redirect(url_for("verify_login_otp"))
+
 
 # ------------------- FORGOT PASSWORD -------------------
 @app.route("/forgot_password", methods=["GET", "POST"])
@@ -5863,7 +6031,8 @@ def create_account():
             
             db.session.add(new_user)
             db.session.flush()  # Get user ID
-            
+            db.session.add(AccountVerification(user_id=new_user.id))  # first sign-in asks for an OTP
+
             # For institution admin (user_type = "3"), create institution profile
             if user_type == "3":
                 institution = Institution(
@@ -15215,25 +15384,11 @@ def editmentorprofile():
         profile.other_social_link = request.form.get("other_social_link")
         
         # Referred by seller
-        referred_by_seller_id = request.form.get("referred_by_seller_id")
-        if referred_by_seller_id:
-            try:
-                profile.referred_by_seller_id = int(referred_by_seller_id)
-                # Notify the seller
-                seller = User.query.get(profile.referred_by_seller_id)
-                if seller:
-                    mentor_name = user.name
-                    try:
-                        send_email_reminder(
-                            seller.email,
-                            f"New Mentor Referred by Your Shop",
-                            f"<p>Hi {seller.name},</p><p>A new mentor <strong>{mentor_name}</strong> has joined and mentioned they were referred by your shop!</p>"
-                        )
-                    except Exception as e:
-                        app.logger.warning(f"Failed to send seller referral notification: {e}")
-            except (ValueError, TypeError):
-                pass
-        
+        # (locked once saved; the seller is asked to confirm)
+        new_referral = _apply_referral_from_form(user, request.form)
+        if new_referral:
+            profile.referred_by_seller_id = new_referral.seller_id
+
         # Mentorship preferences
         profile.mentorship_topics = request.form.get("mentorship_topics") or None
         
@@ -15327,6 +15482,8 @@ def editmentorprofile():
 
         try:
             db.session.commit()
+            if new_referral:
+                _notify_referral_created(new_referral)
             # Clear any saved form data from session on successful save
             session.pop('mentor_form_data', None)
             flash("✅ Profile updated successfully!", "success")
@@ -15374,8 +15531,8 @@ def editmentorprofile():
         personal_email=user.personal_email if hasattr(user, 'personal_email') else '',
         institution=form_data.get('institution') if form_data else user.institution,
         institutions=institutions,
-        verified_sellers=SellerProfile.query.filter_by(is_verified=True).all(),
-        referred_by_seller_id=form_data.get('referred_by_seller_id') if form_data else (profile.referred_by_seller_id if profile else ""),
+        verified_sellers=SellerProfile.query.all(),
+        referral=_get_user_referral(user),
         profession=form_data.get('profession') if form_data else (profile.profession if profile else ""),
         other_profession=form_data.get('other_profession') if form_data else "",
         skills=form_data.get('skills') if form_data else (profile.skills if profile else ""),
@@ -15676,8 +15833,12 @@ def editmenteeprofile():
                 if pic_url:
                     profile.profile_picture = pic_url
 
+        new_referral = _apply_referral_from_form(user, request.form)
+
         try:
             db.session.commit()
+            if new_referral:
+                _notify_referral_created(new_referral)
         except Exception as e:
             db.session.rollback()
             error_msg = "An error occurred while saving your profile. Please try again."
@@ -15720,6 +15881,8 @@ def editmenteeprofile():
         work_email=user.work_email if hasattr(user, 'work_email') and user.work_email else '',
         personal_email=user.personal_email if hasattr(user, 'personal_email') and user.personal_email else (user.email or ''),
         institutions=institutions,
+        verified_sellers=SellerProfile.query.all(),
+        referral=_get_user_referral(user),
         dob=profile.dob if profile else "",
         mobile_number=profile.mobile_number if profile else "",
         mobile_country_code=profile.mobile_country_code if profile and profile.mobile_country_code else "+1",
@@ -15901,6 +16064,8 @@ def profile():
         return redirect(url_for("supervisorprofile"))
     elif user_type == "3":
         return redirect(url_for("institutionprofile"))
+    elif user_type == "4":
+        return redirect(url_for("seller_profile"))
 
 # ------------------ CERTIFICATE ------------------
 @app.route("/my_certificate")
@@ -18580,7 +18745,19 @@ def update_meeting_ajax():
         if incoming_mentor_ids:
             participants["mentor_ids"] = [int(mid) for mid in incoming_mentor_ids if mid]
         if incoming_mentee_ids:
-            participants["mentee_ids"] = [int(mid) for mid in incoming_mentee_ids if mid]
+            # Add new mentees to the existing roster instead of replacing it
+            merged_mentee_ids = []
+            existing_ids = list(participants.get("mentee_ids") or [])
+            if not existing_ids and participants.get("mentee_id"):
+                existing_ids = [participants["mentee_id"]]
+            for mid in existing_ids + list(incoming_mentee_ids):
+                try:
+                    mid = int(mid)
+                except (ValueError, TypeError):
+                    continue
+                if mid and mid not in merged_mentee_ids:
+                    merged_mentee_ids.append(mid)
+            participants["mentee_ids"] = merged_mentee_ids
 
         if not participants.get("mentee_id") or not participants.get("mentor_id"):
             m_mentor, m_mentee, m_info = _resolve_meeting_participants(meeting)
@@ -20744,7 +20921,7 @@ def _ensure_seller_profile(user):
         return None
     profile = SellerProfile.query.filter_by(user_id=user.id).first()
     if not profile:
-        profile = SellerProfile(user_id=user.id, partner_label="Partner", is_verified=False)
+        profile = SellerProfile(user_id=user.id, partner_label="Partner", is_verified=True)
         db.session.add(profile)
         try:
             db.session.commit()
@@ -20756,9 +20933,154 @@ def _ensure_seller_profile(user):
 
 
 def _verified_sellers():
-    """Every supervisor-verified partner, for the redemption dropdown."""
-    rows = SellerProfile.query.filter_by(is_verified=True).all()
+    """Every partner account, for the redemption dropdown (accounts are created by us, so no verification step)."""
+    rows = SellerProfile.query.all()
     return sorted(rows, key=lambda p: (p.display_name or "").lower())
+
+
+def _get_user_referral(user):
+    """The user's locked seller referral, or None. Pulls in a legacy mentor referral if present."""
+    if not user:
+        return None
+    referral = SellerReferral.query.filter_by(user_id=user.id).first()
+    if referral:
+        return referral
+    if str(user.user_type) == "1":
+        mp = MentorProfile.query.filter_by(user_id=user.id).first()
+        if mp and mp.referred_by_seller_id:
+            referral = SellerReferral(user_id=user.id, seller_id=mp.referred_by_seller_id, status="pending")
+            db.session.add(referral)
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                return None
+    return referral
+
+
+def _apply_referral_from_form(user, form):
+    """Create the (locked) referral if the user said yes and picked a seller.
+
+    Does nothing when a referral already exists, so it can never be changed.
+    Returns the new SellerReferral (added to the session, not committed) or None.
+    """
+    if _get_user_referral(user):
+        return None
+    if (form.get("was_referred") or "").lower() != "yes":
+        return None
+    raw = str(form.get("referred_by_seller_id") or "").strip()
+    if not raw.isdigit():
+        return None
+    seller_profile = SellerProfile.query.filter_by(user_id=int(raw)).first()
+    if not seller_profile or seller_profile.user_id == user.id:
+        return None
+    referral = SellerReferral(user_id=user.id, seller_id=seller_profile.user_id, status="pending")
+    db.session.add(referral)
+    return referral
+
+
+def _referral_role_label(user):
+    return {"1": "mentor", "2": "mentee"}.get(str(user.user_type), "user")
+
+
+def _notify_referral_created(referral):
+    """Email the seller (to confirm) and the admins (FYI) about a new referral."""
+    try:
+        person = referral.user
+        seller = referral.seller
+        role = _referral_role_label(person)
+        seller_profile = SellerProfile.query.filter_by(user_id=seller.id).first() if seller else None
+        shop = seller_profile.display_name if seller_profile else (seller.name if seller else "")
+        if seller and seller.email:
+            send_email_reminder(
+                seller.email,
+                f"Please confirm: {person.name} says you referred them",
+                f"<p>Hi {seller.name},</p>"
+                f"<p>A new {role}, <strong>{person.name}</strong> ({person.email}), says they were referred by "
+                f"<strong>{shop}</strong>.</p>"
+                f"<p>Please log in to your partner dashboard to confirm or deny this referral.</p>",
+            )
+        for admin in User.query.filter_by(user_type="0").all():
+            if admin.email:
+                send_email_reminder(
+                    admin.email,
+                    f"New {role} referral: {person.name} referred by {shop}",
+                    f"<p>{role.capitalize()} <strong>{person.name}</strong> ({person.email}) says they were referred by "
+                    f"<strong>{shop}</strong> ({seller.email if seller else ''}). "
+                    f"The partner has been asked to confirm.</p>",
+                )
+    except Exception as e:
+        app.logger.warning(f"Failed to send referral notifications: {e}")
+
+
+COUPON_ELIGIBLE_COMPLETION = 90
+
+
+def _referral_rows_for_seller(seller_id):
+    """Everyone who named this seller, with sign-up date and profile completion."""
+    rows = []
+    referrals = (SellerReferral.query.filter_by(seller_id=seller_id)
+                 .order_by(SellerReferral.created_at.desc()).all())
+    for r in referrals:
+        person = r.user
+        if not person:
+            continue
+        try:
+            pct = int(_compute_profile_completeness_score(person.id, str(person.user_type)) or 0)
+        except Exception as e:
+            app.logger.warning(f"Profile completion failed for user {person.id}: {e}")
+            pct = 0
+        rows.append({
+            "id": r.id,
+            "name": person.name,
+            "email": person.email,
+            "role": _referral_role_label(person).capitalize(),
+            "status": r.status,
+            "account_created": person.created_at,
+            "completion": pct,
+            "eligible": r.status == "confirmed" and pct >= COUPON_ELIGIBLE_COMPLETION,
+        })
+    return rows
+
+
+@app.route("/seller/referrals/<int:referral_id>/respond", methods=["POST"])
+def seller_respond_referral(referral_id):
+    seller = _seller_or_none()
+    if not seller:
+        return redirect(url_for("signin"))
+    referral = SellerReferral.query.filter_by(id=referral_id, seller_id=seller.id).first_or_404()
+    decision = (request.form.get("decision") or "").lower()
+    if decision not in ("confirm", "deny"):
+        flash("Invalid choice.", "error")
+        return redirect(url_for("seller_dashboard"))
+    if referral.status != "pending":
+        flash("You have already responded to this referral.", "info")
+        return redirect(url_for("seller_dashboard"))
+    referral.status = "confirmed" if decision == "confirm" else "denied"
+    referral.responded_at = datetime.utcnow()
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Referral response failed: {e}")
+        flash("Could not save your response. Please try again.", "error")
+        return redirect(url_for("seller_dashboard"))
+    try:
+        person = referral.user
+        role = _referral_role_label(person)
+        verb = "confirmed" if decision == "confirm" else "denied"
+        for admin in User.query.filter_by(user_type="0").all():
+            if admin.email:
+                send_email_reminder(
+                    admin.email,
+                    f"Referral {verb}: {person.name}",
+                    f"<p>Partner <strong>{seller.name}</strong> {verb} that {role} "
+                    f"<strong>{person.name}</strong> was referred by them.</p>",
+                )
+    except Exception as e:
+        app.logger.warning(f"Failed to notify admins of referral response: {e}")
+    flash(f"Referral {verb}.", "success")
+    return redirect(url_for("seller_dashboard"))
 
 
 def _coupon_assignments_for_user(user_id):
@@ -20851,7 +21173,7 @@ def seller_profile():
 
     return render_template(
         "seller/seller_profile.html",
-        show_sidebar=True,
+        show_sidebar=False,
         active_section="profile",
         seller=seller,
         profile=profile,
@@ -20889,10 +21211,11 @@ def seller_dashboard():
 
     return render_template(
         "seller/seller_dashboard.html",
-        show_sidebar=True,
+        show_sidebar=False,
         active_section="dashboard",
         seller=seller,
         profile=profile,
+        referrals=_referral_rows_for_seller(seller.id),
         entries=entries,
         stats={
             "redeemed": len(entries),
@@ -21477,7 +21800,7 @@ def coupon_verify(code):
         raw_seller = str(payload.get("seller_account") or "").strip()
         if raw_seller.isdigit():
             seller_profile = SellerProfile.query.filter_by(
-                user_id=int(raw_seller), is_verified=True
+                user_id=int(raw_seller)
             ).first()
         if not seller_profile:
             return render_template(

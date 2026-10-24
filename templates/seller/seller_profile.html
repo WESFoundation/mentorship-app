@@ -1,4 +1,5 @@
-{% extends "base.html" %}
+{% extends "base2.html" %}
+{% block user %}Partner{% endblock %}
 {% block title %}My Shop{% endblock %}
 {% block content %}
 <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -25,15 +26,6 @@
       {% endfor %}
     {% endif %}
   {% endwith %}
-
-  {% if not profile.is_verified %}
-  <div class="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
-    <p class="text-sm font-semibold text-amber-900">Waiting for supervisor verification</p>
-    <p class="text-xs text-amber-800 mt-1">
-      Your shop will appear in the redemption dropdown once a supervisor approves your account.
-    </p>
-  </div>
-  {% endif %}
 
   <form method="POST" action="{{ url_for('seller_profile') }}"
         class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
