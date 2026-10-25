@@ -1998,9 +1998,6 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         total_mentors = User.query.filter_by(user_type="1").count()
         total_mentees = User.query.filter_by(user_type="2").count()
         total_sellers = User.query.filter(or_(User.user_type == "4", User.user_type == "seller", User.user_type == "partner")).count()
-        unverified_sellers = 0
-        if SellerProfile:
-            unverified_sellers = 0
         active_pairs = MentorshipRequest.query.filter_by(final_status="approved").count()
         pending_requests = MentorshipRequest.query.filter_by(supervisor_status="pending").count()
 
@@ -2010,7 +2007,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "total_mentors": total_mentors,
                 "total_mentees": total_mentees,
                 "total_sellers": total_sellers,
-                "unverified_sellers": unverified_sellers,
+                "unverified_sellers": 0,
                 "active_mentorships": active_pairs,
                 "pending_requests": pending_requests
             }
@@ -2074,7 +2071,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "partner_label": sp.partner_label if sp and sp.partner_label else "Partner",
                 "shop_name": sp.shop_name if sp and sp.shop_name else "",
                 "display_name": sp.display_name if sp else u.name,
-                "is_verified": bool(sp.is_verified) if sp else False,
+                "is_verified": True,
                 "profile_picture": resolve_profile_pic(sp, u),
                 "role": "Partner"
             })
@@ -2237,9 +2234,19 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
     # 10. SELLER & COUPON ENDPOINTS
     # -------------------------------------------------------------
     @api_bp.route("/sellers/verified", methods=["GET"])
+    @api_bp.route("/sellers", methods=["GET"])
     def api_get_verified_sellers():
         if not SellerProfile:
             return jsonify({"success": True, "sellers": []})
+        seller_users = User.query.filter(or_(User.user_type == "4", User.user_type == "seller", User.user_type == "partner")).all()
+        for u in seller_users:
+            if not SellerProfile.query.filter_by(user_id=u.id).first():
+                sp = SellerProfile(user_id=u.id, partner_label="Partner", shop_name=u.name, is_verified=True)
+                db.session.add(sp)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         profiles = SellerProfile.query.all()
         result = []
         for sp in profiles:
@@ -2252,6 +2259,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "market_name": sp.market_name or "",
                 "contact_phone": sp.contact_phone or "",
                 "address": sp.address or "",
+                "is_verified": True,
                 "user_name": sp.user.name if sp.user else "",
                 "user_email": sp.user.email if sp.user else ""
             })
@@ -2261,6 +2269,15 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
     def api_get_admin_sellers():
         if not SellerProfile:
             return jsonify({"success": True, "sellers": []})
+        seller_users = User.query.filter(or_(User.user_type == "4", User.user_type == "seller", User.user_type == "partner")).all()
+        for u in seller_users:
+            if not SellerProfile.query.filter_by(user_id=u.id).first():
+                sp = SellerProfile(user_id=u.id, partner_label="Partner", shop_name=u.name, is_verified=True)
+                db.session.add(sp)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         profiles = SellerProfile.query.all()
         result = []
         for sp in profiles:
@@ -2279,41 +2296,11 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "market_name": sp.market_name or "",
                 "contact_phone": sp.contact_phone or "",
                 "address": sp.address or "",
-                "is_verified": bool(sp.is_verified),
-                "verified_at": sp.verified_at.isoformat() if sp.verified_at else None,
+                "is_verified": True,
+                "verified_at": None,
                 "redeemed_count": redeemed_count
             })
         return jsonify({"success": True, "sellers": result})
-
-    @api_bp.route("/admin/sellers/<int:seller_id>/verify", methods=["POST"])
-    def api_admin_verify_seller(seller_id):
-        user = get_current_user_from_req(User)
-        sp = None
-        if SellerProfile:
-            sp = SellerProfile.query.filter((SellerProfile.id == seller_id) | (SellerProfile.user_id == seller_id)).first()
-        if not sp:
-            return jsonify({"success": False, "message": "Seller profile not found"}), 404
-
-        data = request.get_json(silent=True) or {}
-        new_val = data.get("is_verified")
-        if new_val is None:
-            sp.is_verified = not bool(sp.is_verified)
-        else:
-            sp.is_verified = bool(new_val)
-
-        if sp.is_verified:
-            sp.verified_by = user.id if user else None
-            sp.verified_at = datetime.utcnow()
-        else:
-            sp.verified_by = None
-            sp.verified_at = None
-
-        db.session.commit()
-        return jsonify({
-            "success": True,
-            "message": f"Seller verification status updated to {sp.is_verified}",
-            "is_verified": bool(sp.is_verified)
-        })
 
     @api_bp.route("/coupons/my_coupons", methods=["GET"])
     def api_get_my_coupons():
@@ -2570,7 +2557,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "name": seller.name,
                 "email": seller.email,
                 "display_name": sp.display_name if sp else seller.name,
-                "is_verified": bool(sp.is_verified) if sp else False,
+                "is_verified": True,
                 "partner_label": sp.partner_label if sp else "Partner"
             },
             "stats": {
