@@ -12,12 +12,15 @@ Provides secure, unified REST endpoints for:
 Replaces all direct PostgreSQL client queries in the Flutter app.
 """
 
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify, session, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy import or_, and_, func
 from datetime import datetime
 import json
 import logging
+import os
+import secrets
+import io
 import storage_service
 
 logger = logging.getLogger(__name__)
@@ -201,6 +204,57 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             CouponAssignment = db.Model._decl_class_registry.get("CouponAssignment")
         except Exception:
             CouponAssignment = None
+
+    CouponRequest = kwargs.get("CouponRequest")
+    if CouponRequest is None:
+        try:
+            CouponRequest = db.Model._decl_class_registry.get("CouponRequest")
+        except Exception:
+            CouponRequest = None
+
+    SellerReferral = kwargs.get("SellerReferral")
+    if SellerReferral is None:
+        try:
+            SellerReferral = db.Model._decl_class_registry.get("SellerReferral")
+        except Exception:
+            SellerReferral = None
+
+    ChatConversation = kwargs.get("ChatConversation")
+    if ChatConversation is None:
+        try:
+            ChatConversation = db.Model._decl_class_registry.get("ChatConversation")
+        except Exception:
+            ChatConversation = None
+
+    ChatMessage = kwargs.get("ChatMessage")
+    if ChatMessage is None:
+        try:
+            ChatMessage = db.Model._decl_class_registry.get("ChatMessage")
+        except Exception:
+            ChatMessage = None
+
+    ResourceNote = kwargs.get("ResourceNote")
+    if ResourceNote is None:
+        try:
+            ResourceNote = db.Model._decl_class_registry.get("ResourceNote")
+        except Exception:
+            ResourceNote = None
+
+    ReminderSettings = kwargs.get("ReminderSettings")
+    if ReminderSettings is None:
+        try:
+            ReminderSettings = db.Model._decl_class_registry.get("ReminderSettings")
+        except Exception:
+            ReminderSettings = None
+
+    ProfileCompletionReminder = kwargs.get("ProfileCompletionReminder")
+    if ProfileCompletionReminder is None:
+        try:
+            ProfileCompletionReminder = db.Model._decl_class_registry.get("ProfileCompletionReminder")
+        except Exception:
+            ProfileCompletionReminder = None
+
+    compute_profile_completeness = kwargs.get("compute_profile_completeness")
 
     # -------------------------------------------------------------
     # 0. UNIVERSAL FILE / PHOTO UPLOAD
@@ -1998,9 +2052,6 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         total_mentors = User.query.filter_by(user_type="1").count()
         total_mentees = User.query.filter_by(user_type="2").count()
         total_sellers = User.query.filter(or_(User.user_type == "4", User.user_type == "seller", User.user_type == "partner")).count()
-        unverified_sellers = 0
-        if SellerProfile:
-            unverified_sellers = 0
         active_pairs = MentorshipRequest.query.filter_by(final_status="approved").count()
         pending_requests = MentorshipRequest.query.filter_by(supervisor_status="pending").count()
 
@@ -2010,7 +2061,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "total_mentors": total_mentors,
                 "total_mentees": total_mentees,
                 "total_sellers": total_sellers,
-                "unverified_sellers": unverified_sellers,
+                "unverified_sellers": 0,
                 "active_mentorships": active_pairs,
                 "pending_requests": pending_requests
             }
@@ -2074,7 +2125,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "partner_label": sp.partner_label if sp and sp.partner_label else "Partner",
                 "shop_name": sp.shop_name if sp and sp.shop_name else "",
                 "display_name": sp.display_name if sp else u.name,
-                "is_verified": bool(sp.is_verified) if sp else False,
+                "is_verified": True,
                 "profile_picture": resolve_profile_pic(sp, u),
                 "role": "Partner"
             })
@@ -2234,12 +2285,102 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         })
 
     # -------------------------------------------------------------
-    # 10. SELLER & COUPON ENDPOINTS
+    # 10. SELLER, QR CODE & COUPON ENDPOINTS
     # -------------------------------------------------------------
+    COUPON_CODE_ALPHABET = "ABCDEFGHJKLMNPQRTUVWXYZ23456789"
+    COUPON_CODE_GROUPS = 2
+    COUPON_CODE_GROUP_LEN = 6
+    COUPON_CODE_PREFIX = "WES"
+    PARTNER_LABELS = [
+        "Partner", "Outreach Partner", "Retail Partner",
+        "Vendor", "Shop Owner", "Market Partner"
+    ]
+
+    def _api_generate_coupon_code():
+        if not MentorCoupon:
+            return f"{COUPON_CODE_PREFIX}-{secrets.token_hex(8).upper()}"
+        for _ in range(20):
+            groups = [
+                ''.join(secrets.choice(COUPON_CODE_ALPHABET) for _ in range(COUPON_CODE_GROUP_LEN))
+                for _ in range(COUPON_CODE_GROUPS)
+            ]
+            code = f"{COUPON_CODE_PREFIX}-" + "-".join(groups)
+            if not MentorCoupon.query.filter_by(code=code).first():
+                return code
+        return f"{COUPON_CODE_PREFIX}-{secrets.token_hex(8).upper()}"
+
+    def _api_public_base_url():
+        configured = os.environ.get("COUPON_PUBLIC_BASE_URL", "").strip()
+        if configured:
+            return configured.rstrip("/")
+        if os.environ.get("PRODUCTION"):
+            return "https://mentorship.weslux.lu"
+        try:
+            return request.host_url.rstrip("/")
+        except Exception:
+            return "https://mentorship.weslux.lu"
+
+    def _api_coupon_qr_png(target_url, box_size=8, border=4):
+        try:
+            import qrcode as _qrcode_lib
+            qr = _qrcode_lib.QRCode(
+                version=1,
+                error_correction=_qrcode_lib.constants.ERROR_CORRECT_M,
+                box_size=box_size,
+                border=border,
+            )
+            qr.add_data(target_url)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="#1e40af", back_color="#ffffff")
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            buf.seek(0)
+            return buf
+        except Exception as e:
+            try:
+                from qr_code_lib import QRCode as LocalQRCode
+                png_bytes = LocalQRCode(target_url, error_correction='M').to_png(
+                    box_size=box_size, border=border)
+                buf = io.BytesIO(png_bytes)
+                buf.seek(0)
+                return buf
+            except Exception as e2:
+                logger.error(f"Failed to generate QR: {e2}")
+                return None
+
+    def _ensure_seller_profile_obj(user):
+        if not user or not SellerProfile:
+            return None
+        sp = SellerProfile.query.filter_by(user_id=user.id).first()
+        if not sp:
+            sp = SellerProfile(
+                user_id=user.id,
+                partner_label="Outreach Partner",
+                shop_name=user.name,
+                is_verified=True
+            )
+            db.session.add(sp)
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                sp = SellerProfile.query.filter_by(user_id=user.id).first()
+        return sp
+
     @api_bp.route("/sellers/verified", methods=["GET"])
+    @api_bp.route("/sellers", methods=["GET"])
     def api_get_verified_sellers():
         if not SellerProfile:
             return jsonify({"success": True, "sellers": []})
+        seller_users = User.query.filter(or_(User.user_type == "4", User.user_type == "seller", User.user_type == "partner")).all()
+        for u in seller_users:
+            if not SellerProfile.query.filter_by(user_id=u.id).first():
+                sp = SellerProfile(user_id=u.id, partner_label="Partner", shop_name=u.name, is_verified=True)
+                db.session.add(sp)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         profiles = SellerProfile.query.all()
         result = []
         for sp in profiles:
@@ -2252,6 +2393,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "market_name": sp.market_name or "",
                 "contact_phone": sp.contact_phone or "",
                 "address": sp.address or "",
+                "is_verified": True,
                 "user_name": sp.user.name if sp.user else "",
                 "user_email": sp.user.email if sp.user else ""
             })
@@ -2261,6 +2403,15 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
     def api_get_admin_sellers():
         if not SellerProfile:
             return jsonify({"success": True, "sellers": []})
+        seller_users = User.query.filter(or_(User.user_type == "4", User.user_type == "seller", User.user_type == "partner")).all()
+        for u in seller_users:
+            if not SellerProfile.query.filter_by(user_id=u.id).first():
+                sp = SellerProfile(user_id=u.id, partner_label="Partner", shop_name=u.name, is_verified=True)
+                db.session.add(sp)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         profiles = SellerProfile.query.all()
         result = []
         for sp in profiles:
@@ -2279,40 +2430,209 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "market_name": sp.market_name or "",
                 "contact_phone": sp.contact_phone or "",
                 "address": sp.address or "",
-                "is_verified": bool(sp.is_verified),
-                "verified_at": sp.verified_at.isoformat() if sp.verified_at else None,
+                "is_verified": True,
+                "verified_at": sp.verified_at.isoformat() if getattr(sp, "verified_at", None) else None,
                 "redeemed_count": redeemed_count
             })
         return jsonify({"success": True, "sellers": result})
 
-    @api_bp.route("/admin/sellers/<int:seller_id>/verify", methods=["POST"])
-    def api_admin_verify_seller(seller_id):
+    @api_bp.route("/seller/profile", methods=["GET", "POST"])
+    def api_seller_profile():
         user = get_current_user_from_req(User)
-        sp = None
-        if SellerProfile:
-            sp = SellerProfile.query.filter((SellerProfile.id == seller_id) | (SellerProfile.user_id == seller_id)).first()
-        if not sp:
-            return jsonify({"success": False, "message": "Seller profile not found"}), 404
+        seller_id_param = request.args.get("seller_id") or (request.is_json and request.json.get("seller_id"))
+        seller = None
+        if seller_id_param and str(seller_id_param).isdigit():
+            seller = User.query.get(int(seller_id_param))
+        elif user:
+            seller = user
 
-        data = request.get_json(silent=True) or {}
-        new_val = data.get("is_verified")
-        if new_val is None:
-            sp.is_verified = not bool(sp.is_verified)
-        else:
-            sp.is_verified = bool(new_val)
+        if not seller:
+            return jsonify({"success": False, "message": "Partner account not found"}), 404
 
-        if sp.is_verified:
-            sp.verified_by = user.id if user else None
-            sp.verified_at = datetime.utcnow()
-        else:
-            sp.verified_by = None
-            sp.verified_at = None
+        sp = _ensure_seller_profile_obj(seller)
 
-        db.session.commit()
+        if request.method == "POST":
+            data = request.get_json(silent=True) or request.form or {}
+            label = (data.get("partner_label") or "Partner").strip()
+            if label not in PARTNER_LABELS:
+                label = "Partner"
+            sp.partner_label = label
+            sp.shop_name = (data.get("shop_name") or "").strip() or None
+            sp.market_name = (data.get("market_name") or "").strip() or None
+            sp.contact_phone = (data.get("contact_phone") or "").strip() or None
+            sp.address = (data.get("address") or "").strip() or None
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                return jsonify({"success": False, "message": f"Update failed: {str(e)}"}), 500
+
+            return jsonify({
+                "success": True,
+                "message": "Partner profile updated successfully.",
+                "profile": sp.to_dict()
+            })
+
         return jsonify({
             "success": True,
-            "message": f"Seller verification status updated to {sp.is_verified}",
-            "is_verified": bool(sp.is_verified)
+            "profile": sp.to_dict() if sp else {},
+            "partner_labels": PARTNER_LABELS
+        })
+
+    @api_bp.route("/seller/dashboard", methods=["GET"])
+    def api_get_seller_dashboard():
+        user = get_current_user_from_req(User)
+        seller_id_param = request.args.get("seller_id")
+        seller = None
+        if seller_id_param and seller_id_param.isdigit():
+            seller = User.query.get(int(seller_id_param))
+        elif user:
+            seller = user
+
+        if not seller:
+            return jsonify({"success": False, "message": "Seller not identified"}), 404
+
+        sp = _ensure_seller_profile_obj(seller)
+
+        window = (request.args.get("window") or "all").lower()
+        now = datetime.utcnow()
+        cutoff = None
+        if window in ("today", "day", "1d"):
+            cutoff = datetime(now.year, now.month, now.day)
+        elif window in ("week", "7d"):
+            from datetime import timedelta
+            cutoff = now - timedelta(days=7)
+        elif window in ("month", "30d"):
+            from datetime import timedelta
+            cutoff = now - timedelta(days=30)
+
+        query = MentorCoupon.query.filter(MentorCoupon.seller_id == seller.id, MentorCoupon.used_at.isnot(None)) if MentorCoupon else None
+        if query is not None and cutoff is not None:
+            query = query.filter(MentorCoupon.used_at >= cutoff)
+
+        rows = query.order_by(MentorCoupon.used_at.desc()).all() if query is not None else []
+        lifetime = MentorCoupon.query.filter(MentorCoupon.seller_id == seller.id, MentorCoupon.used_at.isnot(None)).count() if MentorCoupon else 0
+
+        entries = []
+        by_discount = {}
+        for c in rows:
+            r_user = db.session.get(User, c.redeemed_by_user_id) if c.redeemed_by_user_id else None
+            role = "Mentor" if r_user and str(r_user.user_type) == "1" else "Mentee"
+            label = c.discount_label or "Standard Discount"
+            by_discount[label] = by_discount.get(label, 0) + 1
+            entries.append({
+                "id": c.id,
+                "code": c.code,
+                "title": c.title,
+                "discount_label": label,
+                "used_at": c.used_at.isoformat() if c.used_at else None,
+                "redeemer_name": r_user.name if r_user else "Member",
+                "redeemer_email": r_user.email if r_user else "",
+                "redeemer_role": role
+            })
+
+        referral_rows = []
+        if SellerReferral:
+            refs = SellerReferral.query.filter_by(seller_id=seller.id).order_by(SellerReferral.created_at.desc()).all()
+            for r in refs:
+                person = r.user
+                if not person:
+                    continue
+                pct = 100
+                if compute_profile_completeness:
+                    try:
+                        pct = int(compute_profile_completeness(person.id, str(person.user_type)) or 0)
+                    except Exception:
+                        pct = 0
+                role = "Mentor" if str(person.user_type) == "1" else "Mentee"
+                referral_rows.append({
+                    "id": r.id,
+                    "name": person.name,
+                    "email": person.email,
+                    "role": role,
+                    "status": r.status,
+                    "account_created": person.created_at.isoformat() if person.created_at else None,
+                    "completion": pct,
+                    "eligible": r.status == "confirmed" and pct >= 90
+                })
+
+        return jsonify({
+            "success": True,
+            "seller": {
+                "id": seller.id,
+                "name": seller.name,
+                "email": seller.email,
+                "display_name": sp.display_name if sp else seller.name,
+                "is_verified": True,
+                "partner_label": sp.partner_label if sp else "Partner"
+            },
+            "stats": {
+                "redeemed": len(entries),
+                "lifetime": lifetime,
+                "filter_window": window,
+                "distinct_offers": len(by_discount),
+                "referrals_total": len(referral_rows),
+                "referrals_pending": sum(1 for r in referral_rows if r["status"] == "pending")
+            },
+            "by_discount": [{"label": k, "count": v} for k, v in by_discount.items()],
+            "entries": entries,
+            "referrals": referral_rows
+        })
+
+    @api_bp.route("/seller/referrals/<int:referral_id>/respond", methods=["POST"])
+    def api_seller_respond_referral(referral_id):
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Authentication required"}), 401
+        if not SellerReferral:
+            return jsonify({"success": False, "message": "Referral service unavailable"}), 503
+
+        referral = SellerReferral.query.filter_by(id=referral_id, seller_id=user.id).first()
+        if not referral:
+            return jsonify({"success": False, "message": "Referral record not found"}), 404
+
+        data = request.get_json(silent=True) or request.form or {}
+        decision = (data.get("decision") or "").strip().lower()
+        if decision not in ("confirm", "deny"):
+            return jsonify({"success": False, "message": "Decision must be 'confirm' or 'deny'"}), 400
+
+        if referral.status != "pending":
+            return jsonify({"success": False, "message": "You have already responded to this referral."}), 409
+
+        referral.status = "confirmed" if decision == "confirm" else "denied"
+        referral.responded_at = datetime.utcnow()
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
+
+        # Send admin notification if email helper available
+        import sys
+        send_fn = getattr(sys.modules.get('__main__'), 'send_email_reminder', None) or getattr(sys.modules.get('app'), 'send_email_reminder', None)
+        if send_fn:
+            try:
+                person = referral.user
+                role = "Mentor" if str(person.user_type) == "1" else "Mentee"
+                verb = "confirmed" if decision == "confirm" else "denied"
+                for admin in User.query.filter_by(user_type="0").all():
+                    if admin.email:
+                        send_fn(
+                            admin.email,
+                            f"Referral {verb}: {person.name}",
+                            f"<p>Partner <strong>{user.name}</strong> {verb} that {role} <strong>{person.name}</strong> was referred by them.</p>"
+                        )
+            except Exception as e:
+                logger.warning(f"Failed to send referral email: {e}")
+
+        return jsonify({
+            "success": True,
+            "message": f"Referral successfully {referral.status}.",
+            "referral": {
+                "id": referral.id,
+                "status": referral.status,
+                "responded_at": referral.responded_at.isoformat() if referral.responded_at else None
+            }
         })
 
     @api_bp.route("/coupons/my_coupons", methods=["GET"])
@@ -2337,9 +2657,23 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                     coupons.append(c)
                     seen_ids.add(c.id)
 
-        res = []
+        all_coupons = []
+        active_coupons = []
+        redeemed_coupons = []
+        inactive_coupons = []
+
+        base_url = _api_public_base_url()
+
         for c in coupons:
-            res.append({
+            if c.status == "active" and getattr(c, "is_expired", False):
+                c.status = "expired"
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+        for c in coupons:
+            c_dict = {
                 "id": c.id,
                 "code": c.code,
                 "title": c.title,
@@ -2352,10 +2686,103 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "expires_at": c.expires_at.isoformat() if c.expires_at else None,
                 "used_at": c.used_at.isoformat() if c.used_at else None,
                 "used_by": c.used_by or "",
+                "seller_name": getattr(c, "seller_display_name", c.used_by or ""),
+                "redeemed_by_name": c.redeemed_by.name if getattr(c, "redeemed_by", None) else "",
                 "verification_count": c.verification_count or 0,
-                "verify_url": f"/coupon/verify/{c.code}"
-            })
-        return jsonify({"success": True, "coupons": res})
+                "verify_url": f"{base_url}/coupon/verify/{c.code}",
+                "qr_url": f"/api/coupons/{c.code}/qr"
+            }
+            all_coupons.append(c_dict)
+            if c.status == "used":
+                redeemed_coupons.append(c_dict)
+            elif c.status == "active" and not getattr(c, "is_expired", False):
+                active_coupons.append(c_dict)
+            else:
+                inactive_coupons.append(c_dict)
+
+        my_requests = []
+        if CouponRequest:
+            req_rows = CouponRequest.query.filter_by(user_id=user.id).order_by(CouponRequest.created_at.desc()).all()
+            my_requests = [r.to_dict() for r in req_rows]
+
+        stats = {
+            "total": len(all_coupons),
+            "active": len(active_coupons),
+            "redeemed": len(redeemed_coupons),
+            "inactive": len(inactive_coupons),
+            "pending_requests": sum(1 for r in my_requests if r["status"] == "pending")
+        }
+
+        return jsonify({
+            "success": True,
+            "coupons": all_coupons,
+            "active_coupons": active_coupons,
+            "redeemed_coupons": redeemed_coupons,
+            "inactive_coupons": inactive_coupons,
+            "requests": my_requests,
+            "stats": stats
+        })
+
+    @api_bp.route("/coupons/request", methods=["POST"])
+    def api_post_coupon_request():
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) not in ("1", "2"):
+            return jsonify({"success": False, "message": "Only mentors and mentees can request coupons."}), 403
+
+        if not CouponRequest:
+            return jsonify({"success": False, "message": "Coupon request service unavailable"}), 503
+
+        data = request.get_json(silent=True) or request.form or {}
+        title = (data.get("title") or "").strip()
+        if not title:
+            return jsonify({"success": False, "message": "Please give your request a title."}), 400
+
+        quantity = 1
+        try:
+            quantity = max(1, min(200, int(data.get("quantity") or 1)))
+        except (TypeError, ValueError):
+            quantity = 1
+
+        req_obj = CouponRequest(
+            user_id=user.id,
+            title=title,
+            description=(data.get("description") or "").strip() or None,
+            discount_label=(data.get("discount_label") or "").strip() or None,
+            quantity=quantity,
+            status="pending"
+        )
+        db.session.add(req_obj)
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e)}), 500
+
+        return jsonify({
+            "success": True,
+            "message": "Your coupon request has been submitted to the administration.",
+            "request": req_obj.to_dict()
+        })
+
+    @api_bp.route("/coupons/<string:code>/qr", methods=["GET"])
+    def api_get_coupon_qr(code):
+        code = (code or "").strip().upper()
+        if not MentorCoupon:
+            return jsonify({"success": False, "message": "Coupon service unavailable"}), 503
+
+        coupon = MentorCoupon.query.filter_by(code=code).first()
+        if not coupon:
+            return jsonify({"success": False, "message": "Coupon not found"}), 404
+
+        target_url = f"{_api_public_base_url()}/coupon/verify/{coupon.code}"
+        box_size = 10 if request.args.get("size") == "large" else 7
+        buf = _api_coupon_qr_png(target_url, box_size=box_size)
+        if not buf:
+            return jsonify({"success": False, "message": "Failed to generate QR code"}), 500
+
+        response = send_file(buf, mimetype="image/png")
+        response.headers['Cache-Control'] = 'no-store'
+        return response
 
     @api_bp.route("/coupons/verify/<string:code>", methods=["GET"])
     def api_get_coupon_verify_details(code):
@@ -2366,6 +2793,13 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         coupon = MentorCoupon.query.filter_by(code=code).first()
         if not coupon:
             return jsonify({"success": False, "message": "Coupon not found"}), 404
+
+        if coupon.status == "active" and getattr(coupon, "is_expired", False):
+            coupon.status = "expired"
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
 
         verified_sellers = []
         if SellerProfile:
@@ -2403,7 +2837,9 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "is_usable": getattr(coupon, "is_usable", coupon.status == "active"),
                 "is_expired": getattr(coupon, "is_expired", False),
                 "used_at": coupon.used_at.isoformat() if coupon.used_at else None,
-                "used_by": coupon.used_by or ""
+                "used_by": coupon.used_by or "",
+                "seller_name": getattr(coupon, "seller_display_name", coupon.used_by or ""),
+                "redeemed_by_name": coupon.redeemed_by.name if getattr(coupon, "redeemed_by", None) else ""
             },
             "verified_sellers": verified_sellers,
             "candidates": candidates
@@ -2526,83 +2962,725 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "status": coupon.status,
                 "used_at": coupon.used_at.isoformat() if coupon.used_at else None,
                 "used_by": coupon.used_by,
-                "redeemed_by_name": redeemer.name
+                "redeemed_by_name": redeemer.name,
+                "seller_name": seller_profile.display_name
             }
         })
 
-    @api_bp.route("/seller/dashboard", methods=["GET"])
-    def api_get_seller_dashboard():
+    # -------------------------------------------------------------
+    # ADMIN / SUPERVISOR COUPON & REQUEST MANAGEMENT
+    # -------------------------------------------------------------
+    @api_bp.route("/admin/coupons", methods=["GET"])
+    def api_admin_get_coupons():
         user = get_current_user_from_req(User)
-        seller_id_param = request.args.get("seller_id")
-        seller = None
-        if seller_id_param and seller_id_param.isdigit():
-            seller = User.query.get(int(seller_id_param))
-        elif user:
-            seller = user
+        if not user or str(user.user_type) != "0":
+            return jsonify({"success": False, "message": "Administrator privileges required"}), 403
 
-        if not seller:
-            return jsonify({"success": False, "message": "Seller not identified"}), 404
+        if not MentorCoupon:
+            return jsonify({"success": True, "coupons": [], "stats": {}})
 
-        sp = None
-        if SellerProfile:
-            sp = SellerProfile.query.filter_by(user_id=seller.id).first()
+        coupons = MentorCoupon.query.order_by(MentorCoupon.created_at.desc()).limit(500).all()
+        for c in coupons:
+            if c.status == "active" and getattr(c, "is_expired", False):
+                c.status = "expired"
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
-        window = (request.args.get("window") or "all").lower()
-        now = datetime.utcnow()
-        cutoff = None
-        if window in ("today", "day", "1d"):
-            cutoff = datetime(now.year, now.month, now.day)
-        elif window in ("week", "7d"):
-            from datetime import timedelta
-            cutoff = now - timedelta(days=7)
-        elif window in ("month", "30d"):
-            from datetime import timedelta
-            cutoff = now - timedelta(days=30)
-
-        query = MentorCoupon.query.filter(MentorCoupon.seller_id == seller.id, MentorCoupon.used_at.isnot(None)) if MentorCoupon else None
-        if query is not None and cutoff is not None:
-            query = query.filter(MentorCoupon.used_at >= cutoff)
-
-        rows = query.order_by(MentorCoupon.used_at.desc()).all() if query is not None else []
-        lifetime = MentorCoupon.query.filter(MentorCoupon.seller_id == seller.id, MentorCoupon.used_at.isnot(None)).count() if MentorCoupon else 0
-
-        entries = []
-        by_discount = {}
-        for c in rows:
-            r_user = db.session.get(User, c.redeemed_by_user_id) if c.redeemed_by_user_id else None
-            role = "Mentor" if r_user and str(r_user.user_type) == "1" else "Mentee"
-            label = c.discount_label or "Standard Discount"
-            by_discount[label] = by_discount.get(label, 0) + 1
-            entries.append({
+        rows = []
+        for c in coupons:
+            holders = getattr(c, "assignees", [])
+            rows.append({
                 "id": c.id,
                 "code": c.code,
                 "title": c.title,
-                "discount_label": label,
+                "description": c.description or "",
+                "discount_label": c.discount_label or "",
+                "status": c.status,
+                "is_usable": getattr(c, "is_usable", c.status == "active"),
+                "is_expired": getattr(c, "is_expired", False),
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+                "expires_at": c.expires_at.isoformat() if c.expires_at else None,
                 "used_at": c.used_at.isoformat() if c.used_at else None,
-                "redeemer_name": r_user.name if r_user else "Member",
-                "redeemer_email": r_user.email if r_user else "",
-                "redeemer_role": role
+                "seller_name": getattr(c, "seller_display_name", c.used_by or ""),
+                "redeemed_by_name": (c.redeemed_by.name if getattr(c, "redeemed_by", None) else ""),
+                "holders": [
+                    {
+                        "id": h.id,
+                        "name": h.name,
+                        "email": h.email,
+                        "role": "Mentor" if str(h.user_type) == "1" else "Mentee"
+                    }
+                    for h in holders
+                ]
             })
+
+        mentors = User.query.filter_by(user_type="1").order_by(User.name).all()
+        mentees = User.query.filter_by(user_type="2").order_by(User.name).all()
+
+        requests_list = []
+        if CouponRequest:
+            reqs = CouponRequest.query.order_by(CouponRequest.created_at.desc()).limit(200).all()
+            requests_list = [r.to_dict() for r in reqs]
+
+        stats = {
+            "total": len(coupons),
+            "active": sum(1 for c in coupons if c.status == "active"),
+            "used": sum(1 for c in coupons if c.status == "used"),
+            "revoked": sum(1 for c in coupons if c.status in ("revoked", "expired")),
+            "pending_requests": sum(1 for r in requests_list if r.get("status") == "pending")
+        }
 
         return jsonify({
             "success": True,
-            "seller": {
-                "id": seller.id,
-                "name": seller.name,
-                "email": seller.email,
-                "display_name": sp.display_name if sp else seller.name,
-                "is_verified": bool(sp.is_verified) if sp else False,
-                "partner_label": sp.partner_label if sp else "Partner"
-            },
-            "stats": {
-                "redeemed": len(entries),
-                "lifetime": lifetime,
-                "filter_window": window,
-                "distinct_offers": len(by_discount)
-            },
-            "by_discount": [{"label": k, "count": v} for k, v in by_discount.items()],
-            "entries": entries
+            "coupons": rows,
+            "mentors": [{"id": m.id, "name": m.name, "email": m.email} for m in mentors],
+            "mentees": [{"id": m.id, "name": m.name, "email": m.email} for m in mentees],
+            "requests": requests_list,
+            "stats": stats
         })
+
+    @api_bp.route("/admin/coupons/create", methods=["POST"])
+    def api_admin_create_coupon():
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) != "0":
+            return jsonify({"success": False, "message": "Administrator privileges required"}), 403
+
+        if not MentorCoupon:
+            return jsonify({"success": False, "message": "Coupon service unavailable"}), 503
+
+        data = request.get_json(silent=True) or request.form or {}
+        title = (data.get("title") or "").strip()
+        if not title:
+            return jsonify({"success": False, "message": "Please provide a coupon title."}), 400
+
+        assignee_ids = []
+        for raw in (data.get("assignee_ids") or []):
+            try:
+                assignee_ids.append(int(raw))
+            except (TypeError, ValueError):
+                continue
+        assignee_ids = list(dict.fromkeys(assignee_ids))
+
+        holders = []
+        if assignee_ids:
+            holders = User.query.filter(User.id.in_(assignee_ids), User.user_type.in_(["1", "2"])).all()
+
+        quantity = 1
+        try:
+            quantity = max(1, min(200, int(data.get("quantity") or 1)))
+        except (TypeError, ValueError):
+            quantity = 1
+
+        expires_at = None
+        raw_expiry = (data.get("expires_at") or "").strip()
+        if raw_expiry:
+            for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    expires_at = datetime.strptime(raw_expiry, fmt)
+                    break
+                except ValueError:
+                    continue
+
+        legacy_mentor_id = next(
+            (h.id for h in holders if str(h.user_type) == "1"), user.id
+        )
+
+        created = []
+        try:
+            for _ in range(quantity):
+                coupon = MentorCoupon(
+                    code=_api_generate_coupon_code(),
+                    mentor_id=legacy_mentor_id,
+                    issued_by_user_id=user.id,
+                    title=title,
+                    description=(data.get("description") or "").strip() or None,
+                    discount_label=(data.get("discount_label") or "").strip() or None,
+                    status="active",
+                    expires_at=expires_at
+                )
+                db.session.add(coupon)
+                db.session.flush()
+                for holder in holders:
+                    if CouponAssignment:
+                        db.session.add(CouponAssignment(
+                            coupon_id=coupon.id,
+                            user_id=holder.id,
+                            assigned_by=user.id
+                        ))
+                created.append(coupon)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": f"Creation failed: {str(e)}"}), 500
+
+        return jsonify({
+            "success": True,
+            "message": f"{len(created)} coupon(s) issued" + (f" and assigned to {len(holders)} user(s)." if holders else "."),
+            "coupons": [c.to_dict() for c in created]
+        }), 201
+
+    @api_bp.route("/admin/coupons/<int:coupon_id>/status", methods=["POST"])
+    def api_admin_coupon_status(coupon_id):
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) != "0":
+            return jsonify({"success": False, "message": "Administrator privileges required"}), 403
+
+        if not MentorCoupon:
+            return jsonify({"success": False, "message": "Coupon service unavailable"}), 503
+
+        coupon = db.session.get(MentorCoupon, coupon_id)
+        if not coupon:
+            return jsonify({"success": False, "message": "Coupon not found"}), 404
+
+        data = request.get_json(silent=True) or request.form or {}
+        action = (data.get("action") or "").strip().lower()
+
+        if action == "revoke":
+            if coupon.status == "used":
+                return jsonify({"success": False, "message": "A redeemed coupon cannot be revoked."}), 400
+            coupon.status = "revoked"
+        elif action == "reinstate":
+            if coupon.status == "used":
+                return jsonify({"success": False, "message": "A redeemed coupon cannot be reinstated."}), 400
+            coupon.status = "active"
+        elif action == "reset":
+            coupon.status = "active"
+            coupon.used_at = None
+            coupon.used_by = None
+            coupon.seller_id = None
+            coupon.redeemed_by_user_id = None
+        elif action == "expire":
+            coupon.status = "expired"
+        else:
+            return jsonify({"success": False, "message": "Invalid action. Use revoke, reinstate, reset, or expire."}), 400
+
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e)}), 500
+
+        return jsonify({"success": True, "message": f"Coupon marked as {coupon.status}.", "coupon": coupon.to_dict()})
+
+    @api_bp.route("/admin/coupons/assign", methods=["POST"])
+    def api_admin_coupon_assign():
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) != "0":
+            return jsonify({"success": False, "message": "Administrator privileges required"}), 403
+
+        if not CouponAssignment or not MentorCoupon:
+            return jsonify({"success": False, "message": "Assignment service unavailable"}), 503
+
+        data = request.get_json(silent=True) or request.form or {}
+        coupon_id = int(data.get("coupon_id") or 0)
+        coupon = db.session.get(MentorCoupon, coupon_id)
+        if not coupon:
+            return jsonify({"success": False, "message": "Coupon not found"}), 404
+
+        action = (data.get("action") or "add").strip().lower()
+        try:
+            uid = int(data.get("user_id") or 0)
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "message": "Valid user ID required"}), 400
+
+        target_user = db.session.get(User, uid)
+        if not target_user or str(target_user.user_type) not in ("1", "2"):
+            return jsonify({"success": False, "message": "Only mentors and mentees can hold coupons."}), 400
+
+        existing = CouponAssignment.query.filter_by(coupon_id=coupon.id, user_id=uid).first()
+        try:
+            if action == "remove":
+                if existing:
+                    db.session.delete(existing)
+                    db.session.commit()
+                return jsonify({"success": True, "action": "remove", "user_id": uid, "coupon_id": coupon.id})
+            elif action == "add":
+                if not existing:
+                    db.session.add(CouponAssignment(coupon_id=coupon.id, user_id=uid, assigned_by=user.id))
+                    db.session.commit()
+                return jsonify({"success": True, "action": "add", "user_id": uid, "coupon_id": coupon.id})
+            else:
+                return jsonify({"success": False, "message": "Invalid action"}), 400
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e)}), 500
+
+    @api_bp.route("/admin/coupon_requests", methods=["GET"])
+    def api_admin_get_coupon_requests():
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) != "0":
+            return jsonify({"success": False, "message": "Administrator privileges required"}), 403
+
+        if not CouponRequest:
+            return jsonify({"success": True, "requests": []})
+
+        reqs = CouponRequest.query.order_by(CouponRequest.created_at.desc()).limit(200).all()
+        return jsonify({"success": True, "requests": [r.to_dict() for r in reqs]})
+
+    @api_bp.route("/admin/coupon_requests/<int:request_id>/status", methods=["POST"])
+    def api_admin_coupon_request_status(request_id):
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) != "0":
+            return jsonify({"success": False, "message": "Administrator privileges required"}), 403
+
+        if not CouponRequest:
+            return jsonify({"success": False, "message": "Coupon request service unavailable"}), 503
+
+        req_obj = db.session.get(CouponRequest, request_id)
+        if not req_obj:
+            return jsonify({"success": False, "message": "Request not found"}), 404
+
+        data = request.get_json(silent=True) or request.form or {}
+        decision = (data.get("decision") or "").strip().lower()
+        if decision not in ("approve", "reject"):
+            return jsonify({"success": False, "message": "Decision must be 'approve' or 'reject'"}), 400
+
+        req_obj.status = "approved" if decision == "approve" else "rejected"
+        req_obj.handled_by = user.id
+        req_obj.handled_at = datetime.utcnow()
+        req_obj.admin_note = (data.get("note") or data.get("admin_note") or "").strip() or None
+
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e)}), 500
+
+        import sys
+        send_fn = getattr(sys.modules.get('__main__'), 'send_email_reminder', None) or getattr(sys.modules.get('app'), 'send_email_reminder', None)
+        if send_fn and req_obj.user and req_obj.user.email:
+            try:
+                send_fn(
+                    req_obj.user.email,
+                    f"Coupon request {req_obj.status}",
+                    f"<p>Hello {req_obj.user.name},</p><p>Your coupon request <strong>{req_obj.title}</strong> was <strong>{req_obj.status}</strong>."
+                    + (f"<br/>Note: {req_obj.admin_note}" if req_obj.admin_note else "")
+                    + "</p>"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to email user about request status: {e}")
+
+    # -------------------------------------------------------------
+    # 11. IN-APP CHAT REST ENDPOINTS
+    # -------------------------------------------------------------
+    @api_bp.route("/chat/conversations", methods=["GET"])
+    def api_chat_conversations():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+        if not ChatConversation:
+            return jsonify({"success": False, "conversations": []})
+
+        conversations = ChatConversation.query.filter(
+            or_(
+                ChatConversation.participant1_id == user.id,
+                ChatConversation.participant2_id == user.id
+            )
+        ).order_by(ChatConversation.updated_at.desc()).all()
+
+        res = []
+        for conv in conversations:
+            other_id = conv.participant2_id if conv.participant1_id == user.id else conv.participant1_id
+            other_u = User.query.get(other_id)
+            if not other_u:
+                continue
+
+            last_msg = None
+            if ChatMessage:
+                last_msg = ChatMessage.query.filter_by(conversation_id=conv.id).order_by(ChatMessage.created_at.desc()).first()
+
+            unread = 0
+            if ChatMessage:
+                unread = ChatMessage.query.filter_by(conversation_id=conv.id, is_read=False).filter(ChatMessage.sender_id != user.id).count()
+
+            other_pic = getattr(other_u, 'profile_picture_url', None)
+            res.append({
+                "id": conv.id,
+                "other_user_id": other_id,
+                "other_user_name": other_u.name,
+                "other_user_type": other_u.user_type,
+                "other_user_avatar": format_pic_url(other_pic),
+                "last_message": last_msg.content if last_msg else "",
+                "last_message_time": last_msg.created_at.isoformat() + "Z" if last_msg and last_msg.created_at else None,
+                "unread_count": unread,
+                "updated_at": conv.updated_at.isoformat() + "Z" if conv.updated_at else datetime.utcnow().isoformat() + "Z"
+            })
+        return jsonify({"success": True, "conversations": res})
+
+    @api_bp.route("/chat/messages/<int:conversation_id>", methods=["GET"])
+    def api_chat_messages(conversation_id):
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+        if not ChatConversation or not ChatMessage:
+            return jsonify({"success": False, "messages": []})
+
+        conv = db.session.get(ChatConversation, conversation_id)
+        if not conv or (conv.participant1_id != user.id and conv.participant2_id != user.id):
+            return jsonify({"success": False, "message": "Conversation not found"}), 404
+
+        # Mark incoming unread messages as read
+        ChatMessage.query.filter_by(conversation_id=conv.id, is_read=False).filter(ChatMessage.sender_id != user.id).update({"is_read": True})
+        db.session.commit()
+
+        messages = ChatMessage.query.filter_by(conversation_id=conv.id).order_by(ChatMessage.created_at.asc()).all()
+        return jsonify({
+            "success": True,
+            "messages": [
+                {
+                    "id": m.id,
+                    "conversation_id": m.conversation_id,
+                    "sender_id": m.sender_id,
+                    "is_me": m.sender_id == user.id,
+                    "content": m.content,
+                    "is_read": bool(m.is_read),
+                    "created_at": m.created_at.isoformat() + "Z" if m.created_at else None
+                } for m in messages
+            ]
+        })
+
+    @api_bp.route("/chat/send", methods=["POST"])
+    def api_chat_send():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+        if not ChatConversation or not ChatMessage:
+            return jsonify({"success": False, "message": "Chat service unavailable"}), 503
+
+        data = request.get_json(silent=True) or request.form or {}
+        content = (data.get("content") or data.get("message") or "").strip()
+        if not content:
+            return jsonify({"success": False, "message": "Message content cannot be empty"}), 400
+
+        conv_id = data.get("conversation_id")
+        conv = None
+        if conv_id:
+            conv = db.session.get(ChatConversation, int(conv_id))
+        
+        if not conv:
+            other_id = data.get("other_user_id") or data.get("recipient_id")
+            if not other_id:
+                return jsonify({"success": False, "message": "Recipient or conversation ID required"}), 400
+            other_id = int(other_id)
+            p1, p2 = min(user.id, other_id), max(user.id, other_id)
+            conv = ChatConversation.query.filter_by(participant1_id=p1, participant2_id=p2).first()
+            if not conv:
+                conv = ChatConversation(participant1_id=p1, participant2_id=p2, conversation_type="direct", created_at=datetime.utcnow(), updated_at=datetime.utcnow())
+                db.session.add(conv)
+                db.session.flush()
+
+        msg = ChatMessage(
+            conversation_id=conv.id,
+            sender_id=user.id,
+            content=content,
+            is_read=False,
+            created_at=datetime.utcnow()
+        )
+        conv.updated_at = datetime.utcnow()
+        db.session.add(msg)
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": {
+                "id": msg.id,
+                "conversation_id": conv.id,
+                "sender_id": user.id,
+                "is_me": True,
+                "content": msg.content,
+                "is_read": False,
+                "created_at": msg.created_at.isoformat() + "Z"
+            }
+        })
+
+    @api_bp.route("/chat/mark-read/<int:conversation_id>", methods=["POST"])
+    def api_chat_mark_read(conversation_id):
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+        if ChatMessage:
+            ChatMessage.query.filter_by(conversation_id=conversation_id, is_read=False).filter(ChatMessage.sender_id != user.id).update({"is_read": True})
+            db.session.commit()
+        return jsonify({"success": True})
+
+    @api_bp.route("/chat/start/<int:other_user_id>", methods=["POST"])
+    def api_chat_start(other_user_id):
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+        if not ChatConversation:
+            return jsonify({"success": False, "message": "Chat service unavailable"}), 503
+
+        p1, p2 = min(user.id, other_user_id), max(user.id, other_user_id)
+        conv = ChatConversation.query.filter_by(participant1_id=p1, participant2_id=p2).first()
+        if not conv:
+            conv = ChatConversation(participant1_id=p1, participant2_id=p2, conversation_type="direct", created_at=datetime.utcnow(), updated_at=datetime.utcnow())
+            db.session.add(conv)
+            db.session.commit()
+        return jsonify({"success": True, "conversation_id": conv.id})
+
+    # -------------------------------------------------------------
+    # 12. MENTORSHIP RATING & REVIEW ENDPOINTS
+    # -------------------------------------------------------------
+    @api_bp.route("/mentorship_completion_status/<int:mentorship_id>", methods=["GET"])
+    def api_mentorship_completion_status_mobile(mentorship_id):
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+        mr = db.session.get(MentorshipRequest, mentorship_id)
+        if not mr:
+            return jsonify({"success": False, "message": "Mentorship not found"}), 404
+        
+        tasks = MenteeTask.query.filter_by(mentee_id=mr.mentee_id, mentor_id=mr.mentor_id).all() if MenteeTask else []
+        if tasks:
+            done_cnt = sum(1 for t in tasks if (t.status or "").lower() in ("done", "completed") or (t.progress or 0) >= 100)
+            pct = round((done_cnt / len(tasks)) * 100, 1)
+            is_done = pct >= 80.0
+        else:
+            is_done = False
+            pct = 0.0
+
+        return jsonify({
+            "success": True,
+            "completed": is_done,
+            "completion_pct": pct,
+            "mentorship_id": mentorship_id
+        })
+
+    @api_bp.route("/mentorship_rating/<int:mentorship_id>", methods=["GET"])
+    def api_mentorship_rating_mobile(mentorship_id):
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+        mr = db.session.get(MentorshipRequest, mentorship_id)
+        if not mr:
+            return jsonify({"success": False, "message": "Mentorship not found"}), 404
+
+        import sys
+        calc_fn = getattr(sys.modules.get('__main__'), 'compute_mentorship_composite_rating', None) or getattr(sys.modules.get('app'), 'compute_mentorship_composite_rating', None)
+        if calc_fn:
+            rating_data = calc_fn(mr.mentee_id, mr.mentor_id)
+        else:
+            rating_data = {"overall_rating": 5.0, "total_reviews": 0}
+
+        return jsonify({"success": True, "rating": rating_data})
+
+    @api_bp.route("/submit_mentorship_rating", methods=["POST"])
+    def api_submit_mentorship_rating_mobile():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+        data = request.get_json(silent=True) or request.form or {}
+        mentorship_id = data.get("mentorship_id")
+        if not mentorship_id:
+            return jsonify({"success": False, "message": "mentorship_id required"}), 400
+
+        over = int(data.get("overall") or data.get("rating") or 5)
+        feedback_text = (data.get("feedback") or "").strip()
+
+        mr = db.session.get(MentorshipRequest, int(mentorship_id))
+        if not mr:
+            return jsonify({"success": False, "message": "Mentorship not found"}), 404
+
+        if MenteeFeedback:
+            fb = MenteeFeedback(
+                mentee_id=mr.mentee_id,
+                mentor_id=mr.mentor_id,
+                task_id=0,
+                task_type="mentorship",
+                rating=over,
+                feedback=feedback_text,
+                created_at=datetime.utcnow()
+            )
+            db.session.add(fb)
+            db.session.commit()
+
+        return jsonify({"success": True, "message": "Mentorship rating submitted successfully."})
+
+    # -------------------------------------------------------------
+    # 13. NOTE MANAGEMENT ENDPOINTS
+    # -------------------------------------------------------------
+    @api_bp.route("/notes", methods=["GET"])
+    def api_get_notes():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+        if not ResourceNote:
+            return jsonify({"success": True, "notes": []})
+
+        notes = ResourceNote.query.filter(
+            or_(
+                ResourceNote.mentee_id == user.id,
+                ResourceNote.mentor_id == user.id,
+                ResourceNote.institution_id == user.institution_id
+            )
+        ).order_by(ResourceNote.updated_at.desc()).all()
+
+        return jsonify({
+            "success": True,
+            "notes": [
+                {
+                    "id": n.id,
+                    "title": n.title,
+                    "content": n.content,
+                    "created_at": n.created_at.strftime("%Y-%m-%d") if n.created_at else "",
+                    "updated_at": n.updated_at.strftime("%Y-%m-%d") if n.updated_at else ""
+                } for n in notes
+            ]
+        })
+
+    @api_bp.route("/notes/create", methods=["POST"])
+    def api_create_note():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+        if not ResourceNote:
+            return jsonify({"success": False, "message": "Notes service unavailable"}), 503
+
+        data = request.get_json(silent=True) or request.form or {}
+        title = (data.get("title") or "").strip()
+        content = (data.get("content") or "").strip()
+        if not title or not content:
+            return jsonify({"success": False, "message": "Title and content required"}), 400
+
+        note = ResourceNote(
+            mentee_id=user.id if str(user.user_type) == "2" else None,
+            mentor_id=user.id if str(user.user_type) == "1" else None,
+            institution_id=user.institution_id,
+            title=title,
+            content=content,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        db.session.add(note)
+        db.session.commit()
+        return jsonify({"success": True, "note_id": note.id, "message": "Note created"})
+
+    @api_bp.route("/notes/<int:note_id>", methods=["PUT", "POST"])
+    def api_update_note(note_id):
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+        if not ResourceNote:
+            return jsonify({"success": False, "message": "Notes service unavailable"}), 503
+
+        note = db.session.get(ResourceNote, note_id)
+        if not note:
+            return jsonify({"success": False, "message": "Note not found"}), 404
+
+        data = request.get_json(silent=True) or request.form or {}
+        if "title" in data:
+            note.title = data["title"].strip()
+        if "content" in data:
+            note.content = data["content"].strip()
+        note.updated_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({"success": True, "message": "Note updated"})
+
+    @api_bp.route("/notes/<int:note_id>", methods=["DELETE"])
+    def api_delete_note(note_id):
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+        if not ResourceNote:
+            return jsonify({"success": False, "message": "Notes service unavailable"}), 503
+
+        note = db.session.get(ResourceNote, note_id)
+        if not note:
+            return jsonify({"success": False, "message": "Note not found"}), 404
+        db.session.delete(note)
+        db.session.commit()
+        return jsonify({"success": True, "message": "Note deleted"})
+
+    # -------------------------------------------------------------
+    # 14. REMINDERS & SETTINGS ENDPOINTS
+    # -------------------------------------------------------------
+    @api_bp.route("/admin/reminders/settings", methods=["GET", "POST"])
+    def api_admin_reminder_settings():
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) not in ("0", "4"):
+            return jsonify({"success": False, "message": "Admin privileges required"}), 403
+
+        if not ReminderSettings:
+            return jsonify({"success": True, "settings": {}})
+
+        settings = ReminderSettings.query.first()
+        if request.method == "POST":
+            data = request.get_json(silent=True) or request.form or {}
+            if not settings:
+                settings = ReminderSettings()
+                db.session.add(settings)
+            if "is_enabled" in data:
+                settings.is_enabled = bool(data["is_enabled"])
+            db.session.commit()
+            return jsonify({"success": True, "message": "Settings updated"})
+
+        return jsonify({
+            "success": True,
+            "settings": {
+                "id": getattr(settings, 'id', 1),
+                "is_enabled": getattr(settings, 'is_enabled', True),
+                "days_after_creation": getattr(settings, 'days_after_creation', 7)
+            } if settings else {"is_enabled": True}
+        })
+
+    @api_bp.route("/admin/reminders/logs", methods=["GET"])
+    def api_admin_reminder_logs():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+        if not ProfileCompletionReminder:
+            return jsonify({"success": True, "logs": []})
+
+        query = ProfileCompletionReminder.query
+        if str(user.user_type) not in ("0", "4"):
+            query = query.filter_by(user_id=user.id)
+        
+        logs = query.order_by(ProfileCompletionReminder.sent_at.desc()).limit(50).all()
+        return jsonify({
+            "success": True,
+            "logs": [
+                {
+                    "id": l.id,
+                    "user_id": l.user_id,
+                    "user_type": l.user_type,
+                    "sent_at": l.sent_at.strftime("%Y-%m-%d %H:%M") if l.sent_at else ""
+                } for l in logs
+            ]
+        })
+
+    # -------------------------------------------------------------
+    # 15. MENTOR COUPON ENDPOINTS
+    # -------------------------------------------------------------
+    @api_bp.route("/mentor/coupons/create", methods=["POST"])
+    def api_mentor_create_coupon():
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) != "1":
+            return jsonify({"success": False, "message": "Mentor privileges required"}), 403
+        if not MentorCoupon:
+            return jsonify({"success": False, "message": "Coupon service unavailable"}), 503
+
+        data = request.get_json(silent=True) or request.form or {}
+        title = (data.get("title") or "").strip()
+        discount = (data.get("discount_value") or data.get("discount") or "10%").strip()
+        if not title:
+            return jsonify({"success": False, "message": "Title required"}), 400
+
+        code = _api_generate_coupon_code()
+        coupon = MentorCoupon(
+            mentor_id=user.id,
+            title=title,
+            code=code,
+            discount_value=discount,
+            is_active=True,
+            created_at=datetime.utcnow()
+        )
+        db.session.add(coupon)
+        db.session.commit()
+        return jsonify({"success": True, "message": "Coupon created", "coupon": coupon.to_dict() if hasattr(coupon, 'to_dict') else {"id": coupon.id, "code": code}})
 
     @api_bp.errorhandler(Exception)
     def handle_api_exception(e):

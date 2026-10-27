@@ -2991,11 +2991,7 @@ class MentorCoupon(db.Model):
 
 
 class SellerProfile(db.Model):
-    """A partner/seller who redeems coupons at their shop or market.
-
-    A seller account only becomes selectable on the verification page once a
-    supervisor sets `is_verified`.
-    """
+    """A partner/seller who redeems coupons at their shop or market."""
     __tablename__ = "seller_profiles"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -3010,7 +3006,7 @@ class SellerProfile(db.Model):
     # How many shops this partner owns. NULL until they complete their profile.
     shop_count = db.Column(db.Integer)
 
-    is_verified = db.Column(db.Boolean, default=False, nullable=False, server_default="0")
+    is_verified = db.Column(db.Boolean, default=True, nullable=False, server_default="1")
     verified_by = db.Column(db.Integer, db.ForeignKey("signup_details.id"))
     verified_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -3538,7 +3534,11 @@ register_mobile_api(
     MenteeFeedback=MenteeFeedback, MentorReflection=MentorReflection,
     account_needs_otp=lambda user_id: _account_needs_otp(user_id),
     mark_account_unverified=lambda user_id: _mark_account_unverified(user_id),
-    SellerProfile=SellerProfile, MentorCoupon=MentorCoupon, CouponAssignment=CouponAssignment
+    SellerProfile=SellerProfile, MentorCoupon=MentorCoupon, CouponAssignment=CouponAssignment,
+    CouponRequest=CouponRequest, SellerReferral=SellerReferral,
+    ChatConversation=ChatConversation, ChatMessage=ChatMessage, ResourceNote=ResourceNote,
+    ReminderSettings=ReminderSettings, ProfileCompletionReminder=ProfileCompletionReminder,
+    compute_profile_completeness=lambda user_id, user_type: _compute_profile_completeness_score(user_id, user_type)
 )
 
 
@@ -21181,7 +21181,10 @@ def _resolve_redemption_shop(seller_profile, raw_shop_id):
 
 
 def _verified_sellers():
-    """Every partner account, for the redemption dropdown (accounts are created by us, so no verification step)."""
+    """Every partner account, for the redemption dropdown."""
+    seller_users = User.query.filter(or_(User.user_type == "4", User.user_type == "seller", User.user_type == "partner")).all()
+    for u in seller_users:
+        _ensure_seller_profile(u)
     rows = SellerProfile.query.all()
     return sorted(rows, key=lambda p: (p.display_name or "").lower())
 
@@ -21547,7 +21550,7 @@ def seller_coupons():
 
 
 # --------------------------------------------------------------------------
-# Supervisor / admin: coupon issuing and partner verification
+# Supervisor / admin: coupon issuing
 # --------------------------------------------------------------------------
 def _supervisor_or_none():
     if "email" not in session or str(session.get("user_type")) != "0":
@@ -22022,7 +22025,7 @@ def coupon_verify(code):
     """Public page a partner lands on after scanning the QR code.
 
     GET  -> show the coupon and whether it is still valid, plus the dropdown of
-            supervisor-verified shops and the people it is assigned to.
+            partner shops and the people it is assigned to.
     POST -> record the redemption: which shop verified it and who redeemed it,
             then email both parties with the full detail.
     """

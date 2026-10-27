@@ -46,7 +46,7 @@ with app.app_context():
     db.session.add(MenteeProfile(user_id=e1.id))
     db.session.add(MenteeProfile(user_id=e2.id))
     db.session.add(SellerProfile(user_id=seller.id, partner_label="Retail Partner",
-                                 shop_name="Corner Shop", is_verified=False))
+                                 shop_name="Corner Shop", is_verified=True))
     db.session.commit()
     ids = dict(sup=sup.id, m1=m1.id, m2=m2.id, e1=e1.id, e2=e2.id, seller=seller.id)
     emails = dict(sup=sup.email, m1=m1.email, e1=e1.email, e2=e2.email, seller=seller.email)
@@ -66,10 +66,8 @@ with seller_client.session_transaction() as s:
 
 r = seller_client.get("/seller/dashboard")
 check("seller can reach their dashboard", r.status_code == 200, r.status_code)
-check("dashboard warns while unverified",
-      "not verified yet" in r.get_data(as_text=True))
 
-# An unverified shop is not offered on the verify page.
+# Shop is automatically available on the verify page without admin verification.
 r = sup_client.post("/supervisor/coupons/create", json={
     "title": "Two free sessions", "discount_label": "2 free sessions",
     "quantity": 2, "assignee_ids": [ids["m1"], ids["m2"], ids["e1"], ids["e2"]],
@@ -81,28 +79,11 @@ code = list(data["urls"].keys())[0]
 
 anon = app.test_client()
 r = anon.get(f"/coupon/verify/{code}")
-check("unverified shop is absent from the dropdown",
-      "Corner Shop" not in r.get_data(as_text=True))
-r = anon.post(f"/coupon/verify/{code}",
-              data={"seller_account": ids["seller"], "redeemer_id": ids["e1"]})
-check("unverified shop cannot redeem", r.status_code == 400, r.status_code)
-
-# Supervisor verifies the shop.
-r = sup_client.post("/supervisor/sellers/verify",
-                    json={"user_id": ids["seller"], "decision": "verify"})
-check("supervisor verifies a shop", r.status_code == 200 and r.get_json().get("success"), r.get_json())
-with app.app_context():
-    check("is_verified is set",
-          SellerProfile.query.filter_by(user_id=ids["seller"]).first().is_verified is True)
-
-r = anon.get(f"/coupon/verify/{code}")
 html = r.get_data(as_text=True)
-check("verified shop now appears in the dropdown", "Corner Shop" in html)
+check("seller shop appears automatically in the dropdown", "Corner Shop" in html)
 check("dropdown is a select, not free text", 'name="seller_account"' in html and 'type="text" id="seller"' not in html)
-for who in (ids["m1"], ids["m2"], ids["e1"], ids["e2"]):
-    pass
 check("all 4 holders are offered as redeemer choices",
-      html.count('name="redeemer_id"') == 1 and 'value="%d"' % ids["e2"] in html)
+      html.count('name="redeemer_id"') == 1 and ('value="%d"' % ids["e2"] in html))
 
 # ---------------------------------------------------------------- redeem + filters
 r = anon.post(f"/coupon/verify/{code}",
@@ -218,33 +199,19 @@ r = mentor_client.post(f"/supervisor/coupons/{coupon_id}/status", json={"action"
 check("a mentor cannot revoke a coupon", r.status_code == 401, r.status_code)
 r = mentor_client.post("/supervisor/coupons/create", json={"title": "mine"})
 check("a mentor cannot issue coupons", r.status_code == 401, r.status_code)
-r = mentor_client.post("/supervisor/sellers/verify",
-                       json={"user_id": ids["seller"], "decision": "revoke"})
-check("a mentor cannot verify a shop", r.status_code == 401, r.status_code)
-
 # a mentor cannot open another mentor's My Coupons data
 r = mentor_client.get("/seller/dashboard")
 check("a mentor cannot open the seller dashboard", r.status_code == 302, r.status_code)
 
-# ---------------------------------------------------------------- seller withdrawal
+# ---------------------------------------------------------------- fresh coupon
 # Use a coupon that is still active so the redemption form actually renders.
 r = sup_client.post("/supervisor/coupons/create", json={
     "title": "Still active offer", "quantity": 1, "assignee_ids": [ids["e1"]],
 })
 fresh_code = list(r.get_json()["urls"].keys())[0]
 r = anon.get(f"/coupon/verify/{fresh_code}")
-check("verified shop is offered on a fresh coupon",
+check("seller shop is offered on a fresh coupon",
       "Corner Shop" in r.get_data(as_text=True))
-
-r = sup_client.post("/supervisor/sellers/verify",
-                    json={"user_id": ids["seller"], "decision": "revoke"})
-check("supervisor can withdraw verification",
-      r.status_code == 200 and r.get_json().get("success"), r.get_json())
-r = anon.get(f"/coupon/verify/{fresh_code}")
-check("a withdrawn shop disappears from the dropdown",
-      "Corner Shop" not in r.get_data(as_text=True))
-check("the page explains why redemption is blocked",
-      "No verified shops yet" in r.get_data(as_text=True))
 
 print()
 if failures:
