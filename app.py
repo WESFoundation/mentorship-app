@@ -3492,7 +3492,11 @@ register_mobile_api(
     MenteeFeedback=MenteeFeedback, MentorReflection=MentorReflection,
     account_needs_otp=lambda user_id: _account_needs_otp(user_id),
     mark_account_unverified=lambda user_id: _mark_account_unverified(user_id),
-    SellerProfile=SellerProfile, MentorCoupon=MentorCoupon, CouponAssignment=CouponAssignment
+    SellerProfile=SellerProfile, MentorCoupon=MentorCoupon, CouponAssignment=CouponAssignment,
+    CouponRequest=CouponRequest, SellerReferral=SellerReferral,
+    ChatConversation=ChatConversation, ChatMessage=ChatMessage, ResourceNote=ResourceNote,
+    ReminderSettings=ReminderSettings, ProfileCompletionReminder=ProfileCompletionReminder,
+    compute_profile_completeness=lambda user_id, user_type: _compute_profile_completeness_score(user_id, user_type)
 )
 
 
