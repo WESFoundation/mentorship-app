@@ -317,11 +317,18 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
         needs_otp = kwargs.get("account_needs_otp")
         if needs_otp and needs_otp(user.id):
+            start_otp = kwargs.get("start_login_otp")
+            if start_otp:
+                try:
+                    start_otp(user)
+                except Exception as e:
+                    logger.warning("Could not dispatch OTP for user %s: %s", user.email, e)
             return jsonify({
                 "success": False,
                 "otp_required": True,
-                "message": "Please sign in once on the website to verify your email, then try again."
-            }), 403
+                "email": user.email,
+                "message": "A verification code has been sent to your email. Please enter it to continue."
+            }), 200
 
         raw_role = str(user.user_type or "2").strip()
         role = raw_role
@@ -352,6 +359,76 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "is_corporate": getattr(user, "is_corporate", False),
             }
         })
+
+    @api_bp.route("/auth/verify_otp", methods=["POST"])
+    def api_verify_otp():
+        data = request.get_json(silent=True) or {}
+        email = (data.get("email") or "").strip().lower()
+        otp = (data.get("otp") or "").strip()
+
+        if not email or not otp:
+            return jsonify({"success": False, "message": "Email and OTP code are required"}), 400
+
+        user = User.query.filter(func.lower(User.email) == email).first()
+        if not user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        verify_fn = kwargs.get("verify_login_otp")
+        if verify_fn:
+            ok, msg = verify_fn(user, otp)
+            if not ok:
+                return jsonify({"success": False, "message": msg}), 400
+        else:
+            return jsonify({"success": False, "message": "Verification service unavailable"}), 500
+
+        raw_role = str(user.user_type or "2").strip()
+        role = raw_role
+        if raw_role in ("admin", "supervisor", "0"):
+            role = "0"
+        elif raw_role in ("mentor", "1"):
+            role = "1"
+        elif raw_role in ("institution", "3"):
+            role = "3"
+        elif raw_role in ("seller", "partner", "4"):
+            role = "4"
+        else:
+            role = "2"
+
+        session["user_id"] = user.id
+        session["email"] = user.email
+        session["user_type"] = role
+        session.permanent = True
+
+        return jsonify({
+            "success": True,
+            "message": "Email verified successfully",
+            "token": user.email,
+            "user": {
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "role": role,
+                "is_corporate": getattr(user, "is_corporate", False),
+            }
+        }), 200
+
+    @api_bp.route("/auth/resend_otp", methods=["POST"])
+    def api_resend_otp():
+        data = request.get_json(silent=True) or {}
+        email = (data.get("email") or "").strip().lower()
+
+        if not email:
+            return jsonify({"success": False, "message": "Email is required"}), 400
+
+        user = User.query.filter(func.lower(User.email) == email).first()
+        if not user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        start_otp = kwargs.get("start_login_otp")
+        if start_otp:
+            start_otp(user)
+            return jsonify({"success": True, "message": "Verification code resent successfully"}), 200
+        return jsonify({"success": False, "message": "OTP service unavailable"}), 500
 
     @api_bp.route("/auth/register", methods=["POST"])
     def api_register():
@@ -387,7 +464,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 db.session.add(mentor_p)
                 db.session.commit()
             elif user_type == "2":
-                mentee_p = MenteeProfile(user_id=new_user.id, name=new_user.name, email=new_user.email)
+                mentee_p = MenteeProfile(user_id=new_user.id)
                 db.session.add(mentee_p)
                 db.session.commit()
             elif user_type == "3":
