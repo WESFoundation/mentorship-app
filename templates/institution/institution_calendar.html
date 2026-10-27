@@ -602,7 +602,7 @@
 
         <!-- Scrollable Checklist -->
         <div id="sgm-mentors-checklist" class="max-h-36 overflow-y-auto border border-gray-200 rounded-xl p-2 bg-gray-50 space-y-1">
-          {% for mentor in mentors %}
+          {% for mentor in sgm_mentors %}
           <label class="sgm-mentor-row flex items-center justify-between p-2 rounded-lg hover:bg-white cursor-pointer transition text-xs border border-transparent hover:border-gray-200" data-name="{{ (mentor.name or '') | lower }}" data-email="{{ (mentor.email or '') | lower }}">
             <div class="flex items-center gap-2.5">
               <input type="checkbox" value="{{ mentor.id }}" data-mentor-name="{{ mentor.name }}" onchange="updateSgmMentorsSelectedCount()" class="sgm-mentor-cb rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4">
@@ -825,7 +825,7 @@
                         <button type="button" onclick="toggleAllEditSgmMentors(false)" class="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100">Clear</button>
                     </div>
                     <div id="edit-sgm-mentors-checklist" class="max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-2 bg-gray-50 space-y-1">
-                        {% for mentor in mentors %}
+                        {% for mentor in sgm_mentors %}
                         <label class="edit-sgm-mentor-row flex items-center justify-between p-1.5 rounded-lg hover:bg-white cursor-pointer transition text-xs border border-transparent hover:border-gray-200" data-name="{{ (mentor.name or '') | lower }}" data-email="{{ (mentor.email or '') | lower }}">
                             <div class="flex items-center gap-2.5">
                                 <input type="checkbox" value="{{ mentor.id }}" data-mentor-name="{{ mentor.name }}" onchange="updateEditSgmMentorsCount()" class="edit-sgm-mentor-cb rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4">

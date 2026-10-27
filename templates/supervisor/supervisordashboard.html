@@ -58,6 +58,110 @@
       </div>
     </div>
 
+    <!-- Global geographic filter: continent > countries, multi-select -->
+    <div class="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-3 relative" id="geo-filter">
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Region filter</span>
+        <button type="button" id="geo-toggle" onclick="geoTogglePanel()"
+                class="px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-700 hover:bg-slate-100 min-w-[16rem] text-left flex items-center justify-between gap-3">
+          <span id="geo-summary">All regions</span>
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <button type="button" onclick="geoApply()" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">Apply</button>
+        <button type="button" onclick="geoClear()" class="px-3 py-2 rounded-lg bg-white border border-slate-300 text-sm text-slate-600 hover:bg-slate-100">Clear</button>
+        <span class="text-xs text-slate-500">Applies to the whole dashboard: lists, metrics and leaderboards.</span>
+      </div>
+      <div id="geo-panel" class="hidden absolute z-30 mt-2 left-3 w-[min(32rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div class="p-2 border-b border-slate-100">
+          <input type="text" id="geo-search" oninput="geoSearch(this.value)" placeholder="Search country or continent..."
+                 class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm">
+        </div>
+        <div class="max-h-80 overflow-y-auto p-2 space-y-1">
+          {% for g in geo_options %}
+          <div class="geo-group" data-continent="{{ g.continent|lower }}">
+            <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-slate-50">
+              <input type="checkbox" class="geo-continent-cb rounded" onchange="geoToggleContinent(this)">
+              <button type="button" class="flex-1 text-left text-sm font-semibold text-slate-800" onclick="geoToggleOpen(this)">
+                {{ g.continent }} <span class="font-normal text-slate-400 text-xs geo-count"></span>
+              </button>
+            </div>
+            <div class="geo-countries hidden pl-7 py-1"><div class="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
+              {% for c in g.countries %}
+              <label class="geo-country flex items-center gap-2 py-1 text-xs text-slate-700 cursor-pointer" data-name="{{ c.name|lower }}">
+                <input type="checkbox" class="geo-country-cb rounded" value="{{ c.name }}" onchange="geoSync()"
+                       {% if c.name in geo_selected %}checked{% endif %}>
+                <span>{{ c.name }}{% if c.present %} <span class="text-emerald-600">&#9679;</span>{% endif %}</span>
+              </label>
+              {% endfor %}
+            </div></div>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="px-3 py-2 text-[11px] text-slate-400 border-t border-slate-100"><span class="text-emerald-600">&#9679;</span> = has mentors or mentees</p>
+      </div>
+    </div>
+    <script>
+      function geoCbs() { return Array.from(document.querySelectorAll('#geo-panel .geo-country-cb')); }
+      function geoTogglePanel() { document.getElementById('geo-panel').classList.toggle('hidden'); }
+      function geoToggleOpen(btn) {
+        btn.closest('.geo-group').querySelector('.geo-countries').classList.toggle('hidden');
+      }
+      function geoToggleContinent(cb) {
+        var grp = cb.closest('.geo-group');
+        grp.querySelectorAll('.geo-country:not(.hidden) .geo-country-cb').forEach(function (c) { c.checked = cb.checked; });
+        if (cb.checked) grp.querySelector('.geo-countries').classList.remove('hidden');
+        geoSync();
+      }
+      function geoSync() {
+        document.querySelectorAll('#geo-panel .geo-group').forEach(function (grp) {
+          var all = grp.querySelectorAll('.geo-country-cb');
+          var on = grp.querySelectorAll('.geo-country-cb:checked').length;
+          var cc = grp.querySelector('.geo-continent-cb');
+          cc.checked = all.length > 0 && on === all.length;
+          cc.indeterminate = on > 0 && on < all.length;
+          grp.querySelector('.geo-count').textContent = on ? '(' + on + ' selected)' : '';
+        });
+        var n = geoCbs().filter(function (c) { return c.checked; });
+        document.getElementById('geo-summary').textContent =
+          n.length === 0 ? 'All regions' : (n.length <= 2 ? n.map(function (c) { return c.value; }).join(', ') : n.length + ' countries selected');
+      }
+      function geoSearch(q) {
+        q = (q || '').toLowerCase().trim();
+        document.querySelectorAll('#geo-panel .geo-group').forEach(function (grp) {
+          var contMatch = grp.dataset.continent.indexOf(q) !== -1;
+          var any = false;
+          grp.querySelectorAll('.geo-country').forEach(function (l) {
+            var ok = !q || contMatch || l.dataset.name.indexOf(q) !== -1;
+            l.classList.toggle('hidden', !ok);
+            if (ok) any = true;
+          });
+          grp.classList.toggle('hidden', !any);
+          if (q && any) grp.querySelector('.geo-countries').classList.remove('hidden');
+        });
+      }
+      function geoApply() {
+        var url = new URL(window.location.href);
+        url.searchParams.delete('geo_country');
+        geoCbs().filter(function (c) { return c.checked; }).forEach(function (c) { url.searchParams.append('geo_country', c.value); });
+        window.location.href = url.toString();
+      }
+      function geoClear() {
+        var url = new URL(window.location.href);
+        url.searchParams.delete('geo_country');
+        window.location.href = url.toString();
+      }
+      document.addEventListener('click', function (e) {
+        var f = document.getElementById('geo-filter');
+        if (f && !f.contains(e.target)) document.getElementById('geo-panel').classList.add('hidden');
+      });
+      document.addEventListener('DOMContentLoaded', function () {
+        geoSync();
+        document.querySelectorAll('#geo-panel .geo-group').forEach(function (g) {
+          if (g.querySelector('.geo-country-cb:checked')) g.querySelector('.geo-countries').classList.remove('hidden');
+        });
+      });
+    </script>
+
     <!-- Enhanced Metrics Cards Row -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
       <!-- 1. Mentors Metric Card -->

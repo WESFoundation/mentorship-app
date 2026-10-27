@@ -2443,6 +2443,25 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         if not assignees and coupon.mentor:
             assignees = [coupon.mentor]
 
+        # Coupons reserved for one Outreach Partner can only be redeemed by them.
+        if getattr(coupon, "partner_user_id", None) and seller_profile.user_id != coupon.partner_user_id:
+            return jsonify({"success": False, "message": "This coupon is reserved for a different partner."}), 403
+
+        # Partners with several shops must say which one the coupon was used at.
+        used_shop_id = None
+        if (getattr(seller_profile, "shop_count", None) or 1) > 1:
+            from sqlalchemy import text as _sqltext
+            shop_rows = db.session.execute(
+                _sqltext("SELECT id FROM seller_shops WHERE seller_user_id = :u"),
+                {"u": seller_profile.user_id}).fetchall()
+            shop_ids = {r[0] for r in shop_rows}
+            raw_shop = str(data.get("shop_id") or "").strip()
+            if not shop_ids:
+                return jsonify({"success": False, "message": "This partner has not finished setting up their shops yet."}), 400
+            if not raw_shop.isdigit() or int(raw_shop) not in shop_ids:
+                return jsonify({"success": False, "message": "Please choose which shop the coupon is being used at."}), 400
+            used_shop_id = int(raw_shop)
+
         raw_redeemer = str(data.get("redeemer_id") or "").strip()
         redeemer = None
         if raw_redeemer.isdigit():
@@ -2458,6 +2477,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         coupon.seller_id = seller_profile.user_id
         coupon.redeemed_by_user_id = redeemer.id
         coupon.used_by = seller_profile.display_name
+        if used_shop_id:
+            coupon.used_shop_id = used_shop_id
         coupon.verification_count = (coupon.verification_count or 0) + 1
 
         try:

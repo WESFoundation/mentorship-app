@@ -505,6 +505,14 @@
                 </svg>
             </div>
 
+            <div class="flex justify-end mb-3">
+                <button type="button" onclick="exportTasks()"
+                    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-semibold hover:bg-emerald-700 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/></svg>
+                    Export to Excel
+                </button>
+            </div>
+
             <!-- Filters (Compact and Stacking on wrap) -->
             <div class="filter-bar-stacked flex flex-wrap items-center gap-2">
                 <select id="task-type-filter" data-no-search
@@ -2286,7 +2294,18 @@ function sendInstitutionAlert() {
 }
 
 function exportTasks() {
-    showNotification('Export feature coming soon!', 'info');
+    // Same filters as the list, but every matching task (not just the loaded page).
+    const params = new URLSearchParams();
+    if (currentFilter && currentFilter !== 'all') params.set('status', currentFilter);
+    if (currentMentorFilter && currentMentorFilter !== 'all' && currentMentorFilter !== 'none') params.set('mentor_id', currentMentorFilter);
+    if (currentMenteeFilter && currentMenteeFilter !== 'all' && currentMenteeFilter !== 'none') params.set('mentee_id', currentMenteeFilter);
+    if (currentPriorityFilter && currentPriorityFilter !== 'all') params.set('priority', currentPriorityFilter);
+    if (currentCategoryFilter && currentCategoryFilter !== 'all') params.set('category', currentCategoryFilter);
+    if (currentTaskTypeFilter && currentTaskTypeFilter !== 'all') params.set('type', currentTaskTypeFilter);
+    params.set('offset', 0);
+    params.set('limit', 100000);
+    showNotification('Preparing your Excel file...', 'info');
+    window.location.href = '/institution/export_tasks?' + params.toString();
 }
 
 // Setup event listeners

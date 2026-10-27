@@ -22,6 +22,7 @@ from flask_migrate import Migrate
 import random
 import secrets
 import hashlib
+from geo_data import canonical_country, geo_options
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -1850,7 +1851,9 @@ def to_json(value):
 SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
 SMTP_EMAIL = os.environ.get("SMTP_EMAIL", "mentorship@wazireducationsociety.com")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "kmbiechgqjxtfoef")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+if not SMTP_PASSWORD:
+    print("WARNING: SMTP_PASSWORD is not set in .env - OTP and notification emails cannot be sent.")
 SMTP_USE_SSL = os.environ.get("SMTP_USE_SSL", "false").lower() in ("true", "1", "yes")
 
 # ------------------------------------------------------------
@@ -2868,6 +2871,11 @@ class MentorCoupon(db.Model):
     seller_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), index=True)
     # Which mentor/mentee actually presented the coupon at the counter.
     redeemed_by_user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), index=True)
+    # NULL = general coupon, redeemable at any partner shop. Set = reserved for
+    # that one Outreach Partner (only they can redeem it).
+    partner_user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), index=True)
+    # The specific shop (of a multi-shop partner) the coupon was redeemed at.
+    used_shop_id = db.Column(db.Integer, db.ForeignKey("seller_shops.id"), index=True)
 
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
@@ -2913,6 +2921,10 @@ class MentorCoupon(db.Model):
             'redeemed_by_user_id': self.redeemed_by_user_id,
             'redeemed_by_name': (self.redeemed_by.name if self.redeemed_by else ''),
             'seller_name': self.seller_display_name,
+            'partner_user_id': self.partner_user_id,
+            'partner_name': self.partner_display_name,
+            'is_general': self.partner_user_id is None,
+            'used_shop_name': self.used_shop_name,
         }
         if include_mentor:
             data['mentor_id'] = self.mentor_id
@@ -2948,6 +2960,22 @@ class MentorCoupon(db.Model):
         return (self.seller.name if self.seller else "") or (self.used_by or "")
 
     @property
+    def partner_display_name(self):
+        """Name of the Outreach Partner this coupon is reserved for ('' if general)."""
+        if not self.partner_user_id:
+            return ""
+        prof = SellerProfile.query.filter_by(user_id=self.partner_user_id).first()
+        if prof is not None and prof.display_name:
+            return prof.display_name
+        u = db.session.get(User, self.partner_user_id)
+        return u.name if u else ""
+
+    @property
+    def used_shop_name(self):
+        shop = db.session.get(SellerShop, self.used_shop_id) if self.used_shop_id else None
+        return shop.name if shop else ""
+
+    @property
     def redeemed_by(self):
         return db.session.get(User, self.redeemed_by_user_id) if self.redeemed_by_user_id else None
 
@@ -2979,6 +3007,8 @@ class SellerProfile(db.Model):
     market_name = db.Column(db.String(200))
     contact_phone = db.Column(db.String(40))
     address = db.Column(db.Text)
+    # How many shops this partner owns. NULL until they complete their profile.
+    shop_count = db.Column(db.Integer)
 
     is_verified = db.Column(db.Boolean, default=False, nullable=False, server_default="0")
     verified_by = db.Column(db.Integer, db.ForeignKey("signup_details.id"))
@@ -3010,11 +3040,23 @@ class SellerProfile(db.Model):
             "contact_phone": self.contact_phone or "",
             "address": self.address or "",
             "is_verified": bool(self.is_verified),
+            "shop_count": self.shop_count,
             "display_name": self.display_name,
             "user_name": self.user.name if self.user else "",
             "user_email": self.user.email if self.user else "",
             "verified_at": self.verified_at.isoformat() if self.verified_at else None,
         }
+
+
+class SellerShop(db.Model):
+    """One shop owned by a partner. Only needed when the partner has several."""
+    __tablename__ = "seller_shops"
+
+    id = db.Column(db.Integer, primary_key=True)
+    seller_user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False, index=True)
+    name = db.Column(db.String(200), nullable=False)
+    address = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class SellerReferral(db.Model):
@@ -5184,16 +5226,21 @@ def menteedashboard():
             mentee_rating=mentee_rating
         )
 
-_SUPERVISOR_ANALYTICS_CACHE = None
+_SUPERVISOR_ANALYTICS_CACHE = {}   # {scope_key: (timestamp, result)}
 _SUPERVISOR_ANALYTICS_CACHE_TIME = 0
 _SUPERVISOR_ANALYTICS_CACHE_TTL = 60  # 60s cache
 
-def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
-    """Compute comparative analytics and leaderboards for the supervisor dashboard."""
-    global _SUPERVISOR_ANALYTICS_CACHE, _SUPERVISOR_ANALYTICS_CACHE_TIME
+def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests, scope_user_ids=None):
+    """Compute comparative analytics and leaderboards for the supervisor dashboard.
+
+    scope_user_ids: when given (the geographic filter is active), only tasks and
+    ratings involving those mentors/mentees are counted. Results are cached per scope.
+    """
     now = time.time()
-    if _SUPERVISOR_ANALYTICS_CACHE is not None and (now - _SUPERVISOR_ANALYTICS_CACHE_TIME < _SUPERVISOR_ANALYTICS_CACHE_TTL):
-        return _SUPERVISOR_ANALYTICS_CACHE
+    scope_key = None if scope_user_ids is None else tuple(sorted(scope_user_ids))
+    cached = _SUPERVISOR_ANALYTICS_CACHE.get(scope_key)
+    if cached is not None and (now - cached[0] < _SUPERVISOR_ANALYTICS_CACHE_TTL):
+        return cached[1]
     try:
         users_by_id = {}
         for m in mentors:
@@ -5222,6 +5269,9 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
 
         # 2. MenteeTask stats
         all_tasks = MenteeTask.query.all()
+        if scope_user_ids is not None:
+            all_tasks = [t for t in all_tasks
+                         if t.mentee_id in scope_user_ids or t.mentor_id in scope_user_ids]
         mentee_tasks_by_id = {t.id: t for t in all_tasks}
         mentee_task_map = {}
         mentor_task_map = {}
@@ -5248,6 +5298,9 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
 
         # 3. TaskRating stats
         all_ratings = TaskRating.query.all()
+        if scope_user_ids is not None:
+            all_ratings = [r for r in all_ratings
+                           if r.mentor_id in scope_user_ids or r.mentee_id in scope_user_ids]
         mentor_ratings_map = {}
         task_ratings_map = {}
         total_rating_sum = 0
@@ -5472,8 +5525,9 @@ def _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests):
             "lb_mentor_ratings": lb_mentor_ratings,
             "lb_task_ratings": lb_task_ratings
         }
-        _SUPERVISOR_ANALYTICS_CACHE = res_analytics
-        _SUPERVISOR_ANALYTICS_CACHE_TIME = now
+        if len(_SUPERVISOR_ANALYTICS_CACHE) > 50:
+            _SUPERVISOR_ANALYTICS_CACHE.clear()
+        _SUPERVISOR_ANALYTICS_CACHE[scope_key] = (now, res_analytics)
         return res_analytics
     except Exception as e:
         app.logger.error(f"Error computing supervisor comparative analytics: {e}")
@@ -5540,6 +5594,19 @@ def supervisordashboard():
 
     mentors = mentor_query.join(User, MentorProfile.user_id == User.id).order_by(User.created_at.asc()).all()
 
+    # Global geographic filter (multi-select countries, grouped by continent)
+    geo_selected = sorted({canonical_country(c) for c in request.args.getlist("geo_country") if (c or "").strip()})
+    geo_selected_set = set(geo_selected)
+    geo_present = set()
+    for _m in MentorProfile.query.with_entities(MentorProfile.country, MentorProfile.state, MentorProfile.city, MentorProfile.location).all():
+        geo_present.add(canonical_country(resolve_location(country=_m[0], state=_m[1], city=_m[2], legacy_location=_m[3])["country"]))
+    for (_c,) in MenteeProfile.query.with_entities(MenteeProfile.country).all():
+        geo_present.add(canonical_country(_c))
+    geo_present.discard("")
+    if geo_selected_set:
+        mentors = [m for m in mentors
+                   if canonical_country(mentor_location_parts(m)[0]) in geo_selected_set]
+
     # Add serial numbers based on timestamp order
     for idx, m in enumerate(mentors, 1):
         m.serial = idx
@@ -5600,6 +5667,8 @@ def supervisordashboard():
         mentee_query = mentee_query.filter(MenteeProfile.goal == goal_filter)
 
     all_mentees = mentee_query.order_by(User.created_at.asc()).all()
+    if geo_selected_set:
+        all_mentees = [m for m in all_mentees if canonical_country(m.country) in geo_selected_set]
 
     # Add serial numbers based on timestamp order
     for idx, m in enumerate(all_mentees, 1):
@@ -5623,7 +5692,14 @@ def supervisordashboard():
     mentor_requests = [m for m in mentors if getattr(m, "status", None) == "pending"]
     mentee_requests = [m for m in all_mentees if getattr(m, "status", None) == "pending"]
 
-    comparative_analytics = _get_supervisor_comparative_analytics(mentors, all_mentees, all_requests)
+    geo_scope = None
+    if geo_selected_set:
+        geo_scope = {m.user_id for m in mentors} | {m.user_id for m in all_mentees}
+        # Only mentorships that involve someone inside the selected regions.
+        all_requests = [r for r in all_requests
+                        if r.mentor_id in geo_scope or r.mentee_id in geo_scope]
+    comparative_analytics = _get_supervisor_comparative_analytics(
+        mentors, all_mentees, all_requests, scope_user_ids=geo_scope)
 
     return render_template(
         "supervisor/supervisordashboard.html",
@@ -5650,7 +5726,9 @@ def supervisordashboard():
         active_section="dashboard",
         source_page=source_page,
         profile_complete=profile_complete,
-        comparative_analytics=comparative_analytics
+        comparative_analytics=comparative_analytics,
+        geo_options=geo_options(geo_present),
+        geo_selected=geo_selected
     )
     
 @app.route("/institution")
@@ -7138,6 +7216,79 @@ def get_institution_tasks_data():
         "institutionName": institution_name
     })
 
+
+
+@app.route("/institution/export_tasks")
+def institution_export_tasks():
+    """Download the institution's tasks (honouring the current filters) as an Excel sheet."""
+    if "email" not in session or session.get("user_type") != "3":
+        return redirect(url_for("signin"))
+
+    # Reuse the tasks-tab data builder so the export always matches what the page shows.
+    # offset/limit are read from the query string; the page always sends limit=100000.
+    resp = get_institution_tasks_data()
+    payload = resp.get_json() if hasattr(resp, "get_json") else None
+    if not payload or not payload.get("success"):
+        flash("Could not export tasks right now.", "error")
+        return redirect(url_for("institution_all_tasks"))
+
+    from flask import send_file
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
+
+    status_labels = {
+        "done": "Done", "completed": "Done", "in-progress": "In Progress", "inprogress": "In Progress",
+        "committed": "Committed", "not-started": "Not Started", "pending": "Not Started", "to-do": "Not Started",
+    }
+    columns = [
+        ("Task ID", "serial"), ("Task", "title"), ("Description", "description"),
+        ("Type", "type"), ("Category", "category"), ("Mentee", "menteeName"), ("Mentor", "mentorName"),
+        ("Status", "status"), ("Progress %", "progress"), ("Priority", "priority"),
+        ("Due date", "dueDate"), ("Mentor rating", "rating"), ("Mentee rating", "menteeRating"),
+        ("Meeting #", "meetingNumber"), ("Journey phase", "journeyPhase"),
+    ]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Tasks"
+    header_fill = PatternFill("solid", fgColor="1E40AF")
+    for ci, (label, _) in enumerate(columns, 1):
+        c = ws.cell(row=1, column=ci, value=label)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = header_fill
+        c.alignment = Alignment(vertical="center")
+
+    for ri, t in enumerate(payload.get("tasks", []), 2):
+        for ci, (_, key) in enumerate(columns, 1):
+            val = t.get(key)
+            if key == "status":
+                val = status_labels.get(val, val or "")
+            elif key == "type":
+                val = "Mentorship task" if val == "master" else "Personal task"
+            elif key == "dueDate" and val:
+                val = str(val)[:10]
+            elif val is None:
+                val = ""
+            c = ws.cell(row=ri, column=ci, value=val)
+            if key in ("description", "title"):
+                c.alignment = Alignment(wrap_text=True, vertical="top")
+
+    widths = {"Task": 38, "Description": 50, "Mentee": 24, "Mentor": 24, "Category": 18}
+    for ci, (label, _) in enumerate(columns, 1):
+        ws.column_dimensions[get_column_letter(ci)].width = widths.get(label, 14)
+    ws.freeze_panes = "A2"
+
+    import io
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    inst = re.sub(r"[^A-Za-z0-9_-]+", "_", (payload.get("institutionName") or "institution")).strip("_") or "institution"
+    return send_file(
+        buf, as_attachment=True,
+        download_name=f"{inst}_tasks_{datetime.utcnow().strftime('%Y%m%d')}.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 @app.route("/institution_profile")
@@ -11883,6 +12034,17 @@ def _has_institution_reflection(task_type, task_id):
     return bool((refl.text or '').strip() or (refl.notes or '').strip())
 
 
+def _mentee_has_institution(mentee_id):
+    """True when the mentee is linked to a real institution (not 'Self'/blank)."""
+    user = db.session.get(User, mentee_id) if mentee_id else None
+    if not user:
+        return True
+    if getattr(user, 'institution_id', None):
+        return True
+    name = (getattr(user, 'institution', None) or '').strip().lower()
+    return bool(name) and name not in ('self', 'none', 'n/a')
+
+
 def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratings_set=None, meetings_map=None, all_pdata=None, task_obj=None, mentee_fb_set=None, mentor_refl_set=None, inst_refl_set=None):
     """Compute the 4-stage task progress status dynamically.
 
@@ -11898,6 +12060,19 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
     _mt_obj = None
     if task_type == 'master':
         _mt_obj = task_obj if task_obj is not None else db.session.get(MenteeTask, task_id)
+
+    # A task already recorded as completed stays completed. Every page must agree
+    # on this, otherwise a task counted as done on one dashboard shows as
+    # "In progress"/"Not started" on another.
+    try:
+        _stored = _mt_obj if task_type == 'master' else (
+            task_obj if task_obj is not None else db.session.get(PersonalTask, task_id))
+        if _stored is not None and (
+                getattr(_stored, 'status', None) in ('completed', 'done')
+                or (getattr(_stored, 'progress', None) or 0) >= 100):
+            return 'done'
+    except Exception:
+        pass
 
     _sgm_task = _is_sgm_task(task_type, task_id, task_obj if task_type == 'personal' else None)
 
@@ -11945,7 +12120,10 @@ def compute_task_progress_status(task_type, task_id, mentee_id, mentor_id, ratin
         all_feedback = bool(mentor_submitted)
     else:
         mentor_req = mentor_submitted if mentor_id else True
-        all_feedback = bool(has_mentee_fb and mentor_req and has_inst_refl)
+        # Institution feedback is only required when the mentee belongs to an
+        # institution that can give it; otherwise the task could never finish.
+        inst_req = _mentee_has_institution(mentee_id) if mentee_id else True
+        all_feedback = bool(has_mentee_fb and mentor_req and (has_inst_refl or not inst_req))
 
     has_meeting = _task_has_linked_meeting(task_type, task_id, mentee_id, mentor_id, all_pdata=all_pdata, meetings_map=meetings_map)
 
@@ -14447,6 +14625,17 @@ def institution_calendar():
         m.display_institution = m_inst_name
         m.display_institution_id = m_inst_id
 
+    # SGM sessions can use ANY registered mentor (not just this institution's
+    # own or already-paired ones), so the SGM checklists get the full list.
+    sgm_mentors = User.query.filter(User.user_type == "1").all()
+    for m in sgm_mentors:
+        pre = existing_mentors_dict.get(m.id)
+        if pre is not None and hasattr(pre, "display_institution"):
+            m.display_institution = pre.display_institution
+        else:
+            m.display_institution, _ = _resolve_user_inst(m)
+    sgm_mentors.sort(key=lambda u: (u.name or "").lower())
+
     cleaned_mentee_to_mentors = {
         m_id: [mid for mid in mids if mid in valid_mentor_id_strs]
         for m_id, mids in mentee_to_mentors.items()
@@ -14463,6 +14652,7 @@ def institution_calendar():
         show_sidebar=True,
         meetings=calendar_meetings,
         mentors=dropdown_mentors,
+        sgm_mentors=sgm_mentors,
         mentees=dropdown_mentees,
         direct_mentor_ids=[str(mid) for mid in direct_mentor_ids],
         direct_mentee_ids=[str(mid) for mid in direct_mentee_ids],
@@ -15401,10 +15591,7 @@ def editmentorprofile():
         new_referral = _apply_referral_from_form(user, request.form)
         if new_referral:
             profile.referred_by_seller_id = new_referral.seller_id
-<<<<<<< HEAD
 
-=======
->>>>>>> 625da55d5b08ebefa4644cd9f3ba2831283ec678
         # Mentorship preferences
         profile.mentorship_topics = request.form.get("mentorship_topics") or None
         
@@ -20948,6 +21135,51 @@ def _ensure_seller_profile(user):
     return profile
 
 
+def _seller_shops(user_id):
+    """The shops a partner has registered, oldest first."""
+    return SellerShop.query.filter_by(seller_user_id=user_id).order_by(SellerShop.id.asc()).all()
+
+
+def _seller_profile_complete(profile):
+    """A partner's profile is complete once they say how many shops they own and,
+    when that is more than one, have named every shop."""
+    if not profile or not profile.shop_count or profile.shop_count < 1:
+        return False
+    if profile.shop_count > 1:
+        return len(_seller_shops(profile.user_id)) >= profile.shop_count
+    return True
+
+
+def _sellers_shop_map(profiles):
+    """{user_id: [{id,name}]} for partners that need a shop pick (more than one shop)."""
+    out = {}
+    for sp in profiles:
+        if (sp.shop_count or 1) > 1:
+            out[sp.user_id] = [{"id": sh.id, "name": sh.name} for sh in _seller_shops(sp.user_id)]
+    return out
+
+
+def _resolve_redemption_shop(seller_profile, raw_shop_id):
+    """Validate the shop chosen at redemption.
+
+    Returns (shop_or_None, error_message_or_None). Partners with several shops
+    must pick one of their own; single-shop partners need no pick.
+    """
+    if (seller_profile.shop_count or 1) <= 1:
+        return None, None
+    shops = _seller_shops(seller_profile.user_id)
+    if not shops:
+        return None, ("This partner has not finished setting up their shops yet. "
+                      "Please ask them to complete their partner profile.")
+    raw = str(raw_shop_id or "").strip()
+    if not raw.isdigit():
+        return None, "Please choose which shop the coupon is being used at."
+    for sh in shops:
+        if sh.id == int(raw):
+            return sh, None
+    return None, "That shop does not belong to the selected partner."
+
+
 def _verified_sellers():
     """Every partner account, for the redemption dropdown (accounts are created by us, so no verification step)."""
     rows = SellerProfile.query.all()
@@ -21127,6 +21359,8 @@ def _parse_coupon_window(args):
         return "Last 7 days", now - _dt.timedelta(days=7)
     if window == "30d":
         return "Last 30 days", now - _dt.timedelta(days=30)
+    if window == "90d":
+        return "Last 3 months", now - _dt.timedelta(days=90)
     if since:
         for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y"):
             try:
@@ -21155,6 +21389,8 @@ def _coupon_audit_row(coupon, redeemer, seller_profile):
         "redeemer_role": {"1": "Mentor", "2": "Mentee"}.get(str(redeemer.user_type) if redeemer else "", ""),
         "seller_name": seller_profile.display_name if seller_profile else (coupon.used_by or ""),
         "seller_label": seller_profile.partner_label if seller_profile else "Partner",
+        "shop_name": coupon.used_shop_name,
+        "is_general": coupon.partner_user_id is None,
         "issued_by": (coupon.issuer.name if coupon.issuer else ""),
     }
 
@@ -21176,6 +21412,55 @@ def seller_profile():
         profile.market_name = (data.get("market_name") or "").strip() or None
         profile.contact_phone = (data.get("contact_phone") or "").strip() or None
         profile.address = (data.get("address") or "").strip() or None
+
+        # How many shops this partner owns (required), and each shop's name when several.
+        raw_count = str(data.get("shop_count") or "").strip()
+        if not raw_count.isdigit() or not (1 <= int(raw_count) <= 50):
+            msg = "Please enter how many shops you own (1 to 50)."
+            if request.is_json:
+                return jsonify({"success": False, "message": msg}), 400
+            flash(msg, "error")
+            return redirect(url_for("seller_profile"))
+        shop_count = int(raw_count)
+
+        if hasattr(data, "getlist"):
+            shop_names = data.getlist("shop_names")
+            shop_addresses = data.getlist("shop_addresses")
+        else:
+            shop_names = data.get("shop_names") or []
+            shop_addresses = data.get("shop_addresses") or []
+        entries = []
+        for i, nm in enumerate(shop_names):
+            nm = (nm or "").strip()
+            if nm:
+                addr = (shop_addresses[i] if i < len(shop_addresses) else "") or ""
+                entries.append((nm[:200], addr.strip() or None))
+
+        if shop_count > 1 and len(entries) < shop_count:
+            msg = f"You own {shop_count} shops, so please name all {shop_count} of them."
+            if request.is_json:
+                return jsonify({"success": False, "message": msg}), 400
+            flash(msg, "error")
+            return redirect(url_for("seller_profile"))
+
+        profile.shop_count = shop_count
+        # Keep existing rows (coupons point at them) when the name still matches.
+        existing = {sh.name.lower(): sh for sh in _seller_shops(seller.id)}
+        keep = set()
+        if shop_count > 1:
+            for nm, addr in entries[:shop_count]:
+                sh = existing.get(nm.lower())
+                if sh:
+                    sh.address = addr
+                else:
+                    sh = SellerShop(seller_user_id=seller.id, name=nm, address=addr)
+                    db.session.add(sh)
+                keep.add(nm.lower())
+        for key, sh in existing.items():
+            if key not in keep:
+                if MentorCoupon.query.filter_by(used_shop_id=sh.id).first():
+                    continue  # already used on a redeemed coupon: keep for the history
+                db.session.delete(sh)
         try:
             db.session.commit()
         except Exception as e:
@@ -21194,6 +21479,8 @@ def seller_profile():
         seller=seller,
         profile=profile,
         partner_labels=PARTNER_LABELS,
+        shops=_seller_shops(seller.id),
+        profile_complete=_seller_profile_complete(profile),
     )
 
 
@@ -21214,6 +21501,14 @@ def seller_dashboard():
 
     entries = [_coupon_audit_row(c, c.redeemed_by, profile) for c in rows]
 
+    tab = (request.args.get("tab") or "redemptions").strip().lower()
+    if tab not in ("redemptions", "referrals"):
+        tab = "redemptions"
+    referral_rows = _referral_rows_for_seller(seller.id)
+    if tab == "redemptions" and not _seller_profile_complete(profile):
+        flash("Please complete your partner profile (how many shops you own) so coupons "
+              "reserved for you can be redeemed.", "warning")
+
     # Everything this partner has ever verified, for the "all time" headline number.
     lifetime = MentorCoupon.query.filter(
         MentorCoupon.seller_id == seller.id,
@@ -21231,7 +21526,9 @@ def seller_dashboard():
         active_section="dashboard",
         seller=seller,
         profile=profile,
-        referrals=_referral_rows_for_seller(seller.id),
+        referrals=referral_rows,
+        tab=tab,
+        profile_complete=_seller_profile_complete(profile),
         entries=entries,
         stats={
             "redeemed": len(entries),
@@ -21353,6 +21650,14 @@ def supervisor_coupon_create():
             User.id.in_(assignee_ids), User.user_type.in_(["1", "2"])
         ).all()
 
+    # "any" / blank = general coupon; otherwise reserved for one Outreach Partner.
+    partner_user_id = None
+    raw_partner = str(data.get("partner_user_id") or "").strip()
+    if raw_partner and raw_partner.lower() not in ("any", "general", "0"):
+        if not raw_partner.isdigit() or not SellerProfile.query.filter_by(user_id=int(raw_partner)).first():
+            return jsonify({"success": False, "message": "That Outreach Partner was not found."}), 400
+        partner_user_id = int(raw_partner)
+
     quantity = 1
     try:
         quantity = max(1, min(200, int(data.get("quantity") or 1)))
@@ -21383,6 +21688,7 @@ def supervisor_coupon_create():
                 code=generate_coupon_code(),
                 mentor_id=legacy_mentor_id,
                 issued_by_user_id=supervisor.id,
+                partner_user_id=partner_user_id,
                 title=title,
                 description=(data.get("description") or "").strip() or None,
                 discount_label=(data.get("discount_label") or "").strip() or None,
@@ -21404,7 +21710,8 @@ def supervisor_coupon_create():
 
     return jsonify({
         "success": True,
-        "message": f"{len(created)} coupon(s) issued"
+        "message": f"{len(created)} coupon(s) issued "
+                   + ("for the selected Outreach Partner" if partner_user_id else "for any partner shop")
                    + (f" and assigned to {len(holders)} user(s)." if holders else " with no holder yet."),
         "coupons": [c.to_dict() for c in created],
         "urls": {c.code: coupon_verify_url(c.code) for c in created},
@@ -21730,7 +22037,11 @@ def coupon_verify(code):
         ), 404
 
     verified_sellers = _verified_sellers()
+    # A coupon reserved for one Outreach Partner can only be redeemed by them.
+    if coupon.partner_user_id:
+        verified_sellers = [sp for sp in verified_sellers if sp.user_id == coupon.partner_user_id]
     coupon_candidates = coupon.assignees
+    shop_map = _sellers_shop_map(verified_sellers)
 
     if request.method == "POST":
         payload = request.get_json(silent=True) or request.form or {}
@@ -21741,14 +22052,14 @@ def coupon_verify(code):
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False,
                 message="This coupon has already been used.",
-                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
             ), 409
         if coupon.status == "revoked":
             return render_template(
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False,
                 message="This coupon has been withdrawn by the mentor.",
-                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
             ), 409
         if coupon.is_expired:
             coupon.status = "expired"
@@ -21757,7 +22068,7 @@ def coupon_verify(code):
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False,
                 message="This coupon has expired.",
-                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
             ), 410
 
         # The shop must be one of the partner accounts.
@@ -21772,7 +22083,25 @@ def coupon_verify(code):
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False,
                 message="Please choose your shop from the list.",
-                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
+            ), 400
+
+        # A partner-specific coupon cannot be redeemed by anyone else.
+        if coupon.partner_user_id and seller_profile.user_id != coupon.partner_user_id:
+            return render_template(
+                "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
+                code=code, show_result=False,
+                message="This coupon is reserved for a different partner.",
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
+            ), 403
+
+        # Partners with several shops must say which one the coupon was used at.
+        shop, shop_err = _resolve_redemption_shop(seller_profile, payload.get("shop_id"))
+        if shop_err:
+            return render_template(
+                "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
+                code=code, show_result=False, message=shop_err,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
             ), 400
 
         # The redeemer must be somebody this coupon was actually assigned to.
@@ -21787,7 +22116,7 @@ def coupon_verify(code):
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False,
                 message="Please select who is redeeming this coupon.",
-                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
             ), 400
 
         coupon.status = "used"
@@ -21795,6 +22124,7 @@ def coupon_verify(code):
         coupon.seller_id = seller_profile.user_id
         coupon.redeemed_by_user_id = redeemer.id
         coupon.used_by = seller_profile.display_name
+        coupon.used_shop_id = shop.id if shop else None
         coupon.verification_count = (coupon.verification_count or 0) + 1
         try:
             db.session.commit()
@@ -21804,7 +22134,7 @@ def coupon_verify(code):
             return render_template(
                 "coupon_verify.html", coupon=None, code=code, show_result=False,
                 message="We could not record this coupon right now. Please try again.",
-                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
             ), 500
 
         app.logger.info(
@@ -21816,7 +22146,7 @@ def coupon_verify(code):
             "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
             code=code, show_result=True,
             message="Coupon verified and marked as used.",
-            verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
+            verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
         )
 
     return render_template(
@@ -21827,6 +22157,7 @@ def coupon_verify(code):
         message="",
         verified_sellers=verified_sellers,
         coupon_candidates=coupon_candidates,
+        shop_map=shop_map,
     )
 
 
@@ -21846,7 +22177,8 @@ def _send_coupon_redemption_emails(coupon, redeemer, seller_profile):
             ("Redeemed by", f"{redeemer.name} ({role})"),
             ("Redeemer email", redeemer.email or "-"),
             ("Redeemed at", when),
-            ("Shop / market", seller_profile.display_name),
+            ("Shop / market", seller_profile.display_name
+                + (f" - {coupon.used_shop_name}" if coupon.used_shop_name else "")),
             ("Partner type", seller_profile.partner_label or "Partner"),
             ("Issued by", (coupon.issuer.name if coupon.issuer else "-")),
         )

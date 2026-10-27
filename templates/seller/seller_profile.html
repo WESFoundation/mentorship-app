@@ -20,12 +20,19 @@
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for category, message in messages %}
-      <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+      <div class="mb-4 rounded-lg border px-4 py-3 text-sm {% if category == 'error' %}border-red-200 bg-red-50 text-red-800{% else %}border-green-200 bg-green-50 text-green-800{% endif %}">
         {{ message }}
       </div>
       {% endfor %}
     {% endif %}
   {% endwith %}
+
+  {% if not profile_complete %}
+  <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+    <strong>Profile incomplete.</strong> Tell us how many shops you own. Coupons reserved for you cannot be
+    redeemed until this is done.
+  </div>
+  {% endif %}
 
   <form method="POST" action="{{ url_for('seller_profile') }}"
         class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
@@ -75,10 +82,47 @@
                 class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">{{ profile.address or '' }}</textarea>
     </div>
 
+    <div>
+      <label for="shop_count" class="block text-sm font-semibold text-slate-700 mb-1">
+        How many shops are under your name / ownership? <span class="text-red-500">*</span>
+      </label>
+      <input type="number" id="shop_count" name="shop_count" min="1" max="50" required
+             value="{{ profile.shop_count or '' }}" oninput="renderShopRows()"
+             class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+    </div>
+
+    <div id="shop-rows" class="space-y-3"></div>
+
     <button type="submit" class="px-6 py-2.5 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700">
       Save details
     </button>
   </form>
 
 </div>
+<script>
+  var existingShops = {{ shops | map(attribute='name') | list | tojson }};
+  var existingAddrs = {{ shops | map(attribute='address') | list | tojson }};
+  function renderShopRows() {
+    var n = parseInt(document.getElementById('shop_count').value, 10);
+    var box = document.getElementById('shop-rows');
+    var old = Array.from(box.querySelectorAll('.shop-row')).map(function (r) {
+      return [r.querySelector('[name=shop_names]').value, r.querySelector('[name=shop_addresses]').value];
+    });
+    box.innerHTML = '';
+    if (!(n > 1)) { return; }
+    box.insertAdjacentHTML('beforeend', '<p class="text-sm font-semibold text-slate-700">Name each of your ' + n + ' shops</p>');
+    for (var i = 0; i < Math.min(n, 50); i++) {
+      var nm = old[i] ? old[i][0] : (existingShops[i] || '');
+      var ad = old[i] ? old[i][1] : (existingAddrs[i] || '');
+      var row = document.createElement('div');
+      row.className = 'shop-row grid grid-cols-1 sm:grid-cols-2 gap-2';
+      row.innerHTML = '<input type="text" name="shop_names" maxlength="200" required placeholder="Shop ' + (i + 1) + ' name" class="px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">' +
+                      '<input type="text" name="shop_addresses" placeholder="Shop ' + (i + 1) + ' address / area (optional)" class="px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">';
+      row.querySelector('[name=shop_names]').value = nm;
+      row.querySelector('[name=shop_addresses]').value = ad;
+      box.appendChild(row);
+    }
+  }
+  renderShopRows();
+</script>
 {% endblock %}
