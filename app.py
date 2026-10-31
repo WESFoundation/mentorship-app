@@ -3611,7 +3611,9 @@ register_mobile_api(
     CouponRequest=CouponRequest, SellerReferral=SellerReferral,
     ChatConversation=ChatConversation, ChatMessage=ChatMessage, ResourceNote=ResourceNote,
     ReminderSettings=ReminderSettings, ProfileCompletionReminder=ProfileCompletionReminder,
-    compute_profile_completeness=lambda user_id, user_type: _compute_profile_completeness_score(user_id, user_type)
+    compute_profile_completeness=lambda user_id, user_type: _compute_profile_completeness_score(user_id, user_type),
+    get_institution_details=lambda u: _get_institution_details(u),
+    get_institution_members=lambda u, include_paired=False: _get_institution_members(u, include_paired=include_paired)
 )
 
 

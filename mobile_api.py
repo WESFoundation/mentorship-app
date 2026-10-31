@@ -15,7 +15,8 @@ Replaces all direct PostgreSQL client queries in the Flutter app.
 from flask import Blueprint, request, jsonify, session, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy import or_, and_, func
-from datetime import datetime
+from datetime import datetime, timedelta, time as dtime
+import time
 import json
 import logging
 import os
@@ -101,12 +102,16 @@ def format_pic_url(pic):
 
 
 def resolve_profile_pic(profile_obj, user_obj=None):
-    """Resolve picture preferring profile_picture on profile, falling back to user's profile_picture_url."""
+    """Resolve picture preferring profile_picture/logo on profile, falling back to user's picture."""
     pic = None
     if profile_obj and getattr(profile_obj, "profile_picture", None):
         pic = profile_obj.profile_picture
+    if not pic and profile_obj and getattr(profile_obj, "logo", None):
+        pic = profile_obj.logo
     if not pic and user_obj and getattr(user_obj, "profile_picture_url", None):
         pic = user_obj.profile_picture_url
+    if not pic and user_obj and getattr(user_obj, "profile_picture", None):
+        pic = user_obj.profile_picture
     return format_pic_url(pic)
 
 
@@ -255,6 +260,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             ProfileCompletionReminder = None
 
     compute_profile_completeness = kwargs.get("compute_profile_completeness")
+    get_institution_details = kwargs.get("get_institution_details")
+    get_institution_members = kwargs.get("get_institution_members")
 
     # -------------------------------------------------------------
     # 0. UNIVERSAL FILE / PHOTO UPLOAD
@@ -2033,96 +2040,588 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
     # -------------------------------------------------------------
     # 6. INSTITUTION & ADMIN MODULES
     # -------------------------------------------------------------
+    def _helper_get_inst_context(req_user=None):
+        u = req_user or get_current_user_from_req(User)
+        inst_obj = None
+        inst_id = None
+        inst_name = "Institution"
+        if u:
+            if callable(get_institution_details):
+                try:
+                    inst_obj, inst_id, inst_name, _ = get_institution_details(u)
+                except Exception as e:
+                    logger.warning(f"Error calling get_institution_details: {e}")
+            if not inst_obj and getattr(u, "institution_id", None):
+                inst_obj = db.session.get(Institution, u.institution_id) if hasattr(db.session, "get") else Institution.query.get(u.institution_id)
+                inst_id = inst_obj.id if inst_obj else u.institution_id
+                inst_name = inst_obj.name if inst_obj else (getattr(u, "institution", None) or u.name)
+            if not inst_obj and getattr(u, "id", None):
+                inst_obj = Institution.query.filter_by(user_id=u.id).first()
+                if inst_obj:
+                    inst_id = inst_obj.id
+                    inst_name = inst_obj.name
+
+        mentors = []
+        mentees = []
+        if u and callable(get_institution_members):
+            try:
+                # include_paired=False ensures coordinator only views mentors and mentees belonging to their institute
+                mentors, mentees = get_institution_members(u, include_paired=False)
+            except Exception as e:
+                logger.warning(f"Error calling get_institution_members: {e}")
+
+        # Only admin (user_type == "0") gets fallback to all mentors when no institution mentors exist.
+        # NEVER fallback to all mentors when user is an institution coordinator (user_type == "3") or unauthenticated (not u).
+        if not mentors and (u and getattr(u, "user_type", None) == "0"):
+            mentors = User.query.filter_by(user_type="1").all()
+        if not mentees:
+            if inst_id:
+                mentees = User.query.filter(User.user_type == "2", User.institution_id == inst_id).all()
+            if not mentees and u:
+                mentees = User.query.filter(User.user_type == "2", func.lower(User.institution) == func.lower(u.name)).all()
+            if not mentees and (not u or getattr(u, "user_type", None) == "0"):
+                mentees = User.query.filter_by(user_type="2").all()
+
+        return u, inst_obj, inst_id, inst_name, mentors, mentees
+
     @api_bp.route("/institution/stats", methods=["GET"])
     def api_get_institution_stats():
-        user = get_current_user_from_req(User)
-        inst_name = user.name if user else "Institution"
+        user, inst_obj, inst_id, inst_name, mentors, mentees = _helper_get_inst_context()
+        mentee_ids = [m.id for m in mentees] if mentees else []
+        
+        active_pairs = 0
+        pending_pairs = 0
+        if mentee_ids:
+            active_pairs = MentorshipRequest.query.filter(
+                MentorshipRequest.mentee_id.in_(mentee_ids),
+                MentorshipRequest.final_status == "approved"
+            ).count()
+            pending_pairs = MentorshipRequest.query.filter(
+                MentorshipRequest.mentee_id.in_(mentee_ids),
+                MentorshipRequest.final_status != "approved"
+            ).count()
+        elif user and getattr(user, "user_type", None) == "0":
+            active_pairs = MentorshipRequest.query.filter_by(final_status="approved").count()
+            pending_pairs = MentorshipRequest.query.filter(MentorshipRequest.final_status != "approved").count()
 
-        total_mentors = User.query.filter_by(user_type="1").count()
-        total_mentees = User.query.filter_by(user_type="2").count()
-        active_pairs = MentorshipRequest.query.filter_by(final_status="approved").count()
+        notes_count = 0
+        if ResourceNote:
+            try:
+                if inst_id and user:
+                    notes_count = ResourceNote.query.filter(
+                        or_(ResourceNote.mentee_id == user.id, ResourceNote.institution_id == inst_id)
+                    ).count()
+                elif user:
+                    notes_count = ResourceNote.query.filter_by(mentee_id=user.id).count()
+            except Exception:
+                notes_count = 0
 
         return jsonify({
             "success": True,
             "stats": {
-                "total_mentors": total_mentors,
-                "total_mentees": total_mentees,
+                "total_mentors": len(mentors),
+                "total_mentees": len(mentees),
                 "active_mentorships": active_pairs,
-                "institution_name": inst_name
+                "pending_requests": pending_pairs,
+                "total_notes": notes_count,
+                "institution_name": inst_name or (user.name if user else "Institution"),
+                "coordinator_name": getattr(inst_obj, "contact_person", None) or (user.name if user else "Coordinator"),
+                "coordinator_avatar": resolve_profile_pic(inst_obj, user) if user else "",
+                "logo": resolve_profile_pic(inst_obj, user) if user else "",
+                "academic_term": "Autumn 2025 Cohort Cycle"
             }
         })
 
     @api_bp.route("/institution/members", methods=["GET"])
     def api_get_institution_members():
-        """Returns all mentors and mentees under institution."""
-        mentors = db.session.query(User, MentorProfile).outerjoin(
-            MentorProfile, User.id == MentorProfile.user_id
-        ).filter(User.user_type == "1").all()
-
-        mentees = db.session.query(User, MenteeProfile).outerjoin(
-            MenteeProfile, User.id == MenteeProfile.user_id
-        ).filter(User.user_type == "2").all()
+        """Returns mentors and mentees under the institution."""
+        user, inst_obj, inst_id, inst_name, mentors, mentees = _helper_get_inst_context()
+        req_type = (request.args.get("type") or "").strip().lower()
+        search_query = (request.args.get("search") or "").strip().lower()
 
         m_list = []
-        for u, mp in mentors:
+        for u in mentors:
+            if search_query and search_query not in (u.name or "").lower() and search_query not in (u.email or "").lower():
+                continue
+            mp = u.mentor_profile if hasattr(u, "mentor_profile") and u.mentor_profile else MentorProfile.query.filter_by(user_id=u.id).first()
+            rating = calc_mentor_rating_helper(u.id, mp, MenteeTask, db)
             m_list.append({
                 "id": u.id,
                 "user_id": str(u.id),
-                "name": u.name,
+                "name": u.name or "Mentor",
+                "email": u.email or "",
                 "profession": mp.profession if mp and mp.profession else "Mentor",
                 "organisation": mp.organisation if mp and mp.organisation else "Organisation",
+                "location": mp.location if mp and mp.location else "Luxembourg",
                 "profile_picture": resolve_profile_pic(mp, u),
+                "rating": rating,
+                "is_premium": bool(getattr(u, "premium", False)),
+                "scholarly": bool(getattr(u, "scholarly", False)),
+                "skills": [s.strip() for s in (mp.skills or "").split(",") if s.strip()] if mp else [],
                 "role": "Mentor"
             })
 
         me_list = []
-        for u, mp in mentees:
+        for u in mentees:
+            if search_query and search_query not in (u.name or "").lower() and search_query not in (u.email or "").lower():
+                continue
+            mp = u.mentee_profile if hasattr(u, "mentee_profile") and u.mentee_profile else MenteeProfile.query.filter_by(user_id=u.id).first()
+            rating = calc_mentee_rating_helper(u.id, db)
             me_list.append({
                 "id": u.id,
                 "user_id": str(u.id),
-                "name": u.name,
-                "institution_name": mp.institution_name if mp and mp.institution_name else "Student",
-                "career_goal": mp.career_goal or mp.goal if mp else "Career Guidance",
+                "name": u.name or "Mentee",
+                "email": u.email or "",
+                "institution_name": (mp.institution_name if mp and mp.institution_name else None) or getattr(u, "institution", None) or inst_name,
+                "career_goal": (mp.career_goal or mp.goal) if mp else "Career Guidance",
                 "profile_picture": resolve_profile_pic(mp, u),
+                "rating": rating,
+                "scholarly": bool(getattr(u, "scholarly", False)),
                 "role": "Mentee"
             })
 
-        return jsonify({"success": True, "mentors": m_list, "mentees": me_list})
-
-    @api_bp.route("/institution/meetings", methods=["GET"])
-    def api_get_institution_meetings():
-        meetings = MeetingRequest.query.order_by(MeetingRequest.meeting_date.desc()).limit(50).all()
-        result = []
-        for m in meetings:
-            req_u = User.query.get(m.requester_id)
-            tar_u = User.query.get(m.requested_to_id)
-            result.append({
-                "id": m.id,
-                "title": m.meeting_title,
-                "date": m.meeting_date.strftime("%Y-%m-%d") if m.meeting_date else "",
-                "time": m.meeting_time.strftime("%I:%M %p") if m.meeting_time else "",
-                "status": m.status or "scheduled",
-                "other_party_name": f"{req_u.name if req_u else 'User'} & {tar_u.name if tar_u else 'User'}"
-            })
-        return jsonify({"success": True, "meetings": result})
+        all_members = m_list if req_type == "mentors" else me_list if req_type == "mentees" else (m_list + me_list)
+        return jsonify({
+            "success": True,
+            "members": all_members,
+            "mentors": m_list,
+            "mentees": me_list
+        })
 
     @api_bp.route("/institution/requests", methods=["GET"])
-    def api_get_institution_requests():
-        reqs = MentorshipRequest.query.order_by(MentorshipRequest.created_at.desc()).limit(50).all()
+    @api_bp.route("/institution/mentorships", methods=["GET"])
+    def api_get_institution_mentorships():
+        user, inst_obj, inst_id, inst_name, mentors, mentees = _helper_get_inst_context()
+        mentee_ids = [m.id for m in mentees] if mentees else []
+        mentor_ids = [m.id for m in mentors] if mentors else []
+
+        query = MentorshipRequest.query
+        if mentee_ids or mentor_ids:
+            query = query.filter(or_(MentorshipRequest.mentee_id.in_(mentee_ids), MentorshipRequest.mentor_id.in_(mentor_ids)))
+        elif not (user and getattr(user, "user_type", None) == "0"):
+            return jsonify({"success": True, "mentorships": [], "requests": []})
+
+        status_param = (request.args.get("status") or "").strip().lower()
+        if status_param == "pending":
+            query = query.filter(MentorshipRequest.final_status != "approved")
+        elif status_param == "approved":
+            query = query.filter(MentorshipRequest.final_status == "approved")
+        elif status_param:
+            query = query.filter(func.lower(MentorshipRequest.final_status) == status_param)
+
+        reqs = query.order_by(MentorshipRequest.created_at.desc()).limit(100).all()
         result = []
         for r in reqs:
             me = User.query.get(r.mentee_id)
             mo = User.query.get(r.mentor_id)
+            ep = me.mentee_profile if me and hasattr(me, "mentee_profile") and me.mentee_profile else (MenteeProfile.query.filter_by(user_id=me.id).first() if me else None)
+            mp = mo.mentor_profile if mo and hasattr(mo, "mentor_profile") and mo.mentor_profile else (MentorProfile.query.filter_by(user_id=mo.id).first() if mo else None)
+
+            # Task completion
+            total_tasks = MenteeTask.query.filter(
+                or_(
+                    and_(MenteeTask.mentee_id == r.mentee_id, MenteeTask.mentor_id == r.mentor_id),
+                    getattr(MenteeTask, "mentorship_request_id", None) == r.id
+                )
+            ).count() if MenteeTask else 0
+            completed_tasks = MenteeTask.query.filter(
+                or_(
+                    and_(MenteeTask.mentee_id == r.mentee_id, MenteeTask.mentor_id == r.mentor_id),
+                    getattr(MenteeTask, "mentorship_request_id", None) == r.id
+                ),
+                MenteeTask.status.in_(["Done", "Completed", "done", "completed"])
+            ).count() if MenteeTask else 0
+
+            # Meeting counts
+            total_meetings = MeetingRequest.query.filter(
+                or_(
+                    and_(MeetingRequest.requester_id == r.mentee_id, MeetingRequest.requested_to_id == r.mentor_id),
+                    and_(MeetingRequest.requester_id == r.mentor_id, MeetingRequest.requested_to_id == r.mentee_id)
+                )
+            ).count() if MeetingRequest else 0
+            completed_meetings = MeetingRequest.query.filter(
+                or_(
+                    and_(MeetingRequest.requester_id == r.mentee_id, MeetingRequest.requested_to_id == r.mentor_id),
+                    and_(MeetingRequest.requester_id == r.mentor_id, MeetingRequest.requested_to_id == r.mentee_id)
+                ),
+                MeetingRequest.status.in_(["Completed", "completed"])
+            ).count() if MeetingRequest else 0
+
             result.append({
                 "id": r.id,
                 "mentee_id": r.mentee_id,
                 "mentee_name": me.name if me else f"Mentee #{r.mentee_id}",
+                "mentee_email": me.email if me else "",
+                "mentee_avatar": resolve_profile_pic(ep, me) if me else "",
+                "mentee_scholarly": bool(getattr(me, "scholarly", False)) if me else False,
+                "mentee_goal": (ep.career_goal or ep.goal) if ep else "",
                 "mentor_id": r.mentor_id,
                 "mentor_name": mo.name if mo else f"Mentor #{r.mentor_id}",
+                "mentor_email": mo.email if mo else "",
+                "mentor_avatar": resolve_profile_pic(mp, mo) if mo else "",
+                "mentor_rating": calc_mentor_rating_helper(mo.id, mp, MenteeTask, db) if mo else 5.0,
+                "mentor_premium": bool(getattr(mo, "premium", False)) if mo else False,
+                "mentor_profession": mp.profession if mp and mp.profession else "Mentor",
+                "mentor_organisation": mp.organisation if mp and mp.organisation else "Organisation",
+                "purpose": getattr(r, "purpose", "") or "Mentorship Guidance",
+                "mentor_type": getattr(r, "mentor_type", "guidance") or "guidance",
+                "duration_months": getattr(r, "duration_months", 3) or 3,
                 "final_status": r.final_status or "pending",
-                "created_at": r.created_at.strftime("%Y-%m-%d") if r.created_at else ""
+                "created_at": r.created_at.strftime("%Y-%m-%d") if r.created_at else "",
+                "compatibility_score": 95,
+                "total_tasks": total_tasks,
+                "completed_tasks": completed_tasks,
+                "total_meetings": total_meetings,
+                "completed_meetings": completed_meetings
             })
-        return jsonify({"success": True, "requests": result})
+        return jsonify({"success": True, "requests": result, "mentorships": result})
+
+    @api_bp.route("/institution/mentorship/approval", methods=["POST"])
+    @api_bp.route("/institution/mentorship_approval", methods=["POST"])
+    def api_institution_mentorship_approval():
+        user = get_current_user_from_req(User)
+        data = request.get_json(silent=True) or request.form
+        req_id = data.get("request_id") or data.get("id")
+        action = (data.get("action") or data.get("status") or "approved").strip().lower()
+
+        if not req_id:
+            return jsonify({"success": False, "message": "Missing request_id"}), 400
+
+        req = MentorshipRequest.query.get(int(req_id))
+        if not req:
+            return jsonify({"success": False, "message": "Request not found"}), 404
+
+        status_val = "approved" if "approv" in action else "rejected"
+        req.final_status = status_val
+        req.supervisor_status = status_val
+        if hasattr(req, "institution_status"):
+            req.institution_status = status_val
+        if hasattr(req, "updated_at"):
+            req.updated_at = datetime.utcnow()
+
+        try:
+            db.session.commit()
+            return jsonify({
+                "success": True,
+                "message": f"Mentorship request {status_val} successfully.",
+                "request_id": req.id,
+                "final_status": status_val
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e)}), 500
+
+    @api_bp.route("/institution/tasks", methods=["GET"])
+    def api_get_institution_tasks():
+        user, inst_obj, inst_id, inst_name, mentors, mentees = _helper_get_inst_context()
+        mentee_ids = [m.id for m in mentees] if mentees else []
+
+        if not mentee_ids and not (user and getattr(user, "user_type", None) == "0"):
+            return jsonify({"success": True, "tasks": []})
+
+        query = MenteeTask.query
+        if mentee_ids:
+            query = query.filter(MenteeTask.mentee_id.in_(mentee_ids))
+
+        status_param = (request.args.get("status") or "").strip().lower()
+        if status_param:
+            query = query.filter(func.lower(MenteeTask.status) == status_param)
+
+        search_query = (request.args.get("search") or "").strip().lower()
+        tasks = query.order_by(MenteeTask.id.desc()).limit(100).all()
+        result = []
+        for t in tasks:
+            if search_query and search_query not in (t.title or "").lower() and search_query not in (t.description or "").lower():
+                continue
+            me = User.query.get(t.mentee_id)
+            mo = User.query.get(t.mentor_id) if t.mentor_id else None
+            result.append({
+                "id": t.id,
+                "title": t.title or "Untitled Task",
+                "description": t.description or "",
+                "progress": t.progress if getattr(t, "progress", None) is not None else (100 if t.status in ["Done", "Completed"] else 0),
+                "status": t.status or "Pending",
+                "priority": getattr(t, "priority", "Medium") or "Medium",
+                "due_date": t.due_date.strftime("%Y-%m-%d") if getattr(t, "due_date", None) else "",
+                "created_at": t.created_at.strftime("%Y-%m-%d") if getattr(t, "created_at", None) else "",
+                "mentee_id": t.mentee_id,
+                "mentee_name": me.name if me else f"Mentee #{t.mentee_id}",
+                "mentor_id": t.mentor_id,
+                "mentor_name": mo.name if mo else "Mentor"
+            })
+        return jsonify({"success": True, "tasks": result})
+
+    @api_bp.route("/institution/meetings", methods=["GET"])
+    def api_get_institution_meetings():
+        user, inst_obj, inst_id, inst_name, mentors, mentees = _helper_get_inst_context()
+        user_ids = list(set([m.id for m in mentees] + [m.id for m in mentors] + ([user.id] if user else [])))
+
+        query = MeetingRequest.query
+        if user_ids:
+            query = query.filter(or_(MeetingRequest.requester_id.in_(user_ids), MeetingRequest.requested_to_id.in_(user_ids)))
+        elif not (user and getattr(user, "user_type", None) == "0"):
+            return jsonify({"success": True, "meetings": []})
+
+        meetings = query.order_by(MeetingRequest.meeting_date.desc(), MeetingRequest.meeting_time.desc()).limit(100).all()
+        result = []
+        now_dt = datetime.now()
+        for m in meetings:
+            req_u = User.query.get(m.requester_id)
+            tar_u = User.query.get(m.requested_to_id)
+            
+            is_upcoming = True
+            if m.meeting_date:
+                m_dt = datetime.combine(m.meeting_date, m.meeting_time if m.meeting_time else datetime.min.time())
+                is_upcoming = m_dt >= now_dt
+
+            mentor_u = req_u if (req_u and getattr(req_u, "user_type", None) == "1") else tar_u if (tar_u and getattr(tar_u, "user_type", None) == "1") else None
+            mentee_u = req_u if (req_u and getattr(req_u, "user_type", None) == "2") else tar_u if (tar_u and getattr(tar_u, "user_type", None) == "2") else None
+            mp = mentor_u.mentor_profile if mentor_u and hasattr(mentor_u, "mentor_profile") else None
+            ep = mentee_u.mentee_profile if mentee_u and hasattr(mentee_u, "mentee_profile") else None
+
+            m_type = getattr(m, "meeting_type", "") or ("sgm" if (m.meeting_title or "").upper().startswith("SGM") else "standard")
+            dur_val = getattr(m, "meeting_duration", None) or getattr(m, "duration", None) or 45
+            dur_str = f"{dur_val} mins" if isinstance(dur_val, (int, float)) or (isinstance(dur_val, str) and dur_val.isdigit()) else str(dur_val)
+
+            result.append({
+                "id": m.id,
+                "title": m.meeting_title or "Mentorship Session",
+                "description": getattr(m, "meeting_description", "") or "",
+                "date": m.meeting_date.strftime("%Y-%m-%d") if m.meeting_date else "",
+                "time": m.meeting_time.strftime("%I:%M %p") if m.meeting_time else "",
+                "duration": dur_str,
+                "status": m.status or "scheduled",
+                "is_upcoming": is_upcoming,
+                "meeting_link": getattr(m, "meeting_link", "") or getattr(m, "meet_link", "") or "",
+                "meeting_type": m_type,
+                "is_sgm": m_type.lower() == "sgm" or (m.meeting_title or "").upper().startswith("SGM"),
+                "requester_id": m.requester_id,
+                "requester_name": req_u.name if req_u else "User",
+                "requested_to_id": m.requested_to_id,
+                "requested_to_name": tar_u.name if tar_u else "User",
+                "other_party_name": f"{req_u.name if req_u else 'User'} & {tar_u.name if tar_u else 'User'}",
+                "mentor_name": mentor_u.name if mentor_u else (tar_u.name if tar_u else "Mentor"),
+                "mentor_avatar": resolve_profile_pic(mp, mentor_u) if mentor_u else "",
+                "mentee_name": mentee_u.name if mentee_u else (req_u.name if req_u else "Mentee"),
+                "mentee_avatar": resolve_profile_pic(ep, mentee_u) if mentee_u else ""
+            })
+        return jsonify({"success": True, "meetings": result})
+
+    @api_bp.route("/institution/profile", methods=["GET", "POST", "PUT"])
+    def api_institution_profile():
+        user, inst_obj, inst_id, inst_name, mentors, mentees = _helper_get_inst_context()
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+        if request.method == "GET":
+            profile_data = {
+                "id": inst_obj.id if inst_obj else user.id,
+                "name": inst_name or user.name,
+                "official_email": user.email,
+                "contact_email": getattr(inst_obj, "contact_email", user.email) if inst_obj else user.email,
+                "institution_type": getattr(inst_obj, "institution_type", "university") if inst_obj else "university",
+                "email_domain": getattr(inst_obj, "email_domain", "") if inst_obj else "",
+                "website": getattr(inst_obj, "website", "") if inst_obj else "",
+                "contact_person": getattr(inst_obj, "contact_person", user.name) if inst_obj else user.name,
+                "work_email": getattr(inst_obj, "work_email", "") if inst_obj else "",
+                "personal_email": getattr(inst_obj, "personal_email", "") if inst_obj else "",
+                "contact_phone": getattr(inst_obj, "contact_phone", "") if inst_obj else "",
+                "address": getattr(inst_obj, "address", "") if inst_obj else "",
+                "country": getattr(inst_obj, "country", "Luxembourg") if inst_obj else "Luxembourg",
+                "state": getattr(inst_obj, "state", "") if inst_obj else "",
+                "city": getattr(inst_obj, "city", "") if inst_obj else "",
+                "logo": resolve_profile_pic(inst_obj, user),
+                "status": getattr(inst_obj, "status", "active") if inst_obj else "active"
+            }
+            return jsonify({"success": True, "profile": profile_data})
+
+        data = request.form.to_dict() if request.form else (request.get_json(silent=True) or {})
+        if not inst_obj and Institution:
+            inst_obj = Institution(user_id=user.id, name=getattr(user, "institution", None) or user.name)
+            db.session.add(inst_obj)
+
+        if inst_obj:
+            if "contact_person" in data:
+                inst_obj.contact_person = data["contact_person"]
+            if "institution_type" in data:
+                inst_obj.institution_type = data["institution_type"]
+            if "email_domain" in data:
+                inst_obj.email_domain = data["email_domain"]
+            if "website" in data:
+                inst_obj.website = data["website"]
+            if "work_email" in data:
+                inst_obj.work_email = data["work_email"]
+            if "personal_email" in data:
+                inst_obj.personal_email = data["personal_email"]
+            if "contact_phone" in data:
+                inst_obj.contact_phone = data["contact_phone"]
+            if "address" in data:
+                inst_obj.address = data["address"]
+            if "country" in data:
+                inst_obj.country = data["country"]
+            if "state" in data:
+                inst_obj.state = data["state"]
+            if "city" in data:
+                inst_obj.city = data["city"]
+
+        file = request.files.get("profile_picture") or request.files.get("logo")
+        if file and file.filename and inst_obj:
+            try:
+                upload_res = storage_service.upload_file(file, folder_prefix=f"profiles/institution/{inst_obj.id}")
+                if upload_res and isinstance(upload_res, dict) and upload_res.get("url"):
+                    inst_obj.profile_picture = upload_res["url"]
+                elif upload_res and isinstance(upload_res, str):
+                    inst_obj.profile_picture = upload_res
+            except Exception as e:
+                logger.error(f"Error uploading institution logo: {e}")
+
+        try:
+            db.session.commit()
+            return jsonify({
+                "success": True,
+                "message": "Institution profile updated successfully.",
+                "profile": {
+                    "id": inst_obj.id if inst_obj else user.id,
+                    "name": inst_obj.name if inst_obj else user.name,
+                    "contact_person": getattr(inst_obj, "contact_person", ""),
+                    "institution_type": getattr(inst_obj, "institution_type", "university"),
+                    "contact_phone": getattr(inst_obj, "contact_phone", ""),
+                    "website": getattr(inst_obj, "website", ""),
+                    "logo": resolve_profile_pic(inst_obj, user)
+                }
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e)}), 500
+
+    @api_bp.route("/institution/schedule_meeting", methods=["POST"])
+    @api_bp.route("/institution/schedule_sgm", methods=["POST"])
+    def api_institution_schedule_meeting():
+        user = get_current_user_from_req(User)
+        data = request.get_json(silent=True) or request.form
+        title = (data.get("title") or "Mentorship Meeting").strip()
+        desc = (data.get("description") or "").strip()
+        mentor_id = data.get("mentor_id")
+        raw_mentor_ids = data.get("mentor_ids") or []
+        mentee_id = data.get("mentee_id")
+        raw_mentee_ids = data.get("mentee_ids") or []
+        date_str = data.get("date")
+        time_str = data.get("time") or data.get("start_time")
+        meeting_type = (data.get("meeting_type") or data.get("type") or "1on1").strip().lower()
+        is_sgm = bool(data.get("is_sgm")) or meeting_type == "sgm" or "/schedule_sgm" in request.path
+
+        if is_sgm:
+            if not title.upper().startswith("SGM"):
+                title = f"SGM: {title}"
+            mids = []
+            if mentor_id:
+                mids.append(int(mentor_id))
+            if isinstance(raw_mentor_ids, list):
+                mids.extend([int(x) for x in raw_mentor_ids if str(x).isdigit()])
+            mids = list(dict.fromkeys(mids))
+            if mids:
+                mentor_id = mids[0]
+
+            eids = []
+            if mentee_id:
+                eids.append(int(mentee_id))
+            if isinstance(raw_mentee_ids, list):
+                eids.extend([int(x) for x in raw_mentee_ids if str(x).isdigit()])
+            eids = list(dict.fromkeys(eids))
+            if eids:
+                mentee_id = eids[0]
+
+        if not mentor_id or not mentee_id or not date_str:
+            return jsonify({"success": False, "message": "Missing required fields (mentor, mentee, or date)"}), 400
+
+        try:
+            m_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except Exception:
+            m_date = datetime.now().date()
+
+        try:
+            if time_str and ("AM" in time_str.upper() or "PM" in time_str.upper()):
+                m_time = datetime.strptime(time_str.strip(), "%I:%M %p").time()
+            elif time_str:
+                m_time = datetime.strptime(time_str.strip(), "%H:%M").time()
+            else:
+                m_time = datetime.now().time()
+        except Exception:
+            m_time = datetime.now().time()
+
+        # Parse duration
+        duration_val = 45
+        dur_str_raw = str(data.get("duration") or "45").strip().lower().replace("mins", "").replace("min", "").replace("minutes", "").strip()
+        if dur_str_raw.isdigit():
+            duration_val = int(dur_str_raw)
+
+        # Generate meet link
+        meet_link = data.get("meet_link") or data.get("custom_link")
+        if not meet_link:
+            meet_link = f"https://meet.google.com/lookup/sgm-{int(time.time())}" if is_sgm else "https://meet.google.com/new"
+
+        mentor_obj = User.query.get(int(mentor_id))
+        mentee_obj = User.query.get(int(mentee_id))
+        
+        full_desc = desc
+        if is_sgm:
+            full_desc = f"Small Group Mentoring (SGM) session scheduled by Coordinator {user.name if user else 'Coordinator'}.\nLead Mentor: {mentor_obj.name if mentor_obj else mentor_id}\nInvited Students: {len(raw_mentee_ids) if raw_mentee_ids else 1}"
+            if desc:
+                full_desc += f"\n\nAgenda / Notes:\n{desc}"
+
+        m = MeetingRequest(
+            requester_id=user.id if user else int(mentor_id),
+            requested_to_id=int(mentee_id),
+            meeting_title=title,
+            meeting_description=full_desc,
+            meeting_date=m_date,
+            meeting_time=m_time,
+            meeting_duration=duration_val,
+            meet_link=meet_link,
+            meeting_type="sgm" if is_sgm else "1on1",
+            status="scheduled"
+        )
+        if hasattr(m, "mentor_id"):
+            m.mentor_id = int(mentor_id)
+        if hasattr(m, "mentee_id"):
+            m.mentee_id = int(mentee_id)
+
+        try:
+            db.session.add(m)
+            db.session.flush()
+
+            # Architecture parity with Flask: auto-assign SGM PersonalTask if SGM session
+            if is_sgm and PersonalTask:
+                target_mentee_ids = [int(x) for x in raw_mentee_ids if str(x).isdigit()] if raw_mentee_ids else [int(mentee_id)]
+                task_due = m_date + timedelta(days=3)
+                for eid in target_mentee_ids:
+                    pt = PersonalTask(
+                        mentee_id=eid,
+                        mentor_id=int(mentor_id),
+                        title=f"Learning & Feedback: {title}",
+                        description=f"Reflect on discussion, summarize key learnings, and provide feedback for SGM session held on {m_date} with mentor: {mentor_obj.name if mentor_obj else 'Mentor'}.",
+                        due_date=datetime.combine(task_due, datetime.min.time()),
+                        priority="medium",
+                        status="pending",
+                        progress=0,
+                        created_date=datetime.utcnow()
+                    )
+                    if hasattr(pt, "category"):
+                        pt.category = "sgm"
+                    if hasattr(pt, "sgm_meeting_id"):
+                        pt.sgm_meeting_id = m.id
+                    db.session.add(pt)
+
+            db.session.commit()
+            return jsonify({
+                "success": True, 
+                "message": f"{'SGM' if is_sgm else 'Mentorship'} meeting scheduled successfully", 
+                "meeting_id": m.id,
+                "meet_link": meet_link
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e)}), 500
 
     @api_bp.route("/admin/metrics", methods=["GET"])
     def api_get_admin_metrics():
