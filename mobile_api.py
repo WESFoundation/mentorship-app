@@ -2942,15 +2942,15 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             return jsonify({"success": False, "message": "This coupon has expired."}), 410
 
         data = request.get_json(silent=True) or {}
-        raw_seller = str(data.get("seller_account") or data.get("seller_id") or "").strip()
-        seller_profile = None
-        if raw_seller.isdigit() and SellerProfile:
-            seller_profile = SellerProfile.query.filter(
-                (SellerProfile.user_id == int(raw_seller)) | (SellerProfile.id == int(raw_seller))
-            ).first()
-
+        # Only a signed-in partner (seller) can redeem. Anyone else can only view the coupon.
+        api_user = get_current_user_from_req(User)
+        if not api_user or str(api_user.user_type) != "4":
+            return jsonify({"success": False,
+                            "message": "Only the partner (seller) can redeem this coupon. "
+                                       "Please sign in with a partner account."}), 403
+        seller_profile = SellerProfile.query.filter_by(user_id=api_user.id).first() if SellerProfile else None
         if not seller_profile:
-            return jsonify({"success": False, "message": "Please choose a partner shop."}), 400
+            return jsonify({"success": False, "message": "Partner profile not found."}), 400
 
         assignees = getattr(coupon, "assignees", [])
         if not assignees and coupon.mentor:

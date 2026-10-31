@@ -22,7 +22,7 @@ from flask_migrate import Migrate
 import random
 import secrets
 import hashlib
-from geo_data import canonical_country, geo_options
+from geo_data import canonical_country as geo_canonical_country, geo_options
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -3059,6 +3059,13 @@ class SellerProfile(db.Model):
     address = db.Column(db.Text)
     # How many shops this partner owns. NULL until they complete their profile.
     shop_count = db.Column(db.Integer)
+    # Public-facing details collected in profile completion.
+    profile_picture = db.Column(db.String(255))
+    description = db.Column(db.Text)
+    business_category = db.Column(db.String(80))
+    website = db.Column(db.String(255))
+    city = db.Column(db.String(100))
+    country = db.Column(db.String(100))
 
     is_verified = db.Column(db.Boolean, default=True, nullable=False, server_default="1")
     verified_by = db.Column(db.Integer, db.ForeignKey("signup_details.id"))
@@ -3091,6 +3098,12 @@ class SellerProfile(db.Model):
             "address": self.address or "",
             "is_verified": bool(self.is_verified),
             "shop_count": self.shop_count,
+            "description": self.description or "",
+            "business_category": self.business_category or "",
+            "website": self.website or "",
+            "city": self.city or "",
+            "country": self.country or "",
+            "profile_picture": self.profile_picture or "",
             "display_name": self.display_name,
             "user_name": self.user.name if self.user else "",
             "user_email": self.user.email if self.user else "",
@@ -3123,6 +3136,10 @@ class SellerReferral(db.Model):
     status = db.Column(db.String(20), default="pending", nullable=False)  # pending | confirmed | denied
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     responded_at = db.Column(db.DateTime)
+    # "Automatically request a coupon for me once my profile is 90% complete."
+    auto_coupon_request = db.Column(db.Boolean, default=False, nullable=False, server_default="0")
+    auto_requested_at = db.Column(db.DateTime)   # set once the request has been raised
+    auto_request_id = db.Column(db.Integer)      # the CouponRequest that was raised
 
     user = db.relationship("User", foreign_keys=[user_id])
     seller = db.relationship("User", foreign_keys=[seller_id])
@@ -5683,17 +5700,17 @@ def supervisordashboard():
     mentors = mentor_query.join(User, MentorProfile.user_id == User.id).order_by(User.created_at.asc()).all()
 
     # Global geographic filter (multi-select countries, grouped by continent)
-    geo_selected = sorted({canonical_country(c) for c in request.args.getlist("geo_country") if (c or "").strip()})
+    geo_selected = sorted({geo_canonical_country(c) for c in request.args.getlist("geo_country") if (c or "").strip()})
     geo_selected_set = set(geo_selected)
     geo_present = set()
     for _m in MentorProfile.query.with_entities(MentorProfile.country, MentorProfile.state, MentorProfile.city, MentorProfile.location).all():
-        geo_present.add(canonical_country(resolve_location(country=_m[0], state=_m[1], city=_m[2], legacy_location=_m[3])["country"]))
+        geo_present.add(geo_canonical_country(resolve_location(country=_m[0], state=_m[1], city=_m[2], legacy_location=_m[3])["country"]))
     for (_c,) in MenteeProfile.query.with_entities(MenteeProfile.country).all():
-        geo_present.add(canonical_country(_c))
+        geo_present.add(geo_canonical_country(_c))
     geo_present.discard("")
     if geo_selected_set:
         mentors = [m for m in mentors
-                   if canonical_country(mentor_location_parts(m)[0]) in geo_selected_set]
+                   if geo_canonical_country(mentor_location_parts(m)[0]) in geo_selected_set]
 
     # Add serial numbers based on timestamp order
     for idx, m in enumerate(mentors, 1):
@@ -5756,7 +5773,7 @@ def supervisordashboard():
 
     all_mentees = mentee_query.order_by(User.created_at.asc()).all()
     if geo_selected_set:
-        all_mentees = [m for m in all_mentees if canonical_country(m.country) in geo_selected_set]
+        all_mentees = [m for m in all_mentees if geo_canonical_country(m.country) in geo_selected_set]
 
     # Add serial numbers based on timestamp order
     for idx, m in enumerate(all_mentees, 1):
@@ -7095,7 +7112,19 @@ def get_institution_tasks_data():
     f_mentee_id = int(f_mentee) if f_mentee.isdigit() else None
 
     tasks_data = []
-    
+
+    # Mentorship type per pair, so tasks can be labelled Anchor / Special instead of generic.
+    _pair_type = {}
+    for _mr in MentorshipRequest.query.filter(MentorshipRequest.final_status == "approved").all():
+        _mt_low = (_mr.mentor_type or "").lower()
+        if "anchor" in _mt_low:
+            _pair_type[(_mr.mentee_id, _mr.mentor_id)] = "Anchor Task"
+        elif "special" in _mt_low:
+            _pair_type[(_mr.mentee_id, _mr.mentor_id)] = "Special Task"
+
+    def _mentorship_category(mentee_id, mentor_id):
+        return _pair_type.get((mentee_id, mentor_id), "Mentorship Task")
+
     # Get Personal Tasks (filtered)
     pt_query = PersonalTask.query.filter(PersonalTask.mentee_id.in_(institution_user_ids))
     if f_mentee_id is not None:
@@ -7160,17 +7189,21 @@ def get_institution_tasks_data():
             "status": t_status,
             "progress": task.progress or 0,
             "priority": task.priority or "medium",
-            "category": PersonalTask.CATEGORY_LABELS.get(_cat_key, "Personal Task"),
+            "category": (_mentorship_category(task.mentee_id, task.mentor_id) if _cat_key == "mentorship"
+                         else PersonalTask.CATEGORY_LABELS.get(_cat_key, "Personal Task")),
             "categoryKey": _cat_key,
             "isSGM": _is_sgm,
             "sgmMentorNames": _sgm_names,
+            "sgmMentorEmails": [u.email for u in User.query.filter(User.id.in_(_sgm_mentors)).all()] if _sgm_mentors else [],
             "sgmMeetingId": task.sgm_meeting_id if _is_sgm else None,
             "mentorFeedbackCount": _mentor_submission_count("personal", task.id),
             "mentorId": task.mentor_id,
             "mentorName": ", ".join(_sgm_names) if _sgm_names else (mentor.name if mentor else "Self-assigned"),
+            "mentorEmail": mentor.email if mentor else "",
             "mentorIsCorporate": _is_mentor_corp(mentor),
             "menteeId": task.mentee_id,
             "menteeName": mentee.name if mentee else "Unknown",
+            "menteeEmail": mentee.email if mentee else "",
             "type": "personal",
             "rating": m_rating,
             "menteeRating": mf_rating,
@@ -7205,12 +7238,14 @@ def get_institution_tasks_data():
             "status": t_status,
             "progress": task.progress or 0,
             "priority": "high",
-            "category": "Mentorship Task",
+            "category": _mentorship_category(task.mentee_id, task.mentor_id),
             "mentorId": task.mentor_id,
             "mentorName": mentor.name if mentor else "Unknown",
+            "mentorEmail": mentor.email if mentor else "",
             "mentorIsCorporate": _is_mentor_corp(mentor),
             "menteeId": task.mentee_id,
             "menteeName": mentee.name if mentee else "Unknown",
+            "menteeEmail": mentee.email if mentee else "",
             "type": "master",
             "rating": m_rating,
             "menteeRating": mf_rating,
@@ -7331,7 +7366,8 @@ def institution_export_tasks():
     }
     columns = [
         ("Task ID", "serial"), ("Task", "title"), ("Description", "description"),
-        ("Type", "type"), ("Category", "category"), ("Mentee", "menteeName"), ("Mentor", "mentorName"),
+        ("Type", "type"), ("Category", "category"), ("Mentee", "menteeName"), ("Mentee email", "menteeEmail"),
+        ("Mentor", "mentorName"), ("Mentor email", "mentorEmail"),
         ("Status", "status"), ("Progress %", "progress"), ("Priority", "priority"),
         ("Due date", "dueDate"), ("Mentor rating", "rating"), ("Mentee rating", "menteeRating"),
         ("Meeting #", "meetingNumber"), ("Journey phase", "journeyPhase"),
@@ -7354,6 +7390,8 @@ def institution_export_tasks():
                 val = status_labels.get(val, val or "")
             elif key == "type":
                 val = "Mentorship task" if val == "master" else "Personal task"
+            elif key == "mentorEmail" and t.get("sgmMentorEmails"):
+                val = ", ".join(t["sgmMentorEmails"])
             elif key == "dueDate" and val:
                 val = str(val)[:10]
             elif val is None:
@@ -7362,7 +7400,8 @@ def institution_export_tasks():
             if key in ("description", "title"):
                 c.alignment = Alignment(wrap_text=True, vertical="top")
 
-    widths = {"Task": 38, "Description": 50, "Mentee": 24, "Mentor": 24, "Category": 18}
+    widths = {"Task": 38, "Description": 50, "Mentee": 24, "Mentor": 24, "Category": 18,
+              "Mentee email": 30, "Mentor email": 30}
     for ci, (label, _) in enumerate(columns, 1):
         ws.column_dimensions[get_column_letter(ci)].width = widths.get(label, 14)
     ws.freeze_panes = "A2"
@@ -15511,6 +15550,8 @@ def inject_user_profile_pic():
             raw_profile = getattr(user, "supervisor_profile", None) or SupervisorProfile.query.filter_by(user_id=user.id).first()
         elif ut == "3":
             raw_profile = getattr(user, "institution_profile", None) or Institution.query.filter_by(user_id=user.id).first()
+        elif ut == "4":
+            raw_profile = SellerProfile.query.filter_by(user_id=user.id).first()
         
         if isinstance(raw_profile, (list, tuple)):
             profile = raw_profile[0] if raw_profile else None
@@ -15775,6 +15816,7 @@ def editmentorprofile():
             db.session.commit()
             if new_referral:
                 _notify_referral_created(new_referral)
+            _process_auto_coupon_requests(user)
             # Clear any saved form data from session on successful save
             session.pop('mentor_form_data', None)
             flash("✅ Profile updated successfully!", "success")
@@ -16130,6 +16172,7 @@ def editmenteeprofile():
             db.session.commit()
             if new_referral:
                 _notify_referral_created(new_referral)
+            _process_auto_coupon_requests(user)
         except Exception as e:
             db.session.rollback()
             error_msg = "An error occurred while saving your profile. Please try again."
@@ -16356,7 +16399,7 @@ def profile():
     elif user_type == "3":
         return redirect(url_for("institutionprofile"))
     elif user_type == "4":
-        return redirect(url_for("seller_profile"))
+        return redirect(url_for("seller_account"))
 
 # ------------------ CERTIFICATE ------------------
 @app.route("/my_certificate")
@@ -21258,7 +21301,12 @@ def _apply_referral_from_form(user, form):
     Does nothing when a referral already exists, so it can never be changed.
     Returns the new SellerReferral (added to the session, not committed) or None.
     """
-    if _get_user_referral(user):
+    wants_auto = (form.get("auto_coupon_request") or "").lower() == "yes"
+    existing = _get_user_referral(user)
+    if existing:
+        # The partner can't be changed, but the auto-request preference can.
+        if form.get("referral_block_present") and not existing.auto_requested_at:
+            existing.auto_coupon_request = wants_auto
         return None
     if (form.get("was_referred") or "").lower() != "yes":
         return None
@@ -21268,9 +21316,62 @@ def _apply_referral_from_form(user, form):
     seller_profile = SellerProfile.query.filter_by(user_id=int(raw)).first()
     if not seller_profile or seller_profile.user_id == user.id:
         return None
-    referral = SellerReferral(user_id=user.id, seller_id=seller_profile.user_id, status="pending")
+    referral = SellerReferral(user_id=user.id, seller_id=seller_profile.user_id, status="pending",
+                              auto_coupon_request=wants_auto)
     db.session.add(referral)
     return referral
+
+
+def _process_auto_coupon_requests(user=None):
+    """Raise a coupon request for every referred person who asked for one and whose
+    profile has reached the eligibility threshold. Supervisors are notified in-app.
+
+    With `user` it checks just that person; otherwise it sweeps everyone waiting.
+    Safe to call often: each referral only ever raises one request.
+    """
+    try:
+        q = SellerReferral.query.filter(SellerReferral.auto_coupon_request.is_(True),
+                                        SellerReferral.auto_requested_at.is_(None),
+                                        SellerReferral.status != "denied")
+        if user is not None:
+            q = q.filter(SellerReferral.user_id == user.id)
+        raised = 0
+        for ref in q.all():
+            person = ref.user
+            if not person:
+                continue
+            pct = int(_compute_profile_completeness_score(person.id, str(person.user_type)) or 0)
+            if pct < COUPON_ELIGIBLE_COMPLETION:
+                continue
+            role = _referral_role_label(person)
+            sp = SellerProfile.query.filter_by(user_id=ref.seller_id).first()
+            partner = sp.display_name if sp else (ref.seller.name if ref.seller else "a partner")
+            req = CouponRequest(
+                user_id=person.id,
+                title=f"Referral coupon (auto-requested by {role})",
+                description=(f"Auto-requested: {person.name}'s profile reached {pct}%. "
+                             f"Referred by {partner} (partner confirmation: {ref.status})."),
+                quantity=1,
+                status="pending",
+            )
+            db.session.add(req)
+            db.session.flush()
+            ref.auto_requested_at = datetime.utcnow()
+            ref.auto_request_id = req.id
+            raised += 1
+            for sup in User.query.filter_by(user_type="0").all():
+                create_notification(
+                    sup.id,
+                    f"Coupon request: {person.name} ({role}) reached {pct}% profile completion "
+                    f"and asked for a coupon (referred by {partner}).",
+                    link=url_for("supervisor_coupons"))
+        if raised:
+            db.session.commit()
+        return raised
+    except Exception as e:
+        db.session.rollback()
+        app.logger.warning(f"Auto coupon request processing failed: {e}")
+        return 0
 
 
 def _referral_role_label(user):
@@ -21441,6 +21542,52 @@ def _coupon_audit_row(coupon, redeemer, seller_profile):
     }
 
 
+BUSINESS_CATEGORIES = [
+    "Retail", "Food & Beverage", "Education & Books", "Services", "Wholesale / Market stall",
+    "Technology", "Health & Wellness", "Other",
+]
+
+
+def _seller_completion(profile):
+    """(percent, [missing field labels]) for a partner's profile."""
+    if profile is None:
+        return 0, []
+    checks = [
+        ("Profile picture", bool(profile.profile_picture)),
+        ("Partner type", bool(profile.partner_label)),
+        ("Shop name", bool((profile.shop_name or "").strip())),
+        ("Description", bool((profile.description or "").strip())),
+        ("Business category", bool(profile.business_category)),
+        ("Number of shops", bool(profile.shop_count and profile.shop_count >= 1)),
+        ("All shop names", _seller_profile_complete(profile)),
+        ("Contact phone", bool((profile.contact_phone or "").strip())),
+        ("Address", bool((profile.address or "").strip())),
+        ("City", bool((profile.city or "").strip())),
+        ("Country", bool((profile.country or "").strip())),
+    ]
+    done = sum(1 for _, ok in checks if ok)
+    return int(round(done * 100 / len(checks))), [label for label, ok in checks if not ok]
+
+
+@app.route("/seller/account")
+def seller_account():
+    """Read-only 'My Profile' for a partner."""
+    seller = _seller_or_none()
+    if not seller:
+        return redirect(url_for("signin"))
+    profile = _ensure_seller_profile(seller)
+    pct, missing = _seller_completion(profile)
+    return render_template(
+        "seller/seller_account.html",
+        show_sidebar=True,
+        seller=seller,
+        profile=profile,
+        shops=_seller_shops(seller.id),
+        completion=pct,
+        missing=missing,
+    )
+
+
 @app.route("/seller/profile", methods=["GET", "POST"])
 def seller_profile():
     seller = _seller_or_none()
@@ -21458,6 +21605,31 @@ def seller_profile():
         profile.market_name = (data.get("market_name") or "").strip() or None
         profile.contact_phone = (data.get("contact_phone") or "").strip() or None
         profile.address = (data.get("address") or "").strip() or None
+        profile.description = (data.get("description") or "").strip()[:1000] or None
+        category = (data.get("business_category") or "").strip()
+        profile.business_category = category if category in BUSINESS_CATEGORIES else None
+        profile.website = (data.get("website") or "").strip()[:255] or None
+        profile.city = (data.get("city") or "").strip()[:100] or None
+        profile.country = (data.get("country") or "").strip()[:100] or None
+
+        pic = request.files.get("profile_picture")
+        if pic and pic.filename:
+            if not allowed_file(pic.filename) or pic.filename.rsplit(".", 1)[-1].lower() == "pdf":
+                msg = "Please upload a PNG, JPG, JPEG or GIF image."
+                if request.is_json:
+                    return jsonify({"success": False, "message": msg}), 400
+                flash(msg, "error")
+                return redirect(url_for("seller_profile"))
+            try:
+                if profile.profile_picture:
+                    storage_service.delete_file(profile.profile_picture)
+                pic_url, stored_name = storage_service.upload_file(
+                    pic, folder_prefix=f"profiles/seller/{seller.id}",
+                    custom_filename=secure_filename(f"seller_{seller.id}_{int(datetime.now().timestamp())}_{pic.filename}"))
+                if pic_url:
+                    profile.profile_picture = pic_url
+            except Exception as e:
+                app.logger.error(f"Seller picture upload failed: {e}")
 
         # How many shops this partner owns (required), and each shop's name when several.
         raw_count = str(data.get("shop_count") or "").strip()
@@ -21520,13 +21692,16 @@ def seller_profile():
 
     return render_template(
         "seller/seller_profile.html",
-        show_sidebar=False,
+        show_sidebar=True,
         active_section="profile",
         seller=seller,
         profile=profile,
         partner_labels=PARTNER_LABELS,
         shops=_seller_shops(seller.id),
         profile_complete=_seller_profile_complete(profile),
+        completion=_seller_completion(profile)[0],
+        missing=_seller_completion(profile)[1],
+        business_categories=BUSINESS_CATEGORIES,
     )
 
 
@@ -21568,7 +21743,7 @@ def seller_dashboard():
 
     return render_template(
         "seller/seller_dashboard.html",
-        show_sidebar=False,
+        show_sidebar=True,
         active_section="dashboard",
         seller=seller,
         profile=profile,
@@ -21612,6 +21787,7 @@ def supervisor_coupons():
     if not supervisor:
         return redirect(url_for("signin"))
 
+    _process_auto_coupon_requests()
     coupons = MentorCoupon.query.order_by(MentorCoupon.created_at.desc()).limit(500).all()
     for c in coupons:
         if c.status == "active" and c.is_expired:
@@ -21632,8 +21808,20 @@ def supervisor_coupons():
             "expires_at": c.expires_at,
             "used_at": c.used_at,
             "seller_name": c.seller_display_name,
+            "seller_email": (c.seller.email if c.seller else ""),
+            "shop_name": c.used_shop_name,
+            "partner_user_id": c.partner_user_id,
+            "partner_name": c.partner_display_name,
+            "is_general": c.partner_user_id is None,
+            "issued_by_name": (c.issuer.name if c.issuer else ""),
+            "issued_by_email": (c.issuer.email if c.issuer else ""),
+            "verification_count": c.verification_count or 0,
+            "redeemed_by_id": c.redeemed_by_user_id,
             "redeemed_by_name": (c.redeemed_by.name if c.redeemed_by else ""),
-            "holders": [{"id": h.id, "name": h.name,
+            "redeemed_by_email": (c.redeemed_by.email if c.redeemed_by else ""),
+            "redeemed_by_role": ({"1": "Mentor", "2": "Mentee"}.get(str(c.redeemed_by.user_type), "")
+                                 if c.redeemed_by else ""),
+            "holders": [{"id": h.id, "name": h.name, "email": h.email,
                          "role": {"1": "Mentor", "2": "Mentee"}.get(str(h.user_type), "")}
                         for h in holders],
         })
@@ -21667,6 +21855,87 @@ def supervisor_coupons():
         sellers=[s.to_dict() for s in sellers],
         stats=stats,
         public_base_url=_public_base_url(),
+    )
+
+
+@app.route("/supervisor/partners")
+def supervisor_partners():
+    """All partners, with the mentors and mentees each one referred."""
+    supervisor = _supervisor_or_none()
+    if not supervisor:
+        return redirect(url_for("signin"))
+
+    for u in User.query.filter_by(user_type="4").all():
+        _ensure_seller_profile(u)
+    profiles = SellerProfile.query.order_by(SellerProfile.created_at.desc()).all()
+
+    referrals = SellerReferral.query.order_by(SellerReferral.created_at.desc()).all()
+    ref_by_seller = {}
+    for r in referrals:
+        ref_by_seller.setdefault(r.seller_id, []).append(r)
+
+    redeemed_counts = {}
+    for sid, cnt in (db.session.query(MentorCoupon.seller_id, func.count(MentorCoupon.id))
+                     .filter(MentorCoupon.used_at.isnot(None)).group_by(MentorCoupon.seller_id).all()):
+        redeemed_counts[sid] = cnt
+    reserved_counts = {}
+    for pid, cnt in (db.session.query(MentorCoupon.partner_user_id, func.count(MentorCoupon.id))
+                     .filter(MentorCoupon.partner_user_id.isnot(None)).group_by(MentorCoupon.partner_user_id).all()):
+        reserved_counts[pid] = cnt
+
+    partners = []
+    for sp in profiles:
+        refs = ref_by_seller.get(sp.user_id, [])
+        pct, _missing = _seller_completion(sp)
+        partners.append({
+            "user_id": sp.user_id,
+            "name": sp.display_name,
+            "contact_name": sp.user.name if sp.user else "",
+            "email": sp.user.email if sp.user else "",
+            "phone": sp.contact_phone or "",
+            "label": sp.partner_label or "Partner",
+            "category": sp.business_category or "",
+            "shop_count": sp.shop_count,
+            "city": sp.city or "",
+            "country": sp.country or "",
+            "completion": pct,
+            "redeemed": redeemed_counts.get(sp.user_id, 0),
+            "reserved": reserved_counts.get(sp.user_id, 0),
+            "referrals_total": len(refs),
+            "referrals_confirmed": sum(1 for r in refs if r.status == "confirmed"),
+            "referrals_pending": sum(1 for r in refs if r.status == "pending"),
+            "joined": sp.created_at,
+        })
+
+    ref_rows = []
+    for r in referrals:
+        person, seller = r.user, r.seller
+        if not person:
+            continue
+        try:
+            pct = int(_compute_profile_completeness_score(person.id, str(person.user_type)) or 0)
+        except Exception:
+            pct = 0
+        sp = next((x for x in profiles if x.user_id == r.seller_id), None)
+        ref_rows.append({
+            "partner_id": r.seller_id,
+            "partner_name": sp.display_name if sp else (seller.name if seller else ""),
+            "name": person.name,
+            "email": person.email,
+            "role": "Mentor" if str(person.user_type) == "1" else "Mentee",
+            "status": r.status,
+            "completion": pct,
+            "eligible": r.status == "confirmed" and pct >= COUPON_ELIGIBLE_COMPLETION,
+            "referred_on": r.created_at,
+        })
+
+    return render_template(
+        "supervisor/supervisor_partners.html",
+        show_sidebar=True,
+        active_section="partners",
+        partners=partners,
+        referrals=ref_rows,
+        eligible_threshold=COUPON_ELIGIBLE_COMPLETION,
     )
 
 
@@ -22082,15 +22351,32 @@ def coupon_verify(code):
             verified_sellers=[], coupon_candidates=[],
         ), 404
 
-    verified_sellers = _verified_sellers()
+    # Only a signed-in partner (seller) may redeem. Everyone else just sees the details.
+    me_seller = _seller_or_none()
+    viewer_role = "seller" if me_seller else ("other" if "email" in session else "guest")
+    my_profile = _ensure_seller_profile(me_seller) if me_seller else None
     # A coupon reserved for one Outreach Partner can only be redeemed by them.
-    if coupon.partner_user_id:
-        verified_sellers = [sp for sp in verified_sellers if sp.user_id == coupon.partner_user_id]
+    reserved_for_other = bool(my_profile and coupon.partner_user_id
+                              and coupon.partner_user_id != my_profile.user_id)
+    can_redeem = bool(my_profile) and not reserved_for_other
+    verified_sellers = [my_profile] if can_redeem else []
     coupon_candidates = coupon.assignees
     shop_map = _sellers_shop_map(verified_sellers)
+    verify_ctx = dict(can_redeem=can_redeem, viewer_role=viewer_role,
+                      reserved_for_other=reserved_for_other, my_profile=my_profile)
 
     if request.method == "POST":
         payload = request.get_json(silent=True) or request.form or {}
+
+        # Redeeming is for the signed-in seller only; anyone else is view-only.
+        if not can_redeem:
+            msg = ("This coupon is reserved for a different partner." if reserved_for_other
+                   else "Only the partner (seller) can redeem this coupon. Please sign in with your partner account.")
+            return render_template(
+                "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
+                code=code, show_result=False, message=msg,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map, **verify_ctx,
+            ), 403
 
         # Re-check under the current DB state so a double scan cannot re-use a key.
         if coupon.status == "used":
@@ -22098,14 +22384,14 @@ def coupon_verify(code):
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False,
                 message="This coupon has already been used.",
-                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map, **verify_ctx,
             ), 409
         if coupon.status == "revoked":
             return render_template(
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False,
                 message="This coupon has been withdrawn by the mentor.",
-                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map, **verify_ctx,
             ), 409
         if coupon.is_expired:
             coupon.status = "expired"
@@ -22114,23 +22400,11 @@ def coupon_verify(code):
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False,
                 message="This coupon has expired.",
-                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map, **verify_ctx,
             ), 410
 
-        # The shop must be one of the partner accounts.
-        seller_profile = None
-        raw_seller = str(payload.get("seller_account") or "").strip()
-        if raw_seller.isdigit():
-            seller_profile = SellerProfile.query.filter_by(
-                user_id=int(raw_seller)
-            ).first()
-        if not seller_profile:
-            return render_template(
-                "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
-                code=code, show_result=False,
-                message="Please choose your shop from the list.",
-                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
-            ), 400
+        # The redeeming partner is always the signed-in seller, never a posted value.
+        seller_profile = my_profile
 
         # A partner-specific coupon cannot be redeemed by anyone else.
         if coupon.partner_user_id and seller_profile.user_id != coupon.partner_user_id:
@@ -22138,7 +22412,7 @@ def coupon_verify(code):
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False,
                 message="This coupon is reserved for a different partner.",
-                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map, **verify_ctx,
             ), 403
 
         # Partners with several shops must say which one the coupon was used at.
@@ -22147,7 +22421,7 @@ def coupon_verify(code):
             return render_template(
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False, message=shop_err,
-                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map, **verify_ctx,
             ), 400
 
         # The redeemer must be somebody this coupon was actually assigned to.
@@ -22162,7 +22436,7 @@ def coupon_verify(code):
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False,
                 message="Please select who is redeeming this coupon.",
-                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map, **verify_ctx,
             ), 400
 
         coupon.status = "used"
@@ -22180,7 +22454,7 @@ def coupon_verify(code):
             return render_template(
                 "coupon_verify.html", coupon=None, code=code, show_result=False,
                 message="We could not record this coupon right now. Please try again.",
-                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map, **verify_ctx,
             ), 500
 
         app.logger.info(
@@ -22192,7 +22466,7 @@ def coupon_verify(code):
             "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
             code=code, show_result=True,
             message="Coupon verified and marked as used.",
-            verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map,
+            verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map, **verify_ctx,
         )
 
     return render_template(
@@ -22203,7 +22477,7 @@ def coupon_verify(code):
         message="",
         verified_sellers=verified_sellers,
         coupon_candidates=coupon_candidates,
-        shop_map=shop_map,
+        shop_map=shop_map, **verify_ctx,
     )
 
 

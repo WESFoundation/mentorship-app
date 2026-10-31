@@ -2706,4 +2706,71 @@ function toggleSellerDropdown(show) {
     }
 }
 </script>
+<script>
+// Mark every mandatory field with a red asterisk up front, so nobody has to
+// submit the form to find out what is required.
+document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('mentorProfileForm');
+    if (!form) return;
+    var REQUIRED = ['profession', 'skills', 'role', 'industry_sector', 'organisation', 'years_of_experience',
+        'whatsapp', 'country', 'state', 'city', 'highest_qualification', 'degree_name', 'field_of_study',
+        'university_name', 'graduation_year', 'academic_status', 'linkedin_link', 'target_audience',
+        'base_mentorship_topics', 'mentorship_topics', 'preferred_communication', 'availability',
+        'connect_frequency', 'preferred_duration', 'why_mentor', 'mentorship_philosophy'];
+    function star() {
+        var sp = document.createElement('span');
+        sp.className = 'text-red-500 ml-0.5 req-star';
+        sp.setAttribute('aria-hidden', 'true');
+        sp.textContent = '*';
+        return sp;
+    }
+    function labelFor(el) {
+        if (el.id) {
+            var byFor = form.querySelector('label[for="' + el.id + '"]');
+            if (byFor) return byFor;
+        }
+        var node = el;
+        for (var depth = 0; depth < 4 && node && node !== form; depth++) {
+            node = node.parentElement;
+            if (!node) break;
+            var lab = node.querySelector(':scope > label');
+            if (lab) return lab;
+        }
+        return null;
+    }
+    function mark(name) {
+        var els = form.querySelectorAll('[name="' + name + '"]');
+        if (!els.length) return;
+        var el = els[0];
+        el.setAttribute('aria-required', 'true');
+        var lab = labelFor(el);
+        if (lab && lab.textContent.indexOf('*') === -1 && !lab.querySelector('.req-star')) {
+            lab.appendChild(star());
+        }
+    }
+    REQUIRED.forEach(mark);
+
+    // Work / personal email: at least one is needed.
+    ['work_email', 'personal_email'].forEach(function (n) {
+        var el = form.querySelector('[name="' + n + '"]');
+        var lab = el ? labelFor(el) : null;
+        if (lab && lab.textContent.indexOf('*') === -1 && !lab.querySelector('.req-star')) {
+            lab.appendChild(star());
+            var note = document.createElement('span');
+            note.className = 'text-[10px] text-slate-400 ml-1 normal-case';
+            note.textContent = '(at least one)';
+            lab.appendChild(note);
+        }
+    });
+
+    // Legend at the top of the form
+    if (!document.getElementById('req-legend')) {
+        var legend = document.createElement('p');
+        legend.id = 'req-legend';
+        legend.className = 'text-sm text-slate-600';
+        legend.innerHTML = '<span class="text-red-500 font-bold">*</span> marks a required field.';
+        form.insertBefore(legend, form.firstChild);
+    }
+});
+</script>
 {% endblock %}

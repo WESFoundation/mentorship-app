@@ -1207,4 +1207,73 @@
         });
     });
     </script>
+<script>
+// Mark every mandatory field up front (the form only used to reveal them on submit).
+document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('menteeProfileForm');
+    if (!form) return;
+    function star() {
+        var sp = document.createElement('span');
+        sp.className = 'text-red-500 ml-0.5 req-star';
+        sp.setAttribute('aria-hidden', 'true');
+        sp.textContent = '*';
+        return sp;
+    }
+    function hasStar(lab) { return lab.textContent.indexOf('*') !== -1 || lab.querySelector('.req-star'); }
+    function labelFor(el) {
+        if (el.id) {
+            var byFor = form.querySelector('label[for="' + el.id + '"]');
+            if (byFor) return byFor;
+        }
+        var node = el;
+        for (var d = 0; d < 4 && node && node !== form; d++) {
+            node = node.parentElement;
+            if (!node) break;
+            var lab = node.querySelector(':scope > label');
+            if (lab) return lab;
+        }
+        return null;
+    }
+    function mark(el, note) {
+        if (!el) return;
+        el.setAttribute('aria-required', 'true');
+        var lab = labelFor(el);
+        if (lab && !hasStar(lab)) {
+            lab.appendChild(star());
+            if (note) {
+                var n = document.createElement('span');
+                n.className = 'text-[10px] text-slate-400 ml-1 normal-case';
+                n.textContent = note;
+                lab.appendChild(n);
+            }
+        }
+    }
+    ['mobile_number', 'institution', 'country', 'state', 'city', 'mentorship_expectations'].forEach(function (n) {
+        mark(form.querySelector('[name="' + n + '"]'));
+    });
+    mark(form.querySelector('[name="work_email"]'), '(at least one)');
+    mark(form.querySelector('[name="personal_email"]'), '(at least one)');
+    mark(document.getElementById('terms_checkbox'));
+    mark(document.getElementById('gdpr_checkbox'));
+
+    // Profile photo is mandatory when none is saved yet; the avatar has no label, so add a caption.
+    var pic = form.querySelector('input[name="profile_picture"]');
+    if (pic && !document.querySelector('img[alt="Profile Picture"]') && !document.getElementById('pic-required-note')) {
+        var cap = document.createElement('p');
+        cap.id = 'pic-required-note';
+        cap.className = 'mt-2 text-xs font-semibold text-slate-600 text-center';
+        cap.innerHTML = 'Profile photo <span class="text-red-500 req-star">*</span>';
+        var holder = pic.closest('.group');
+        if (holder) holder.appendChild(cap);
+    }
+
+    if (!document.getElementById('req-legend')) {
+        var legend = document.createElement('p');
+        legend.id = 'req-legend';
+        legend.className = 'text-sm text-slate-600 mb-4';
+        legend.innerHTML = '<span class="text-red-500 font-bold">*</span> marks a required field.';
+        form.insertBefore(legend, form.firstChild);
+    }
+});
+</script>
     {% endblock %}

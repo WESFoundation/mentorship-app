@@ -6,15 +6,22 @@
 
   <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
     <div>
-      <h1 class="text-2xl font-bold text-slate-900">My Shop</h1>
-      <p class="text-sm text-slate-500 mt-1">Tell customers who you are when they redeem a coupon.</p>
+      <h1 class="text-2xl font-bold text-slate-900">Profile Completion</h1>
+      <p class="text-sm text-slate-500 mt-1">Tell customers who you are and how many shops you run.</p>
     </div>
-    <nav class="flex items-center gap-2">
-      <a href="{{ url_for('seller_dashboard') }}"
-         class="px-4 py-2 rounded-lg text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200">
-        Redemptions
-      </a>
-    </nav>
+    <a href="{{ url_for('seller_account') }}"
+       class="px-4 py-2 rounded-lg text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200">View my profile</a>
+  </div>
+
+  <div class="mb-6 rounded-xl border border-slate-200 bg-white p-4">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-sm font-semibold text-slate-800">Profile completion</span>
+      <span class="text-sm font-bold {{ 'text-green-600' if completion >= 90 else 'text-amber-600' }}">{{ completion }}%</span>
+    </div>
+    <div class="h-2 rounded-full bg-slate-100 overflow-hidden">
+      <div class="h-2 rounded-full {{ 'bg-green-500' if completion >= 90 else 'bg-amber-500' }}" style="width: {{ completion }}%"></div>
+    </div>
+    {% if missing %}<p class="text-xs text-slate-500 mt-2">Still missing: {{ missing | join(', ') }}</p>{% endif %}
   </div>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
@@ -34,8 +41,41 @@
   </div>
   {% endif %}
 
-  <form method="POST" action="{{ url_for('seller_profile') }}"
+  <form method="POST" action="{{ url_for('seller_profile') }}" enctype="multipart/form-data"
         class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+
+    <div class="flex items-center gap-4">
+      {% if profile.profile_picture %}
+      <img id="pic-preview" src="{{ profile.profile_picture if profile.profile_picture.startswith('http') else url_for('static', filename='uploads/' + profile.profile_picture) }}"
+           alt="Profile picture" class="w-20 h-20 rounded-full object-cover ring-2 ring-slate-200">
+      {% else %}
+      <img id="pic-preview" src="https://ui-avatars.com/api/?name={{ (profile.display_name or 'Partner')|urlencode }}&background=d97706&color=fff&size=160"
+           alt="Profile picture" class="w-20 h-20 rounded-full object-cover ring-2 ring-slate-200">
+      {% endif %}
+      <div>
+        <label for="profile_picture" class="block text-sm font-semibold text-slate-700 mb-1">Profile picture</label>
+        <input type="file" id="profile_picture" name="profile_picture" accept="image/png,image/jpeg,image/gif"
+               onchange="var f=this.files[0]; if(f){document.getElementById('pic-preview').src=URL.createObjectURL(f);}"
+               class="block text-sm text-slate-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-amber-50 file:text-amber-700 file:font-semibold">
+        <p class="text-xs text-slate-400 mt-1">PNG, JPG or GIF.</p>
+      </div>
+    </div>
+
+    <div>
+      <label for="description" class="block text-sm font-semibold text-slate-700 mb-1">About your business</label>
+      <textarea id="description" name="description" rows="3" maxlength="1000" placeholder="What do you sell or do? Who are your customers?"
+                class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">{{ profile.description or '' }}</textarea>
+    </div>
+
+    <div>
+      <label for="business_category" class="block text-sm font-semibold text-slate-700 mb-1">Business category</label>
+      <select id="business_category" name="business_category" class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm bg-white">
+        <option value="">Select a category</option>
+        {% for c in business_categories %}
+        <option value="{{ c }}" {% if profile.business_category == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
 
     <div>
       <label for="partner_label" class="block text-sm font-semibold text-slate-700 mb-1">
@@ -67,7 +107,7 @@
 
     <div>
       <label for="contact_phone" class="block text-sm font-semibold text-slate-700 mb-1">
-        Contact phone <span class="font-normal text-slate-400">(optional)</span>
+        Contact phone
       </label>
       <input type="text" id="contact_phone" name="contact_phone" maxlength="40"
              value="{{ profile.contact_phone or '' }}"
@@ -76,10 +116,31 @@
 
     <div>
       <label for="address" class="block text-sm font-semibold text-slate-700 mb-1">
-        Address <span class="font-normal text-slate-400">(optional)</span>
+        Address
       </label>
       <textarea id="address" name="address" rows="2"
                 class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">{{ profile.address or '' }}</textarea>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label for="city" class="block text-sm font-semibold text-slate-700 mb-1">City</label>
+        <input type="text" id="city" name="city" maxlength="100" value="{{ profile.city or '' }}"
+               class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+      </div>
+      <div>
+        <label for="country" class="block text-sm font-semibold text-slate-700 mb-1">Country</label>
+        <input type="text" id="country" name="country" maxlength="100" value="{{ profile.country or '' }}"
+               class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+      </div>
+    </div>
+
+    <div>
+      <label for="website" class="block text-sm font-semibold text-slate-700 mb-1">
+        Website / social page <span class="font-normal text-slate-400">(optional)</span>
+      </label>
+      <input type="url" id="website" name="website" maxlength="255" value="{{ profile.website or '' }}" placeholder="https://"
+             class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
     </div>
 
     <div>

@@ -303,6 +303,17 @@
                     My Profile
                 </a>
 
+                {% if session.get('user_type') == '4' %}
+                <a href="{{ url_for('seller_profile') }}"
+                    class="flex items-center px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-primary transition-colors">
+                    <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Profile Completion
+                </a>
+                {% endif %}
+
                 <a href="{{ url_for('change_password')}}"
                     class="flex items-center px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-primary transition-colors">
                     <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -535,6 +546,15 @@
                             d="M2 9V6a2 2 0 012-2h16a2 2 0 012 2v3M2 9a2 2 0 012 2h2l2 3h6l2-3h2a2 2 0 012-2M2 9v9a2 2 0 002 2h16a2 2 0 002-2v-9M9 14h.01M15 14h.01" />
                     </svg>
                     All Coupons
+                </a>
+
+                <a href="{{ url_for('supervisor_partners')}}"
+                    class="sidebar-nav-item {% if request.endpoint == 'supervisor_partners' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 7h18M5 7v12a1 1 0 001 1h12a1 1 0 001-1V7M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2M9 12h6" />
+                    </svg>
+                    All Partners
                 </a>
 
 
@@ -896,6 +916,42 @@
                             d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
                     </svg>
                     My Certificate
+                </a>
+
+                {% elif session.get('user_type') == '4' %}
+
+                <div class="px-4 py-2 text-xs font-bold text-white/40 uppercase tracking-widest mb-2 mt-2">Partner</div>
+
+                <a href="{{ url_for('seller_dashboard', tab='redemptions') }}"
+                    class="sidebar-nav-item {% if request.endpoint == 'seller_dashboard' and request.args.get('tab', 'redemptions') != 'referrals' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                    </svg>
+                    Dashboard
+                </a>
+
+                <a href="{{ url_for('seller_dashboard', tab='referrals') }}"
+                    class="sidebar-nav-item {% if request.endpoint == 'seller_dashboard' and request.args.get('tab') == 'referrals' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Referred People
+                </a>
+
+                <a href="{{ url_for('chat') }}"
+                    class="sidebar-nav-item {% if request.endpoint == 'chat' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                    Messages
+                </a>
+
+                <a href="{{ url_for('resources_hub') }}"
+                    class="sidebar-nav-item {% if request.endpoint == 'resources_hub' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    Resources Hub
                 </a>
 
                 {% endif %}

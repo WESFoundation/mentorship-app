@@ -13,20 +13,10 @@
         {% if profile.display_name %}&middot; {{ profile.display_name }}{% endif %}
       </p>
     </div>
-    <nav class="flex flex-wrap items-center gap-2">
-      <a href="{{ url_for('seller_dashboard', tab='redemptions') }}"
-         class="px-4 py-2 rounded-lg text-sm font-medium {% if tab == 'redemptions' %}bg-amber-600 text-white{% else %}bg-slate-100 text-slate-700 hover:bg-slate-200{% endif %}">
-        Coupon redemptions
-      </a>
-      <a href="{{ url_for('seller_dashboard', tab='referrals') }}"
-         class="px-4 py-2 rounded-lg text-sm font-medium {% if tab == 'referrals' %}bg-amber-600 text-white{% else %}bg-slate-100 text-slate-700 hover:bg-slate-200{% endif %}">
-        Referred people ({{ referrals|length }})
-      </a>
-      <a href="{{ url_for('seller_profile') }}"
-         class="px-4 py-2 rounded-lg text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200">
-        My shops{% if not profile_complete %} <span class="ml-1 text-amber-600">&#9679;</span>{% endif %}
-      </a>
-    </nav>
+    {% if not profile_complete %}
+    <a href="{{ url_for('seller_profile') }}"
+       class="px-4 py-2 rounded-lg text-sm font-semibold bg-amber-600 text-white hover:bg-amber-700">Complete your profile</a>
+    {% endif %}
   </div>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
