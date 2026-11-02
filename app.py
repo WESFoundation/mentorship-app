@@ -3607,11 +3607,16 @@ register_mobile_api(
     mark_account_unverified=lambda user_id: _mark_account_unverified(user_id),
     start_login_otp=lambda user: _start_login_otp(user),
     verify_login_otp=lambda user, code: _verify_login_otp_for_user(user, code),
-    SellerProfile=SellerProfile, MentorCoupon=MentorCoupon, CouponAssignment=CouponAssignment,
+    SellerProfile=SellerProfile, SellerShop=SellerShop, MentorCoupon=MentorCoupon, CouponAssignment=CouponAssignment,
     CouponRequest=CouponRequest, SellerReferral=SellerReferral,
     ChatConversation=ChatConversation, ChatMessage=ChatMessage, ResourceNote=ResourceNote,
     ReminderSettings=ReminderSettings, ProfileCompletionReminder=ProfileCompletionReminder,
     compute_profile_completeness=lambda user_id, user_type: _compute_profile_completeness_score(user_id, user_type),
+    compute_profile_stats=lambda user_id, user_type: _compute_profile_stats_dict(user_id, user_type),
+    CANONICAL_COUNTRIES=lambda: list(CANONICAL_COUNTRIES) if 'CANONICAL_COUNTRIES' in globals() else [],
+    country_states=lambda c: country_states(c) if 'country_states' in globals() else [],
+    state_cities=lambda c, s: state_cities(c, s) if 'state_cities' in globals() else [],
+    resolve_location=lambda c, s, ci, l=None: resolve_location(c, s, ci, l) if 'resolve_location' in globals() else {},
     get_institution_details=lambda u: _get_institution_details(u),
     get_institution_members=lambda u, include_paired=False: _get_institution_members(u, include_paired=include_paired)
 )
@@ -12762,13 +12767,22 @@ def _check_mentorship_completed(mentee_id, mentor_id):
 
 def _compute_profile_completeness_score(user_id, user_type):
     """Return profile completeness as a 0-100 score."""
-    if user_type == "1":
+    if str(user_type) == "1":
         result = calculate_mentor_profile_completion(user_id)
-    elif user_type == "2":
+    elif str(user_type) == "2":
         result = calculate_mentee_profile_completion(user_id)
     else:
         return 0
     return result.get("percentage", 0)
+
+def _compute_profile_stats_dict(user_id, user_type):
+    """Return profile completeness stats dict with percentage, missing_fields, etc."""
+    user_type_str = str(user_type)
+    if user_type_str == "1":
+        return calculate_mentor_profile_completion(user_id)
+    elif user_type_str == "2":
+        return calculate_mentee_profile_completion(user_id)
+    return {"percentage": 100, "missing_fields": [], "completed_fields": 0, "total_fields": 0}
 
 def _compute_skills_percentile(user_id, user_type):
     """

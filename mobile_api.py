@@ -217,6 +217,13 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         except Exception:
             CouponRequest = None
 
+    SellerShop = kwargs.get("SellerShop")
+    if SellerShop is None:
+        try:
+            SellerShop = db.Model._decl_class_registry.get("SellerShop")
+        except Exception:
+            SellerShop = None
+
     SellerReferral = kwargs.get("SellerReferral")
     if SellerReferral is None:
         try:
@@ -260,8 +267,34 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             ProfileCompletionReminder = None
 
     compute_profile_completeness = kwargs.get("compute_profile_completeness")
+    compute_profile_stats = kwargs.get("compute_profile_stats")
+    get_canonical_countries = kwargs.get("CANONICAL_COUNTRIES")
+    get_country_states = kwargs.get("country_states")
+    get_state_cities = kwargs.get("state_cities")
+    resolve_loc_func = kwargs.get("resolve_location")
     get_institution_details = kwargs.get("get_institution_details")
     get_institution_members = kwargs.get("get_institution_members")
+
+    # -------------------------------------------------------------
+    # LOCATION CASCADE ENDPOINTS (STRICT DROPDOWNS)
+    # -------------------------------------------------------------
+    @api_bp.route("/locations/countries", methods=["GET"])
+    def api_get_countries():
+        countries = get_canonical_countries() if callable(get_canonical_countries) else []
+        return jsonify({"success": True, "countries": countries})
+
+    @api_bp.route("/locations/states", methods=["GET"])
+    def api_get_states():
+        country = (request.args.get("country") or "").strip()
+        states = get_country_states(country) if callable(get_country_states) and country else []
+        return jsonify({"success": True, "country": country, "states": states})
+
+    @api_bp.route("/locations/cities", methods=["GET"])
+    def api_get_cities():
+        country = (request.args.get("country") or "").strip()
+        state = (request.args.get("state") or "").strip()
+        cities = get_state_cities(country, state) if callable(get_state_cities) and country and state else []
+        return jsonify({"success": True, "country": country, "state": state, "cities": cities})
 
     # -------------------------------------------------------------
     # 0. UNIVERSAL FILE / PHOTO UPLOAD
@@ -525,6 +558,12 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             return jsonify({"success": False, "message": "User not found"}), 404
 
         profile = MenteeProfile.query.filter_by(user_id=user.id).first()
+        prof_stats = {}
+        if compute_profile_stats:
+            try:
+                prof_stats = compute_profile_stats(user.id, "2") or {}
+            except Exception:
+                prof_stats = {}
         if not profile:
             return jsonify({
                 "success": True,
@@ -535,8 +574,14 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                     "name": user.name,
                     "email": user.email,
                     "who_am_i": "student",
-                    "status": "active"
-                }
+                    "status": "active",
+                    "completion": prof_stats.get("percentage", 0),
+                    "missing_fields": prof_stats.get("missing_fields", []),
+                    "completed_fields": prof_stats.get("completed_fields", 0),
+                    "total_fields": prof_stats.get("total_fields", 12),
+                    "profile_stats": prof_stats
+                },
+                "profile_stats": prof_stats
             })
 
         return jsonify({
@@ -601,8 +646,14 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "linkedin_link": profile.linkedin_link or "",
                 "terms_agreement": profile.terms_agreement or "",
                 "profile_picture": resolve_profile_pic(profile, user),
-                "status": profile.status or "active"
-            }
+                "status": profile.status or "active",
+                "completion": prof_stats.get("percentage", 100),
+                "missing_fields": prof_stats.get("missing_fields", []),
+                "completed_fields": prof_stats.get("completed_fields", 0),
+                "total_fields": prof_stats.get("total_fields", 12),
+                "profile_stats": prof_stats
+            },
+            "profile_stats": prof_stats
         })
 
     @api_bp.route("/mentee/profile", methods=["PUT", "POST"])
@@ -640,6 +691,16 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         for field in direct_fields:
             if field in data:
                 setattr(profile, field, data[field])
+
+        if "country" in data or "state" in data or "city" in data:
+            c_val = (data.get("country") or profile.country or "").strip()
+            s_val = (data.get("state") or profile.state or "").strip()
+            ci_val = (data.get("city") or profile.city or "").strip()
+            if resolve_loc_func:
+                c_res, s_res, ci_res, _, _ = resolve_loc_func(country=c_val, state=s_val, city=ci_val)
+                profile.country = c_res
+                profile.state = s_res
+                profile.city = ci_res
 
         # Aliases
         goal_val = data.get("career_goal") or data.get("goal")
@@ -949,6 +1010,12 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
         mp = MentorProfile.query.filter_by(user_id=user.id).first()
         comp_rating = calc_mentor_rating_helper(user.id, mp, MenteeTask, db)
+        prof_stats = {}
+        if compute_profile_stats:
+            try:
+                prof_stats = compute_profile_stats(user.id, "1") or {}
+            except Exception:
+                prof_stats = {}
 
         return jsonify({
             "success": True,
@@ -997,8 +1064,14 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "profile_picture": resolve_profile_pic(mp, user),
                 "criminal_certificate": format_pic_url(mp.criminal_certificate if mp else None),
                 "supervisor_rating": comp_rating,
-                "status": mp.status if mp else "active"
-            }
+                "status": mp.status if mp else "active",
+                "completion": prof_stats.get("percentage", 100),
+                "missing_fields": prof_stats.get("missing_fields", []),
+                "completed_fields": prof_stats.get("completed_fields", 0),
+                "total_fields": prof_stats.get("total_fields", 32),
+                "profile_stats": prof_stats
+            },
+            "profile_stats": prof_stats
         })
 
     @api_bp.route("/mentor/profile", methods=["PUT", "POST"])
@@ -1031,6 +1104,18 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         for field in direct_fields:
             if field in data:
                 setattr(mp, field, data[field])
+
+        if "location" in data or "country" in data or "city" in data:
+            c_val = (data.get("country") or "").strip()
+            s_val = (data.get("state") or "").strip()
+            ci_val = (data.get("city") or "").strip()
+            loc_val = (data.get("location") or "").strip()
+            if resolve_loc_func:
+                c_res, s_res, ci_res, loc_str, _ = resolve_loc_func(country=c_val, state=s_val, city=ci_val, legacy_location=loc_val)
+                mp.location = loc_str
+                if hasattr(mp, "country"): mp.country = c_res
+                if hasattr(mp, "state"): mp.state = s_res
+                if hasattr(mp, "city"): mp.city = ci_res
 
         # Handle seller referral
         if "has_seller_referral" in data or "referred_by_seller_id" in data:
@@ -2065,14 +2150,16 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         mentees = []
         if u and callable(get_institution_members):
             try:
-                # include_paired=False ensures coordinator only views mentors and mentees belonging to their institute
-                mentors, mentees = get_institution_members(u, include_paired=False)
+                # Match Flask app.py institutiondashboard & institution_mentors routes:
+                # Institution mentors directory exposes all platform mentors so coordinators can browse/pair
+                all_m = User.query.options(joinedload(User.mentor_profile)).filter_by(user_type="1").all()
+                all_m.sort(key=lambda x: (x.name or "").lower())
+                mentors = all_m
+                _, mentees = get_institution_members(u, include_paired=True)
             except Exception as e:
                 logger.warning(f"Error calling get_institution_members: {e}")
 
-        # Only admin (user_type == "0") gets fallback to all mentors when no institution mentors exist.
-        # NEVER fallback to all mentors when user is an institution coordinator (user_type == "3") or unauthenticated (not u).
-        if not mentors and (u and getattr(u, "user_type", None) == "0"):
+        if not mentors:
             mentors = User.query.filter_by(user_type="1").all()
         if not mentees:
             if inst_id:
@@ -2196,8 +2283,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         mentor_ids = [m.id for m in mentors] if mentors else []
 
         query = MentorshipRequest.query
-        if mentee_ids or mentor_ids:
-            query = query.filter(or_(MentorshipRequest.mentee_id.in_(mentee_ids), MentorshipRequest.mentor_id.in_(mentor_ids)))
+        if mentee_ids:
+            query = query.filter(MentorshipRequest.mentee_id.in_(mentee_ids))
         elif not (user and getattr(user, "user_type", None) == "0"):
             return jsonify({"success": True, "mentorships": [], "requests": []})
 
@@ -2457,12 +2544,19 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 inst_obj.contact_phone = data["contact_phone"]
             if "address" in data:
                 inst_obj.address = data["address"]
-            if "country" in data:
-                inst_obj.country = data["country"]
-            if "state" in data:
-                inst_obj.state = data["state"]
-            if "city" in data:
-                inst_obj.city = data["city"]
+            if "country" in data or "state" in data or "city" in data:
+                c_val = (data.get("country") or getattr(inst_obj, "country", "") or "").strip()
+                s_val = (data.get("state") or getattr(inst_obj, "state", "") or "").strip()
+                ci_val = (data.get("city") or getattr(inst_obj, "city", "") or "").strip()
+                if resolve_loc_func:
+                    c_res, s_res, ci_res, _, _ = resolve_loc_func(country=c_val, state=s_val, city=ci_val)
+                    inst_obj.country = c_res
+                    inst_obj.state = s_res
+                    inst_obj.city = ci_res
+                else:
+                    inst_obj.country = c_val or None
+                    inst_obj.state = s_val or None
+                    inst_obj.city = ci_val or None
 
         file = request.files.get("profile_picture") or request.files.get("logo")
         if file and file.filename and inst_obj:
@@ -2871,6 +2965,41 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         "Partner", "Outreach Partner", "Retail Partner",
         "Vendor", "Shop Owner", "Market Partner"
     ]
+    BUSINESS_CATEGORIES = [
+        "Retail", "Food & Beverage", "Education & Books", "Services", "Wholesale / Market stall",
+        "Technology", "Health & Wellness", "Other",
+    ]
+
+    def _api_seller_completion(profile):
+        if profile is None:
+            return 0, []
+        shop_count = getattr(profile, "shop_count", None)
+        shops = []
+        if SellerShop and getattr(profile, "user_id", None):
+            shops = SellerShop.query.filter_by(seller_user_id=profile.user_id).order_by(SellerShop.id.asc()).all()
+        shops_complete = False
+        if shop_count and shop_count >= 1:
+            if shop_count > 1:
+                shops_complete = len(shops) >= shop_count
+            else:
+                shops_complete = True
+
+        checks = [
+            ("Profile picture", bool(getattr(profile, "profile_picture", None))),
+            ("Partner type", bool(getattr(profile, "partner_label", None))),
+            ("Shop name", bool((getattr(profile, "shop_name", None) or "").strip())),
+            ("Description", bool((getattr(profile, "description", None) or "").strip())),
+            ("Business category", bool(getattr(profile, "business_category", None))),
+            ("Number of shops", bool(shop_count and shop_count >= 1)),
+            ("All shop names", shops_complete),
+            ("Contact phone", bool((getattr(profile, "contact_phone", None) or "").strip())),
+            ("Address", bool((getattr(profile, "address", None) or "").strip())),
+            ("City", bool((getattr(profile, "city", None) or "").strip())),
+            ("Country", bool((getattr(profile, "country", None) or "").strip())),
+        ]
+        done = sum(1 for _, ok in checks if ok)
+        return int(round(done * 100 / len(checks))), [label for label, ok in checks if not ok]
+
 
     def _api_generate_coupon_code():
         if not MentorCoupon:
@@ -2977,6 +3106,9 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
     @api_bp.route("/admin/sellers", methods=["GET"])
     def api_get_admin_sellers():
+        user = get_current_user_from_req(User)
+        if not user or str(getattr(user, "user_type", "")) != "0":
+            return jsonify({"success": False, "message": "Admin privileges required"}), 403
         if not SellerProfile:
             return jsonify({"success": True, "sellers": []})
         seller_users = User.query.filter(or_(User.user_type == "4", User.user_type == "seller", User.user_type == "partner")).all()
@@ -3015,11 +3147,19 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
     @api_bp.route("/seller/profile", methods=["GET", "POST"])
     def api_seller_profile():
         user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Authentication required"}), 401
+
+        if str(getattr(user, "user_type", "")) not in ("4", "0"):
+            return jsonify({"success": False, "message": "Partner privileges required"}), 403
+
         seller_id_param = request.args.get("seller_id") or (request.is_json and request.json.get("seller_id"))
-        seller = None
         if seller_id_param and str(seller_id_param).isdigit():
-            seller = User.query.get(int(seller_id_param))
-        elif user:
+            target_id = int(seller_id_param)
+            if target_id != user.id and str(getattr(user, "user_type", "")) != "0":
+                return jsonify({"success": False, "message": "Permission denied"}), 403
+            seller = User.query.get(target_id)
+        else:
             seller = user
 
         if not seller:
@@ -3030,39 +3170,165 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         if request.method == "POST":
             data = request.get_json(silent=True) or request.form or {}
             label = (data.get("partner_label") or "Partner").strip()
-            if label not in PARTNER_LABELS:
-                label = "Partner"
-            sp.partner_label = label
+            if label in PARTNER_LABELS:
+                sp.partner_label = label
+
             sp.shop_name = (data.get("shop_name") or "").strip() or None
             sp.market_name = (data.get("market_name") or "").strip() or None
             sp.contact_phone = (data.get("contact_phone") or "").strip() or None
             sp.address = (data.get("address") or "").strip() or None
+
+            # Parity fields from Flask seller_profile.html
+            if "description" in data:
+                sp.description = (data.get("description") or "").strip()[:1000] or None
+            if "business_category" in data:
+                cat = (data.get("business_category") or "").strip()
+                sp.business_category = cat if cat in BUSINESS_CATEGORIES else None
+            if "country" in data or "state" in data or "city" in data:
+                c_val = (data.get("country") or sp.country or "").strip()
+                s_val = (data.get("state") or "").strip()
+                ci_val = (data.get("city") or sp.city or "").strip()
+                if resolve_loc_func:
+                    c_res, s_res, ci_res, _, _ = resolve_loc_func(country=c_val, state=s_val, city=ci_val)
+                    sp.country = c_res
+                    sp.city = ci_res
+                else:
+                    sp.country = c_val or None
+                    sp.city = ci_val or None
+            if "website" in data:
+                sp.website = (data.get("website") or "").strip()[:255] or None
+
+            if "shop_count" in data:
+                try:
+                    sc = int(data.get("shop_count") or 1)
+                    sp.shop_count = max(1, min(sc, 50))
+                except (ValueError, TypeError):
+                    pass
+
+            if "profile_picture" in data:
+                pic_val = data.get("profile_picture")
+                if pic_val and isinstance(pic_val, str) and pic_val.strip():
+                    sp.profile_picture = pic_val.strip()
+
+            # Handle file upload if multipart
+            if request.files.get("profile_picture") or request.files.get("file"):
+                pic_file = request.files.get("profile_picture") or request.files.get("file")
+                if pic_file and pic_file.filename:
+                    url, stored_name = storage_service.upload_file(pic_file, folder_prefix=f"sellers/{seller.id}")
+                    if stored_name:
+                        sp.profile_picture = stored_name
+
+            # Synchronize multiple shops (SellerShop)
+            shops_input = data.get("shops")
+            shop_names = data.get("shop_names") or request.form.getlist("shop_names")
+            shop_addresses = data.get("shop_addresses") or request.form.getlist("shop_addresses")
+
+            if SellerShop:
+                if shops_input and isinstance(shops_input, list):
+                    existing = {sh.name.lower(): sh for sh in SellerShop.query.filter_by(seller_user_id=seller.id).all()}
+                    keep = set()
+                    for item in shops_input:
+                        if isinstance(item, dict):
+                            nm = (item.get("name") or "").strip()[:200]
+                            addr = (item.get("address") or "").strip() or None
+                            if not nm:
+                                continue
+                            if nm.lower() in existing:
+                                existing[nm.lower()].address = addr
+                            else:
+                                sh = SellerShop(seller_user_id=seller.id, name=nm, address=addr)
+                                db.session.add(sh)
+                            keep.add(nm.lower())
+                    for k, sh in existing.items():
+                        if k not in keep:
+                            if MentorCoupon and MentorCoupon.query.filter_by(used_shop_id=sh.id).first():
+                                continue
+                            db.session.delete(sh)
+                elif shop_names and isinstance(shop_names, list):
+                    existing = {sh.name.lower(): sh for sh in SellerShop.query.filter_by(seller_user_id=seller.id).all()}
+                    keep = set()
+                    for i, nm in enumerate(shop_names):
+                        nm = (nm or "").strip()[:200]
+                        if not nm:
+                            continue
+                        addr = (shop_addresses[i] or "").strip() if i < len(shop_addresses) else None
+                        if nm.lower() in existing:
+                            existing[nm.lower()].address = addr
+                        else:
+                            sh = SellerShop(seller_user_id=seller.id, name=nm, address=addr)
+                            db.session.add(sh)
+                        keep.add(nm.lower())
+                    for k, sh in existing.items():
+                        if k not in keep:
+                            if MentorCoupon and MentorCoupon.query.filter_by(used_shop_id=sh.id).first():
+                                continue
+                            db.session.delete(sh)
+
             try:
                 db.session.commit()
             except Exception as e:
                 db.session.rollback()
                 return jsonify({"success": False, "message": f"Update failed: {str(e)}"}), 500
 
+            completion, missing = _api_seller_completion(sp)
+            shops_list = []
+            if SellerShop:
+                s_rows = SellerShop.query.filter_by(seller_user_id=seller.id).order_by(SellerShop.id.asc()).all()
+                shops_list = [{"id": s.id, "name": s.name, "address": s.address or ""} for s in s_rows]
+
+            prof_dict = sp.to_dict() if sp else {}
+            prof_dict["completion"] = completion
+            prof_dict["missing"] = missing
+            prof_dict["shops"] = shops_list
+            prof_dict["profile_picture"] = format_pic_url(sp.profile_picture) if sp and sp.profile_picture else ""
+
             return jsonify({
                 "success": True,
                 "message": "Partner profile updated successfully.",
-                "profile": sp.to_dict()
+                "profile": prof_dict,
+                "completion": completion,
+                "missing": missing,
+                "shops": shops_list
             })
+
+        completion, missing = _api_seller_completion(sp)
+        shops_list = []
+        if SellerShop and sp:
+            s_rows = SellerShop.query.filter_by(seller_user_id=seller.id).order_by(SellerShop.id.asc()).all()
+            shops_list = [{"id": s.id, "name": s.name, "address": s.address or ""} for s in s_rows]
+
+        prof_dict = sp.to_dict() if sp else {}
+        prof_dict["completion"] = completion
+        prof_dict["missing"] = missing
+        prof_dict["shops"] = shops_list
+        prof_dict["profile_picture"] = format_pic_url(sp.profile_picture) if sp and sp.profile_picture else ""
 
         return jsonify({
             "success": True,
-            "profile": sp.to_dict() if sp else {},
-            "partner_labels": PARTNER_LABELS
+            "profile": prof_dict,
+            "partner_labels": PARTNER_LABELS,
+            "business_categories": BUSINESS_CATEGORIES,
+            "completion": completion,
+            "missing": missing,
+            "shops": shops_list
         })
 
     @api_bp.route("/seller/dashboard", methods=["GET"])
     def api_get_seller_dashboard():
         user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Authentication required"}), 401
+
+        if str(getattr(user, "user_type", "")) not in ("4", "0"):
+            return jsonify({"success": False, "message": "Partner privileges required"}), 403
+
         seller_id_param = request.args.get("seller_id")
-        seller = None
-        if seller_id_param and seller_id_param.isdigit():
-            seller = User.query.get(int(seller_id_param))
-        elif user:
+        if seller_id_param and str(seller_id_param).isdigit():
+            target_id = int(seller_id_param)
+            if target_id != user.id and str(getattr(user, "user_type", "")) != "0":
+                return jsonify({"success": False, "message": "Permission denied"}), 403
+            seller = User.query.get(target_id)
+        else:
             seller = user
 
         if not seller:
@@ -3071,16 +3337,27 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         sp = _ensure_seller_profile_obj(seller)
 
         window = (request.args.get("window") or "all").lower()
+        since_param = request.args.get("since")
         now = datetime.utcnow()
         cutoff = None
-        if window in ("today", "day", "1d"):
-            cutoff = datetime(now.year, now.month, now.day)
-        elif window in ("week", "7d"):
-            from datetime import timedelta
-            cutoff = now - timedelta(days=7)
-        elif window in ("month", "30d"):
-            from datetime import timedelta
-            cutoff = now - timedelta(days=30)
+        if since_param:
+            try:
+                cutoff = datetime.strptime(since_param.strip(), "%Y-%m-%d")
+            except Exception:
+                cutoff = None
+
+        if cutoff is None:
+            if window in ("today", "day", "1d"):
+                cutoff = datetime(now.year, now.month, now.day)
+            elif window in ("week", "7d"):
+                from datetime import timedelta
+                cutoff = now - timedelta(days=7)
+            elif window in ("month", "30d"):
+                from datetime import timedelta
+                cutoff = now - timedelta(days=30)
+            elif window in ("90d", "quarter", "3m"):
+                from datetime import timedelta
+                cutoff = now - timedelta(days=90)
 
         query = MentorCoupon.query.filter(MentorCoupon.seller_id == seller.id, MentorCoupon.used_at.isnot(None)) if MentorCoupon else None
         if query is not None and cutoff is not None:
@@ -3096,15 +3373,23 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             role = "Mentor" if r_user and str(r_user.user_type) == "1" else "Mentee"
             label = c.discount_label or "Standard Discount"
             by_discount[label] = by_discount.get(label, 0) + 1
+            is_gen = True
+            if hasattr(c, "partner_user_id") and c.partner_user_id:
+                is_gen = False
             entries.append({
                 "id": c.id,
                 "code": c.code,
                 "title": c.title,
+                "description": c.description or "",
                 "discount_label": label,
                 "used_at": c.used_at.isoformat() if c.used_at else None,
                 "redeemer_name": r_user.name if r_user else "Member",
                 "redeemer_email": r_user.email if r_user else "",
-                "redeemer_role": role
+                "redeemer_role": role,
+                "is_general": is_gen,
+                "shop_name": getattr(c, "used_shop_name", ""),
+                "issued_by": (c.mentor.name if getattr(c, "mentor", None) else "WES Supervisor"),
+                "expires_at": c.expires_at.isoformat() if getattr(c, "expires_at", None) else None
             })
 
         referral_rows = []
@@ -3146,9 +3431,13 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "redeemed": len(entries),
                 "lifetime": lifetime,
                 "filter_window": window,
+                "filter_label": "All time" if window == "all" else window,
                 "distinct_offers": len(by_discount),
                 "referrals_total": len(referral_rows),
-                "referrals_pending": sum(1 for r in referral_rows if r["status"] == "pending")
+                "referrals_pending": sum(1 for r in referral_rows if r["status"] == "pending"),
+                "completion": _api_seller_completion(sp)[0],
+                "missing": _api_seller_completion(sp)[1],
+                "profile_complete": _api_seller_completion(sp)[0] >= 90
             },
             "by_discount": [{"label": k, "count": v} for k, v in by_discount.items()],
             "entries": entries,
@@ -3401,6 +3690,32 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "role": "Mentor" if str(u.user_type) == "1" else "Mentee"
             })
 
+        current_user = get_current_user_from_req(User)
+        my_profile = None
+        shops = []
+        can_redeem = False
+        reserved_for_other = False
+
+        if current_user and str(getattr(current_user, "user_type", "")) == "4" and SellerProfile:
+            sp = SellerProfile.query.filter_by(user_id=current_user.id).first()
+            if sp:
+                my_profile = {
+                    "id": sp.id,
+                    "user_id": sp.user_id,
+                    "display_name": sp.display_name,
+                    "partner_label": sp.partner_label or "Partner",
+                    "shop_count": sp.shop_count or 1
+                }
+                if SellerShop:
+                    s_rows = SellerShop.query.filter_by(seller_user_id=sp.user_id).order_by(SellerShop.id.asc()).all()
+                    shops = [{"id": s.id, "name": s.name, "address": s.address or ""} for s in s_rows]
+
+                if getattr(coupon, "partner_user_id", None) and coupon.partner_user_id != current_user.id:
+                    reserved_for_other = True
+                    can_redeem = False
+                elif coupon.status == "active" and not getattr(coupon, "is_expired", False):
+                    can_redeem = True
+
         return jsonify({
             "success": True,
             "coupon": {
@@ -3415,10 +3730,16 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "used_at": coupon.used_at.isoformat() if coupon.used_at else None,
                 "used_by": coupon.used_by or "",
                 "seller_name": getattr(coupon, "seller_display_name", coupon.used_by or ""),
-                "redeemed_by_name": coupon.redeemed_by.name if getattr(coupon, "redeemed_by", None) else ""
+                "redeemed_by_name": coupon.redeemed_by.name if getattr(coupon, "redeemed_by", None) else "",
+                "expires_at": coupon.expires_at.isoformat() if getattr(coupon, "expires_at", None) else None,
+                "partner_user_id": getattr(coupon, "partner_user_id", None)
             },
             "verified_sellers": verified_sellers,
-            "candidates": candidates
+            "candidates": candidates,
+            "my_profile": my_profile,
+            "shops": shops,
+            "can_redeem": can_redeem,
+            "reserved_for_other": reserved_for_other
         })
 
     @api_bp.route("/coupons/verify/<string:code>", methods=["POST"])
