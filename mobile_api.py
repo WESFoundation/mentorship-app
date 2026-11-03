@@ -274,6 +274,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
     resolve_loc_func = kwargs.get("resolve_location")
     get_institution_details = kwargs.get("get_institution_details")
     get_institution_members = kwargs.get("get_institution_members")
+    compute_task_prog_status = kwargs.get("compute_task_progress_status")
 
     # -------------------------------------------------------------
     # LOCATION CASCADE ENDPOINTS (STRICT DROPDOWNS)
@@ -2245,6 +2246,9 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "is_premium": bool(getattr(u, "premium", False)),
                 "scholarly": bool(getattr(u, "scholarly", False)),
                 "skills": [s.strip() for s in (mp.skills or "").split(",") if s.strip()] if mp else [],
+                "institution": getattr(u, "display_institution", None) or getattr(u, "institution", None) or (mp.organisation if mp and mp.organisation else "Independent Mentor"),
+                "institution_name": getattr(u, "display_institution", None) or getattr(u, "institution", None) or (mp.organisation if mp and mp.organisation else "Independent Mentor"),
+                "institution_id": getattr(u, "display_institution_id", None) or getattr(u, "institution_id", None),
                 "role": "Mentor"
             })
 
@@ -2588,6 +2592,53 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             db.session.rollback()
             return jsonify({"success": False, "message": str(e)}), 500
 
+    @api_bp.route("/institution/tasks_for_mentorship", methods=["GET"])
+    def api_get_tasks_for_mentorship():
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+        mentee_id = request.args.get("mentee_id", type=int)
+        mentor_id = request.args.get("mentor_id", type=int)
+        include_done = request.args.get("include_done", "0") in ("1", "true", "True")
+
+        if not mentee_id or not mentor_id:
+            return jsonify({"success": True, "tasks": []})
+
+        if not MenteeTask:
+            return jsonify({"success": True, "tasks": []})
+
+        tasks = MenteeTask.query.filter_by(
+            mentee_id=mentee_id,
+            mentor_id=mentor_id
+        ).all()
+
+        task_list = []
+        for t in tasks:
+            if not include_done and getattr(t, 'status', None) == 'completed':
+                continue
+            status = getattr(t, 'status', 'pending')
+            if compute_task_prog_status:
+                try:
+                    status = compute_task_prog_status("master", t.id, t.mentee_id, t.mentor_id)
+                except Exception:
+                    pass
+            if not include_done and str(status).lower() in ("done", "completed"):
+                continue
+            master = getattr(t, 'master_task', None)
+            task_list.append({
+                "id": t.id,
+                "meeting_number": getattr(t, 'meeting_number', 1),
+                "month": getattr(t, 'month', 'Month 1'),
+                "status": status,
+                "due_date": t.due_date.strftime("%b %d, %Y") if getattr(t, 'due_date', None) else "",
+                "purpose": master.purpose_of_call if master and getattr(master, 'purpose_of_call', None) else getattr(t, 'title', ''),
+                "mentor_focus": master.mentor_focus if master and getattr(master, 'mentor_focus', None) else "",
+                "mentee_focus": master.mentee_focus if master and getattr(master, 'mentee_focus', None) else ""
+            })
+
+        return jsonify({"success": True, "tasks": task_list})
+
     @api_bp.route("/institution/schedule_meeting", methods=["POST"])
     @api_bp.route("/institution/schedule_sgm", methods=["POST"])
     def api_institution_schedule_meeting():
@@ -2603,6 +2654,11 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         time_str = data.get("time") or data.get("start_time")
         meeting_type = (data.get("meeting_type") or data.get("type") or "1on1").strip().lower()
         is_sgm = bool(data.get("is_sgm")) or meeting_type == "sgm" or "/schedule_sgm" in request.path
+        task_id = data.get("task_id")
+        platform = (data.get("platform") or "google").strip().lower()
+        custom_link = (data.get("custom_link") or "").strip()
+        timezone_str = (data.get("timezone") or "Asia/Kolkata").strip()
+        include_institutions = bool(data.get("include_institutions"))
 
         if is_sgm:
             if not title.upper().startswith("SGM"):
@@ -2649,15 +2705,34 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         if dur_str_raw.isdigit():
             duration_val = int(dur_str_raw)
 
-        # Generate meet link
-        meet_link = data.get("meet_link") or data.get("custom_link")
+        # Generate meet link & platform resolution
+        meet_link = custom_link if (platform == "custom" and custom_link) else (data.get("meet_link") or data.get("custom_link"))
         if not meet_link:
-            meet_link = f"https://meet.google.com/lookup/sgm-{int(time.time())}" if is_sgm else "https://meet.google.com/new"
+            if platform == "teams":
+                meet_link = "https://teams.live.com/meet/create"
+            else:
+                meet_link = f"https://meet.google.com/lookup/sgm-{int(time.time())}" if is_sgm else "https://meet.google.com/new"
 
         mentor_obj = User.query.get(int(mentor_id))
         mentee_obj = User.query.get(int(mentee_id))
         
         full_desc = desc
+        if task_id and MenteeTask:
+            try:
+                mentee_task = MenteeTask.query.get(int(task_id))
+                if mentee_task and getattr(mentee_task, "master_task", None):
+                    mt = mentee_task.master_task
+                    task_ctx = (
+                        f"\n\n--- Task to Discuss ---\n"
+                        f"Meeting #{mentee_task.meeting_number} ({mentee_task.month})\n"
+                        f"Purpose: {mt.purpose_of_call}\n"
+                        f"Mentor Focus: {mt.mentor_focus}\n"
+                        f"Mentee Focus: {mt.mentee_focus}\n"
+                        f"Status: {mentee_task.status}"
+                    )
+                    full_desc = (full_desc or "") + task_ctx
+            except Exception:
+                pass
         if is_sgm:
             full_desc = f"Small Group Mentoring (SGM) session scheduled by Coordinator {user.name if user else 'Coordinator'}.\nLead Mentor: {mentor_obj.name if mentor_obj else mentor_id}\nInvited Students: {len(raw_mentee_ids) if raw_mentee_ids else 1}"
             if desc:

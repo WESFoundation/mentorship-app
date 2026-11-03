@@ -3618,7 +3618,8 @@ register_mobile_api(
     state_cities=lambda c, s: state_cities(c, s) if 'state_cities' in globals() else [],
     resolve_location=lambda c, s, ci, l=None: resolve_location(c, s, ci, l) if 'resolve_location' in globals() else {},
     get_institution_details=lambda u: _get_institution_details(u),
-    get_institution_members=lambda u, include_paired=False: _get_institution_members(u, include_paired=include_paired)
+    get_institution_members=lambda u, include_paired=False: _get_institution_members(u, include_paired=include_paired),
+    compute_task_progress_status=lambda kind, task_id, mentee_id, mentor_id: compute_task_progress_status(kind, task_id, mentee_id, mentor_id)
 )
 
 
