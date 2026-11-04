@@ -18413,7 +18413,7 @@ def supervisor_schedule_sgm_ajax():
     mentor_id = data.get("mentor_id")
     raw_mentee_ids = data.get("mentee_ids") or []
     date_str = (data.get("date") or "").strip()
-    start_time_str = (data.get("start_time") or "").strip()
+    start_time_str = (data.get("start_time") or data.get("time") or "").strip()
     duration = data.get("duration")
     timezone = (data.get("timezone") or "Asia/Kolkata").strip()
     platform = (data.get("platform") or "google").strip().lower()
@@ -18502,10 +18502,33 @@ def supervisor_schedule_sgm_ajax():
         return jsonify({"error": "Date and Start Time are required."}), 400
 
     import datetime as dt
-    try:
-        start_datetime = dt.datetime.strptime(f"{date_str} {start_time_str}", "%Y-%m-%d %H:%M")
-    except Exception:
+    parsed_time = None
+    for fmt in ("%H:%M", "%H:%M:%S", "%I:%M %p", "%I:%M%p", "%I:%M %P", "%I:%M%P"):
+        try:
+            parsed_time = dt.datetime.strptime(start_time_str, fmt).time()
+            break
+        except Exception:
+            pass
+
+    if not parsed_time:
+        try:
+            temp_dt = dt.datetime.strptime(f"{date_str} {start_time_str}", "%Y-%m-%d %H:%M")
+            parsed_time = temp_dt.time()
+        except Exception:
+            pass
+
+    if not parsed_time:
         return jsonify({"error": "Invalid Date or Time format. Please check your selection."}), 400
+
+    try:
+        meeting_date = dt.date.fromisoformat(date_str)
+    except Exception:
+        try:
+            meeting_date = dt.datetime.strptime(date_str, "%Y-%m-%d").date()
+        except Exception:
+            return jsonify({"error": "Invalid Date format."}), 400
+
+    start_datetime = dt.datetime.combine(meeting_date, parsed_time)
 
     if start_datetime <= dt.datetime.now():
         return jsonify({"error": "Cannot schedule meeting for past or current time. Please select a future date and time."}), 400
