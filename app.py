@@ -2101,6 +2101,9 @@ class User(db.Model):
     email = db.Column(db.String(100), unique=True, nullable=False)
     work_email = db.Column(db.String(150), nullable=True)
     personal_email = db.Column(db.String(150), nullable=True)
+    # Which address signs the person in: 'work', 'personal', or NULL (the account email).
+    # The other address is kept for records only.
+    login_email_choice = db.Column(db.String(10), nullable=True)
     password = db.Column(db.String(200), nullable=True)   # nullable for OAuth users
     user_type = db.Column(db.String(10), nullable=True)  # nullable until user selects type
     institution = db.Column(db.String(150), nullable=True)
@@ -2907,7 +2910,7 @@ class MentorCoupon(db.Model):
     The coupon's `code` IS the key: it is what the mentor's QR code encodes, and
     the QR points at /coupon/verify/<code>. A seller scanning that QR lands on
     the verification page and presses a button, which flips the coupon to `used`
-    and records when and where. The discount itself is applied by the seller.
+    and records when and where. The discount itself is applied by the partner.
     """
     __tablename__ = "mentor_coupons"
 
@@ -2921,7 +2924,7 @@ class MentorCoupon(db.Model):
 
     # Who issued the coupon (supervisor/admin).
     issued_by_user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), index=True)
-    # The verified partner/seller who redeemed it.
+    # The verified partner who redeemed it.
     seller_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), index=True)
     # Which mentor/mentee actually presented the coupon at the counter.
     redeemed_by_user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), index=True)
@@ -2944,6 +2947,16 @@ class MentorCoupon(db.Model):
     used_at = db.Column(db.DateTime)
     used_by = db.Column(db.String(200))        # seller / shop the coupon was used at
     verification_count = db.Column(db.Integer, default=0)
+
+    # ---- Money ledger (filled at redemption / by the admin) ----
+    goods_total = db.Column(db.Numeric(12, 2))          # total value of goods bought, entered by the partner
+    goods_currency = db.Column(db.String(8))             # e.g. EUR
+    discount_amount = db.Column(db.Numeric(12, 2))       # coupon value owed to the partner (calculated, admin can adjust)
+    refunded = db.Column(db.Boolean, default=False, nullable=False, server_default="0")  # WES has paid the partner back
+    refunded_at = db.Column(db.DateTime)
+    refunded_by = db.Column(db.Integer, db.ForeignKey("signup_details.id"))
+    recovered_amount = db.Column(db.Numeric(12, 2))      # amount actually recovered from WES for this use
+    refund_note = db.Column(db.String(300))
 
     mentor = db.relationship("User", foreign_keys=[mentor_id])
 
@@ -3045,13 +3058,13 @@ class MentorCoupon(db.Model):
 
 
 class SellerProfile(db.Model):
-    """A partner/seller who redeems coupons at their shop or market."""
+    """A partner who redeems coupons at their shop or market."""
     __tablename__ = "seller_profiles"
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False, unique=True, index=True)
 
-    # The label the seller picked for their own role, e.g. "Outreach Partner".
+    # The label the partner picked for their own role, e.g. "Outreach Partner".
     partner_label = db.Column(db.String(60), default="Partner")
     shop_name = db.Column(db.String(200))
     market_name = db.Column(db.String(200))
@@ -3064,6 +3077,7 @@ class SellerProfile(db.Model):
     description = db.Column(db.Text)
     business_category = db.Column(db.String(80))
     website = db.Column(db.String(255))
+    state = db.Column(db.String(100))
     city = db.Column(db.String(100))
     country = db.Column(db.String(100))
 
@@ -3123,7 +3137,7 @@ class SellerShop(db.Model):
 
 
 class SellerReferral(db.Model):
-    """A mentor/mentee saying which partner/seller referred them.
+    """A mentor/mentee saying which partner referred them.
 
     One row per user. Once created it is locked: the user can't change or remove
     it. The seller then confirms or denies that they really referred the person.
@@ -3946,8 +3960,11 @@ def signin():
         email = request.form["email"].strip().lower()
         password = request.form["password"]
 
-        # fetch user from "database"
-        user = User.query.filter(db.func.lower(User.email) == email).first()
+        # fetch user from "database" (account email, or the work/personal email chosen for sign-in)
+        user, signin_error = _find_user_for_signin(email)
+        if signin_error:
+            flash(signin_error, "error")
+            return render_template("auth/signin.html")
 
         # Check if user exists
         if not user:
@@ -3992,6 +4009,67 @@ def signin():
 
    
     return render_template("auth/signin.html")
+
+def _login_address(user):
+    """The one address this account signs in with (account email unless the user chose work/personal)."""
+    if user.login_email_choice == "work" and user.work_email:
+        return user.work_email.strip().lower()
+    if user.login_email_choice == "personal" and user.personal_email:
+        return user.personal_email.strip().lower()
+    return (user.email or "").strip().lower()
+
+
+def _find_user_for_signin(typed_email):
+    """Resolve the account for a typed sign-in email.
+
+    Returns (user, error). An address the user marked 'records only' is not a
+    valid sign-in address; they are told which one to use instead.
+    """
+    typed = (typed_email or "").strip().lower()
+    user = User.query.filter(db.func.lower(User.email) == typed).first()
+    if user is None:
+        user = User.query.filter(
+            or_(and_(User.login_email_choice == "work", db.func.lower(User.work_email) == typed),
+                and_(User.login_email_choice == "personal", db.func.lower(User.personal_email) == typed))
+        ).first()
+        return user, None
+    if user.login_email_choice and _login_address(user) != typed:
+        kind = "work" if user.login_email_choice == "work" else "personal"
+        return None, (f"This address is kept for records only. Please sign in with your {kind} email.")
+    return user, None
+
+
+def _apply_login_email_choice(user, form):
+    """Save which of work/personal email is used to sign in (the other is for records)."""
+    choice = (form.get("login_email_choice") or "").strip().lower()
+    if choice not in ("work", "personal"):
+        return
+    addr = (user.work_email if choice == "work" else user.personal_email) or ""
+    addr = addr.strip().lower()
+    if not addr:
+        flash(f"Add a {choice} email before choosing it for sign-in.", "error")
+        return
+    me = user.id or 0
+    clash = User.query.filter(User.id != me).filter(
+        or_(db.func.lower(User.email) == addr,
+            and_(User.login_email_choice == "work", db.func.lower(User.work_email) == addr),
+            and_(User.login_email_choice == "personal", db.func.lower(User.personal_email) == addr))
+    ).first()
+    if clash:
+        flash("That email is already used to sign in to another account, so it can't be your sign-in email.", "error")
+        return
+    user.login_email_choice = choice
+
+
+@app.context_processor
+def inject_login_email_choice():
+    uid = session.get("user_id")
+    choice = ""
+    if session.get("email"):
+        u = User.query.filter_by(email=session["email"]).first()
+        choice = (u.login_email_choice or "") if u else ""
+    return dict(current_login_choice=choice)
+
 
 # ------------------- LOGIN OTP (new accounts) -------------------
 LOGIN_OTP_MAX_ATTEMPTS = 5
@@ -5806,6 +5884,14 @@ def supervisordashboard():
     comparative_analytics = _get_supervisor_comparative_analytics(
         mentors, all_mentees, all_requests, scope_user_ids=geo_scope)
 
+    # Pending coupon requests: show the newest 3 here, the rest live on the All Coupons page.
+    _process_auto_coupon_requests()
+    pending_coupon_total = CouponRequest.query.filter_by(status="pending").count()
+    pending_coupon_requests = [
+        r.to_dict() for r in CouponRequest.query.filter_by(status="pending")
+        .order_by(CouponRequest.created_at.desc()).limit(3).all()
+    ]
+
     return render_template(
         "supervisor/supervisordashboard.html",
         show_sidebar=True,
@@ -5832,6 +5918,8 @@ def supervisordashboard():
         source_page=source_page,
         profile_complete=profile_complete,
         comparative_analytics=comparative_analytics,
+        pending_coupon_requests=pending_coupon_requests,
+        pending_coupon_total=pending_coupon_total,
         geo_options=geo_options(geo_present),
         geo_selected=geo_selected
     )
@@ -6205,6 +6293,7 @@ def create_account():
             else:
                 new_user.is_corporate = False
             
+            _apply_login_email_choice(new_user, request.form)
             db.session.add(new_user)
             db.session.flush()  # Get user ID
             db.session.add(AccountVerification(user_id=new_user.id))  # first sign-in asks for an OTP
@@ -6223,7 +6312,7 @@ def create_account():
             elif user_type == "4":
                 profile = SellerProfile(
                     user_id=new_user.id,
-                    partner_label="Outreach Partner",
+                    partner_label="Partner",
                     shop_name=name,
                     is_verified=True
                 )
@@ -6271,7 +6360,12 @@ def manage_created_accounts():
     for u in seller_users:
         _ensure_seller_profile(u)
         
-    sellers = SellerProfile.query.order_by(SellerProfile.created_at.desc()).all()
+    sellers = SellerProfile.query.order_by(SellerProfile.created_at.asc()).all()
+
+    # Oldest first by default (the page also lets you re-sort)
+    _epoch = datetime(1970, 1, 1)
+    for _lst in (mentors, mentees, institutions):
+        _lst.sort(key=lambda u: u.created_at or _epoch)
     
     # Add serial numbers (no DB changes)
     for idx, mentor in enumerate(mentors, 1):
@@ -6332,6 +6426,7 @@ def edit_user(user_id):
             user.email = email
             user.work_email = work_email
             user.personal_email = personal_email
+            _apply_login_email_choice(user, request.form)
             user.institution = institution
             db.session.commit()
             
@@ -6384,6 +6479,12 @@ def delete_user(user_id):
             ("task_ratings", "mentee_id"),
             ("task_ratings", "mentor_id"),
             ("seller_profiles", "user_id"),
+            ("seller_shops", "seller_user_id"),
+            ("seller_referrals", "user_id"),
+            ("seller_referrals", "seller_id"),
+            ("coupon_requests", "user_id"),
+            ("account_verifications", "user_id"),
+            ("notifications", "user_id"),
             ("coupon_assignments", "user_id"),
             # Chat messages and conversations
             ("chat_messages", "sender_id"),
@@ -6392,16 +6493,32 @@ def delete_user(user_id):
         ]
         
         for table, column in tables_to_clean:
-            db.session.execute(text(f"DELETE FROM {table} WHERE {column} = {user_id}"))
-        
-        # Delete the user
+            try:
+                with db.session.begin_nested():
+                    db.session.execute(text(f"DELETE FROM {table} WHERE {column} = :uid"), {"uid": user_id})
+            except Exception as clean_err:          # a table that doesn't exist yet on this install
+                app.logger.warning(f"delete_user: skipped {table}.{column}: {clean_err}")
+
+        # Coupons keep their money history, but lose every link to the deleted person.
+        me = _supervisor_or_none()
+        keeper = me.id if me else user_id
+        for col, val in (("seller_id", None), ("redeemed_by_user_id", None), ("partner_user_id", None),
+                         ("issued_by_user_id", None), ("refunded_by", None), ("mentor_id", keeper)):
+            db.session.execute(text(f"UPDATE mentor_coupons SET {col} = :v WHERE {col} = :uid"), {"v": val, "uid": user_id})
+
+        # Delete the user (real erasure: the record is gone, not hidden)
         db.session.delete(user)
         db.session.commit()
-        
+        app.logger.info(f"ADMIN_USER_ERASED admin_id={keeper} erased_user_id={user_id}")
+
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"success": True, "message": f"{user_name} has been deleted."})
         flash(f"✅ User {user_name} ({user_email}) has been deleted successfully", "success")
         return redirect(url_for("manage_created_accounts"))
     except Exception as e:
         db.session.rollback()
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"success": False, "message": f"Error deleting user: {str(e)}"}), 500
         flash(f"Error deleting user: {str(e)}", "error")
         return redirect(url_for("manage_created_accounts"))
 
@@ -7594,6 +7711,7 @@ def editinstitutionprofile():
             user.work_email = work_email
             user.personal_email = personal_email
 
+            _apply_login_email_choice(user, request.form)
             # Update corporate status for all mentors under this institution
             if institution_details.email_domain:
                 institution_users = User.query.filter_by(institution_id=institution_details.id).all()
@@ -15087,6 +15205,8 @@ def supervisor_meeting_details():
             "time": meeting.meeting_time.strftime("%I:%M %p"),
             "duration": meeting.meeting_duration,
             "status": meeting.status,
+            "mentee_id": mentee.id if mentee else None,
+            "mentor_id": mentor.id if mentor else None,
             "mentee_name": mentee.name if mentee else "Unknown",
             "mentee_email": mentee.email if mentee else "N/A",
             "mentor_name": mentor.name if mentor else "Unknown",
@@ -15716,7 +15836,7 @@ def editmentorprofile():
         profile.other_social_link = request.form.get("other_social_link")
         
         # Referred by seller
-        # (locked once saved; the seller is asked to confirm)
+        # (locked once saved; the partner is asked to confirm)
         new_referral = _apply_referral_from_form(user, request.form)
         if new_referral:
             profile.referred_by_seller_id = new_referral.seller_id
@@ -15753,6 +15873,7 @@ def editmentorprofile():
         user.work_email = work_email
         user.personal_email = personal_email
 
+        _apply_login_email_choice(user, request.form)
         # Educational Information
         profile.highest_qualification = request.form.get("highest_qualification")
         profile.degree_name = request.form.get("degree_name")
@@ -16025,6 +16146,7 @@ def editmenteeprofile():
         profile.dob = request.form.get("dob")
         user.work_email = work_email
         user.personal_email = personal_email
+        _apply_login_email_choice(user, request.form)
         db.session.add(user)
         # Check if parent consent is needed (under 18 AND from Luxembourg)
         country = request.form.get("country", "")
@@ -16339,6 +16461,7 @@ def editsupervisorprofile():
         profile.additional_info = request.form.get("additional_info")
         user.work_email = work_email
         user.personal_email = personal_email
+        _apply_login_email_choice(user, request.form)
         db.session.add(user)
 
         # Profile picture handling
@@ -21045,7 +21168,7 @@ def delete_note(note_id):
 #   3. The mentor shows the QR (on screen or printed) from their coupon page.
 #   4. A seller scans it, lands on the verify page and presses "Verify coupon".
 #   5. The key is marked used in the database and the page confirms it. The
-#      discount is applied by the seller themselves.
+#      discount is applied by the partner themselves.
 # ============================================================
 
 # Unambiguous alphabet: no O/0, I/1, S/5, B/8 so codes can be read aloud.
@@ -21053,6 +21176,9 @@ COUPON_CODE_ALPHABET = "ABCDEFGHJKLMNPQRTUVWXYZ23456789"
 COUPON_CODE_GROUPS = 2
 COUPON_CODE_GROUP_LEN = 6
 COUPON_CODE_PREFIX = "WES"
+# Extra security suffix: "-" + 3 more random characters at the end of every new key.
+# Older keys (without the suffix) stay valid because lookups are exact-match.
+COUPON_CODE_SUFFIX_LEN = 3
 
 
 def _public_base_url():
@@ -21081,10 +21207,11 @@ def generate_coupon_code():
             ''.join(secrets.choice(COUPON_CODE_ALPHABET) for _ in range(COUPON_CODE_GROUP_LEN))
             for _ in range(COUPON_CODE_GROUPS)
         ]
-        code = f"{COUPON_CODE_PREFIX}-" + "-".join(groups)
+        suffix = ''.join(secrets.choice(COUPON_CODE_ALPHABET) for _ in range(COUPON_CODE_SUFFIX_LEN))
+        code = f"{COUPON_CODE_PREFIX}-" + "-".join(groups) + f"-{suffix}"
         if not MentorCoupon.query.filter_by(code=code).first():
             return code
-    return f"{COUPON_CODE_PREFIX}-{secrets.token_hex(8).upper()}"
+    return f"{COUPON_CODE_PREFIX}-{secrets.token_hex(8).upper()}-{secrets.token_hex(2).upper()[:3]}"
 
 
 def _coupon_qr_png(target_url, box_size=8, border=4):
@@ -21198,14 +21325,14 @@ PARTNER_LABELS = [
 
 
 def _seller_or_none():
-    """The signed-in partner/seller, or None."""
+    """The signed-in partner, or None."""
     if "email" not in session or str(session.get("user_type")) != SELLER_USER_TYPE:
         return None
     return User.query.filter_by(email=session["email"]).first()
 
 
 def _ensure_seller_profile(user):
-    """Get (or create) the seller profile row for a user."""
+    """Get (or create) the partner profile row for a user."""
     if not user:
         return None
     profile = SellerProfile.query.filter_by(user_id=user.id).first()
@@ -21216,7 +21343,7 @@ def _ensure_seller_profile(user):
             db.session.commit()
         except Exception as e:
             db.session.rollback()
-            app.logger.warning(f"Could not create seller profile for user {user.id}: {e}")
+            app.logger.warning(f"Could not create partner profile for user {user.id}: {e}")
             return None
     return profile
 
@@ -21276,7 +21403,7 @@ def _verified_sellers():
 
 
 def _get_user_referral(user):
-    """The user's locked seller referral, or None. Pulls in a legacy mentor referral if present."""
+    """The user's locked partner referral, or None. Pulls in a legacy mentor referral if present."""
     if not user:
         return None
     referral = SellerReferral.query.filter_by(user_id=user.id).first()
@@ -21379,7 +21506,7 @@ def _referral_role_label(user):
 
 
 def _notify_referral_created(referral):
-    """Email the seller (to confirm) and the admins (FYI) about a new referral."""
+    """Email the partner (to confirm) and the admins (FYI) about a new referral."""
     try:
         person = referral.user
         seller = referral.seller
@@ -21412,7 +21539,7 @@ COUPON_ELIGIBLE_COMPLETION = 90
 
 
 def _referral_rows_for_seller(seller_id):
-    """Everyone who named this seller, with sign-up date and profile completion."""
+    """Everyone who named this partner, with sign-up date and profile completion."""
     rows = []
     referrals = (SellerReferral.query.filter_by(seller_id=seller_id)
                  .order_by(SellerReferral.created_at.desc()).all())
@@ -21438,7 +21565,7 @@ def _referral_rows_for_seller(seller_id):
     return rows
 
 
-@app.route("/seller/referrals/<int:referral_id>/respond", methods=["POST"])
+@app.route("/partner/referrals/<int:referral_id>/respond", methods=["POST"])
 def seller_respond_referral(referral_id):
     seller = _seller_or_none()
     if not seller:
@@ -21519,7 +21646,7 @@ def _parse_coupon_window(args):
 
 
 def _coupon_audit_row(coupon, redeemer, seller_profile):
-    """Full detail of one redemption, for the seller dashboard + emails."""
+    """Full detail of one redemption, for the partner dashboard + emails."""
     return {
         "id": coupon.id,
         "code": coupon.code,
@@ -21537,6 +21664,11 @@ def _coupon_audit_row(coupon, redeemer, seller_profile):
         "seller_name": seller_profile.display_name if seller_profile else (coupon.used_by or ""),
         "seller_label": seller_profile.partner_label if seller_profile else "Partner",
         "shop_name": coupon.used_shop_name,
+        "goods_total": coupon.goods_total,
+        "currency": coupon.goods_currency or "EUR",
+        "discount_amount": coupon.discount_amount,
+        "refunded": bool(coupon.refunded),
+        "refunded_at": coupon.refunded_at,
         "is_general": coupon.partner_user_id is None,
         "issued_by": (coupon.issuer.name if coupon.issuer else ""),
     }
@@ -21562,14 +21694,15 @@ def _seller_completion(profile):
         ("All shop names", _seller_profile_complete(profile)),
         ("Contact phone", bool((profile.contact_phone or "").strip())),
         ("Address", bool((profile.address or "").strip())),
-        ("City", bool((profile.city or "").strip())),
         ("Country", bool((profile.country or "").strip())),
+        ("State / Province", bool((profile.state or "").strip()) or bool((profile.country or "").strip() and (profile.city or "").strip())),
+        ("City / District", bool((profile.city or "").strip())),
     ]
     done = sum(1 for _, ok in checks if ok)
     return int(round(done * 100 / len(checks))), [label for label, ok in checks if not ok]
 
 
-@app.route("/seller/account")
+@app.route("/partner/account")
 def seller_account():
     """Read-only 'My Profile' for a partner."""
     seller = _seller_or_none()
@@ -21588,7 +21721,7 @@ def seller_account():
     )
 
 
-@app.route("/seller/profile", methods=["GET", "POST"])
+@app.route("/partner/profile", methods=["GET", "POST"])
 def seller_profile():
     seller = _seller_or_none()
     if not seller:
@@ -21609,8 +21742,27 @@ def seller_profile():
         category = (data.get("business_category") or "").strip()
         profile.business_category = category if category in BUSINESS_CATEGORIES else None
         profile.website = (data.get("website") or "").strip()[:255] or None
-        profile.city = (data.get("city") or "").strip()[:100] or None
-        profile.country = (data.get("country") or "").strip()[:100] or None
+        country = (data.get("country") or "").strip()[:100]
+        state = (data.get("state") or "").strip()[:100]
+        city = (data.get("city") or "").strip()[:100]
+        # Location is mandatory, like every other profile: Country always; State / Province
+        # and City / District wherever the picker offers them.
+        loc_missing = []
+        if not country:
+            loc_missing.append("Country")
+        if str(data.get("state_required")) == "1" and not state:
+            loc_missing.append("State / Province")
+        if str(data.get("city_required")) == "1" and not city:
+            loc_missing.append("District / City")
+        if loc_missing:
+            msg = "Please select your " + ", ".join(loc_missing) + "."
+            if request.is_json:
+                return jsonify({"success": False, "message": msg}), 400
+            flash(msg, "error")
+            return redirect(url_for("seller_profile"))
+        profile.country = country
+        profile.state = state or None
+        profile.city = city or None
 
         pic = request.files.get("profile_picture")
         if pic and pic.filename:
@@ -21629,7 +21781,7 @@ def seller_profile():
                 if pic_url:
                     profile.profile_picture = pic_url
             except Exception as e:
-                app.logger.error(f"Seller picture upload failed: {e}")
+                app.logger.error(f"Partner picture upload failed: {e}")
 
         # How many shops this partner owns (required), and each shop's name when several.
         raw_count = str(data.get("shop_count") or "").strip()
@@ -21683,7 +21835,7 @@ def seller_profile():
             db.session.commit()
         except Exception as e:
             db.session.rollback()
-            app.logger.error(f"Seller profile save failed: {e}")
+            app.logger.error(f"Partner profile save failed: {e}")
             return jsonify({"success": False, "message": str(e)}), 500
         if request.is_json:
             return jsonify({"success": True, "profile": profile.to_dict()})
@@ -21705,7 +21857,7 @@ def seller_profile():
     )
 
 
-@app.route("/seller/dashboard")
+@app.route("/partner/dashboard")
 def seller_dashboard():
     """How many coupons have been redeemed at this partner's shop, and every detail."""
     seller = _seller_or_none()
@@ -21761,7 +21913,16 @@ def seller_dashboard():
     )
 
 
-@app.route("/seller/coupons")
+@app.route("/seller/<path:legacy_path>", methods=["GET", "POST"])
+def legacy_seller_url(legacy_path):
+    """Old /seller/... links (bookmarks, emails) now live under /partner/..."""
+    target = "/partner/" + legacy_path
+    if request.query_string:
+        target += "?" + request.query_string.decode("utf-8", "ignore")
+    return redirect(target, code=307 if request.method == "POST" else 302)
+
+
+@app.route("/partner/coupons")
 def seller_coupons():
     """Alias so the sidebar can use a stable URL."""
     return redirect(url_for("seller_dashboard"))
@@ -21858,6 +22019,354 @@ def supervisor_coupons():
     )
 
 
+def _picture_url(raw):
+    """Public URL for a stored profile picture value (filename or full URL)."""
+    if not raw:
+        return ""
+    raw = str(raw)
+    return raw if raw.startswith(("http://", "https://")) else url_for("static", filename="uploads/" + raw)
+
+
+@app.route("/supervisor/user_summary/<int:user_id>")
+def supervisor_user_summary(user_id):
+    """Compact, privacy-limited profile card for the admin 'view profile' popup.
+
+    Data minimisation (GDPR art. 5): only what an admin needs to recognise and
+    contact someone. Deliberately NOT included: password hash, date of birth,
+    parent/guardian details, street address, criminal-record certificate, ID
+    numbers. Every view is written to the application log (accountability).
+    """
+    supervisor = _supervisor_or_none()
+    if not supervisor:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"success": False, "message": "User not found"}), 404
+    app.logger.info(f"ADMIN_PROFILE_VIEW admin_id={supervisor.id} target_id={user.id} target_type={user.user_type}")
+
+    ut = str(user.user_type or "")
+    role = {"0": "Admin", "1": "Mentor", "2": "Mentee", "3": "Institution", "4": "Partner"}.get(ut, "User")
+    rows = []          # (label, value)
+    pic = user.profile_picture_url or ""
+    completion = None
+
+    def add(label, value):
+        if value not in (None, "", []):
+            rows.append([label, str(value)])
+
+    add("Email", user.email)
+    if user.work_email and user.work_email != user.email:
+        add("Work email", user.work_email)
+    if user.personal_email and user.personal_email != user.email:
+        add("Personal email", user.personal_email)
+    add("Joined", user.created_at.strftime("%d %b %Y") if user.created_at else "")
+
+    if ut == "1":
+        mp = MentorProfile.query.filter_by(user_id=user.id).first()
+        if mp:
+            pic = _picture_url(mp.profile_picture) or pic
+            add("Profession", mp.profession); add("Organisation", mp.organisation)
+            add("Experience", (mp.years_of_experience + " yrs") if mp.years_of_experience else "")
+            c, st, ci = mentor_location_parts(mp)
+            add("Location", ", ".join(x for x in (ci, st, c) if x))
+            add("WhatsApp", mp.whatsapp); add("Skills", mp.skills)
+            add("LinkedIn", getattr(mp, "linkedin_link", ""))
+    elif ut == "2":
+        mp = MenteeProfile.query.filter_by(user_id=user.id).first()
+        if mp:
+            pic = _picture_url(mp.profile_picture) or pic
+            add("School / college", mp.school_college_name); add("Stream", mp.stream)
+            add("Goal", (mp.goal or "")[:200])
+            add("Location", ", ".join(x for x in (mp.city, mp.state, mp.country) if x))
+            add("Mobile", mp.mobile_number)
+    elif ut == "3":
+        inst = Institution.query.filter_by(user_id=user.id).first()
+        if inst:
+            pic = _picture_url(inst.profile_picture) or pic
+            add("Contact person", inst.contact_person); add("Contact email", inst.contact_email)
+            add("Phone", inst.contact_phone)
+            add("Location", ", ".join(x for x in (inst.city, inst.country) if x))
+            add("Status", inst.status)
+        add("Mentors", User.query.filter_by(user_type="1", institution_id=user.institution_id).count() if user.institution_id else "")
+    elif ut == "4":
+        sp = SellerProfile.query.filter_by(user_id=user.id).first()
+        if sp:
+            pic = _picture_url(sp.profile_picture) or pic
+            completion = _seller_completion(sp)[0]
+            add("Business", sp.display_name); add("Type", sp.partner_label)
+            add("Category", sp.business_category)
+            add("Location", ", ".join(x for x in (sp.city, sp.state, sp.country) if x))
+            add("Phone", sp.contact_phone)
+            add("Shops owned", sp.shop_count)
+            add("Coupons redeemed", MentorCoupon.query.filter(MentorCoupon.seller_id == user.id, MentorCoupon.used_at.isnot(None)).count())
+            add("People referred", SellerReferral.query.filter_by(seller_id=user.id).count())
+    if ut in ("1", "2"):
+        try:
+            completion = int(_compute_profile_completeness_score(user.id, ut) or 0)
+        except Exception:
+            completion = None
+        ref = SellerReferral.query.filter_by(user_id=user.id).first()
+        if ref:
+            sp = SellerProfile.query.filter_by(user_id=ref.seller_id).first()
+            add("Referred by", f"{sp.display_name if sp else ref.seller.name} ({ref.status})")
+        add("Institution", user.institution)
+
+    return jsonify({
+        "success": True,
+        "id": user.id,
+        "name": user.name,
+        "role": role,
+        "picture": pic,
+        "completion": completion,
+        "rows": rows,
+    })
+
+
+import decimal as _decimal
+
+LEDGER_CURRENCIES = {"EUR": "€", "USD": "$", "GBP": "£", "INR": "₹", "CHF": "CHF ", "AED": "AED ", "CAD": "CAD ", "AUD": "AUD ", "SGD": "SGD "}
+
+
+def _money(value):
+    """Quantise anything numeric to 2 decimals; None for blank/invalid."""
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        return _decimal.Decimal(str(value).replace(",", ".").strip()).quantize(_decimal.Decimal("0.01"), rounding=_decimal.ROUND_HALF_UP)
+    except Exception:
+        return None
+
+
+def _currency_code_from_label(label):
+    """Best-effort currency in a discount label ('10% off up to 10€' -> EUR)."""
+    text_ = label or ""
+    for code, sym in (("EUR", "€"), ("USD", "$"), ("GBP", "£"), ("INR", "₹")):
+        if sym in text_:
+            return code
+    for code in ("CHF", "AED", "CAD", "AUD", "SGD", "EUR", "USD", "GBP", "INR"):
+        if code in text_.upper():
+            return code
+    return None
+
+
+def _compute_coupon_discount(label, goods_total):
+    """Value of the coupon for a given purchase, from its discount label.
+
+    '10% off up to 10€' -> min(10% of goods, 10); '20% off' -> 20% of goods;
+    '5€ flat' / '£10 off' -> that amount (never more than the goods total).
+    Returns None when the label can't be turned into money (e.g. 'Free session');
+    the admin then enters the amount by hand.
+    """
+    goods = _money(goods_total)
+    if goods is None or goods < 0 or not label:
+        return None
+    lab = label.strip()
+    pct = re.search(r"(\d+(?:[.,]\d+)?)\s*%", lab)
+    cap = re.search(r"up\s*to\s*(?:[A-Za-z]{3}\s*|[€$£₹]\s*)?(\d+(?:[.,]\d+)?)", lab, re.I)
+    if pct:
+        value = goods * _decimal.Decimal(pct.group(1).replace(",", ".")) / _decimal.Decimal(100)
+        if cap:
+            value = min(value, _decimal.Decimal(cap.group(1).replace(",", ".")))
+        return value.quantize(_decimal.Decimal("0.01"), rounding=_decimal.ROUND_HALF_UP)
+    flat = re.search(r"(?:[€$£₹]|[A-Za-z]{3}\s)?\s*(\d+(?:[.,]\d+)?)\s*(?:[€$£₹]|[A-Za-z]{3})?\s*(?:flat|off)?", lab, re.I)
+    if flat and re.search(r"flat|off|[€$£₹]", lab, re.I) and "free" not in lab.lower():
+        return min(_money(flat.group(1)), goods)
+    return None
+
+
+def _ledger_filters(args):
+    """Parse the ledger query-string into (filters dict, SQLAlchemy query)."""
+    f = {
+        "from": (args.get("from") or "").strip(), "to": (args.get("to") or "").strip(),
+        "partner": (args.get("partner") or "").strip(), "status": (args.get("status") or "all").strip(),
+        "hide_recovered": args.get("hide_recovered") in ("1", "true", "on", "yes"),
+        "q": (args.get("q") or "").strip().lower(), "currency": (args.get("currency") or "").strip().upper(),
+    }
+    q = MentorCoupon.query.filter(MentorCoupon.status == "used", MentorCoupon.used_at.isnot(None))
+    try:
+        if f["from"]:
+            q = q.filter(MentorCoupon.used_at >= datetime.strptime(f["from"], "%Y-%m-%d"))
+        if f["to"]:
+            q = q.filter(MentorCoupon.used_at < datetime.strptime(f["to"], "%Y-%m-%d") + timedelta(days=1))
+    except ValueError:
+        pass
+    if f["partner"].isdigit():
+        q = q.filter(MentorCoupon.seller_id == int(f["partner"]))
+    if f["currency"]:
+        q = q.filter(MentorCoupon.goods_currency == f["currency"])
+    if f["status"] == "refunded":
+        q = q.filter(MentorCoupon.refunded.is_(True))
+    elif f["status"] == "pending":
+        q = q.filter(MentorCoupon.refunded.is_(False))
+    if f["hide_recovered"]:
+        q = q.filter(MentorCoupon.refunded.is_(False))
+    return f, q.order_by(MentorCoupon.used_at.desc())
+
+
+def _ledger_rows(args):
+    f, q = _ledger_filters(args)
+    rows = []
+    for c in q.all():
+        red = c.redeemed_by
+        row = {
+            "id": c.id, "code": c.code, "title": c.title, "discount_label": c.discount_label or "",
+            "used_at": c.used_at, "partner_id": c.seller_id, "partner": c.seller_display_name,
+            "shop": c.used_shop_name, "redeemer": red.name if red else "", "redeemer_email": red.email if red else "",
+            "goods_total": c.goods_total, "currency": c.goods_currency or "EUR",
+            "discount_amount": c.discount_amount, "refunded": bool(c.refunded),
+            "refunded_at": c.refunded_at, "refunded_by": (db.session.get(User, c.refunded_by).name if c.refunded_by and db.session.get(User, c.refunded_by) else ""),
+            "recovered": c.recovered_amount if c.refunded else None, "note": c.refund_note or "",
+        }
+        if f["q"]:
+            hay = " ".join(str(row[k] or "") for k in ("code", "title", "partner", "shop", "redeemer", "redeemer_email", "discount_label")).lower()
+            if f["q"] not in hay:
+                continue
+        rows.append(row)
+    return f, rows
+
+
+def _ledger_totals(rows):
+    """Totals per currency: goods, coupon value owed, recovered, still outstanding."""
+    out = {}
+    zero = _decimal.Decimal("0.00")
+    for r in rows:
+        t = out.setdefault(r["currency"], {"count": 0, "goods": zero, "owed": zero, "recovered": zero, "outstanding": zero})
+        t["count"] += 1
+        t["goods"] += r["goods_total"] or zero
+        owed = r["discount_amount"] or zero
+        t["owed"] += owed
+        if r["refunded"]:
+            t["recovered"] += r["recovered"] if r["recovered"] is not None else owed
+        else:
+            t["outstanding"] += owed
+    return out
+
+
+@app.route("/supervisor/coupon_ledger")
+def supervisor_coupon_ledger():
+    """Sheet of every redeemed coupon with purchase total, coupon value owed, and refund status."""
+    supervisor = _supervisor_or_none()
+    if not supervisor:
+        return redirect(url_for("signin"))
+    f, rows = _ledger_rows(request.args)
+    partners = [{"id": sp.user_id, "name": sp.display_name} for sp in SellerProfile.query.all()]
+    partners.sort(key=lambda x: x["name"].lower())
+    return render_template(
+        "supervisor/supervisor_coupon_ledger.html",
+        show_sidebar=True, active_section="coupon_ledger",
+        rows=rows, f=f, totals=_ledger_totals(rows), partners=partners,
+        currencies=LEDGER_CURRENCIES, symbols=LEDGER_CURRENCIES,
+    )
+
+
+@app.route("/supervisor/coupon_ledger/export")
+def supervisor_coupon_ledger_export():
+    supervisor = _supervisor_or_none()
+    if not supervisor:
+        return redirect(url_for("signin"))
+    from flask import send_file
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    f, rows = _ledger_rows(request.args)
+    wb = Workbook(); ws = wb.active; ws.title = "Coupon ledger"
+    head = ["Coupon", "Offer", "Discount", "Redeemed on", "Partner", "Shop", "Redeemed by", "Redeemer email", "Currency",
+            "Goods total", "Coupon value owed", "Refunded to partner", "Refunded on", "Recovered from WES", "Note"]
+    for ci, h in enumerate(head, 1):
+        c = ws.cell(row=1, column=ci, value=h); c.font = Font(bold=True, color="FFFFFF"); c.fill = PatternFill("solid", fgColor="1E40AF")
+    for ri, r in enumerate(rows, 2):
+        vals = [r["code"], r["title"], r["discount_label"], r["used_at"].strftime("%Y-%m-%d %H:%M") if r["used_at"] else "",
+                r["partner"], r["shop"], r["redeemer"], r["redeemer_email"], r["currency"],
+                float(r["goods_total"]) if r["goods_total"] is not None else None,
+                float(r["discount_amount"]) if r["discount_amount"] is not None else None,
+                "Yes" if r["refunded"] else "No", r["refunded_at"].strftime("%Y-%m-%d") if r["refunded_at"] else "",
+                float(r["recovered"]) if r["recovered"] is not None else None, r["note"]]
+        for ci, v in enumerate(vals, 1):
+            ws.cell(row=ri, column=ci, value=v)
+    base = len(rows) + 3
+    for i, (cur, t) in enumerate(_ledger_totals(rows).items()):
+        ws.cell(row=base + i, column=1, value=f"TOTAL {cur}").font = Font(bold=True)
+        ws.cell(row=base + i, column=10, value=float(t["goods"])); ws.cell(row=base + i, column=11, value=float(t["owed"]))
+        ws.cell(row=base + i, column=14, value=float(t["recovered"]))
+        ws.cell(row=base + i, column=15, value=f"Outstanding: {t['outstanding']}")
+    for ci in range(1, len(head) + 1):
+        ws.column_dimensions[get_column_letter(ci)].width = 18
+    ws.freeze_panes = "A2"
+    import io
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    return send_file(buf, as_attachment=True, download_name=f"coupon_ledger_{datetime.utcnow().strftime('%Y%m%d')}.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+@app.route("/supervisor/coupons/<int:coupon_id>/ledger", methods=["POST"])
+def supervisor_coupon_ledger_update(coupon_id):
+    """Admin adjusts the purchase total / coupon value (e.g. for 'Free session' labels)."""
+    supervisor = _supervisor_or_none()
+    if not supervisor:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    c = db.session.get(MentorCoupon, coupon_id)
+    if not c or c.status != "used":
+        return jsonify({"success": False, "message": "Coupon not found or not redeemed"}), 404
+    data = request.get_json(silent=True) or request.form or {}
+    if "goods_total" in data:
+        g = _money(data.get("goods_total"))
+        if g is None or g < 0:
+            return jsonify({"success": False, "message": "Enter a valid goods total."}), 400
+        c.goods_total = g
+        if "discount_amount" not in data:                 # recalculate unless set by hand
+            c.discount_amount = _compute_coupon_discount(c.discount_label, g)
+    if "discount_amount" in data:
+        d = _money(data.get("discount_amount"))
+        if d is None or d < 0:
+            return jsonify({"success": False, "message": "Enter a valid coupon value."}), 400
+        c.discount_amount = d
+    cur = (data.get("goods_currency") or "").strip().upper()
+    if cur in LEDGER_CURRENCIES:
+        c.goods_currency = cur
+    if c.refunded and c.discount_amount is not None and "recovered_amount" not in data:
+        c.recovered_amount = c.discount_amount
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+    return jsonify({"success": True, "discount_amount": str(c.discount_amount) if c.discount_amount is not None else None,
+                    "goods_total": str(c.goods_total) if c.goods_total is not None else None})
+
+
+@app.route("/supervisor/coupons/<int:coupon_id>/refund", methods=["POST"])
+def supervisor_coupon_refund(coupon_id):
+    """Admin marks a redeemed coupon as refunded to the partner (or undoes it)."""
+    supervisor = _supervisor_or_none()
+    if not supervisor:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    c = db.session.get(MentorCoupon, coupon_id)
+    if not c or c.status != "used":
+        return jsonify({"success": False, "message": "Coupon not found or not redeemed"}), 404
+    data = request.get_json(silent=True) or request.form or {}
+    refunded = str(data.get("refunded")).lower() in ("1", "true", "yes", "on")
+    if refunded:
+        amount = _money(data.get("recovered_amount")) if data.get("recovered_amount") not in (None, "") else c.discount_amount
+        if amount is None:
+            return jsonify({"success": False, "message": "Set the coupon value first, then mark it refunded."}), 400
+        c.refunded = True
+        c.refunded_at = datetime.utcnow()
+        c.refunded_by = supervisor.id
+        c.recovered_amount = amount
+    else:
+        c.refunded = False
+        c.refunded_at = None
+        c.refunded_by = None
+        c.recovered_amount = None
+    c.refund_note = (data.get("note") or "").strip()[:300] or None
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+    return jsonify({"success": True, "refunded": c.refunded})
+
+
 @app.route("/supervisor/partners")
 def supervisor_partners():
     """All partners, with the mentors and mentees each one referred."""
@@ -21918,6 +22427,7 @@ def supervisor_partners():
             pct = 0
         sp = next((x for x in profiles if x.user_id == r.seller_id), None)
         ref_rows.append({
+            "user_id": person.id,
             "partner_id": r.seller_id,
             "partner_name": sp.display_name if sp else (seller.name if seller else ""),
             "name": person.name,
@@ -22351,7 +22861,7 @@ def coupon_verify(code):
             verified_sellers=[], coupon_candidates=[],
         ), 404
 
-    # Only a signed-in partner (seller) may redeem. Everyone else just sees the details.
+    # Only a signed-in partner may redeem. Everyone else just sees the details.
     me_seller = _seller_or_none()
     viewer_role = "seller" if me_seller else ("other" if "email" in session else "guest")
     my_profile = _ensure_seller_profile(me_seller) if me_seller else None
@@ -22362,7 +22872,8 @@ def coupon_verify(code):
     verified_sellers = [my_profile] if can_redeem else []
     coupon_candidates = coupon.assignees
     shop_map = _sellers_shop_map(verified_sellers)
-    verify_ctx = dict(can_redeem=can_redeem, viewer_role=viewer_role,
+    verify_ctx = dict(default_currency=_currency_code_from_label(coupon.discount_label) or "EUR",
+                      can_redeem=can_redeem, viewer_role=viewer_role,
                       reserved_for_other=reserved_for_other, my_profile=my_profile)
 
     if request.method == "POST":
@@ -22371,7 +22882,7 @@ def coupon_verify(code):
         # Redeeming is for the signed-in seller only; anyone else is view-only.
         if not can_redeem:
             msg = ("This coupon is reserved for a different partner." if reserved_for_other
-                   else "Only the partner (seller) can redeem this coupon. Please sign in with your partner account.")
+                   else "Only the partner can redeem this coupon. Please sign in with your partner account.")
             return render_template(
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False, message=msg,
@@ -22438,6 +22949,24 @@ def coupon_verify(code):
                 message="Please select who is redeeming this coupon.",
                 verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map, **verify_ctx,
             ), 400
+
+        # Total value of the goods bought: the partner enters it, and the coupon's
+        # value (what WES owes the partner) is calculated from it.
+        goods = _money(payload.get("goods_total"))
+        if goods is None or goods <= 0:
+            return render_template(
+                "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
+                code=code, show_result=False,
+                message="Please enter the total amount of goods purchased.",
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map, **verify_ctx,
+            ), 400
+        currency = (payload.get("goods_currency") or _currency_code_from_label(coupon.discount_label) or "EUR").strip().upper()
+        if currency not in LEDGER_CURRENCIES:
+            currency = "EUR"
+        coupon.goods_total = goods
+        coupon.goods_currency = currency
+        coupon.discount_amount = _compute_coupon_discount(coupon.discount_label, goods)
+        coupon.refunded = False
 
         coupon.status = "used"
         coupon.used_at = datetime.utcnow()

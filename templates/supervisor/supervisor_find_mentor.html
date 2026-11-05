@@ -212,7 +212,7 @@
           <tr class="mentor-row hover:bg-gray-50 transition-colors" data-mentor-id="{{ mentor.id }}">
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm font-mono text-gray-500">{{ mentor.serial }}</td>
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap max-w-[220px]">
-              <div class="flex items-center">
+              <div class="flex items-center" data-profile-user="{{ mentor.user_id }}">
                 {% set mentor_pic = mentor.profile_picture or (mentor.user.profile_picture_url if mentor.user else None) %}
                 {% if mentor_pic %}
                   {% if mentor_pic.startswith('http') %}
@@ -702,6 +702,7 @@
       if (d !== dropdown) d.classList.add('hidden');
     });
     dropdown.classList.toggle('hidden');
+    if (!dropdown.classList.contains('hidden') && window.placeFloatingMenu) placeFloatingMenu(btn, dropdown);
   }
 
   document.addEventListener('click', function(e) {
@@ -776,6 +777,7 @@
     const minRating = ratingFilterEl && ratingFilterEl.value ? parseFloat(ratingFilterEl.value) : 0;
     const rows = document.querySelectorAll('.mentor-row');
 
+    rows.forEach(row => {
       const name = row.querySelector('.mentor-name') ? row.querySelector('.mentor-name').innerText.toLowerCase() : '';
       const profession = row.querySelector('.mentor-profession') ? row.querySelector('.mentor-profession').innerText.toLowerCase() : '';
       const email = row.querySelector('.mentor-email') ? row.querySelector('.mentor-email').innerText.toLowerCase() : '';
