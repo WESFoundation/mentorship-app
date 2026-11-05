@@ -948,6 +948,14 @@
                     Referred People
                 </a>
 
+                <a href="{{ url_for('partner_ledger') }}"
+                    class="sidebar-nav-item {% if request.endpoint == 'partner_ledger' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m-6 4h6m-6 4h4M5 3h14a1 1 0 011 1v16a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z" />
+                    </svg>
+                    Coupon Ledger
+                </a>
+
                 <a href="{{ url_for('chat') }}"
                     class="sidebar-nav-item {% if request.endpoint == 'chat' %}active{% endif %}">
                     <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2081,7 +2089,7 @@
         document.querySelectorAll('[data-dropdown] > div:not(.hidden), [id^="actions-"]:not(.hidden)').forEach(function (m) { if (m.style.position === 'fixed') m.classList.add('hidden'); });
     });
     </script>
-    <style>[data-profile-user]{cursor:pointer}[data-profile-user]:hover{text-decoration:underline}</style>
+    <style>[data-profile-user]{cursor:pointer}[data-profile-user]:hover{text-decoration:underline}[data-profile-user] .mentor-name,[data-profile-user] .mentee-name{color:#1d4ed8}[data-profile-user] img,[data-profile-user] .rounded-full{cursor:pointer}</style>
     <script>
     (function () {
         function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); }
@@ -2111,6 +2119,13 @@
             var id = el.getAttribute('data-profile-user');
             if (!id) return;
             e.preventDefault(); e.stopPropagation();
+            // Where the row already has a "View Profile" action (three dots menu), open exactly that
+            // same modal; otherwise fall back to the quick profile card.
+            var row = el.closest('tr');
+            var viewBtn = row && row.querySelector('.view-profile-btn');
+            if (viewBtn) { viewBtn.click(); return; }
+            var detailsLink = row && Array.prototype.find.call(row.querySelectorAll('a[href]'), function (a) { return /view details/i.test(a.textContent); });
+            if (detailsLink) { window.location.href = detailsLink.getAttribute('href'); return; }
             window.openUserProfile(id);
         }, true);
         document.addEventListener('keydown', function (e) { if (e.key === 'Escape') window.closeUserProfile(); });

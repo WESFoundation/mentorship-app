@@ -2957,6 +2957,10 @@ class MentorCoupon(db.Model):
     refunded_by = db.Column(db.Integer, db.ForeignKey("signup_details.id"))
     recovered_amount = db.Column(db.Numeric(12, 2))      # amount actually recovered from WES for this use
     refund_note = db.Column(db.String(300))
+    discount_manual = db.Column(db.Boolean, default=False, nullable=False, server_default="0")  # value set by hand: never auto-recalculated
+    ledger_edited_by = db.Column(db.Integer)        # last user (partner or admin) who changed the bill / value
+    ledger_edited_at = db.Column(db.DateTime)
+    ledger_edit_role = db.Column(db.String(10))     # 'partner' | 'admin'
 
     mentor = db.relationship("User", foreign_keys=[mentor_id])
 
@@ -22336,8 +22340,10 @@ def _compute_coupon_discount(label, goods_total):
     return None
 
 
-def _ledger_filters(args):
-    """Parse the ledger query-string into (filters dict, SQLAlchemy query)."""
+def _ledger_filters(args, seller_id=None):
+    """Parse the ledger query-string into (filters dict, SQLAlchemy query).
+
+    seller_id scopes the sheet to one partner (the partner's own ledger page)."""
     f = {
         "from": (args.get("from") or "").strip(), "to": (args.get("to") or "").strip(),
         "partner": (args.get("partner") or "").strip(), "status": (args.get("status") or "all").strip(),
@@ -22345,6 +22351,8 @@ def _ledger_filters(args):
         "q": (args.get("q") or "").strip().lower(), "currency": (args.get("currency") or "").strip().upper(),
     }
     q = MentorCoupon.query.filter(MentorCoupon.status == "used", MentorCoupon.used_at.isnot(None))
+    if seller_id is not None:
+        q = q.filter(MentorCoupon.seller_id == seller_id)
     try:
         if f["from"]:
             q = q.filter(MentorCoupon.used_at >= datetime.strptime(f["from"], "%Y-%m-%d"))
@@ -22365,8 +22373,8 @@ def _ledger_filters(args):
     return f, q.order_by(MentorCoupon.used_at.desc())
 
 
-def _ledger_rows(args):
-    f, q = _ledger_filters(args)
+def _ledger_rows(args, seller_id=None):
+    f, q = _ledger_filters(args, seller_id)
     rows = []
     for c in q.all():
         red = c.redeemed_by
@@ -22378,6 +22386,8 @@ def _ledger_rows(args):
             "discount_amount": c.discount_amount, "refunded": bool(c.refunded),
             "refunded_at": c.refunded_at, "refunded_by": (db.session.get(User, c.refunded_by).name if c.refunded_by and db.session.get(User, c.refunded_by) else ""),
             "recovered": c.recovered_amount if c.refunded else None, "note": c.refund_note or "",
+            "manual": bool(c.discount_manual), "edited_at": c.ledger_edited_at, "edit_role": c.ledger_edit_role or "",
+            "edited_by": (db.session.get(User, c.ledger_edited_by).name if c.ledger_edited_by and db.session.get(User, c.ledger_edited_by) else ""),
         }
         if f["q"]:
             hay = " ".join(str(row[k] or "") for k in ("code", "title", "partner", "shop", "redeemer", "redeemer_email", "discount_label")).lower()
@@ -22402,6 +22412,62 @@ def _ledger_totals(rows):
         else:
             t["outstanding"] += owed
     return out
+
+
+@app.route("/partner/ledger")
+def partner_ledger():
+    """The partner's own coupon sheet: bill totals (editable until refunded), coupon value, refund status."""
+    seller = _seller_or_none()
+    if not seller:
+        return redirect(url_for("signin"))
+    _ensure_seller_profile(seller)
+    f, rows = _ledger_rows(request.args, seller_id=seller.id)
+    return render_template(
+        "seller/partner_ledger.html",
+        show_sidebar=True, active_section="ledger",
+        rows=rows, f=f, totals=_ledger_totals(rows),
+        currencies=LEDGER_CURRENCIES, symbols=LEDGER_CURRENCIES,
+    )
+
+
+@app.route("/partner/coupons/<int:coupon_id>/bill", methods=["POST"])
+def partner_coupon_bill(coupon_id):
+    """Partner enters / corrects the total bill for a coupon redeemed at their shop.
+
+    Locked once the admin has marked the coupon as refunded. The coupon value is
+    recalculated from the discount label unless the admin set it by hand."""
+    seller = _seller_or_none()
+    if not seller:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    c = db.session.get(MentorCoupon, coupon_id)
+    if not c or c.status != "used" or c.seller_id != seller.id:
+        return jsonify({"success": False, "message": "Coupon not found"}), 404
+    if c.refunded:
+        return jsonify({"success": False, "locked": True,
+                        "message": "This coupon has already been refunded, so the bill can no longer be changed. "
+                                   "Please contact the admin if it needs correcting."}), 409
+    data = request.get_json(silent=True) or request.form or {}
+    g = _money(data.get("goods_total"))
+    if g is None or g <= 0:
+        return jsonify({"success": False, "message": "Enter the total bill amount (more than 0)."}), 400
+    cur = (data.get("goods_currency") or "").strip().upper()
+    c.goods_total = g
+    if cur in LEDGER_CURRENCIES:
+        c.goods_currency = cur
+    if not c.discount_manual:
+        calc = _compute_coupon_discount(c.discount_label, g)
+        if calc is not None:
+            c.discount_amount = calc
+    c.ledger_edited_by = seller.id
+    c.ledger_edited_at = datetime.utcnow()
+    c.ledger_edit_role = "partner"
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+    return jsonify({"success": True, "goods_total": str(c.goods_total),
+                    "discount_amount": str(c.discount_amount) if c.discount_amount is not None else None})
 
 
 @app.route("/supervisor/coupon_ledger")
@@ -22462,7 +22528,8 @@ def supervisor_coupon_ledger_export():
 
 @app.route("/supervisor/coupons/<int:coupon_id>/ledger", methods=["POST"])
 def supervisor_coupon_ledger_update(coupon_id):
-    """Admin adjusts the purchase total / coupon value (e.g. for 'Free session' labels)."""
+    """Admin edits the bill total / coupon value. Allowed at any time, including after the
+    coupon was refunded, but the admin must confirm the warning; every edit is recorded."""
     supervisor = _supervisor_or_none()
     if not supervisor:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
@@ -22470,30 +22537,46 @@ def supervisor_coupon_ledger_update(coupon_id):
     if not c or c.status != "used":
         return jsonify({"success": False, "message": "Coupon not found or not redeemed"}), 404
     data = request.get_json(silent=True) or request.form or {}
+    if str(data.get("confirm")).lower() not in ("1", "true", "yes", "on"):
+        return jsonify({"success": False, "needs_confirm": True,
+                        "message": "Please confirm that you want to change this financial record."}), 409
+
+    old = (c.goods_total, c.discount_amount)
     if "goods_total" in data:
         g = _money(data.get("goods_total"))
         if g is None or g < 0:
             return jsonify({"success": False, "message": "Enter a valid goods total."}), 400
         c.goods_total = g
-        if "discount_amount" not in data:                 # recalculate unless set by hand
-            c.discount_amount = _compute_coupon_discount(c.discount_label, g)
+        if "discount_amount" not in data and not c.discount_manual:
+            calc = _compute_coupon_discount(c.discount_label, g)
+            if calc is not None:
+                c.discount_amount = calc
     if "discount_amount" in data:
         d = _money(data.get("discount_amount"))
         if d is None or d < 0:
             return jsonify({"success": False, "message": "Enter a valid coupon value."}), 400
         c.discount_amount = d
+        c.discount_manual = True
     cur = (data.get("goods_currency") or "").strip().upper()
     if cur in LEDGER_CURRENCIES:
         c.goods_currency = cur
-    if c.refunded and c.discount_amount is not None and "recovered_amount" not in data:
-        c.recovered_amount = c.discount_amount
+    if c.refunded and c.discount_amount is not None:
+        c.recovered_amount = c.discount_amount          # keep the recovered figure in step
+    c.ledger_edited_by = supervisor.id
+    c.ledger_edited_at = datetime.utcnow()
+    c.ledger_edit_role = "admin"
+    note = (data.get("note") or "").strip()[:300]
+    if note:
+        c.refund_note = note
     try:
         db.session.commit()
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "message": str(e)}), 500
+    app.logger.info(f"LEDGER_EDIT admin_id={supervisor.id} coupon_id={c.id} refunded={c.refunded} "
+                    f"goods {old[0]}->{c.goods_total} value {old[1]}->{c.discount_amount}")
     return jsonify({"success": True, "discount_amount": str(c.discount_amount) if c.discount_amount is not None else None,
-                    "goods_total": str(c.goods_total) if c.goods_total is not None else None})
+                    "goods_total": str(c.goods_total) if c.goods_total is not None else None, "refunded": bool(c.refunded)})
 
 
 @app.route("/supervisor/coupons/<int:coupon_id>/refund", methods=["POST"])

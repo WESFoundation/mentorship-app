@@ -110,14 +110,12 @@
           <td class="px-3 py-2.5"><span class="font-medium text-slate-800" {% if r.partner_id %}data-profile-user="{{ r.partner_id }}"{% endif %}>{{ r.partner }}</span>{% if r.shop %}<p class="text-slate-500">{{ r.shop }}</p>{% endif %}</td>
           <td class="px-3 py-2.5"><p class="text-slate-800">{{ r.redeemer or '-' }}</p><p class="text-slate-500">{{ r.redeemer_email }}</p></td>
           <td class="px-3 py-2.5 text-right whitespace-nowrap">
-            <span class="text-slate-400">{{ symbols.get(r.currency, r.currency + ' ') }}</span>
-            <input type="number" step="0.01" min="0" value="{{ '%.2f'|format(r.goods_total) if r.goods_total is not none else '' }}" data-field="goods_total"
-                   class="ledger-input w-24 px-2 py-1 rounded border border-slate-200 text-right text-xs" placeholder="-">
+            {% if r.goods_total is not none %}{{ symbols.get(r.currency, r.currency + ' ') }}{{ '%.2f'|format(r.goods_total) }}{% else %}<span class="text-slate-400">-</span>{% endif %}
+            {% if r.edited_at %}<p class="text-[10px] text-slate-400 mt-0.5">Edited by {{ r.edited_by or r.edit_role }}{% if r.edit_role %} ({{ r.edit_role }}){% endif %}, {{ r.edited_at.strftime('%d %b') }}</p>{% endif %}
           </td>
-          <td class="px-3 py-2.5 text-right whitespace-nowrap">
-            <span class="text-slate-400">{{ symbols.get(r.currency, r.currency + ' ') }}</span>
-            <input type="number" step="0.01" min="0" value="{{ '%.2f'|format(r.discount_amount) if r.discount_amount is not none else '' }}" data-field="discount_amount"
-                   class="ledger-input w-24 px-2 py-1 rounded border border-slate-200 text-right text-xs font-semibold" placeholder="set manually">
+          <td class="px-3 py-2.5 text-right whitespace-nowrap font-semibold">
+            {% if r.discount_amount is not none %}{{ symbols.get(r.currency, r.currency + ' ') }}{{ '%.2f'|format(r.discount_amount) }}{% else %}<span class="font-normal text-slate-400">not set</span>{% endif %}
+            {% if r.manual %}<p class="text-[10px] font-normal text-amber-600 mt-0.5">set by hand</p>{% endif %}
           </td>
           <td class="px-3 py-2.5">
             {% if r.refunded %}
@@ -133,6 +131,14 @@
           </td>
           <td class="px-3 py-2.5">
             <div class="flex flex-col gap-1.5 min-w-[8rem]">
+              <button type="button" onclick="openLedgerEdit({{ r.id }})"
+                      data-id="{{ r.id }}" data-code="{{ r.code }}" data-refunded="{{ 1 if r.refunded else 0 }}"
+                      data-goods="{{ '%.2f'|format(r.goods_total) if r.goods_total is not none else '' }}"
+                      data-value="{{ '%.2f'|format(r.discount_amount) if r.discount_amount is not none else '' }}"
+                      data-currency="{{ r.currency }}" data-recovered="{{ '%.2f'|format(r.recovered) if r.recovered is not none else '' }}"
+                      class="ledger-edit-btn px-3 py-1.5 font-semibold rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-50">
+                <i class="fas fa-pen text-[10px]"></i> Edit amounts
+              </button>
               {% if r.refunded %}
               <button type="button" onclick="setRefund({{ r.id }}, false)" class="px-3 py-1.5 font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200">Undo refund</button>
               {% else %}
@@ -145,6 +151,44 @@
       </tbody>
     </table>
     {% if not rows %}<p class="px-4 py-10 text-center text-sm text-slate-500">No redeemed coupons match these filters.</p>{% endif %}
+  </div>
+</div>
+
+<!-- Edit amounts (with warning) -->
+<div id="ledger-edit-modal" class="hidden fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-slate-900/50" onclick="if(event.target===this)closeLedgerEdit()">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+      <h3 class="text-base font-bold text-slate-900">Edit amounts <span id="le-code" class="mono text-xs font-normal text-slate-500 ml-1"></span></h3>
+      <button type="button" onclick="closeLedgerEdit()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+    </div>
+    <div class="px-6 py-5 space-y-4">
+      <div id="le-warning" class="rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-3 text-sm text-amber-900">
+        <strong>Careful:</strong> the bill total is entered by the partner. Changing it changes what WES owes them, and your change is recorded with your name and the date.
+      </div>
+      <div id="le-refunded-warning" class="hidden rounded-lg border border-rose-300 bg-rose-50 px-3.5 py-3 text-sm text-rose-800">
+        <strong>This coupon is already marked as refunded.</strong> If you change the amounts, the "recovered from WES" figure changes with them. Only continue if the original payment needs correcting.
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Total bill</label>
+          <input type="number" step="0.01" min="0" id="le-goods" class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Coupon value owed</label>
+          <input type="number" step="0.01" min="0" id="le-value" class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm" placeholder="auto">
+        </div>
+      </div>
+      <p class="text-[11px] text-slate-500 -mt-2">Leave the coupon value untouched to recalculate it from the new bill total. Typing a value sets it by hand.</p>
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Reason <span class="font-normal normal-case text-slate-400">(optional)</span></label>
+        <input type="text" id="le-note" maxlength="300" class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm" placeholder="e.g. partner mistyped the bill">
+      </div>
+      <label class="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" id="le-confirm" class="mt-0.5 rounded"> <span>I understand and want to change this record.</span></label>
+    </div>
+    <div class="px-6 py-4 bg-slate-50 flex justify-end gap-2">
+      <button type="button" onclick="closeLedgerEdit()" class="px-4 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-100">Cancel</button>
+      <button type="button" id="le-save" onclick="saveLedgerEdit()" class="px-5 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700">Save changes</button>
+    </div>
   </div>
 </div>
 
@@ -165,14 +209,31 @@
       if (res.ok) { window.location.reload(); } else { ledgerMsg((res.body && res.body.message) || 'Could not update.', false); }
     });
   }
-  document.querySelectorAll('.ledger-input').forEach(function (inp) {
-    inp.addEventListener('change', function () {
-      var row = inp.closest('.ledger-row'), body = {};
-      body[inp.dataset.field] = inp.value;
-      post('/supervisor/coupons/' + row.dataset.id + '/ledger', body).then(function (res) {
-        if (res.ok) { window.location.reload(); } else { ledgerMsg((res.body && res.body.message) || 'Could not save.', false); }
-      });
+  var leCurrent = null;
+  function openLedgerEdit(id) {
+    var btn = document.querySelector('.ledger-edit-btn[data-id="' + id + '"]');
+    if (!btn) return;
+    leCurrent = {id: id, goods: btn.dataset.goods, value: btn.dataset.value};
+    document.getElementById('le-code').textContent = btn.dataset.code;
+    document.getElementById('le-goods').value = btn.dataset.goods;
+    document.getElementById('le-value').value = btn.dataset.value;
+    document.getElementById('le-note').value = '';
+    document.getElementById('le-confirm').checked = false;
+    document.getElementById('le-refunded-warning').classList.toggle('hidden', btn.dataset.refunded !== '1');
+    document.getElementById('ledger-edit-modal').classList.remove('hidden');
+  }
+  function closeLedgerEdit() { document.getElementById('ledger-edit-modal').classList.add('hidden'); }
+  function saveLedgerEdit() {
+    if (!leCurrent) return;
+    if (!document.getElementById('le-confirm').checked) { alert('Please tick the box to confirm you want to change this record.'); return; }
+    var body = {confirm: true, note: document.getElementById('le-note').value};
+    var g = document.getElementById('le-goods').value, v = document.getElementById('le-value').value;
+    if (g !== leCurrent.goods) body.goods_total = g;
+    if (v !== leCurrent.value && v !== '') body.discount_amount = v;
+    if (!('goods_total' in body) && !('discount_amount' in body)) { closeLedgerEdit(); return; }
+    post('/supervisor/coupons/' + leCurrent.id + '/ledger', body).then(function (res) {
+      if (res.ok) { window.location.reload(); } else { alert((res.body && res.body.message) || 'Could not save.'); }
     });
-  });
+  }
 </script>
 {% endblock %}
