@@ -49,7 +49,7 @@
       <div class="flex gap-2"><dt class="w-36 shrink-0 text-slate-500">Phone</dt><dd class="text-slate-900">{{ profile.contact_phone or '-' }}</dd></div>
       <div class="flex gap-2"><dt class="w-36 shrink-0 text-slate-500">Website</dt><dd class="text-slate-900 break-all">{{ profile.website or '-' }}</dd></div>
       <div class="flex gap-2"><dt class="w-36 shrink-0 text-slate-500">Address</dt><dd class="text-slate-900">{{ profile.address or '-' }}</dd></div>
-      <div class="flex gap-2"><dt class="w-36 shrink-0 text-slate-500">City / country</dt><dd class="text-slate-900">{{ [profile.city, profile.country] | select | join(', ') or '-' }}</dd></div>
+      <div class="flex gap-2"><dt class="w-36 shrink-0 text-slate-500">Location</dt><dd class="text-slate-900">{{ [profile.city, profile.state, profile.country] | select | join(', ') or '-' }}</dd></div>
       <div class="flex gap-2"><dt class="w-36 shrink-0 text-slate-500">Shops owned</dt><dd class="text-slate-900">{{ profile.shop_count or '-' }}</dd></div>
     </dl>
   </div>

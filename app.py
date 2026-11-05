@@ -3065,6 +3065,7 @@ class SellerProfile(db.Model):
     business_category = db.Column(db.String(80))
     website = db.Column(db.String(255))
     city = db.Column(db.String(100))
+    state = db.Column(db.String(100))
     country = db.Column(db.String(100))
 
     is_verified = db.Column(db.Boolean, default=True, nullable=False, server_default="1")
@@ -3102,6 +3103,7 @@ class SellerProfile(db.Model):
             "business_category": self.business_category or "",
             "website": self.website or "",
             "city": self.city or "",
+            "state": self.state or "",
             "country": self.country or "",
             "profile_picture": self.profile_picture or "",
             "display_name": self.display_name,
@@ -3516,6 +3518,7 @@ def auto_migrate_schema():
                 ("mentor_profile", "supervisor_rating", "FLOAT"),
                 ("signup_details", "scholarly", "BOOLEAN"),
                 ("signup_details", "premium", "BOOLEAN"),
+                ("seller_profiles", "state", "VARCHAR(100)"),
             ]
             for t_name, c_name, c_type in target_migrations:
                 try:
@@ -21771,8 +21774,18 @@ def seller_profile():
         category = (data.get("business_category") or "").strip()
         profile.business_category = category if category in BUSINESS_CATEGORIES else None
         profile.website = (data.get("website") or "").strip()[:255] or None
-        profile.city = (data.get("city") or "").strip()[:100] or None
-        profile.country = (data.get("country") or "").strip()[:100] or None
+        c_val = (data.get("country") or "").strip()
+        s_val = (data.get("state") or "").strip()
+        ci_val = (data.get("city") or "").strip()
+        if c_val or s_val or ci_val:
+            loc = resolve_location(country=c_val, state=s_val, city=ci_val)
+            profile.country = loc.get("country") or c_val[:100] or None
+            profile.state = loc.get("state") or s_val[:100] or None
+            profile.city = loc.get("city") or ci_val[:100] or None
+        else:
+            profile.country = None
+            profile.state = None
+            profile.city = None
 
         pic = request.files.get("profile_picture")
         if pic and pic.filename:

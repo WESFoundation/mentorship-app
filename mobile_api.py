@@ -3261,14 +3261,16 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 sp.business_category = cat if cat in BUSINESS_CATEGORIES else None
             if "country" in data or "state" in data or "city" in data:
                 c_val = (data.get("country") or sp.country or "").strip()
-                s_val = (data.get("state") or "").strip()
+                s_val = (data.get("state") or getattr(sp, "state", None) or "").strip()
                 ci_val = (data.get("city") or sp.city or "").strip()
                 if resolve_loc_func:
                     c_res, s_res, ci_res, _, _ = resolve_loc_func(country=c_val, state=s_val, city=ci_val)
-                    sp.country = c_res
-                    sp.city = ci_res
+                    sp.country = c_res or c_val or None
+                    sp.state = s_res or s_val or None
+                    sp.city = ci_res or ci_val or None
                 else:
                     sp.country = c_val or None
+                    sp.state = s_val or None
                     sp.city = ci_val or None
             if "website" in data:
                 sp.website = (data.get("website") or "").strip()[:255] or None
