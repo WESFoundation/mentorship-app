@@ -372,7 +372,7 @@
             {% if c.holders %}
             <ul class="space-y-1">
               {% for h in c.holders %}
-              <li><span class="font-medium text-slate-800">{{ h.name }}</span> <span class="text-slate-400">{{ h.role }}</span>
+              <li><span class="font-medium text-blue-700" data-profile-user="{{ h.id }}">{{ h.name }}</span> <span class="text-slate-400">{{ h.role }}</span>
                   <span class="block text-slate-500">{{ h.email }}</span></li>
               {% endfor %}
             </ul>
@@ -385,13 +385,13 @@
           <td class="px-3 py-3 whitespace-nowrap">{{ c.expires_at.strftime('%d %b %Y') if c.expires_at else 'No expiry' }}</td>
           <td class="px-3 py-3">
             {% if c.redeemed_by_name %}
-            <p class="font-medium text-slate-800">{{ c.redeemed_by_name }} <span class="text-slate-400">{{ c.redeemed_by_role }}</span></p>
+            <p class="font-medium text-blue-700" data-profile-user="{{ c.redeemed_by_id }}">{{ c.redeemed_by_name }} <span class="text-slate-400">{{ c.redeemed_by_role }}</span></p>
             <p class="text-slate-500">{{ c.redeemed_by_email }}</p>
             {% else %}-{% endif %}
           </td>
           <td class="px-3 py-3">
             {% if c.seller_name %}
-            <p class="font-medium text-slate-800">{{ c.seller_name }}</p>
+            <p class="font-medium text-blue-700" data-profile-user="{{ c.seller_id }}">{{ c.seller_name }}</p>
             {% if c.shop_name %}<p class="text-slate-600">Shop: {{ c.shop_name }}</p>{% endif %}
             <p class="text-slate-500">{{ c.seller_email }}</p>
             {% else %}-{% endif %}

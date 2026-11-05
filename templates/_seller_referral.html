@@ -1,6 +1,6 @@
 <!-- Referred by a seller/partner. Locked once saved. Expects: referral, verified_sellers -->
 <div class="md:col-span-2" id="referral_block">
-    <label class="block text-gray-700 font-semibold mb-2">Were you referred by a seller/partner?</label>
+    <label class="block text-gray-700 font-semibold mb-2">Were you referred by a Partner?</label>
     <input type="hidden" name="referral_block_present" value="1">
     {% if referral %}
     <div class="p-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-700">
@@ -26,7 +26,7 @@
     <label class="inline-flex items-center gap-2 text-sm text-gray-700">
         <input type="checkbox" name="was_referred" value="yes" id="was_referred_checkbox"
                onchange="document.getElementById('referral_select_wrap').style.display = this.checked ? 'block' : 'none'; if(!this.checked){document.getElementById('referred_by_seller_id').value='';}">
-        Yes, I was referred by a seller/partner
+        Yes, I was referred by a Partner
     </label>
     <div id="referral_select_wrap" style="display:none;" class="mt-2">
         <select name="referred_by_seller_id" id="referred_by_seller_id"

@@ -513,7 +513,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 db.session.add(inst_p)
                 db.session.commit()
             elif user_type == "4" and SellerProfile:
-                seller_p = SellerProfile(user_id=new_user.id, partner_label="Outreach Partner", shop_name=new_user.name, is_verified=True)
+                seller_p = SellerProfile(user_id=new_user.id, partner_label="Partner", shop_name=new_user.name, is_verified=True)
                 db.session.add(seller_p)
                 db.session.commit()
         except Exception as e:
@@ -1140,13 +1140,13 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                                         f"<p>Hi {seller.name},</p><p>Mentor <strong>{user.name}</strong> has indicated they were referred by your shop!</p>"
                                     )
                                 except Exception as e:
-                                    logger.warning("Failed to send seller referral email: %s", e)
+                                    logger.warning("Failed to send partner referral email: %s", e)
                                 for sup in User.query.filter_by(user_type="0").all():
                                     try:
                                         send_fn(
                                             sup.email,
                                             f"New Mentor Referral from {seller.name}",
-                                            f"<p>Hi {sup.name},</p><p>Mentor <strong>{user.name}</strong> was referred by partner/seller <strong>{seller.name}</strong> ({seller.email}).</p>"
+                                            f"<p>Hi {sup.name},</p><p>Mentor <strong>{user.name}</strong> was referred by partner <strong>{seller.name}</strong> ({seller.email}).</p>"
                                         )
                                     except Exception as e:
                                         logger.warning("Failed to send supervisor referral email: %s", e)
@@ -3084,10 +3084,11 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 ''.join(secrets.choice(COUPON_CODE_ALPHABET) for _ in range(COUPON_CODE_GROUP_LEN))
                 for _ in range(COUPON_CODE_GROUPS)
             ]
-            code = f"{COUPON_CODE_PREFIX}-" + "-".join(groups)
+            suffix = ''.join(secrets.choice(COUPON_CODE_ALPHABET) for _ in range(3))
+            code = f"{COUPON_CODE_PREFIX}-" + "-".join(groups) + f"-{suffix}"
             if not MentorCoupon.query.filter_by(code=code).first():
                 return code
-        return f"{COUPON_CODE_PREFIX}-{secrets.token_hex(8).upper()}"
+        return f"{COUPON_CODE_PREFIX}-{secrets.token_hex(8).upper()}-{secrets.token_hex(2).upper()[:3]}"
 
     def _api_public_base_url():
         configured = os.environ.get("COUPON_PUBLIC_BASE_URL", "").strip()
@@ -3135,7 +3136,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         if not sp:
             sp = SellerProfile(
                 user_id=user.id,
-                partner_label="Outreach Partner",
+                partner_label="Partner",
                 shop_name=user.name,
                 is_verified=True
             )
@@ -3409,7 +3410,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             seller = user
 
         if not seller:
-            return jsonify({"success": False, "message": "Seller not identified"}), 404
+            return jsonify({"success": False, "message": "Partner not identified"}), 404
 
         sp = _ensure_seller_profile_obj(seller)
 
@@ -3839,11 +3840,11 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             return jsonify({"success": False, "message": "This coupon has expired."}), 410
 
         data = request.get_json(silent=True) or {}
-        # Only a signed-in partner (seller) can redeem. Anyone else can only view the coupon.
+        # Only a signed-in partner can redeem. Anyone else can only view the coupon.
         api_user = get_current_user_from_req(User)
         if not api_user or str(api_user.user_type) != "4":
             return jsonify({"success": False,
-                            "message": "Only the partner (seller) can redeem this coupon. "
+                            "message": "Only the partner can redeem this coupon. "
                                        "Please sign in with a partner account."}), 403
         seller_profile = SellerProfile.query.filter_by(user_id=api_user.id).first() if SellerProfile else None
         if not seller_profile:
@@ -3881,6 +3882,21 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
         if not redeemer:
             return jsonify({"success": False, "message": "Please select a valid redeemer for this coupon."}), 400
+
+        # Purchase total -> the coupon value WES owes the partner (same maths as the web page).
+        import sys as _sys
+        _app_mod = _sys.modules.get('__main__') if hasattr(_sys.modules.get('__main__'), '_money') else _sys.modules.get('app')
+        _money_fn = getattr(_app_mod, '_money', None)
+        _calc_fn = getattr(_app_mod, '_compute_coupon_discount', None)
+        _cur_fn = getattr(_app_mod, '_currency_code_from_label', None)
+        if _money_fn:
+            goods = _money_fn(data.get("goods_total"))
+            if goods is None or goods <= 0:
+                return jsonify({"success": False, "message": "Please enter the total amount of goods purchased."}), 400
+            coupon.goods_total = goods
+            coupon.goods_currency = (str(data.get("goods_currency") or (_cur_fn(coupon.discount_label) if _cur_fn else None) or "EUR")).upper()[:8]
+            coupon.discount_amount = _calc_fn(coupon.discount_label, goods) if _calc_fn else None
+            coupon.refunded = False
 
         coupon.status = "used"
         coupon.used_at = datetime.utcnow()

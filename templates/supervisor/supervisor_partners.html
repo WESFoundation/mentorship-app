@@ -35,7 +35,7 @@
         <tbody class="divide-y divide-slate-100">
           {% for p in partners %}
           <tr class="partner-row" data-text="{{ (p.name ~ ' ' ~ p.contact_name ~ ' ' ~ p.email ~ ' ' ~ p.city ~ ' ' ~ p.country ~ ' ' ~ p.category)|lower }}">
-            <td class="px-3 py-3"><p class="font-semibold text-slate-900 text-sm">{{ p.name }}</p>{% if p.category %}<p class="text-slate-500">{{ p.category }}</p>{% endif %}</td>
+            <td class="px-3 py-3"><p class="font-semibold text-blue-700 text-sm" data-profile-user="{{ p.user_id }}">{{ p.name }}</p>{% if p.category %}<p class="text-slate-500">{{ p.category }}</p>{% endif %}</td>
             <td class="px-3 py-3"><p class="text-slate-800">{{ p.contact_name }}</p><p class="text-slate-500">{{ p.email }}</p>{% if p.phone %}<p class="text-slate-500">{{ p.phone }}</p>{% endif %}</td>
             <td class="px-3 py-3">{{ p.label }}</td>
             <td class="px-3 py-3">{{ p.shop_count if p.shop_count else 'Not set' }}</td>
@@ -50,7 +50,17 @@
             <td class="px-3 py-3">{{ p.reserved }}</td>
             <td class="px-3 py-3">{{ p.referrals_total }} <span class="text-slate-400">({{ p.referrals_confirmed }} confirmed, {{ p.referrals_pending }} pending)</span></td>
             <td class="px-3 py-3 whitespace-nowrap">{{ p.joined.strftime('%d %b %Y') if p.joined else '-' }}</td>
-            <td class="px-3 py-3"><button type="button" onclick="showReferralsFor('p{{ p.user_id }}')" class="px-3 py-1.5 font-semibold rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100">View referrals</button></td>
+            <td class="px-3 py-3 text-right">
+              <div class="relative inline-block" data-dropdown>
+                <button type="button" onclick="toggleDropdown(this); event.stopPropagation();" class="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-500 hover:text-gray-700" title="Actions" aria-label="Actions for {{ p.name }}">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+                </button>
+                <div class="hidden absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 text-left">
+                  <button type="button" data-profile-user="{{ p.user_id }}" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">View profile</button>
+                  <button type="button" onclick="showReferralsFor('p{{ p.user_id }}')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">View referrals</button>
+                </div>
+              </div>
+            </td>
           </tr>
           {% else %}
           <tr><td colspan="11" class="px-4 py-8 text-center text-slate-500">No partners yet.</td></tr>
@@ -106,7 +116,7 @@
         <tbody class="divide-y divide-slate-100" id="referral-rows">
           {% for r in referrals %}
           <tr class="referral-row" data-text="{{ (r.name ~ ' ' ~ r.email)|lower }}" data-partner="p{{ r.partner_id }}" data-role="{{ r.role|lower }}" data-status="{{ r.status }}" data-comp="{{ r.completion }}">
-            <td class="px-3 py-3"><p class="font-medium text-slate-900 text-sm">{{ r.name }}</p><p class="text-slate-500">{{ r.email }}</p></td>
+            <td class="px-3 py-3"><p class="font-medium text-blue-700 text-sm" data-profile-user="{{ r.user_id }}">{{ r.name }}</p><p class="text-slate-500">{{ r.email }}</p></td>
             <td class="px-3 py-3">{{ r.role }}</td>
             <td class="px-3 py-3">{{ r.partner_name }}</td>
             <td class="px-3 py-3 whitespace-nowrap">{{ r.referred_on.strftime('%d %b %Y') if r.referred_on else '-' }}</td>
@@ -129,6 +139,15 @@
 </div>
 
 <script>
+  function toggleDropdown(btn) {
+    var dropdown = btn.closest('[data-dropdown]').querySelector('div:last-child');
+    document.querySelectorAll('[data-dropdown] > div:not(.hidden)').forEach(function (d) { if (d !== dropdown) d.classList.add('hidden'); });
+    dropdown.classList.toggle('hidden');
+    if (!dropdown.classList.contains('hidden') && window.placeFloatingMenu) placeFloatingMenu(btn, dropdown);
+  }
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('[data-dropdown]')) document.querySelectorAll('[data-dropdown] > div:not(.hidden)').forEach(function (d) { d.classList.add('hidden'); });
+  });
   function filterPartners() {
     var q = document.getElementById('pf-q').value.toLowerCase().trim();
     document.querySelectorAll('.partner-row').forEach(function (r) { r.style.display = (!q || r.dataset.text.indexOf(q) !== -1) ? '' : 'none'; });

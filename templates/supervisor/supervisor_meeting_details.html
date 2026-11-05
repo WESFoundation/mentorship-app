@@ -118,14 +118,14 @@
                 
                 <!-- Mentee Details -->
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="text-sm font-medium text-gray-900">{{ meeting.mentee_name }}</div>
+                  <div class="text-sm font-medium text-gray-900" data-profile-user="{{ meeting.mentee_id or '' }}">{{ meeting.mentee_name }}</div>
                   <div class="text-sm text-gray-500">{{ meeting.mentee_email }}</div>
                   <div class="text-xs text-blue-600 font-medium mt-1">Mentee</div>
                 </td>
                 
                 <!-- Mentor Details -->
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="text-sm font-medium text-gray-900">{{ meeting.mentor_name }}</div>
+                  <div class="text-sm font-medium text-gray-900" data-profile-user="{{ meeting.mentor_id or '' }}">{{ meeting.mentor_name }}</div>
                   <div class="text-sm text-gray-500">{{ meeting.mentor_email }}</div>
                   <div class="text-xs text-green-600 font-medium mt-1">Mentor</div>
                 </td>
@@ -228,14 +228,14 @@
                 
                 <!-- Mentee Details -->
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="text-sm font-medium text-gray-900">{{ meeting.mentee_name }}</div>
+                  <div class="text-sm font-medium text-gray-900" data-profile-user="{{ meeting.mentee_id or '' }}">{{ meeting.mentee_name }}</div>
                   <div class="text-sm text-gray-500">{{ meeting.mentee_email }}</div>
                   <div class="text-xs text-blue-600 font-medium mt-1">Mentee</div>
                 </td>
                 
                 <!-- Mentor Details -->
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="text-sm font-medium text-gray-900">{{ meeting.mentor_name }}</div>
+                  <div class="text-sm font-medium text-gray-900" data-profile-user="{{ meeting.mentor_id or '' }}">{{ meeting.mentor_name }}</div>
                   <div class="text-sm text-gray-500">{{ meeting.mentor_email }}</div>
                   <div class="text-xs text-green-600 font-medium mt-1">Mentor</div>
                 </td>

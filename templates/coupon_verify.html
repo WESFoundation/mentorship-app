@@ -86,7 +86,11 @@
                     <p class="text-xs text-gray-500 mt-2">Expired on {{ coupon.expires_at }} UTC</p>
                     {% else %}
                     <h2 class="text-lg font-bold text-blue-800">Valid coupon</h2>
-                    <p class="text-sm text-blue-700 mt-1">Press the button below to confirm you have read this coupon.</p>
+                    {% if message %}
+                    <p class="mt-2 rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700">{{ message }}</p>
+                    {% else %}
+                    <p class="text-sm text-blue-700 mt-1">Fill in the purchase total and press the button below to redeem this coupon.</p>
+                    {% endif %}
                     {% endif %}
                 </div>
 
@@ -169,10 +173,27 @@
                         </p>
                         {% endif %}
 
+                        <label for="goods_total"
+                            class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">
+                            Total amount of goods purchased <span class="text-red-500">*</span>
+                        </label>
+                        <div class="flex gap-2 mb-3">
+                            <input type="number" id="goods_total" name="goods_total" min="0.01" step="0.01" required inputmode="decimal"
+                                placeholder="e.g. 48.50"
+                                class="flex-1 px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <select name="goods_currency" aria-label="Currency"
+                                class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                {% for code in ['EUR', 'USD', 'GBP', 'INR', 'CHF', 'AED', 'CAD', 'AUD', 'SGD'] %}
+                                <option value="{{ code }}" {% if code == (default_currency or 'EUR') %}selected{% endif %}>{{ code }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <p class="text-[11px] text-gray-500 -mt-1 mb-3">Used to calculate the coupon value that WES refunds to you.</p>
+
                         <button type="submit"
                             class="w-full py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm shadow-lg shadow-green-600/25 flex items-center justify-center gap-2 transition">
                             <i class="fas fa-check-circle"></i>
-                            Verify coupon &amp; mark as used
+                            Verify coupon &amp; mark as redeemed
                         </button>
                         <p class="text-[11px] text-gray-500 mt-3 text-center leading-relaxed">
                             This marks the key as used in the WES database. <strong>Apply the discount yourself</strong>
@@ -186,9 +207,9 @@
                         {% if reserved_for_other %}
                         <p class="text-sm text-amber-900">This coupon is reserved for a different partner, so you can see it but not redeem it.</p>
                         {% elif viewer_role == 'other' %}
-                        <p class="text-sm text-amber-900">Only the partner (seller) can redeem coupons. You are signed in with a non-partner account, so you can only view this coupon.</p>
+                        <p class="text-sm text-amber-900">Only the partner can redeem coupons. You are signed in with a non-partner account, so you can only view this coupon.</p>
                         {% else %}
-                        <p class="text-sm text-amber-900">Only the partner (seller) can redeem this coupon. You can view the details above.</p>
+                        <p class="text-sm text-amber-900">Only the partner can redeem this coupon. You can view the details above.</p>
                         <a href="/signin" class="inline-block mt-3 px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700">Sign in as a partner to redeem</a>
                         {% endif %}
                     </div>
@@ -201,7 +222,7 @@
 
                     {% if show_result %}
                     <div class="mt-5 rounded-xl bg-blue-50 border border-blue-200 p-4 text-left">
-                        <p class="text-xs font-semibold uppercase tracking-wider text-blue-700 mb-1">Next step for the seller</p>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-blue-700 mb-1">Next step for the partner</p>
                         <p class="text-sm text-blue-900">
                             Apply <strong>{{ coupon.discount_label or 'the discount described above' }}</strong>
                             {% if coupon.redeemed_by_name %}for <strong>{{ coupon.redeemed_by_name }}</strong>{% endif %}

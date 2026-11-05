@@ -31,7 +31,16 @@
                     <option value="mentor">Mentors</option>
                     <option value="mentee">Mentees</option>
                     <option value="institution">Institution Admins</option>
-                    <option value="seller">Partners / Sellers</option>
+                    <option value="seller">Partners</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Sort by</label>
+                <select id="sortOrder" onchange="sortAccounts()" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                    <option value="oldest" selected>Date created: oldest first</option>
+                    <option value="newest">Date created: newest first</option>
+                    <option value="name_asc">Name: A to Z</option>
+                    <option value="name_desc">Name: Z to A</option>
                 </select>
             </div>
             <div class="flex-1">
@@ -99,16 +108,16 @@
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
                         {% for mentor in mentors %}
-                        <tr class="account-row hover:bg-gray-50" data-name="{{ (mentor.name or '')|lower }}" data-email="{{ (mentor.email or '')|lower }}" data-type="mentor" data-institution="{{ (mentor.institution or '')|lower }}">
+                        <tr class="account-row hover:bg-gray-50" data-name="{{ (mentor.name or '')|lower }}" data-created="{{ (mentor.created_at.timestamp() if mentor.created_at else 0) }}" data-email="{{ (mentor.email or '')|lower }}" data-type="mentor" data-institution="{{ (mentor.institution or '')|lower }}">
                             <td class="px-3 py-3">{{ mentor.serial }}</td>
-                            <td class="px-3 py-3">{{ mentor.name }}</td>
+                            <td class="px-3 py-3"><span data-profile-user="{{ mentor.id }}" class="text-blue-700 font-medium">{{ mentor.name }}</span></td>
                             <td class="px-3 py-3">{{ mentor.email }}</td>
                             <td class="px-3 py-3">{{ mentor.created_at.strftime('%Y-%m-%d %I:%M %p') if mentor.created_at else 'N/A' }}</td>
                             <td class="px-3 py-3">{{ mentor.institution or 'N/A' }}</td>
                             <td class="text-center px-3 py-3">
                                 <div class="relative inline-block text-left">
                                     <button type="button" class="inline-flex items-center justify-center p-1.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 transition-all duration-150" onclick="toggleDropdown('actions-{{ mentor.id }}', event)" aria-haspopup="true" aria-expanded="false" aria-label="Actions for {{ mentor.name }}" title="More options">
-                                        <i class="fas fa-ellipsis-v text-[14px]" aria-hidden="true"></i>
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
                                     </button>
                                     <div id="actions-{{ mentor.id }}" class="hidden absolute right-0 z-10 mt-1 w-36 origin-top-right rounded-xl bg-white border border-slate-200 shadow-lg py-1 ring-1 ring-black/5 focus:outline-none" role="menu">
                                         <a href="{{ url_for('edit_user', user_id=mentor.id) }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-blue-700 hover:bg-blue-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-{{ mentor.id }}')"><i class="fas fa-edit text-[10px] text-blue-500" aria-hidden="true"></i> Edit</a>
@@ -151,16 +160,16 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         {% for mentee in mentees %}
-                        <tr class="account-row hover:bg-gray-50" data-name="{{ (mentee.name or '')|lower }}" data-email="{{ (mentee.email or '')|lower }}" data-type="mentee" data-institution="{{ (mentee.institution or '')|lower }}">
+                        <tr class="account-row hover:bg-gray-50" data-name="{{ (mentee.name or '')|lower }}" data-created="{{ (mentee.created_at.timestamp() if mentee.created_at else 0) }}" data-email="{{ (mentee.email or '')|lower }}" data-type="mentee" data-institution="{{ (mentee.institution or '')|lower }}">
                             <td class="px-3 py-3">{{ mentee.serial }}</td>
-                            <td class="px-3 py-3">{{ mentee.name }}</td>
+                            <td class="px-3 py-3"><span data-profile-user="{{ mentee.id }}" class="text-blue-700 font-medium">{{ mentee.name }}</span></td>
                             <td class="px-3 py-3">{{ mentee.email }}</td>
                             <td class="px-3 py-3">{{ mentee.created_at.strftime('%Y-%m-%d %I:%M %p') if mentee.created_at else 'N/A' }}</td>
                             <td class="px-3 py-3">{{ mentee.institution or 'N/A' }}</td>
                             <td class="px-3 py-3 text-center">
                                 <div class="relative inline-block text-left">
                                     <button type="button" class="inline-flex items-center justify-center p-1.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 transition-all duration-150" onclick="toggleDropdown('actions-{{ mentee.id }}', event)" aria-haspopup="true" aria-expanded="false" aria-label="Actions for {{ mentee.name }}" title="More options">
-                                        <i class="fas fa-ellipsis-v text-[14px]" aria-hidden="true"></i>
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
                                     </button>
                                     <div id="actions-{{ mentee.id }}" class="hidden absolute right-0 z-10 mt-1 w-36 origin-top-right rounded-xl bg-white border border-slate-200 shadow-lg py-1 ring-1 ring-black/5 focus:outline-none" role="menu">
                                         <a href="{{ url_for('edit_user', user_id=mentee.id) }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-blue-700 hover:bg-blue-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-{{ mentee.id }}')"><i class="fas fa-edit text-[10px] text-blue-500" aria-hidden="true"></i> Edit</a>
@@ -203,16 +212,16 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     {% for institution in institutions %}
-                    <tr class="account-row hover:bg-gray-50" data-name="{{ (institution.name or '')|lower }}" data-email="{{ (institution.email or '')|lower }}" data-type="institution" data-institution="{{ (institution.name or '')|lower }}">
+                    <tr class="account-row hover:bg-gray-50" data-name="{{ (institution.name or '')|lower }}" data-created="{{ (institution.created_at.timestamp() if institution.created_at else 0) }}" data-email="{{ (institution.email or '')|lower }}" data-type="institution" data-institution="{{ (institution.name or '')|lower }}">
                         <td class="px-3 py-3">{{ institution.serial }}</td>
-                        <td class="px-3 py-3">{{ institution.name }}</td>
+                        <td class="px-3 py-3"><span data-profile-user="{{ institution.id }}" class="text-blue-700 font-medium">{{ institution.name }}</span></td>
                         <td class="px-3 py-3">{{ institution.email }}</td>
                         <td class="px-3 py-3">{{ institution.created_at.strftime('%Y-%m-%d %I:%M %p') if institution.created_at else 'N/A' }}</td>
                         <td class="px-3 py-3">{{ institution.institution or 'N/A' }}</td>
                         <td class="px-3 py-3 text-center">
                             <div class="relative inline-block text-left">
                                 <button type="button" class="inline-flex items-center justify-center p-1.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 transition-all duration-150" onclick="toggleDropdown('actions-{{ institution.id }}', event)" aria-haspopup="true" aria-expanded="false" aria-label="Actions for {{ institution.name }}" title="More options">
-                                    <i class="fas fa-ellipsis-v text-[14px]" aria-hidden="true"></i>
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
                                 </button>
                                 <div id="actions-{{ institution.id }}" class="hidden absolute right-0 z-10 mt-1 w-36 origin-top-right rounded-xl bg-white border border-slate-200 shadow-lg py-1 ring-1 ring-black/5 focus:outline-none" role="menu">
                                     <a href="{{ url_for('edit_user', user_id=institution.id) }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-blue-700 hover:bg-blue-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-{{ institution.id }}')"><i class="fas fa-edit text-[10px] text-blue-500" aria-hidden="true"></i> Edit</a>
@@ -235,10 +244,10 @@
         {% endif %}
     </div>
 
-    <!-- Partners / Sellers Section -->
+    <!-- Partners Section -->
     <div class="mb-8" id="section-seller">
         <div class="bg-amber-50 border-l-4 border-amber-500 p-4 mb-4 rounded">
-            <h2 class="text-2xl font-bold text-amber-800">🤝 Partners / Sellers ({{ sellers|length }})</h2>
+            <h2 class="text-2xl font-bold text-amber-800">🤝 Partners ({{ sellers|length }})</h2>
         </div>
         {% if sellers %}
         <div class="overflow-x-auto table-responsive">
@@ -255,10 +264,10 @@
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-100">
                     {% for s in sellers %}
-                    <tr class="account-row hover:bg-gray-50" data-name="{{ (s.display_name or '')|lower }}" data-email="{{ (s.user_email or '')|lower }}" data-type="seller" data-institution="">
+                    <tr class="account-row hover:bg-gray-50" data-created="{{ (s.created_at.timestamp() if s.created_at else 0) }}" data-name="{{ (s.display_name or '')|lower }}" data-email="{{ (s.user_email or '')|lower }}" data-type="seller" data-institution="">
                         <td class="px-3 sm:px-6 py-4">{{ s.serial or loop.index }}</td>
                         <td class="px-3 sm:px-6 py-4">
-                            <div class="font-medium text-gray-900">{{ s.display_name }}</div>
+                            <div class="font-medium text-blue-700" data-profile-user="{{ s.user_id }}">{{ s.display_name }}</div>
                         </td>
                         <td class="px-3 sm:px-6 py-4 text-gray-600">{{ s.user_email }}</td>
                         <td class="px-3 sm:px-6 py-4 text-gray-600">{{ s.partner_label }}</td>
@@ -266,7 +275,7 @@
                         <td class="px-3 py-3 text-center">
                             <div class="relative inline-block text-left">
                                 <button type="button" class="inline-flex items-center justify-center p-1.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 transition-all duration-150" onclick="toggleDropdown('actions-seller-{{ s.user_id }}', event)" aria-haspopup="true" aria-expanded="false" aria-label="Actions for {{ s.display_name }}" title="More options">
-                                    <i class="fas fa-ellipsis-v text-[14px]" aria-hidden="true"></i>
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
                                 </button>
                                 <div id="actions-seller-{{ s.user_id }}" class="hidden absolute right-0 z-10 mt-1 w-36 origin-top-right rounded-xl bg-white border border-slate-200 shadow-lg py-1 ring-1 ring-black/5 focus:outline-none" role="menu">
                                     <a href="{{ url_for('edit_user', user_id=s.user_id) }}" class="flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-blue-700 hover:bg-blue-50 transition" role="menuitem" onclick="closeOtherDropdown('actions-seller-{{ s.user_id }}')"><i class="fas fa-edit text-[10px] text-blue-500" aria-hidden="true"></i> Edit</a>
@@ -345,6 +354,56 @@ function filterAccounts() {
     if (document.getElementById('sellerCount')) document.getElementById('sellerCount').textContent = sellerCount;
 }
 
+function sortAccounts() {
+    var mode = (document.getElementById('sortOrder') || {}).value || 'oldest';
+    document.querySelectorAll('tbody').forEach(function (tb) {
+        var rows = Array.prototype.slice.call(tb.querySelectorAll(':scope > tr.account-row'));
+        if (!rows.length) return;
+        rows.sort(function (a, b) {
+            if (mode === 'name_asc' || mode === 'name_desc') {
+                var c = (a.dataset.name || '').localeCompare(b.dataset.name || '');
+                return mode === 'name_asc' ? c : -c;
+            }
+            var d = (parseFloat(a.dataset.created) || 0) - (parseFloat(b.dataset.created) || 0);
+            return mode === 'oldest' ? d : -d;
+        });
+        rows.forEach(function (r, i) { tb.appendChild(r); var n = r.querySelector('td'); if (n) n.textContent = i + 1; });
+    });
+}
+document.addEventListener('DOMContentLoaded', sortAccounts);
+
+// Delete: erase on the server, then show the row struck through in red as confirmation.
+// (The record is genuinely deleted, so nothing is kept after the page is refreshed.)
+document.addEventListener('DOMContentLoaded', function () {
+    // Move each delete form's inline confirm() into the handler below, so Cancel really cancels.
+    document.querySelectorAll('form[action*="/delete_user/"]').forEach(function (f) {
+        var m = (f.getAttribute('onsubmit') || '').match(/confirm\(\s*(['"])([\s\S]*?)\1\s*\)/);
+        f.dataset.confirm = m ? m[2] : 'Are you sure you want to delete this record? This cannot be undone.';
+        f.removeAttribute('onsubmit');
+    });
+});
+document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!form.action || form.action.indexOf('/delete_user/') === -1) return;
+    e.preventDefault();
+    if (!window.confirm(form.dataset.confirm || 'Are you sure you want to delete this record?')) return;
+    var row = form.closest('tr');
+    fetch(form.action, {method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'}, credentials: 'same-origin'})
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            if (!res.success) { alert(res.message || 'Could not delete this record.'); return; }
+            if (row) {
+                row.classList.add('deleted-row');
+                row.setAttribute('data-deleted', '1');
+                row.querySelectorAll('td').forEach(function (td) { td.style.color = '#dc2626'; td.style.textDecoration = 'line-through'; });
+                var actions = row.querySelector('td:last-child');
+                if (actions) { actions.style.textDecoration = 'none'; actions.innerHTML = '<span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[11px] font-semibold no-underline">Deleted</span>'; }
+            }
+            document.querySelectorAll('[id^="actions-"]').forEach(function (el) { el.classList.add('hidden'); });
+        })
+        .catch(function () { alert('Network error. Please try again.'); });
+}, true);
+
 function resetFilters() {
     document.getElementById('searchInput').value = '';
     document.getElementById('typeFilter').value = '';
@@ -365,6 +424,7 @@ function toggleDropdown(dropdownId, event) {
     document.querySelectorAll('[id^="actions-"]').forEach(el => el.classList.add('hidden'));
     if (isHidden) {
         dropdown.classList.remove('hidden');
+        if (window.placeFloatingMenu) placeFloatingMenu(dropdown.previousElementSibling, dropdown);
         const btn = dropdown.previousElementSibling;
         if (btn) btn.setAttribute('aria-expanded', 'true');
     }

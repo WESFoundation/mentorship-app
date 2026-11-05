@@ -199,7 +199,7 @@
           <tr class="mentee-row hover:bg-gray-50 transition-colors">
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap text-[11px] sm:text-sm font-mono text-gray-500">{{ mentee.serial }}</td>
             <td class="px-1.5 sm:px-2.5 py-3 whitespace-nowrap max-w-[220px]">
-              <div class="flex items-center">
+              <div class="flex items-center" data-profile-user="{{ mentee.user_id }}">
                 {% set mentee_pic = mentee.profile_picture or (mentee.user.profile_picture_url if mentee.user else None) %}
                 {% if mentee_pic %}
                   {% if mentee_pic.startswith('http') %}
@@ -691,6 +691,7 @@
       if (d !== dropdown) d.classList.add('hidden');
     });
     dropdown.classList.toggle('hidden');
+    if (!dropdown.classList.contains('hidden') && window.placeFloatingMenu) placeFloatingMenu(btn, dropdown);
   }
 
   document.addEventListener('click', function(e) {
