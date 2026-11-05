@@ -1843,7 +1843,7 @@ function openEditMeetingModal() {
     toggleEditCustomLink();
 
     // Timezone
-    document.getElementById('edit-timezone').value = meeting.timezone || 'Asia/Kolkata';
+    document.getElementById('edit-timezone').value = meeting.timezone || (Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Luxembourg');
 
     // Flag Institute checkbox — pre-check if meeting was flagged
     document.getElementById('edit-include-institutions').checked = !!meeting.include_institutions;

@@ -17813,7 +17813,7 @@ def create_teams_online_meeting(title, start_utc, end_utc, attendee_emails, desc
     join_url, _ = create_teams_calendar_event(title, start_utc, end_utc, attendee_emails, description=description)
     return join_url
 
-def update_teams_calendar_event(event_id, new_start_utc, new_end_utc, title=None, description=None):
+def update_teams_calendar_event(event_id, new_start_utc, new_end_utc, title=None, description=None, attendee_emails=None):
     """Update an existing Teams calendar event via Microsoft Graph API."""
     if not event_id:
         return False
@@ -17856,6 +17856,11 @@ def update_teams_calendar_event(event_id, new_start_utc, new_end_utc, title=None
                 "contentType": "HTML",
                 "content": str(description).replace("\n", "<br>")
             }
+        if attendee_emails:
+            patch_body["attendees"] = [
+                {"emailAddress": {"address": em.strip()}, "type": "required"}
+                for em in attendee_emails if em and isinstance(em, str) and em.strip()
+            ]
         resp = http_requests.patch(url, json=patch_body, headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
@@ -19044,7 +19049,7 @@ def update_meeting_ajax():
     if meeting.status in ("cancelled", "rejected"):
         return jsonify({"error": "Cancelled or rejected meetings cannot be edited"}), 400
 
-    from datetime import datetime as dt, date as date_type, time as time_type
+    from datetime import datetime as dt, date as date_type, time as time_type, timezone as dt_timezone
     meeting_dt = dt.combine(meeting.meeting_date, meeting.meeting_time)
     if meeting_dt < dt.now():
         return jsonify({"error": "Past meetings cannot be edited"}), 400
@@ -19082,21 +19087,57 @@ def update_meeting_ajax():
         return jsonify({"error": "Start time is required"}), 400
 
     try:
-        meeting_date = date_type.fromisoformat(date_str)
-        time_parts = start_time.split(":")
-        meeting_time = time_type(int(time_parts[0]), int(time_parts[1]), int(time_parts[2]) if len(time_parts) > 2 else 0)
-        
-        # Check that the new date and time are not in the past
+        parsed_time = None
+        for fmt in ("%H:%M:%S", "%H:%M", "%I:%M %p", "%I:%M%p", "%I:%M %P", "%I:%M%P"):
+            try:
+                parsed_time = dt.strptime(start_time.strip(), fmt).time()
+                break
+            except Exception:
+                pass
+        if not parsed_time:
+            try:
+                parsed_time = dt.strptime(f"{date_str} {start_time}", "%Y-%m-%d %H:%M").time()
+            except Exception:
+                pass
+        if not parsed_time:
+            return jsonify({"error": "Invalid time format. Please check your selection."}), 400
+
+        try:
+            meeting_date = date_type.fromisoformat(date_str)
+        except Exception:
+            meeting_date = dt.strptime(date_str, "%Y-%m-%d").date()
+
+        meeting_time = parsed_time
         new_dt = dt.combine(meeting_date, meeting_time)
         if new_dt < dt.now():
             return jsonify({"error": "Meeting date and time cannot be set to the past"}), 400
 
         meeting_duration = int(str(duration).strip()) if duration else meeting.meeting_duration
+        timezone_val = (data.get("timezone") or "Europe/Luxembourg").strip()
+
+        try:
+            from zoneinfo import ZoneInfo
+            tzobj = ZoneInfo(timezone_val)
+        except Exception:
+            tzobj = dt_timezone.utc
+        new_start_utc = new_dt.replace(tzinfo=tzobj).astimezone(dt_timezone.utc)
+        new_end_utc = (new_dt + timedelta(minutes=meeting_duration)).replace(tzinfo=tzobj).astimezone(dt_timezone.utc)
 
         meeting.meeting_title = title
         meeting.meeting_date = meeting_date
         meeting.meeting_time = meeting_time
         meeting.meeting_duration = meeting_duration
+
+        # Determine platform
+        platform = (data.get("platform") or "").strip().lower()
+        if not platform:
+            if str(meeting.gcal_event_id or "").startswith("AAMk") or ("teams" in str(meeting.meet_link or "").lower()):
+                platform = "teams"
+            elif meeting.gcal_event_id:
+                platform = "google"
+            else:
+                platform = "custom"
+
         if meet_link and not meet_link.endswith("/new") and not meet_link.endswith("/create"):
             meeting.meet_link = meet_link
 
@@ -19119,7 +19160,6 @@ def update_meeting_ajax():
         if incoming_mentor_ids:
             participants["mentor_ids"] = [int(mid) for mid in incoming_mentor_ids if mid]
         if incoming_mentee_ids:
-            # Add new mentees to the existing roster instead of replacing it
             merged_mentee_ids = []
             existing_ids = list(participants.get("mentee_ids") or [])
             if not existing_ids and participants.get("mentee_id"):
@@ -19143,84 +19183,166 @@ def update_meeting_ajax():
         if participants.get("mentee_id") or participants.get("mentor_id"):
             _save_meeting_participants(meeting.id, participants)
 
-        # Update description while keeping the embedded participant tag
+        # Update description while keeping embedded participant tag
         new_desc = description if description else _clean_meeting_description(meeting.meeting_description)
         meeting.meeting_description = _embed_meeting_participants(new_desc, participants)
 
-        # Update calendar event if exists (Google Calendar or MS Teams)
+        # Collect all attendee emails
+        attendee_emails = []
+        if user and user.email:
+            attendee_emails.append(user.email)
+
+        mentor_ids_pool = list(incoming_mentor_ids) if incoming_mentor_ids else list(participants.get("mentor_ids") or [])
+        if not mentor_ids_pool and participants.get("mentor_id"):
+            mentor_ids_pool = [participants["mentor_id"]]
+        if not mentor_ids_pool and meeting.requested_to_id:
+            mentor_ids_pool = [meeting.requested_to_id]
+        for mid in mentor_ids_pool:
+            try:
+                m_u = db.session.get(User, int(mid))
+                if m_u and m_u.email and m_u.email not in attendee_emails:
+                    attendee_emails.append(m_u.email)
+            except Exception:
+                pass
+
+        mentee_ids_pool = list(incoming_mentee_ids) if incoming_mentee_ids else list(participants.get("mentee_ids") or [])
+        if not mentee_ids_pool and participants.get("mentee_id"):
+            mentee_ids_pool = [participants["mentee_id"]]
+        if not mentee_ids_pool and meeting.requester_id and meeting.requester_id != user.id:
+            mentee_ids_pool = [meeting.requester_id]
+        for eid in mentee_ids_pool:
+            try:
+                e_u = db.session.get(User, int(eid))
+                if e_u and e_u.email and e_u.email not in attendee_emails:
+                    attendee_emails.append(e_u.email)
+            except Exception:
+                pass
+
+        # Also handle included institution users
+        include_institutions = data.get("include_institutions", False)
+        included_institution_users = []
+        if include_institutions and (participants.get("mentee_id") or participants.get("mentor_id")):
+            try:
+                if participants.get("mentee_id"):
+                    mentee_user = db.session.get(User, int(participants["mentee_id"]))
+                    if mentee_user and mentee_user.institution_id:
+                        inst = Institution.query.get(mentee_user.institution_id)
+                        if inst and inst.user and inst.user.email not in attendee_emails:
+                            attendee_emails.append(inst.user.email)
+                            included_institution_users.append(inst.user)
+                if participants.get("mentor_id"):
+                    mentor_user = db.session.get(User, int(participants["mentor_id"]))
+                    if mentor_user and mentor_user.institution_id:
+                        inst = Institution.query.get(mentor_user.institution_id)
+                        if inst and inst.user and inst.user.email not in attendee_emails:
+                            attendee_emails.append(inst.user.email)
+                            included_institution_users.append(inst.user)
+            except Exception as e:
+                app.logger.error(f"Error gathering institution users: {e}")
+
+        # Synchronize Calendar (Teams or Google)
         calendar_updated = False
-        if meeting.gcal_event_id:
-            is_teams = str(meeting.gcal_event_id).startswith("AAMk") or ("teams" in str(meeting.meet_link or "").lower())
-            if is_teams:
-                try:
-                    try:
-                        from zoneinfo import ZoneInfo
-                        tzobj = ZoneInfo(timezone_val)
-                    except Exception:
-                        tzobj = dt.timezone.utc
-                    new_start_utc = new_dt.replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
-                    new_end_utc = (new_dt + timedelta(minutes=meeting_duration)).replace(tzinfo=tzobj).astimezone(dt.timezone.utc)
-                    calendar_updated = update_teams_calendar_event(meeting.gcal_event_id, new_start_utc, new_end_utc, title=title, description=new_desc)
-                    app.logger.info(f"Teams event {meeting.gcal_event_id} update result on edit: {calendar_updated}")
-                except Exception as e:
-                    app.logger.error(f"Error updating Teams calendar event on edit: {e}")
+        if platform == "teams":
+            if meeting.gcal_event_id and str(meeting.gcal_event_id).startswith("AAMk"):
+                calendar_updated = update_teams_calendar_event(
+                    meeting.gcal_event_id,
+                    new_start_utc,
+                    new_end_utc,
+                    title=title,
+                    description=new_desc,
+                    attendee_emails=attendee_emails
+                )
+                app.logger.info(f"Teams event {meeting.gcal_event_id} update result on edit: {calendar_updated}")
             else:
-                try:
-                    calendar_updated = update_google_calendar_event(
-                        event_id=meeting.gcal_event_id,
-                        new_start_datetime=new_dt,
-                        duration_minutes=meeting_duration,
-                        timezone=timezone_val,
-                        title=title,
-                        description=new_desc
-                    )
-                    app.logger.info(f"Google Calendar event {meeting.gcal_event_id} update result on edit: {calendar_updated}")
-                except Exception as e:
-                    app.logger.error(f"Error updating Google Calendar event on edit: {e}")
+                teams_meet_link, teams_event_id = create_teams_calendar_event(
+                    title=title,
+                    start_utc=new_start_utc,
+                    end_utc=new_end_utc,
+                    attendee_emails=attendee_emails,
+                    description=new_desc
+                )
+                if teams_meet_link:
+                    meeting.meet_link = teams_meet_link
+                    meeting.gcal_event_id = teams_event_id
+                    calendar_updated = True
+                    app.logger.info(f"Created new Teams event {teams_event_id} for meeting {meeting.id} on edit")
+        elif platform == "google":
+            if meeting.gcal_event_id and not str(meeting.gcal_event_id).startswith("AAMk"):
+                calendar_updated = update_google_calendar_event(
+                    event_id=meeting.gcal_event_id,
+                    new_start_datetime=new_dt,
+                    duration_minutes=meeting_duration,
+                    timezone=timezone_val,
+                    title=title,
+                    description=new_desc
+                )
+                app.logger.info(f"Google Calendar event {meeting.gcal_event_id} update result on edit: {calendar_updated}")
 
         db.session.commit()
 
-        # Handle include_institutions flag — send notification emails to institution users
-        include_institutions = data.get("include_institutions", False)
-        if include_institutions:
-            try:
-                included_institution_users = []
-                participants = _get_meeting_participants(meeting.id)
-                if participants:
-                    mentee_id = participants.get("mentee_id")
-                    mentor_id = participants.get("mentor_id")
-                    if mentee_id:
-                        mentee_user = db.session.get(User, int(mentee_id))
-                        if mentee_user and mentee_user.institution_id:
-                            inst = Institution.query.get(mentee_user.institution_id)
-                            if inst and inst.user:
-                                included_institution_users.append(inst.user)
-                    if mentor_id:
-                        mentor_user = db.session.get(User, int(mentor_id))
-                        if mentor_user and mentor_user.institution_id:
-                            inst = Institution.query.get(mentor_user.institution_id)
-                            if inst and inst.user and inst.user.id not in [u.id for u in included_institution_users]:
-                                included_institution_users.append(inst.user)
-                if included_institution_users:
-                    from datetime import datetime as dt
-                    start_datetime = dt.combine(meeting_date, meeting_time)
-                    _send_meeting_link_email(
-                        meeting=meeting,
-                        meet_link=meet_link,
-                        calendar_add_link="",
-                        teams_calendar_link="",
-                        platform=meeting.meeting_platform if hasattr(meeting, 'meeting_platform') else "google",
-                        title=title,
-                        start_datetime=start_datetime,
-                        timezone=timezone_val,
-                        mentor_id=participants.get("mentor_id") if participants else None,
-                        mentee_id=participants.get("mentee_id") if participants else None,
-                        supervisor=user,
-                        requested_to=None,
-                        extra_recipients=included_institution_users
-                    )
-            except Exception as e:
-                app.logger.error(f"Failed to send institution notification on edit: {e}")
+        # Send Email Notifications and In-App Notifications to ALL attendees
+        recipients_map = {}
+        for em in attendee_emails:
+            u_obj = User.query.filter_by(email=em).first()
+            if u_obj:
+                recipients_map[u_obj.email] = u_obj.name
+
+        def _send_edit_notification_worker(app_ctx, rec_map, m_title, m_date_str, m_time_str, dur_min, m_link, p_label, org_name, tz_str):
+            with app_ctx:
+                for r_email, r_name in rec_map.items():
+                    subj = f"Meeting Updated: {m_title}"
+                    link_btn = f'<div style="text-align: center; margin: 25px 0;"><a href="{m_link}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Video Call</a></div>' if m_link else ''
+                    body_html = f"""
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+                        <h2 style="color: #2563eb; margin-top: 0;">Meeting Schedule Updated</h2>
+                        <p>Hello <strong>{r_name}</strong>,</p>
+                        <p><strong>{org_name}</strong> has updated the date and time for the meeting <strong>{m_title}</strong>.</p>
+                        <div style="background: #eff6ff; padding: 15px; border-left: 4px solid #2563eb; border-radius: 6px; margin: 20px 0;">
+                            <p style="margin: 4px 0;"><strong>Topic:</strong> {m_title}</p>
+                            <p style="margin: 4px 0;"><strong>New Date:</strong> {m_date_str}</p>
+                            <p style="margin: 4px 0;"><strong>New Time:</strong> {m_time_str} ({tz_str})</p>
+                            <p style="margin: 4px 0;"><strong>Duration:</strong> {dur_min} minutes</p>
+                            <p style="margin: 4px 0;"><strong>Platform:</strong> {p_label}</p>
+                        </div>
+                        {link_btn}
+                        <p style="color: #64748b; font-size: 13px;">Please check your calendar for the updated time and join on time.</p>
+                    </div>
+                    """
+                    try:
+                        send_email_reminder(r_email, subj, body_html)
+                    except Exception as mail_err:
+                        app.logger.warning(f"Error sending meeting update email to {r_email}: {mail_err}")
+
+        # In-app notifications
+        for em in attendee_emails:
+            u_obj = User.query.filter_by(email=em).first()
+            if u_obj:
+                notif_msg = f'Meeting "{title}" rescheduled to {meeting_date.strftime("%B %d, %Y")} at {meeting_time.strftime("%I:%M %p")} ({timezone_val})'
+                if meeting.meet_link:
+                    notif_msg += f' — <a href="{meeting.meet_link}">Join Meeting</a>'
+                create_notification(u_obj.id, notif_msg, link=meeting.meet_link)
+
+        # Launch email worker
+        try:
+            platform_label = "Microsoft Teams" if platform == "teams" else ("Google Meet" if platform == "google" else "Online Meeting")
+            threading.Thread(
+                target=_send_edit_notification_worker,
+                args=(
+                    app.app_context(),
+                    recipients_map,
+                    meeting.meeting_title,
+                    meeting.meeting_date.strftime('%B %d, %Y'),
+                    meeting.meeting_time.strftime('%I:%M %p'),
+                    meeting.meeting_duration,
+                    meeting.meet_link,
+                    platform_label,
+                    user.name,
+                    timezone_val
+                ),
+                daemon=True
+            ).start()
+        except Exception as th_err:
+            app.logger.warning(f"Failed to launch meeting edit email thread: {th_err}")
 
         return jsonify({"success": True, "message": "Meeting updated successfully", "calendar_updated": calendar_updated})
     except ValueError as e:
