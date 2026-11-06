@@ -81,4 +81,5 @@ scratch/
 *.md
 !README.md
 *.txt
+!requirements.txt
 .artifacts/
