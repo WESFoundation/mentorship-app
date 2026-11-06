@@ -3871,15 +3871,10 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 return jsonify({"success": False, "message": "Please choose which shop the coupon is being used at."}), 400
             used_shop_id = int(raw_shop)
 
-        raw_redeemer = str(data.get("redeemer_id") or "").strip()
-        redeemer = None
-        if raw_redeemer.isdigit():
-            allowed = {u.id for u in assignees}
-            if int(raw_redeemer) in allowed:
-                redeemer = User.query.get(int(raw_redeemer))
-
+        # Each key belongs to one person, so the redeemer is that holder.
+        redeemer = assignees[0] if assignees else User.query.get(coupon.mentor_id)
         if not redeemer:
-            return jsonify({"success": False, "message": "Please select a valid redeemer for this coupon."}), 400
+            return jsonify({"success": False, "message": "This coupon has not been assigned to anyone yet."}), 400
 
         # Purchase total -> the coupon value WES owes the partner (same maths as the web page).
         import sys as _sys
@@ -4071,33 +4066,30 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 except ValueError:
                     continue
 
-        legacy_mentor_id = next(
-            (h.id for h in holders if str(h.user_type) == "1"), user.id
-        )
-
         created = []
         try:
-            for _ in range(quantity):
-                coupon = MentorCoupon(
-                    code=_api_generate_coupon_code(),
-                    mentor_id=legacy_mentor_id,
-                    issued_by_user_id=user.id,
-                    title=title,
-                    description=(data.get("description") or "").strip() or None,
-                    discount_label=(data.get("discount_label") or "").strip() or None,
-                    status="active",
-                    expires_at=expires_at
-                )
-                db.session.add(coupon)
-                db.session.flush()
-                for holder in holders:
-                    if CouponAssignment:
+            # One unique key per holder per unit of quantity.
+            for holder in (holders or [None]):
+                for _ in range(quantity):
+                    coupon = MentorCoupon(
+                        code=_api_generate_coupon_code(),
+                        mentor_id=(holder.id if holder is not None and str(holder.user_type) == "1" else user.id),
+                        issued_by_user_id=user.id,
+                        title=title,
+                        description=(data.get("description") or "").strip() or None,
+                        discount_label=(data.get("discount_label") or "").strip() or None,
+                        status="active",
+                        expires_at=expires_at
+                    )
+                    db.session.add(coupon)
+                    db.session.flush()
+                    if holder is not None and CouponAssignment:
                         db.session.add(CouponAssignment(
                             coupon_id=coupon.id,
                             user_id=holder.id,
                             assigned_by=user.id
                         ))
-                created.append(coupon)
+                    created.append(coupon)
             db.session.commit()
         except Exception as e:
             db.session.rollback()

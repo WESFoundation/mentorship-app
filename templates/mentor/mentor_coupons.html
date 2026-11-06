@@ -3,6 +3,7 @@
 {% block user %}{{ holder_role }}{% endblock %}
 {% block profiledrop %}{% endblock %}
 {% block content %}
+{% from '_coupon_fields.html' import coupon_fields, coupon_fields_js %}
 
 <style>
     .coupon-card {
@@ -139,29 +140,9 @@
 
     <div id="reqMsg" class="hidden mb-4 rounded-lg px-4 py-3 text-sm"></div>
 
-    <form id="requestForm" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="sm:col-span-2">
-            <label for="reqTitle" class="block text-sm font-medium text-gray-700 mb-1.5">What is the offer? *</label>
-            <input type="text" id="reqTitle" maxlength="200" required
-                   placeholder="Free 30-min mentoring call"
-                   class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm">
-        </div>
-        <div>
-            <label for="reqDiscount" class="block text-sm font-medium text-gray-700 mb-1.5">Discount label</label>
-            <input type="text" id="reqDiscount" maxlength="120" placeholder="1 free session / 10% off"
-                   class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm">
-        </div>
-        <div>
-            <label for="reqQuantity" class="block text-sm font-medium text-gray-700 mb-1.5">How many?</label>
-            <input type="number" id="reqQuantity" min="1" max="200" value="1"
-                   class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm">
-        </div>
-        <div class="sm:col-span-2">
-            <label for="reqDescription" class="block text-sm font-medium text-gray-700 mb-1.5">Details</label>
-            <textarea id="reqDescription" rows="2" placeholder="What the customer gets..."
-                      class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm"></textarea>
-        </div>
-        <div class="sm:col-span-2">
+    <form id="requestForm" novalidate>
+        {{ coupon_fields('rq') }}
+        <div class="mt-4">
             <button type="submit" id="reqBtn"
                     class="px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">
                 Send request
@@ -180,6 +161,8 @@
                     <p class="text-[11px] text-gray-500">
                         x{{ r.quantity }}
                         {% if r.discount_label %} &middot; {{ r.discount_label }}{% endif %}
+                        {% if r.partner_name %} &middot; Only at {{ r.partner_name }}{% endif %}
+                        {% if r.expires_at %} &middot; expires {{ r.expires_at[:10] }}{% endif %}
                         {% if r.created_at %} &middot; {{ r.created_at[:10] }}{% endif %}
                     </p>
                     {% if r.admin_note %}
@@ -327,7 +310,9 @@
 </div>
 {% endif %}
 
+{{ coupon_fields_js() }}
 <script>
+CF.setSellers('rq', {{ sellers|tojson }});
 function copyLink(link) {
     if (!link) return;
     navigator.clipboard.writeText(link).then(function () {
@@ -344,12 +329,7 @@ document.getElementById('requestForm').addEventListener('submit', function (e) {
     fetch('/coupon/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            title: document.getElementById('reqTitle').value,
-            description: document.getElementById('reqDescription').value,
-            discount_label: document.getElementById('reqDiscount').value,
-            quantity: document.getElementById('reqQuantity').value
-        })
+        body: JSON.stringify(CF.get('rq'))
     })
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
         .then(function (res) {
@@ -359,7 +339,7 @@ document.getElementById('requestForm').addEventListener('submit', function (e) {
                     : 'bg-rose-50 text-rose-800 border border-rose-200');
             msg.textContent = (res.body && res.body.message) || 'Something went wrong.';
             if (res.ok && res.body.success) {
-                document.getElementById('requestForm').reset();
+                CF.reset('rq');
                 setTimeout(function () { window.location.reload(); }, 1200);
             } else {
                 btn.disabled = false;

@@ -1,0 +1,142 @@
+{# Shared admin UI for coupon requests: one row layout, one detail/edit popup, one JS.
+   Used by the dashboard card and the All Coupons page, so Accept / Reject / Details
+   behave identically in both places.
+
+   {% from 'supervisor/_coupon_requests.html' import coupon_request_row, coupon_request_modal, coupon_request_js %}
+#}
+{% macro coupon_request_row(r) %}
+<div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5" data-crq-row="{{ r.id }}">
+  <div class="min-w-0 flex-1">
+    <p class="text-sm font-semibold text-slate-900 truncate">{{ r.title }}</p>
+    <p class="text-xs text-slate-500">
+      <span class="font-medium text-blue-700" data-profile-user="{{ r.user_id }}">{{ r.user_name }}</span>
+      {% if r.user_role %}<span class="text-slate-400">({{ r.user_role }})</span>{% endif %}
+      &middot; {{ r.user_email }} &middot; x{{ r.quantity or 1 }}{% if r.discount_label %} &middot; {{ r.discount_label }}{% endif %}
+      {% if r.created_at %}&middot; {{ r.created_at[:10] }}{% endif %}
+    </p>
+    {% if r.description %}<p class="text-xs text-slate-500 mt-0.5 truncate" title="{{ r.description }}">{{ r.description }}</p>{% endif %}
+  </div>
+  <div class="flex flex-wrap items-center gap-2 shrink-0">
+    <button type="button" onclick="CRQ.open({{ r.id }})"
+            class="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+      {{ 'View / edit' if r.status == 'pending' else 'View details' }}
+    </button>
+    {% if r.status == 'pending' %}
+    <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Pending</span>
+    <button type="button" onclick="CRQ.quick({{ r.id }}, 'approve', {{ r.quantity or 1 }})"
+            class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Accept</button>
+    <button type="button" onclick="CRQ.quick({{ r.id }}, 'reject')"
+            class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300">Reject</button>
+    {% else %}
+    <span class="rounded-full px-2 py-0.5 text-xs font-semibold {{ 'bg-emerald-100 text-emerald-700' if r.status == 'approved' else 'bg-slate-200 text-slate-600' }}">
+      {{ r.status|capitalize }}
+    </span>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{% macro coupon_request_modal() %}
+{% from '_coupon_fields.html' import coupon_fields %}
+<div id="crq-modal" class="hidden fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/50" onclick="if(event.target===this)CRQ.close()">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-hidden flex flex-col">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div class="min-w-0">
+        <h3 class="text-base font-bold text-slate-900">Coupon request</h3>
+        <p id="crq-who" class="text-xs text-slate-500 truncate"></p>
+      </div>
+      <button type="button" onclick="CRQ.close()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none" aria-label="Close">&times;</button>
+    </div>
+    <div class="px-6 py-5 overflow-y-auto">
+      <div id="crq-msg" class="hidden mb-4 rounded-lg px-4 py-3 text-sm"></div>
+      <fieldset id="crq-fields">{{ coupon_fields('crq') }}</fieldset>
+      <div class="mt-4">
+        <label class="block text-sm font-semibold text-slate-700 mb-1">Note to the requester <span class="font-normal text-slate-400">(optional, included in the email)</span></label>
+        <textarea id="crq-note" rows="2" maxlength="500" class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm"></textarea>
+      </div>
+      <p id="crq-handled" class="hidden mt-3 text-xs text-slate-500"></p>
+    </div>
+    <div id="crq-actions" class="px-6 py-4 bg-slate-50 flex flex-wrap justify-end gap-2">
+      <button type="button" onclick="CRQ.close()" class="px-4 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-100">Close</button>
+      <button type="button" data-act="save" onclick="CRQ.submit('save')" class="px-4 py-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-100">Save changes</button>
+      <button type="button" data-act="reject" onclick="CRQ.submit('reject')" class="px-4 py-2 rounded-lg bg-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-300">Reject</button>
+      <button type="button" data-act="approve" onclick="CRQ.submit('approve')" class="px-4 py-2 rounded-lg bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-700">Accept &amp; issue</button>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% macro coupon_request_js() %}
+{% from '_coupon_fields.html' import coupon_fields_js %}
+{{ coupon_fields_js() }}
+<script>
+window.CRQ = (function () {
+  var currentId = null;
+  function el(id) { return document.getElementById(id); }
+  function msg(text, ok) {
+    var m = el('crq-msg');
+    if (!text) { m.classList.add('hidden'); return; }
+    m.className = 'mb-4 rounded-lg px-4 py-3 text-sm ' + (ok ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-rose-50 text-rose-800 border border-rose-200');
+    m.textContent = text;
+  }
+  function post(id, body) {
+    return fetch('/coupon/request/' + id + '/status', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (j) { return {ok: r.ok, body: j}; }); });
+  }
+  var api = {
+    open: function (id) {
+      currentId = id; msg('');
+      el('crq-modal').classList.remove('hidden');
+      el('crq-who').textContent = 'Loading...';
+      fetch('/supervisor/coupon_request/' + id, {credentials: 'same-origin'})
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.success) { el('crq-who').textContent = ''; msg(d.message || 'Could not load this request.', false); return; }
+          var r = d.request, pending = r.status === 'pending';
+          CF.setSellers('crq', d.sellers);
+          CF.set('crq', r);
+          el('crq-who').textContent = r.user_name + (r.user_role ? ' (' + r.user_role + ')' : '') + ' · ' + r.user_email +
+            (r.created_at ? ' · requested ' + r.created_at.slice(0, 10) : '') + ' · ' + r.status;
+          el('crq-note').value = r.admin_note || '';
+          el('crq-fields').disabled = !pending; el('crq-note').disabled = !pending;
+          document.querySelectorAll('#crq-actions [data-act]').forEach(function (b) { b.classList.toggle('hidden', !pending); });
+          var h = el('crq-handled');
+          if (!pending && r.handled_at) { h.textContent = r.status.charAt(0).toUpperCase() + r.status.slice(1) + ' on ' + r.handled_at.slice(0, 10) + (d.handled_by_name ? ' by ' + d.handled_by_name : '') + '.'; h.classList.remove('hidden'); }
+          else h.classList.add('hidden');
+        })
+        .catch(function () { el('crq-who').textContent = ''; msg('Could not load this request.', false); });
+    },
+    close: function () { el('crq-modal').classList.add('hidden'); currentId = null; },
+    // Accept / reject straight from the list, without opening the popup.
+    quick: function (id, decision, qty) {
+      var q = decision === 'approve'
+        ? 'Accept this request? ' + (qty || 1) + ' coupon(s) will be issued to the requester, each with its own key.'
+        : 'Reject this request? The requester will be notified.';
+      if (!confirm(q)) return;
+      post(id, {decision: decision}).then(function (res) {
+        if (res.ok && res.body.success) window.location.reload();
+        else alert((res.body && res.body.message) || 'That action failed.');
+      }).catch(function () { alert('Network error. Please try again.'); });
+    },
+    submit: function (decision) {
+      if (!currentId) return;
+      var body = CF.get('crq');
+      body.decision = decision; body.note = el('crq-note').value;
+      if (decision === 'reject') { body = {decision: 'reject', note: body.note}; }
+      if (decision === 'approve' && !confirm('Issue ' + (body.quantity || 1) + ' coupon(s) to the requester now?')) return;
+      msg('Saving...', true);
+      post(currentId, body).then(function (res) {
+        if (res.ok && res.body.success) {
+          msg(res.body.message || 'Done.', true);
+          if (decision === 'save') return;
+          setTimeout(function () { window.location.reload(); }, 600);
+        } else msg((res.body && res.body.message) || 'That action failed.', false);
+      }).catch(function () { msg('Network error. Please try again.', false); });
+    }
+  };
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && currentId) api.close(); });
+  return api;
+})();
+</script>
+{% endmacro %}

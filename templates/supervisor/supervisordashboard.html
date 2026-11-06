@@ -5,6 +5,7 @@
 {% block profiledrop %}{% endblock %}
 
 {% block content %}
+{% from 'supervisor/_coupon_requests.html' import coupon_request_row, coupon_request_modal, coupon_request_js %}
 
 <style>
   .nav-btn {
@@ -161,41 +162,6 @@
         });
       });
     </script>
-
-    <!-- Pending coupon requests (newest 3) -->
-    <div class="mb-5 rounded-xl border border-slate-200 bg-white p-4" id="coupon-requests-card">
-      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <div>
-          <h3 class="text-base font-bold text-slate-900">Coupon requests</h3>
-          <p class="text-xs text-slate-500">Mentors and mentees waiting for a coupon.
-            {% if pending_coupon_total %}<span class="font-semibold text-amber-600">{{ pending_coupon_total }} pending</span>{% endif %}</p>
-        </div>
-        {% if pending_coupon_total > 3 %}
-        <a href="{{ url_for('supervisor_coupons') }}" class="px-3.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700">
-          See more ({{ pending_coupon_total - 3 }} more)
-        </a>
-        {% endif %}
-      </div>
-      {% if pending_coupon_requests %}
-      <div class="space-y-2">
-        {% for r in pending_coupon_requests %}
-        <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5">
-          <div class="min-w-0">
-            <p class="text-sm font-semibold text-slate-900 truncate">{{ r.title }}</p>
-            <p class="text-xs text-slate-500">
-              <span class="font-medium text-blue-700" data-profile-user="{{ r.user_id }}">{{ r.user_name }}</span>
-              &middot; {{ r.user_email }} &middot; x{{ r.quantity or 1 }}{% if r.discount_label %} &middot; {{ r.discount_label }}{% endif %}
-            </p>
-            {% if r.description %}<p class="text-xs text-slate-500 mt-0.5 truncate">{{ r.description }}</p>{% endif %}
-          </div>
-          <a href="{{ url_for('supervisor_coupons') }}" class="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100">Review</a>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="text-sm text-slate-500 py-2">No coupon requests are waiting.</p>
-      {% endif %}
-    </div>
 
     <!-- Enhanced Metrics Cards Row -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
@@ -777,6 +743,31 @@
 
       </div>
     </div>
+
+    <!-- Pending coupon requests (newest 3) - below the analytics -->
+    <div class="mb-2 rounded-xl border border-slate-200 bg-white p-4" id="coupon-requests-card">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div>
+          <h3 class="text-base font-bold text-slate-900">Coupon requests</h3>
+          <p class="text-xs text-slate-500">Mentors and mentees waiting for a coupon.
+            {% if pending_coupon_total %}<span class="font-semibold text-amber-600">{{ pending_coupon_total }} pending</span>{% endif %}</p>
+        </div>
+        {% if pending_coupon_total > 3 %}
+        <a href="{{ url_for('supervisor_coupons') }}" class="px-3.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700">
+          See more ({{ pending_coupon_total - 3 }} more)
+        </a>
+        {% endif %}
+      </div>
+      {% if pending_coupon_requests %}
+      <div class="space-y-2">
+        {% for r in pending_coupon_requests %}{{ coupon_request_row(r) }}{% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-slate-500 py-2">No coupon requests are waiting.</p>
+      {% endif %}
+    </div>
+    {{ coupon_request_modal() }}
+    {{ coupon_request_js() }}
   </section>
 
 
@@ -875,7 +866,7 @@
       <div class="grid p-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr" id="mentorsGrid">
         {% for mentor in mentors %}
         <div class="mentor-card bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-md flex flex-col h-full">
-          <div class="flex items-center gap-4 mb-4">
+          <div class="flex items-center gap-4 mb-4" data-profile-user="{{ mentor.user_id }}">
             {% set mentor_pic = mentor.profile_picture or (mentor.user.profile_picture_url if mentor.user else None) %}
             {% if mentor_pic %}
               {% if mentor_pic.startswith('http') %}
@@ -928,7 +919,7 @@
           </div>
 
           <div class="flex space-x-2 mt-auto pt-4">
-            <button
+            <button type="button" data-profile-user="{{ mentor.user_id }}"
               class="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
               View Profile
             </button>
@@ -1018,7 +1009,7 @@
       <div class="grid p-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr" id="menteesGrid">
         {% for mentee in mentees %}
         <div class="mentee-card bg-white rounded-xl border border-gray-200 p-5 transition-all hover:shadow-md flex flex-col h-full">
-          <div class="flex items-center gap-4 mb-4">
+          <div class="flex items-center gap-4 mb-4" data-profile-user="{{ mentee.user_id }}">
             {% set mentee_pic = mentee.profile_picture or (mentee.user.profile_picture_url if mentee.user else None) %}
             {% if mentee_pic %}
               {% if mentee_pic.startswith('http') %}
@@ -1063,7 +1054,7 @@
           </div>
 
           <div class="flex space-x-2 mt-auto pt-4">
-            <button
+            <button type="button" data-profile-user="{{ mentee.user_id }}"
               class="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
               View Profile
             </button>
