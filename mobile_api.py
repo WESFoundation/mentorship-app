@@ -343,8 +343,23 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             return jsonify({"success": False, "message": "Email is required"}), 400
 
         user = User.query.filter(func.lower(User.email) == email).first()
+        if not user and hasattr(User, "login_email_choice"):
+            user = User.query.filter(
+                or_(
+                    and_(User.login_email_choice == "work", func.lower(User.work_email) == email),
+                    and_(User.login_email_choice == "personal", func.lower(User.personal_email) == email)
+                )
+            ).first()
+
         if not user:
             return jsonify({"success": False, "message": "User not found"}), 404
+
+        if getattr(user, "login_email_choice", None):
+            active_email = user.work_email if user.login_email_choice == "work" else user.personal_email
+            active_email = (active_email or "").strip().lower()
+            if active_email and active_email != email:
+                kind = "work" if user.login_email_choice == "work" else "personal"
+                return jsonify({"success": False, "message": f"This address is kept for records only. Please sign in with your {kind} email."}), 400
 
         if not is_oauth and user.password:
             valid = False
@@ -478,6 +493,11 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         email = (data.get("email") or "").strip().lower()
         password = data.get("password") or ""
         user_type = str(data.get("user_type") or "2").strip()
+        work_email = (data.get("work_email") or "").strip().lower() or None
+        personal_email = (data.get("personal_email") or "").strip().lower() or None
+        login_email_choice = (data.get("login_email_choice") or "").strip().lower()
+        if login_email_choice not in ("work", "personal"):
+            login_email_choice = None
 
         if not email or not name:
             return jsonify({"success": False, "message": "Name and email are required"}), 400
@@ -494,6 +514,12 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             user_type=user_type,
             created_at=datetime.utcnow()
         )
+        if work_email and hasattr(new_user, "work_email"):
+            new_user.work_email = work_email
+        if personal_email and hasattr(new_user, "personal_email"):
+            new_user.personal_email = personal_email
+        if login_email_choice and hasattr(new_user, "login_email_choice"):
+            new_user.login_email_choice = login_email_choice
         db.session.add(new_user)
         db.session.commit()
         if kwargs.get("mark_account_unverified"):
@@ -2844,7 +2870,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "organisation": mp.organisation if mp and mp.organisation else "Organisation",
                 "supervisor_rating": calc_mentor_rating_helper(u.id, mp, MenteeTask, db),
                 "profile_picture": resolve_profile_pic(mp, u),
-                "role": "Mentor"
+                "role": "Mentor",
+                "created_at": u.created_at.isoformat() if u.created_at else None
             })
 
         me_list = []
@@ -2857,7 +2884,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "institution_name": mp.institution_name if mp and mp.institution_name else "Student",
                 "career_goal": mp.career_goal or mp.goal if mp else "Career Guidance",
                 "profile_picture": resolve_profile_pic(mp, u),
-                "role": "Mentee"
+                "role": "Mentee",
+                "created_at": u.created_at.isoformat() if u.created_at else None
             })
 
         s_list = []
@@ -2872,7 +2900,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "display_name": sp.display_name if sp else u.name,
                 "is_verified": True,
                 "profile_picture": resolve_profile_pic(sp, u),
-                "role": "Partner"
+                "role": "Partner",
+                "created_at": u.created_at.isoformat() if u.created_at else None
             })
 
         if user_type_param in ("mentors", "mentor"):
@@ -3943,7 +3972,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
         return jsonify({
             "success": True,
-            "message": "Coupon successfully verified and marked as used.",
+            "message": "Coupon successfully verified and marked as redeemed.",
             "coupon": {
                 "id": coupon.id,
                 "code": coupon.code,
@@ -4251,6 +4280,379 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 )
             except Exception as e:
                 logger.warning(f"Failed to email user about request status: {e}")
+
+        return jsonify({"success": True, "message": f"Request {req_obj.status} successfully."})
+
+    # -------------------------------------------------------------
+    # 10B. COUPON LEDGER & REFUND ENDPOINTS (Admin & Partner)
+    # -------------------------------------------------------------
+    @api_bp.route("/coupons/ledger", methods=["GET"])
+    def api_get_coupon_ledger():
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) not in ("0", "4"):
+            return jsonify({"success": False, "message": "Partner or Administrator privileges required"}), 403
+
+        import sys as _sys
+        _app_mod = _sys.modules.get('__main__') if hasattr(_sys.modules.get('__main__'), '_ledger_rows') else _sys.modules.get('app')
+        _rows_fn = getattr(_app_mod, '_ledger_rows', None)
+        _totals_fn = getattr(_app_mod, '_ledger_totals', None)
+        _currencies = getattr(_app_mod, 'LEDGER_CURRENCIES', {"EUR": "€", "USD": "$", "GBP": "£", "INR": "₹"})
+
+        seller_id = user.id if str(user.user_type) == "4" else None
+        if _rows_fn and _totals_fn:
+            f, raw_rows = _rows_fn(request.args, seller_id=seller_id)
+            raw_totals = _totals_fn(raw_rows)
+        else:
+            raw_rows = []
+            raw_totals = {}
+
+        serialized_rows = []
+        for r in raw_rows:
+            serialized_rows.append({
+                "id": r["id"],
+                "code": r["code"],
+                "title": r["title"],
+                "discount_label": r["discount_label"] or "",
+                "used_at": r["used_at"].isoformat() if r.get("used_at") else None,
+                "partner_id": r.get("partner_id"),
+                "partner": r.get("partner") or "",
+                "shop": r.get("shop") or "",
+                "redeemer": r.get("redeemer") or "",
+                "redeemer_email": r.get("redeemer_email") or "",
+                "goods_total": float(r["goods_total"]) if r.get("goods_total") is not None else None,
+                "currency": r.get("currency") or "EUR",
+                "discount_amount": float(r["discount_amount"]) if r.get("discount_amount") is not None else None,
+                "refunded": bool(r.get("refunded")),
+                "refunded_at": r["refunded_at"].isoformat() if r.get("refunded_at") else None,
+                "refunded_by": r.get("refunded_by") or "",
+                "recovered": float(r["recovered"]) if r.get("recovered") is not None else None,
+                "note": r.get("note") or "",
+                "manual": bool(r.get("manual")),
+                "edited_at": r["edited_at"].isoformat() if r.get("edited_at") else None,
+                "edit_role": r.get("edit_role") or "",
+                "edited_by": r.get("edited_by") or ""
+            })
+
+        serialized_totals = {}
+        for cur, t in raw_totals.items():
+            serialized_totals[cur] = {
+                "count": t["count"],
+                "goods": float(t["goods"]),
+                "owed": float(t["owed"]),
+                "recovered": float(t["recovered"]),
+                "outstanding": float(t["outstanding"]),
+            }
+
+        return jsonify({
+            "success": True,
+            "rows": serialized_rows,
+            "totals": serialized_totals,
+            "currencies": _currencies
+        })
+
+    @api_bp.route("/coupons/<int:coupon_id>/refund", methods=["POST"])
+    def api_coupon_refund(coupon_id):
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) != "0":
+            return jsonify({"success": False, "message": "Administrator privileges required"}), 403
+
+        if not MentorCoupon:
+            return jsonify({"success": False, "message": "Coupon service unavailable"}), 503
+
+        c = db.session.get(MentorCoupon, coupon_id)
+        if not c or c.status != "used":
+            return jsonify({"success": False, "message": "Coupon not found or not redeemed"}), 404
+
+        data = request.get_json(silent=True) or request.form or {}
+        refunded = str(data.get("refunded")).lower() in ("1", "true", "yes", "on")
+
+        import sys as _sys
+        _app_mod = _sys.modules.get('__main__') if hasattr(_sys.modules.get('__main__'), '_money') else _sys.modules.get('app')
+        _money_fn = getattr(_app_mod, '_money', None)
+
+        if refunded:
+            raw_rec = data.get("recovered_amount")
+            amount = _money_fn(raw_rec) if _money_fn and raw_rec not in (None, "") else c.discount_amount
+            if amount is None:
+                return jsonify({"success": False, "message": "Set the coupon value first, then mark it refunded."}), 400
+            c.refunded = True
+            c.refunded_at = datetime.utcnow()
+            c.refunded_by = user.id
+            c.recovered_amount = amount
+        else:
+            c.refunded = False
+            c.refunded_at = None
+            c.refunded_by = None
+            c.recovered_amount = None
+
+        c.refund_note = (data.get("note") or "").strip()[:300] or None
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e)}), 500
+
+        return jsonify({
+            "success": True,
+            "refunded": c.refunded,
+            "recovered_amount": float(c.recovered_amount) if c.recovered_amount is not None else None,
+            "message": f"Coupon marked as {'refunded' if c.refunded else 'unrefunded'}."
+        })
+
+    @api_bp.route("/coupons/<int:coupon_id>/ledger", methods=["POST"])
+    def api_coupon_ledger_update(coupon_id):
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) not in ("0", "4"):
+            return jsonify({"success": False, "message": "Unauthorized"}), 403
+
+        if not MentorCoupon:
+            return jsonify({"success": False, "message": "Coupon service unavailable"}), 503
+
+        c = db.session.get(MentorCoupon, coupon_id)
+        if not c or c.status != "used":
+            return jsonify({"success": False, "message": "Coupon not found or not redeemed"}), 404
+
+        data = request.get_json(silent=True) or request.form or {}
+        import sys as _sys
+        _app_mod = _sys.modules.get('__main__') if hasattr(_sys.modules.get('__main__'), '_money') else _sys.modules.get('app')
+        _money_fn = getattr(_app_mod, '_money', None)
+        _calc_fn = getattr(_app_mod, '_compute_coupon_discount', None)
+
+        if str(user.user_type) == "4":
+            if c.seller_id != user.id:
+                return jsonify({"success": False, "message": "This coupon was redeemed at another partner's shop."}), 403
+            if c.refunded:
+                return jsonify({
+                    "success": False, "locked": True,
+                    "message": "This coupon has already been refunded, so the bill can no longer be changed. Contact admin for adjustments."
+                }), 409
+            g = _money_fn(data.get("goods_total")) if _money_fn else None
+            if g is None or g <= 0:
+                return jsonify({"success": False, "message": "Enter total bill amount (more than 0)."}), 400
+            c.goods_total = g
+            cur = (data.get("goods_currency") or "").strip().upper()
+            if cur:
+                c.goods_currency = cur
+            if not c.discount_manual and _calc_fn:
+                calc = _calc_fn(c.discount_label, g)
+                if calc is not None:
+                    c.discount_amount = calc
+            c.ledger_edited_by = user.id
+            c.ledger_edited_at = datetime.utcnow()
+            c.ledger_edit_role = "partner"
+        else:
+            if "goods_total" in data:
+                g = _money_fn(data.get("goods_total")) if _money_fn else None
+                if g is None or g < 0:
+                    return jsonify({"success": False, "message": "Enter a valid goods total."}), 400
+                c.goods_total = g
+                if "discount_amount" not in data and not c.discount_manual and _calc_fn:
+                    calc = _calc_fn(c.discount_label, g)
+                    if calc is not None:
+                        c.discount_amount = calc
+            if "discount_amount" in data:
+                d = _money_fn(data.get("discount_amount")) if _money_fn else None
+                if d is None or d < 0:
+                    return jsonify({"success": False, "message": "Enter a valid coupon value."}), 400
+                c.discount_amount = d
+                c.discount_manual = True
+            cur = (data.get("goods_currency") or "").strip().upper()
+            if cur:
+                c.goods_currency = cur
+            if c.refunded and c.discount_amount is not None:
+                c.recovered_amount = c.discount_amount
+            c.ledger_edited_by = user.id
+            c.ledger_edited_at = datetime.utcnow()
+            c.ledger_edit_role = "admin"
+            note = (data.get("note") or "").strip()[:300]
+            if note:
+                c.refund_note = note
+
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e)}), 500
+
+        return jsonify({
+            "success": True,
+            "goods_total": float(c.goods_total) if c.goods_total is not None else None,
+            "discount_amount": float(c.discount_amount) if c.discount_amount is not None else None,
+            "refunded": bool(c.refunded),
+            "message": "Ledger entry updated successfully."
+        })
+
+    # -------------------------------------------------------------
+    # 10C. ADMIN USER PROFILE SUMMARY & ACCOUNT MANAGEMENT
+    # -------------------------------------------------------------
+    @api_bp.route("/admin/user_summary/<int:user_id>", methods=["GET"])
+    def api_admin_user_summary(user_id):
+        admin = get_current_user_from_req(User)
+        if not admin or str(admin.user_type) != "0":
+            return jsonify({"success": False, "message": "Administrator privileges required"}), 403
+
+        target_user = db.session.get(User, user_id)
+        if not target_user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        logger.info(f"ADMIN_PROFILE_VIEW admin_id={admin.id} target_id={target_user.id} target_type={target_user.user_type}")
+
+        ut = str(target_user.user_type or "")
+        role = {"0": "Admin", "1": "Mentor", "2": "Mentee", "3": "Institution", "4": "Partner"}.get(ut, "User")
+        rows = []
+        pic = target_user.profile_picture_url or ""
+        completion = None
+
+        def add(label, value):
+            if value not in (None, "", []):
+                rows.append([label, str(value)])
+
+        add("Email", target_user.email)
+        if target_user.work_email and target_user.work_email != target_user.email:
+            add("Work email", target_user.work_email)
+        if target_user.personal_email and target_user.personal_email != target_user.email:
+            add("Personal email", target_user.personal_email)
+        add("Joined", target_user.created_at.strftime("%d %b %Y") if target_user.created_at else "")
+
+        if ut == "1":
+            mp = MentorProfile.query.filter_by(user_id=target_user.id).first() if MentorProfile else None
+            if mp:
+                pic = mp.profile_picture or pic
+                add("Profession", mp.profession)
+                add("Organisation", mp.organisation)
+                add("Experience", (mp.years_of_experience + " yrs") if mp.years_of_experience else "")
+                loc_parts = [getattr(mp, "city", None), getattr(mp, "state", None), getattr(mp, "country", None)]
+                add("Location", ", ".join(x for x in loc_parts if x))
+                add("WhatsApp", mp.whatsapp)
+                add("Skills", mp.skills)
+                add("LinkedIn", getattr(mp, "linkedin_link", ""))
+        elif ut == "2":
+            mp = MenteeProfile.query.filter_by(user_id=target_user.id).first() if MenteeProfile else None
+            if mp:
+                pic = mp.profile_picture or pic
+                add("School / college", mp.school_college_name)
+                add("Stream", mp.stream)
+                add("Goal", (mp.goal or "")[:200])
+                add("Location", ", ".join(x for x in (mp.city, mp.state, mp.country) if x))
+                add("Mobile", mp.mobile_number)
+        elif ut == "3":
+            inst = Institution.query.filter_by(user_id=target_user.id).first() if Institution else None
+            if inst:
+                pic = inst.profile_picture or pic
+                add("Contact person", inst.contact_person)
+                add("Contact email", inst.contact_email)
+                add("Phone", inst.contact_phone)
+                add("Location", ", ".join(x for x in (inst.city, inst.country) if x))
+                add("Status", inst.status)
+            if target_user.institution_id:
+                add("Mentors", User.query.filter_by(user_type="1", institution_id=target_user.institution_id).count())
+        elif ut == "4":
+            sp = SellerProfile.query.filter_by(user_id=target_user.id).first() if SellerProfile else None
+            if sp:
+                pic = sp.profile_picture or pic
+                add("Business", sp.display_name)
+                add("Type", sp.partner_label)
+                add("Category", sp.business_category)
+                add("Location", ", ".join(x for x in (sp.city, sp.state, sp.country) if x))
+                add("Phone", sp.contact_phone)
+                add("Shops owned", getattr(sp, "shop_count", 1))
+                if MentorCoupon:
+                    add("Coupons redeemed", MentorCoupon.query.filter(MentorCoupon.seller_id == target_user.id, MentorCoupon.used_at.isnot(None)).count())
+                if SellerReferral:
+                    add("People referred", SellerReferral.query.filter_by(seller_id=target_user.id).count())
+
+        if ut in ("1", "2"):
+            compute_fn = kwargs.get("compute_profile_completeness")
+            if compute_fn:
+                try:
+                    completion = int(compute_fn(target_user.id, ut) or 0)
+                except Exception:
+                    completion = None
+            if SellerReferral:
+                ref = SellerReferral.query.filter_by(user_id=target_user.id).first()
+                if ref:
+                    sp = SellerProfile.query.filter_by(user_id=ref.seller_id).first() if SellerProfile else None
+                    add("Referred by", f"{sp.display_name if sp else (ref.seller.name if hasattr(ref, 'seller') and ref.seller else 'Partner')} ({ref.status})")
+            add("Institution", target_user.institution)
+
+        return jsonify({
+            "success": True,
+            "id": target_user.id,
+            "name": target_user.name,
+            "role": role,
+            "picture": pic,
+            "completion": completion,
+            "rows": rows,
+        })
+
+    @api_bp.route("/admin/users/<int:user_id>", methods=["DELETE", "POST"])
+    @api_bp.route("/admin/users/<int:user_id>/delete", methods=["POST"])
+    def api_admin_delete_user(user_id):
+        admin = get_current_user_from_req(User)
+        if not admin or str(admin.user_type) != "0":
+            return jsonify({"success": False, "message": "Administrator privileges required"}), 403
+
+        target_user = db.session.get(User, user_id)
+        if not target_user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        user_name = target_user.name
+        user_email = target_user.email
+
+        try:
+            tables_to_clean = [
+                ("mentor_profile", "user_id"),
+                ("mentee_profile", "user_id"),
+                ("supervisor_profile", "user_id"),
+                ("institutions", "user_id"),
+                ("mentorship_requests", "mentee_id"),
+                ("mentorship_requests", "mentor_id"),
+                ("meeting_requests", "requester_id"),
+                ("meeting_requests", "requested_to_id"),
+                ("mentee_tasks", "mentee_id"),
+                ("mentee_tasks", "mentor_id"),
+                ("personal_tasks", "mentee_id"),
+                ("personal_tasks", "mentor_id"),
+                ("task_ratings", "mentee_id"),
+                ("task_ratings", "mentor_id"),
+                ("seller_profiles", "user_id"),
+                ("seller_shops", "seller_user_id"),
+                ("seller_referrals", "user_id"),
+                ("seller_referrals", "seller_id"),
+                ("coupon_requests", "user_id"),
+                ("account_verifications", "user_id"),
+                ("notifications", "user_id"),
+                ("coupon_assignments", "user_id"),
+                ("chat_messages", "sender_id"),
+                ("chat_conversations", "participant1_id"),
+                ("chat_conversations", "participant2_id"),
+            ]
+
+            from sqlalchemy import text as _text
+            for table, column in tables_to_clean:
+                try:
+                    with db.session.begin_nested():
+                        db.session.execute(_text(f"DELETE FROM {table} WHERE {column} = :uid"), {"uid": user_id})
+                except Exception as clean_err:
+                    logger.warning(f"api_admin_delete_user: skipped {table}.{column}: {clean_err}")
+
+            keeper = admin.id
+            if MentorCoupon:
+                for col, val in (("seller_id", None), ("redeemed_by_user_id", None), ("partner_user_id", None),
+                                 ("issued_by_user_id", None), ("refunded_by", None), ("mentor_id", keeper)):
+                    try:
+                        db.session.execute(_text(f"UPDATE mentor_coupons SET {col} = :v WHERE {col} = :uid"), {"v": val, "uid": user_id})
+                    except Exception as ce:
+                        logger.warning(f"api_admin_delete_user: coupon unlink {col}: {ce}")
+
+            db.session.delete(target_user)
+            db.session.commit()
+            logger.info(f"ADMIN_USER_ERASED admin_id={admin.id} erased_user_id={user_id}")
+
+            return jsonify({"success": True, "message": f"{user_name} ({user_email}) has been permanently deleted."})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": f"Error deleting user: {str(e)}"}), 500
 
     # -------------------------------------------------------------
     # 11. IN-APP CHAT REST ENDPOINTS
