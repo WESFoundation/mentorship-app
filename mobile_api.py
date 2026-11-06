@@ -4600,7 +4600,37 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         user_email = target_user.email
 
         try:
+            from sqlalchemy import text as _text
+
+            # 1. Nullify references where target user is a secondary participant/actor
+            nullable_fk_cleanups = [
+                ("meeting_requests", "rescheduled_by_id"),
+                ("mentorship_requests", "rated_by"),
+                ("mentor_profile", "referred_by_seller_id"),
+                ("seller_profiles", "verified_by"),
+                ("coupon_assignments", "assigned_by"),
+                ("coupon_requests", "handled_by"),
+                ("resource_notes", "mentor_id"),
+                ("personal_tasks", "mentor_id"),
+            ]
+            for table, col in nullable_fk_cleanups:
+                try:
+                    with db.session.begin_nested():
+                        db.session.execute(_text(f"UPDATE {table} SET {col} = NULL WHERE {col} = :uid"), {"uid": user_id})
+                except Exception as null_err:
+                    logger.warning(f"api_admin_delete_user: nullify {table}.{col}: {null_err}")
+
+            # Unlink institutions owned by this user
+            try:
+                with db.session.begin_nested():
+                    db.session.execute(_text("UPDATE signup_details SET institution_id = NULL WHERE institution_id IN (SELECT id FROM institutions WHERE user_id = :uid)"), {"uid": user_id})
+                    db.session.execute(_text("UPDATE resource_notes SET institution_id = NULL WHERE institution_id IN (SELECT id FROM institutions WHERE user_id = :uid)"), {"uid": user_id})
+            except Exception as inst_err:
+                logger.warning(f"api_admin_delete_user: unlink institution: {inst_err}")
+
+            # 2. Delete related records first (due to foreign key constraints)
             tables_to_clean = [
+                ("profile_completion_reminders", "user_id"),
                 ("mentor_profile", "user_id"),
                 ("mentee_profile", "user_id"),
                 ("supervisor_profile", "user_id"),
@@ -4615,6 +4645,12 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 ("personal_tasks", "mentor_id"),
                 ("task_ratings", "mentee_id"),
                 ("task_ratings", "mentor_id"),
+                ("mentee_feedbacks", "mentee_id"),
+                ("mentor_reflections", "mentor_id"),
+                ("resource_notes", "mentee_id"),
+                ("mentor_sourcing_requests", "mentee_id"),
+                ("scholarly_applications", "mentee_id"),
+                ("premium_applications", "mentor_id"),
                 ("seller_profiles", "user_id"),
                 ("seller_shops", "seller_user_id"),
                 ("seller_referrals", "user_id"),
@@ -4628,7 +4664,6 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 ("chat_conversations", "participant2_id"),
             ]
 
-            from sqlalchemy import text as _text
             for table, column in tables_to_clean:
                 try:
                     with db.session.begin_nested():
@@ -4641,11 +4676,15 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 for col, val in (("seller_id", None), ("redeemed_by_user_id", None), ("partner_user_id", None),
                                  ("issued_by_user_id", None), ("refunded_by", None), ("mentor_id", keeper)):
                     try:
-                        db.session.execute(_text(f"UPDATE mentor_coupons SET {col} = :v WHERE {col} = :uid"), {"v": val, "uid": user_id})
+                        with db.session.begin_nested():
+                            db.session.execute(_text(f"UPDATE mentor_coupons SET {col} = :v WHERE {col} = :uid"), {"v": val, "uid": user_id})
                     except Exception as ce:
                         logger.warning(f"api_admin_delete_user: coupon unlink {col}: {ce}")
 
-            db.session.delete(target_user)
+            db.session.expire_all()
+            user_to_delete = db.session.get(User, user_id)
+            if user_to_delete:
+                db.session.delete(user_to_delete)
             db.session.commit()
             logger.info(f"ADMIN_USER_ERASED admin_id={admin.id} erased_user_id={user_id}")
 

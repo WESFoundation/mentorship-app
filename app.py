@@ -2128,8 +2128,8 @@ class User(db.Model):
     premium = db.Column(db.Boolean, default=False)
 
     #connect form another table
-    mentor_profile = db.relationship("MentorProfile", backref="user", uselist=False, foreign_keys="MentorProfile.user_id")
-    mentee_profile = db.relationship("MenteeProfile", backref="user_ref", uselist=False, foreign_keys="MenteeProfile.user_id", overlaps="mentee_profile_ref,user")
+    mentor_profile = db.relationship("MentorProfile", backref=db.backref("user", passive_deletes=True), uselist=False, foreign_keys="MentorProfile.user_id", cascade="all, delete-orphan")
+    mentee_profile = db.relationship("MenteeProfile", backref=db.backref("user_ref", passive_deletes=True), uselist=False, foreign_keys="MenteeProfile.user_id", overlaps="mentee_profile_ref,user", cascade="all, delete-orphan")
     institution_ref = db.relationship("Institution", backref="users", foreign_keys="User.institution_id")
 
     @property
@@ -2323,7 +2323,7 @@ class MenteeProfile(db.Model):
     terms_agreement = db.Column(db.String(10))  # Yes / No
     profile_picture = db.Column(db.String(100))  # store image filename
     status = db.Column(db.String(20), default="pending")
-    user = db.relationship("User", backref=db.backref("mentee_profile_ref", uselist=False, overlaps="user_ref"), uselist=False, overlaps="mentee_profile,user_ref")
+    user = db.relationship("User", backref=db.backref("mentee_profile_ref", uselist=False, overlaps="user_ref", cascade="all, delete-orphan", passive_deletes=True), uselist=False, overlaps="mentee_profile,user_ref")
 
 
 #------------ table supervisor details-------------------
@@ -2340,7 +2340,7 @@ class SupervisorProfile(db.Model):
     profile_picture = db.Column(db.String(100))
 
     # One-to-one relationship with User
-    user = db.relationship("User", backref="supervisor_profile", uselist=False)
+    user = db.relationship("User", backref=db.backref("supervisor_profile", uselist=False, cascade="all, delete-orphan", passive_deletes=True), uselist=False)
 
 #------------Institution Table-------------------
 class Institution(db.Model):
@@ -2367,7 +2367,7 @@ class Institution(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationship with User (institution admin) - via user_id
-    user = db.relationship("User", backref="institution_profile", uselist=False, foreign_keys="Institution.user_id")
+    user = db.relationship("User", backref=db.backref("institution_profile", uselist=False, cascade="all, delete-orphan", passive_deletes=True), uselist=False, foreign_keys="Institution.user_id")
     
     @property
     def name(self):
@@ -2396,7 +2396,7 @@ class ProfileCompletionReminder(db.Model):
     __tablename__ = "profile_completion_reminders"
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id", ondelete="CASCADE"), nullable=False)
     user_type = db.Column(db.String(20), nullable=False)  # "1" for mentor, "2" for mentee
     completion_percentage = db.Column(db.Integer)  # Percentage at time of sending
     missing_fields = db.Column(db.Text)  # JSON string of missing fields
@@ -2410,7 +2410,7 @@ class ProfileCompletionReminder(db.Model):
     previous_percentage = db.Column(db.Integer, nullable=True)  # For showing improvement
     
     # Relationships
-    user = db.relationship("User", backref="completion_reminders", foreign_keys="ProfileCompletionReminder.user_id")
+    user = db.relationship("User", backref=db.backref("completion_reminders", cascade="all, delete-orphan", passive_deletes=True), foreign_keys="ProfileCompletionReminder.user_id")
     
     def __repr__(self):
         return f"<ProfileCompletionReminder {self.user_id} - {self.completion_percentage}%>"
@@ -2462,8 +2462,8 @@ class MentorshipRequest(db.Model):
     rated_by = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=True)
 
     # Relationships for easy access
-    mentee = db.relationship("User", foreign_keys=[mentee_id], backref="sent_requests")
-    mentor = db.relationship("User", foreign_keys=[mentor_id], backref="received_requests")
+    mentee = db.relationship("User", foreign_keys=[mentee_id], backref=db.backref("sent_requests", cascade="all, delete-orphan", passive_deletes=True))
+    mentor = db.relationship("User", foreign_keys=[mentor_id], backref=db.backref("received_requests", cascade="all, delete-orphan", passive_deletes=True))
 
 #------------Notification table-------------------
 class Notification(db.Model):
@@ -2475,7 +2475,7 @@ class Notification(db.Model):
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    user = db.relationship("User", foreign_keys=[user_id], backref="notifications")
+    user = db.relationship("User", foreign_keys=[user_id], backref=db.backref("notifications", cascade="all, delete-orphan", passive_deletes=True))
 
 def create_notification(user_id, message, link=None):
     """Persist an in-app notification for a user. Never throws."""
@@ -2669,8 +2669,8 @@ class MeetingRequest(db.Model):
     rescheduled_by_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=True)
 
     # Relationships
-    requester = db.relationship("User", foreign_keys=[requester_id], backref="sent_meeting_requests")
-    requested_to = db.relationship("User", foreign_keys=[requested_to_id], backref="received_meeting_requests")
+    requester = db.relationship("User", foreign_keys=[requester_id], backref=db.backref("sent_meeting_requests", cascade="all, delete-orphan", passive_deletes=True))
+    requested_to = db.relationship("User", foreign_keys=[requested_to_id], backref=db.backref("received_meeting_requests", cascade="all, delete-orphan", passive_deletes=True))
     rescheduled_by = db.relationship("User", foreign_keys=[rescheduled_by_id])
 
 
@@ -2822,7 +2822,7 @@ class MenteeFeedback(db.Model):
     __tablename__ = "mentee_feedbacks"
 
     id = db.Column(db.Integer, primary_key=True)
-    mentee_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+    mentee_id = db.Column(db.Integer, db.ForeignKey("signup_details.id", ondelete="CASCADE"), nullable=False)
     task_id = db.Column(db.Integer, nullable=False)
     task_type = db.Column(db.String(20), nullable=False)  # 'master' or 'personal'
     rating = db.Column(db.Integer)  # 1 to 5
@@ -2857,7 +2857,7 @@ class MentorReflection(db.Model):
     __tablename__ = "mentor_reflections"
 
     id = db.Column(db.Integer, primary_key=True)
-    mentor_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+    mentor_id = db.Column(db.Integer, db.ForeignKey("signup_details.id", ondelete="CASCADE"), nullable=False)
     task_id = db.Column(db.Integer, nullable=False)
     task_type = db.Column(db.String(20), nullable=False)  # 'master' or 'personal'
     text = db.Column(db.Text)
@@ -2962,7 +2962,7 @@ class MentorCoupon(db.Model):
     ledger_edited_at = db.Column(db.DateTime)
     ledger_edit_role = db.Column(db.String(10))     # 'partner' | 'admin'
 
-    mentor = db.relationship("User", foreign_keys=[mentor_id])
+    mentor = db.relationship("User", foreign_keys=[mentor_id], backref=db.backref("reflections", cascade="all, delete-orphan", passive_deletes=True))
 
     @property
     def is_expired(self):
@@ -3318,7 +3318,7 @@ class ResourceNote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
     # Who wrote the note (user id of creator)
-    mentee_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+    mentee_id = db.Column(db.Integer, db.ForeignKey("signup_details.id", ondelete="CASCADE"), nullable=False)
 
     # Called/tagged mentor
     mentor_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=True)
@@ -3334,8 +3334,8 @@ class ResourceNote(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    mentee = db.relationship("User", foreign_keys=[mentee_id], backref="note_about_me")
-    mentor = db.relationship("User", foreign_keys=[mentor_id], backref="tagged_notes")
+    mentee = db.relationship("User", foreign_keys=[mentee_id], backref=db.backref("note_about_me", cascade="all, delete-orphan", passive_deletes=True))
+    mentor = db.relationship("User", foreign_keys=[mentor_id], backref=db.backref("tagged_notes", passive_deletes=True))
     institution = db.relationship("Institution", foreign_keys=[institution_id], backref="tagged_notes")
 
     @property
@@ -3359,7 +3359,7 @@ class MentorSourcingRequest(db.Model):
     __tablename__ = "mentor_sourcing_requests"
 
     id = db.Column(db.Integer, primary_key=True)
-    mentee_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+    mentee_id = db.Column(db.Integer, db.ForeignKey("signup_details.id", ondelete="CASCADE"), nullable=False)
     name = db.Column(db.String(150), nullable=True)
     email = db.Column(db.String(150), nullable=True)
     target_role = db.Column(db.String(200), nullable=True)
@@ -3371,7 +3371,7 @@ class MentorSourcingRequest(db.Model):
     status = db.Column(db.String(50), default="pending")  # pending, sourcing, resolved
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    mentee = db.relationship("User", foreign_keys=[mentee_id], backref="mentor_sourcing_requests")
+    mentee = db.relationship("User", foreign_keys=[mentee_id], backref=db.backref("mentor_sourcing_requests", cascade="all, delete-orphan", passive_deletes=True))
 
     def __repr__(self):
         return f"<MentorSourcingRequest {self.id}: {self.target_role} - {self.target_industry}>"
@@ -3385,14 +3385,14 @@ class ScholarlyApplication(db.Model):
     __tablename__ = "scholarly_applications"
 
     id = db.Column(db.Integer, primary_key=True)
-    mentee_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+    mentee_id = db.Column(db.Integer, db.ForeignKey("signup_details.id", ondelete="CASCADE"), nullable=False)
     reason = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(50), default="pending")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     reviewed_at = db.Column(db.DateTime, nullable=True)
     reviewed_by = db.Column(db.String(50), nullable=True)
 
-    mentee = db.relationship("User", foreign_keys=[mentee_id], backref="scholarly_applications")
+    mentee = db.relationship("User", foreign_keys=[mentee_id], backref=db.backref("scholarly_applications", cascade="all, delete-orphan", passive_deletes=True))
 
     def __repr__(self):
         return f"<ScholarlyApplication {self.id}: mentee={self.mentee_id} status={self.status}>"
@@ -3406,7 +3406,7 @@ class PremiumApplication(db.Model):
     __tablename__ = "premium_applications"
 
     id = db.Column(db.Integer, primary_key=True)
-    mentor_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), nullable=False)
+    mentor_id = db.Column(db.Integer, db.ForeignKey("signup_details.id", ondelete="CASCADE"), nullable=False)
     reason = db.Column(db.Text, nullable=False)
     years_experience = db.Column(db.Integer, nullable=True)
     status = db.Column(db.String(50), default="pending")
@@ -3414,7 +3414,7 @@ class PremiumApplication(db.Model):
     reviewed_at = db.Column(db.DateTime, nullable=True)
     reviewed_by = db.Column(db.String(50), nullable=True)
 
-    mentor = db.relationship("User", foreign_keys=[mentor_id], backref="premium_applications")
+    mentor = db.relationship("User", foreign_keys=[mentor_id], backref=db.backref("premium_applications", cascade="all, delete-orphan", passive_deletes=True))
 
     def __repr__(self):
         return f"<PremiumApplication {self.id}: mentor={self.mentor_id} status={self.status}>"
@@ -3580,6 +3580,48 @@ def auto_migrate_schema():
             # 5. Synchronize PostgreSQL sequences to prevent duplicate key UniqueViolation
             if db.engine.dialect.name == "postgresql":
                 sync_postgres_sequences()
+                # Auto-migrate PostgreSQL foreign key constraints to ON DELETE CASCADE for dependent tables
+                fk_cascade_targets = [
+                    ("profile_completion_reminders", "user_id", "signup_details", "id"),
+                    ("mentee_feedbacks", "mentee_id", "signup_details", "id"),
+                    ("mentor_reflections", "mentor_id", "signup_details", "id"),
+                    ("resource_notes", "mentee_id", "signup_details", "id"),
+                    ("mentor_sourcing_requests", "mentee_id", "signup_details", "id"),
+                    ("scholarly_applications", "mentee_id", "signup_details", "id"),
+                    ("premium_applications", "mentor_id", "signup_details", "id"),
+                ]
+                for tbl, col, ref_tbl, ref_col in fk_cascade_targets:
+                    try:
+                        with db.engine.connect() as conn:
+                            find_fk_sql = text('''
+                                SELECT tc.constraint_name 
+                                FROM information_schema.table_constraints tc 
+                                JOIN information_schema.key_column_usage kcu 
+                                  ON tc.constraint_name = kcu.constraint_name 
+                                  AND tc.table_schema = kcu.table_schema
+                                WHERE tc.constraint_type = 'FOREIGN KEY' 
+                                  AND tc.table_name = :tbl 
+                                  AND kcu.column_name = :col
+                            ''')
+                            existing_fks = conn.execute(find_fk_sql, {"tbl": tbl, "col": col}).fetchall()
+                            needs_migration = False
+                            for (fk_name,) in existing_fks:
+                                rc_sql = text('''
+                                    SELECT rc.delete_rule 
+                                    FROM information_schema.referential_constraints rc 
+                                    WHERE rc.constraint_name = :cname
+                                ''')
+                                rc_row = conn.execute(rc_sql, {"cname": fk_name}).first()
+                                if not rc_row or rc_row[0] != "CASCADE":
+                                    needs_migration = True
+                                    conn.execute(text(f'ALTER TABLE "{tbl}" DROP CONSTRAINT "{fk_name}"'))
+                            if needs_migration or not existing_fks:
+                                new_fk_name = f"fk_{tbl}_{col}_cascade"
+                                conn.execute(text(f'ALTER TABLE "{tbl}" ADD CONSTRAINT "{new_fk_name}" FOREIGN KEY ("{col}") REFERENCES "{ref_tbl}"("{ref_col}") ON DELETE CASCADE'))
+                                conn.commit()
+                                print(f"✅ Auto-migrated FK cascade: {tbl}.{col} -> {ref_tbl}.{ref_col} ON DELETE CASCADE")
+                    except Exception as fk_err:
+                        print(f"⚠️ FK cascade migration notice for {tbl}.{col}: {fk_err}")
 
             # 6. Auto-standardize mentor locations (country, state, city)
             try:
@@ -6477,8 +6519,35 @@ def delete_user(user_id):
     user_name = user.name
     
     try:
-        # Delete related records first (due to foreign key constraints)
+        # 1. Nullify references where target user is a secondary participant/actor
+        nullable_fk_cleanups = [
+            ("meeting_requests", "rescheduled_by_id"),
+            ("mentorship_requests", "rated_by"),
+            ("mentor_profile", "referred_by_seller_id"),
+            ("seller_profiles", "verified_by"),
+            ("coupon_assignments", "assigned_by"),
+            ("coupon_requests", "handled_by"),
+            ("resource_notes", "mentor_id"),
+            ("personal_tasks", "mentor_id"),
+        ]
+        for table, col in nullable_fk_cleanups:
+            try:
+                with db.session.begin_nested():
+                    db.session.execute(text(f"UPDATE {table} SET {col} = NULL WHERE {col} = :uid"), {"uid": user_id})
+            except Exception as null_err:
+                app.logger.warning(f"delete_user: nullify {table}.{col}: {null_err}")
+
+        # Unlink institutions owned by this user
+        try:
+            with db.session.begin_nested():
+                db.session.execute(text("UPDATE signup_details SET institution_id = NULL WHERE institution_id IN (SELECT id FROM institutions WHERE user_id = :uid)"), {"uid": user_id})
+                db.session.execute(text("UPDATE resource_notes SET institution_id = NULL WHERE institution_id IN (SELECT id FROM institutions WHERE user_id = :uid)"), {"uid": user_id})
+        except Exception as inst_err:
+            app.logger.warning(f"delete_user: unlink institution: {inst_err}")
+
+        # 2. Delete related records first (due to foreign key constraints)
         tables_to_clean = [
+            ("profile_completion_reminders", "user_id"),
             ("mentor_profile", "user_id"),
             ("mentee_profile", "user_id"),
             ("supervisor_profile", "user_id"),
@@ -6493,6 +6562,12 @@ def delete_user(user_id):
             ("personal_tasks", "mentor_id"),
             ("task_ratings", "mentee_id"),
             ("task_ratings", "mentor_id"),
+            ("mentee_feedbacks", "mentee_id"),
+            ("mentor_reflections", "mentor_id"),
+            ("resource_notes", "mentee_id"),
+            ("mentor_sourcing_requests", "mentee_id"),
+            ("scholarly_applications", "mentee_id"),
+            ("premium_applications", "mentor_id"),
             ("seller_profiles", "user_id"),
             ("seller_shops", "seller_user_id"),
             ("seller_referrals", "user_id"),
@@ -6516,13 +6591,23 @@ def delete_user(user_id):
 
         # Coupons keep their money history, but lose every link to the deleted person.
         me = _supervisor_or_none()
-        keeper = me.id if me else user_id
+        keeper = me.id if me else None
+        if not keeper:
+            admin_user = User.query.filter(User.user_type == "0", User.id != user_id).first()
+            keeper = admin_user.id if admin_user else user_id
         for col, val in (("seller_id", None), ("redeemed_by_user_id", None), ("partner_user_id", None),
                          ("issued_by_user_id", None), ("refunded_by", None), ("mentor_id", keeper)):
-            db.session.execute(text(f"UPDATE mentor_coupons SET {col} = :v WHERE {col} = :uid"), {"v": val, "uid": user_id})
+            try:
+                with db.session.begin_nested():
+                    db.session.execute(text(f"UPDATE mentor_coupons SET {col} = :v WHERE {col} = :uid"), {"v": val, "uid": user_id})
+            except Exception as coup_err:
+                app.logger.warning(f"delete_user: update mentor_coupons.{col}: {coup_err}")
 
         # Delete the user (real erasure: the record is gone, not hidden)
-        db.session.delete(user)
+        db.session.expire_all()
+        user_to_delete = db.session.get(User, user_id)
+        if user_to_delete:
+            db.session.delete(user_to_delete)
         db.session.commit()
         app.logger.info(f"ADMIN_USER_ERASED admin_id={keeper} erased_user_id={user_id}")
 
