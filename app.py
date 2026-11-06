@@ -2410,7 +2410,13 @@ class ProfileCompletionReminder(db.Model):
     previous_percentage = db.Column(db.Integer, nullable=True)  # For showing improvement
     
     # Relationships
-    user = db.relationship("User", backref="completion_reminders", foreign_keys="ProfileCompletionReminder.user_id")
+    # cascade + passive_deletes: deleting the User removes its reminder rows (the DB
+    # column is NOT NULL, so SQLAlchemy must never try to "SET user_id = NULL").
+    user = db.relationship(
+        "User",
+        backref=db.backref("completion_reminders", cascade="all, delete-orphan", passive_deletes=True),
+        foreign_keys="ProfileCompletionReminder.user_id",
+    )
     
     def __repr__(self):
         return f"<ProfileCompletionReminder {self.user_id} - {self.completion_percentage}%>"
@@ -6512,6 +6518,14 @@ def delete_user(user_id):
             ("account_verifications", "user_id"),
             ("notifications", "user_id"),
             ("coupon_assignments", "user_id"),
+            # Tables with a NOT NULL link to the user: rows can't be orphaned, so they go with the user
+            ("profile_completion_reminders", "user_id"),
+            ("mentee_feedbacks", "mentee_id"),
+            ("mentor_reflections", "mentor_id"),
+            ("resource_notes", "mentee_id"),
+            ("mentor_sourcing_requests", "mentee_id"),
+            ("scholarly_applications", "mentee_id"),
+            ("premium_applications", "mentor_id"),
             # Chat messages and conversations
             ("chat_messages", "sender_id"),
             ("chat_conversations", "participant1_id"),
@@ -6524,6 +6538,24 @@ def delete_user(user_id):
                     db.session.execute(text(f"DELETE FROM {table} WHERE {column} = :uid"), {"uid": user_id})
             except Exception as clean_err:          # a table that doesn't exist yet on this install
                 app.logger.warning(f"delete_user: skipped {table}.{column}: {clean_err}")
+
+        # Optional references to this user on OTHER people's records: keep those records,
+        # just clear the pointer (these columns are nullable).
+        for table, column in (
+            ("mentor_profile", "referred_by_seller_id"),
+            ("mentorship_requests", "rated_by"),
+            ("meeting_requests", "rescheduled_by_id"),
+            ("seller_profiles", "verified_by"),
+            ("coupon_assignments", "assigned_by"),
+            ("coupon_requests", "handled_by"),
+            ("coupon_requests", "partner_user_id"),
+            ("resource_notes", "mentor_id"),
+        ):
+            try:
+                with db.session.begin_nested():
+                    db.session.execute(text(f"UPDATE {table} SET {column} = NULL WHERE {column} = :uid"), {"uid": user_id})
+            except Exception as clean_err:
+                app.logger.warning(f"delete_user: skipped nulling {table}.{column}: {clean_err}")
 
         # Coupons keep their money history, but lose every link to the deleted person.
         me = _supervisor_or_none()
