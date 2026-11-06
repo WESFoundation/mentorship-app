@@ -4967,6 +4967,83 @@ def select_user_type():
     
     return render_template("auth/select_user_type.html", user=user)
 
+# ---------- Basic profile data quality checks (reduces manual admin review) ----------
+_JUNK_VALUES = {
+    "na", "n/a", "none", "null", "nil", "no", "nothing", "test", "testing", "asdf", "asdfgh",
+    "qwerty", "abc", "abcd", "xyz", "xxx", "aaa", "dummy", "sample", "unknown", "-", "--", ".",
+}
+
+def _check_field_quality(value, kind="text"):
+    """
+    Basic quality check for a single profile value.
+    kind: text | longtext | url | linkedin | phone | year | number | media
+    Returns (ok: bool, reason: str|None). Empty values return (False, 'empty').
+    """
+    import re
+    if value is None:
+        return False, "empty"
+    if kind == "media":
+        return (bool(str(value).strip()), "empty")
+    s = str(value).strip()
+    if not s:
+        return False, "empty"
+
+    if kind == "year":
+        m = re.fullmatch(r"\d{4}", s)
+        if not m or not (1950 <= int(s) <= datetime.utcnow().year + 8):
+            return False, "invalid year"
+        return True, None
+    if kind == "number":
+        try:
+            n = float(re.sub(r"[^\d.]", "", s) or "x")
+        except ValueError:
+            return False, "invalid number"
+        return (0 <= n <= 60, None if 0 <= n <= 60 else "unrealistic value")
+    if kind == "phone":
+        digits = re.sub(r"\D", "", s)
+        if not re.fullmatch(r"[\d\s+\-()]+", s) or not (8 <= len(digits) <= 15) or len(set(digits)) < 3:
+            return False, "invalid phone number"
+        return True, None
+    if kind in ("url", "linkedin"):
+        if not re.match(r"^(https?://)?([\w-]+\.)+[a-z]{2,}(/\S*)?$", s, re.I):
+            return False, "invalid link"
+        if kind == "linkedin" and "linkedin." not in s.lower():
+            return False, "not a LinkedIn link"
+        return True, None
+
+    # text / longtext
+    low = s.lower()
+    if low in _JUNK_VALUES:
+        return False, "placeholder text"
+    if len(s) < (20 if kind == "longtext" else 2):
+        return False, "too short"
+    if len(set(low.replace(" ", ""))) < 3:
+        return False, "repeated characters"
+    if not re.search(r"[A-Za-zÀ-ɏऀ-ॿ]", s):
+        return False, "no readable text"
+    if kind == "longtext" and len(set(low.split())) < 3:
+        return False, "too little detail"
+    return True, None
+
+
+def _evaluate_profile_fields(fields):
+    """
+    fields: {label: (value, kind)}. Returns (completed, total, missing_labels, invalid_map).
+    Invalid (filled but low quality) fields are NOT counted and appear in missing_labels with a hint.
+    """
+    completed, missing, invalid = 0, [], {}
+    for label, (value, kind) in fields.items():
+        ok, reason = _check_field_quality(value, kind)
+        if ok:
+            completed += 1
+        elif reason == "empty":
+            missing.append(label)
+        else:
+            invalid[label] = reason
+            missing.append(f"{label} ({reason})")
+    return completed, len(fields), missing, invalid
+
+
 # Helper function to calculate mentor profile completion percentage
 def calculate_mentor_profile_completion(mentor_id, profile_obj=None):
     """
@@ -5032,17 +5109,24 @@ def calculate_mentor_profile_completion(mentor_id, profile_obj=None):
         'Additional Info': profile.additional_info if profile else None,
     }
     
-    # Count completed and missing fields
-    completed_fields = sum(1 for field in all_fields.values() if field)
-    total_fields = len(all_fields)
-    
-    missing_fields = [field_name for field_name, field_value in all_fields.items() if not field_value]
-    
+    # Quality check per field (basic validation, not just "non-empty")
+    kinds = {
+        'Profile Photo': 'media', 'Years of Experience': 'number', 'WhatsApp': 'phone',
+        'Graduation Year': 'year', 'LinkedIn Profile': 'linkedin', 'GitHub Profile': 'url',
+        'Portfolio Link': 'url', 'Other Social Link': 'url',
+        'Research Work': 'longtext', 'Why Mentor': 'longtext', 'Mentorship Philosophy': 'longtext',
+        'Additional Info': 'longtext',
+    }
+    completed_fields, total_fields, missing_fields, invalid_fields = _evaluate_profile_fields(
+        {name: (val, kinds.get(name, 'text')) for name, val in all_fields.items()}
+    )
+
     percentage = (completed_fields * 100) // total_fields if total_fields > 0 else 0
-    
+
     return {
         'percentage': min(percentage, 100),  # Cap at 100%
         'missing_fields': missing_fields,
+        'invalid_fields': invalid_fields,
         'completed_fields': completed_fields,
         'total_fields': total_fields
     }
@@ -15799,6 +15883,73 @@ def notifications_read_all():
         print("Mark read error:", e)
         return jsonify({"success": False}), 500
 
+_PROFILE_TEXT_FIELDS = {
+    "mentor": {
+        "profession": "Profession", "role": "Role", "organisation": "Organisation", "skills": "Skills",
+        "mentorship_topics": "Mentorship topics", "why_mentor": "Why do you want to mentor",
+        "mentorship_philosophy": "Mentorship philosophy", "additional_info": "Additional information",
+        "degree_name": "Degree name", "field_of_study": "Field of study", "university_name": "University",
+        "certifications": "Certifications", "research_work": "Research work",
+    },
+    "mentee": {
+        "school_name": "School name", "institution_name": "Institution name", "school_college_name": "School/College",
+        "current_role": "Current role", "current_organization": "Current organisation", "last_role": "Last role",
+        "restart_field": "Restart field", "goal": "Goal", "mentorship_expectations": "Mentorship expectations",
+        "comments": "Comments", "favourite_subject": "Favourite subject", "parent_name": "Parent/guardian name",
+        "father_name": "Father's name", "key_skills": "Key skills",
+    },
+}
+_PROFILE_PHONE_FIELDS = {"whatsapp": "WhatsApp number", "mobile_number": "Mobile number",
+                         "whatsapp_number": "WhatsApp number", "parent_mobile": "Parent/guardian mobile"}
+_PROFILE_LINK_FIELDS = {"linkedin_link": ("LinkedIn", "linkedin."), "github_link": ("GitHub", "github."),
+                        "portfolio_link": ("Portfolio", ""), "other_social_link": ("Other link", "")}
+
+
+def _profile_quality_errors(form, kind):
+    """Basic data-quality screen for the profile forms, so obvious junk never reaches
+    the admin. Only fields that were actually filled in are checked (empty is allowed:
+    completeness is enforced elsewhere). Returns a list of human-readable problems."""
+    errors = []
+    for key, label in _PROFILE_TEXT_FIELDS.get(kind, {}).items():
+        v = (form.get(key) or "").strip()
+        if v and v.lower() != "other" and _looks_like_gibberish(v):
+            errors.append(f"{label} doesn't look like real text - please check it.")
+    for key, label in _PROFILE_PHONE_FIELDS.items():
+        v = (form.get(key) or "").strip()
+        if v:
+            digits = re.sub(r"[\s\-().+]", "", v)
+            if not digits.isdigit() or not (6 <= len(digits) <= 15) or len(set(digits)) == 1:
+                errors.append(f"{label} is not a valid phone number.")
+    for key, (label, must_have) in _PROFILE_LINK_FIELDS.items():
+        v = (form.get(key) or "").strip()
+        if v:
+            url = _clean_external_url(v)
+            if not url or (must_have and must_have not in url.lower()):
+                errors.append(f"{label} link is not a valid web address.")
+    for key, label in (("years_of_experience", "Years of experience"), ("years_experience", "Years of experience")):
+        v = (form.get(key) or "").strip()
+        if v:
+            m = re.match(r"^\d{1,2}", v)
+            if not m or int(m.group()) > 60:
+                errors.append(f"{label} must be a realistic number.")
+    gy = (form.get("graduation_year") or "").strip()
+    if gy and not (gy.isdigit() and 1950 <= int(gy) <= datetime.utcnow().year + 8):
+        errors.append("Graduation year is not a valid year.")
+    dob = (form.get("dob") or "").strip()
+    if dob:
+        try:
+            born = datetime.strptime(dob[:10], "%Y-%m-%d")
+            age = (datetime.utcnow() - born).days / 365.25
+            if not (4 <= age <= 100):
+                errors.append("Date of birth is not realistic.")
+        except ValueError:
+            errors.append("Date of birth is not a valid date.")
+    pc = (form.get("postal_code") or "").strip()
+    if pc and not re.match(r"^[A-Za-z0-9][A-Za-z0-9 \-]{2,9}$", pc):
+        errors.append("Postal code is not valid.")
+    return errors
+
+
 @app.route("/editmentorprofile", methods=["GET", "POST"])
 def editmentorprofile():
     if "email" not in session or session.get("user_type") != "1":
@@ -15816,6 +15967,12 @@ def editmentorprofile():
         personal_email = (request.form.get("personal_email") or "").strip().lower()
         if not work_email and not personal_email:
             flash("Please provide at least one of Work Email or Personal Email!", "error")
+            return redirect(url_for("editmentorprofile"))
+
+        quality_errors = _profile_quality_errors(request.form, "mentor")
+        if quality_errors:
+            for msg in quality_errors:
+                flash(msg, "error")
             return redirect(url_for("editmentorprofile"))
 
         # Create profile if not exists
@@ -16203,6 +16360,14 @@ def editmenteeprofile():
             flash(error_msg, "error")
             return redirect(url_for("editmenteeprofile"))
         
+        quality_errors = _profile_quality_errors(request.form, "mentee")
+        if quality_errors:
+            error_msg = " ".join(quality_errors)
+            if is_ajax:
+                return jsonify({"success": False, "message": error_msg, "quality_errors": quality_errors}), 400
+            flash(error_msg, "error")
+            return redirect(url_for("editmenteeprofile"))
+
         # Create profile if not exists
         if not profile:
             profile = MenteeProfile(user_id=user.id)
@@ -20409,14 +20574,19 @@ def calculate_mentee_profile_completion(mentee_id, profile_obj=None):
         'Who Am I': profile.who_am_i,
     }
     
-    completed_fields = sum(1 for field in all_fields.values() if field)
-    total_fields = len(all_fields)
-    missing_fields = [field_name for field_name, field_value in all_fields.items() if not field_value]
+    kinds = {
+        'Profile Photo': 'media', 'Mobile Number': 'phone', 'WhatsApp Number': 'phone',
+        'LinkedIn Link': 'linkedin', 'Mentorship Expectations': 'longtext', 'Who Am I': 'longtext',
+    }
+    completed_fields, total_fields, missing_fields, invalid_fields = _evaluate_profile_fields(
+        {name: (val, kinds.get(name, 'text')) for name, val in all_fields.items()}
+    )
     percentage = (completed_fields * 100) // total_fields if total_fields > 0 else 0
-    
+
     return {
         'percentage': min(percentage, 100),
         'missing_fields': missing_fields,
+        'invalid_fields': invalid_fields,
         'completed_fields': completed_fields,
         'total_fields': total_fields
     }
