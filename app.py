@@ -3083,6 +3083,7 @@ class SellerProfile(db.Model):
     website = db.Column(db.String(255))
     state = db.Column(db.String(100))
     city = db.Column(db.String(100))
+    state = db.Column(db.String(100))
     country = db.Column(db.String(100))
 
     is_verified = db.Column(db.Boolean, default=True, nullable=False, server_default="1")
@@ -3120,6 +3121,7 @@ class SellerProfile(db.Model):
             "business_category": self.business_category or "",
             "website": self.website or "",
             "city": self.city or "",
+            "state": self.state or "",
             "country": self.country or "",
             "profile_picture": self.profile_picture or "",
             "display_name": self.display_name,
@@ -3545,6 +3547,7 @@ def auto_migrate_schema():
                 ("mentor_profile", "supervisor_rating", "FLOAT"),
                 ("signup_details", "scholarly", "BOOLEAN"),
                 ("signup_details", "premium", "BOOLEAN"),
+                ("seller_profiles", "state", "VARCHAR(100)"),
             ]
             for t_name, c_name, c_type in target_migrations:
                 try:
@@ -22022,9 +22025,15 @@ def seller_profile():
                 return jsonify({"success": False, "message": msg}), 400
             flash(msg, "error")
             return redirect(url_for("seller_profile"))
-        profile.country = country
-        profile.state = state or None
-        profile.city = city or None
+        if country or state or city:
+            loc = resolve_location(country=country, state=state, city=city)
+            profile.country = loc.get("country") or country or None
+            profile.state = loc.get("state") or state or None
+            profile.city = loc.get("city") or city or None
+        else:
+            profile.country = None
+            profile.state = None
+            profile.city = None
 
         pic = request.files.get("profile_picture")
         if pic and pic.filename:
