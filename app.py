@@ -3682,7 +3682,10 @@ register_mobile_api(
     resolve_location=lambda c, s, ci, l=None: resolve_location(c, s, ci, l) if 'resolve_location' in globals() else {},
     get_institution_details=lambda u: _get_institution_details(u),
     get_institution_members=lambda u, include_paired=False: _get_institution_members(u, include_paired=include_paired),
-    compute_task_progress_status=lambda kind, task_id, mentee_id, mentor_id: compute_task_progress_status(kind, task_id, mentee_id, mentor_id)
+    compute_task_progress_status=lambda kind, task_id, mentee_id, mentor_id: compute_task_progress_status(kind, task_id, mentee_id, mentor_id),
+    PremiumApplication=PremiumApplication if 'PremiumApplication' in globals() else None,
+    ScholarlyApplication=ScholarlyApplication if 'ScholarlyApplication' in globals() else None,
+    get_supervisor_comparative_analytics=lambda m, me, r: _get_supervisor_comparative_analytics(m, me, r) if '_get_supervisor_comparative_analytics' in globals() else {}
 )
 
 
