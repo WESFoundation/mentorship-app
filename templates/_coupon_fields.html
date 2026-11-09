@@ -1,0 +1,213 @@
+{# Shared coupon form fields: the same fields the admin uses to issue a coupon
+   (title, discount builder, description, quantity, expiry + timezone, redeemable-at),
+   minus "assign to" -- requesters only ever ask for themselves.
+
+   Usage:   {% from '_coupon_fields.html' import coupon_fields, coupon_fields_js %}
+            {{ coupon_fields('rq') }}   ...   {{ coupon_fields_js() }}   (once per page)
+   JS API:  CF.setSellers(p, [{user_id, name}]), CF.get(p), CF.set(p, obj), CF.reset(p)
+#}
+{% macro coupon_fields(p) %}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4" data-cf="{{ p }}">
+  <div class="md:col-span-2">
+    <label class="block text-sm font-semibold text-slate-700 mb-1">Title <span class="text-red-500">*</span></label>
+    <select id="{{ p }}-title" class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm bg-white" onchange="CF.titleChanged('{{ p }}')">
+      <option value="">Select a title...</option>
+      {% for t in ['Joining Bonus','Performance Bonus','Referral Bonus','Milestone Achievement','Holiday Bonus','Referral Reward','Loyalty Reward'] %}
+      <option value="{{ t }}">{{ t }}</option>
+      {% endfor %}
+      <option value="Custom">Other (specify below)</option>
+    </select>
+    <div id="{{ p }}-title-other-wrap" class="hidden mt-3">
+      <label class="block text-sm font-semibold text-slate-700 mb-1">Custom title</label>
+      <input type="text" id="{{ p }}-title-custom" maxlength="200" placeholder="Enter custom title..."
+             class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+    </div>
+  </div>
+
+  <div>
+    <label class="block text-sm font-semibold text-slate-700 mb-1">Discount label</label>
+    <input type="hidden" id="{{ p }}-discount" value="">
+    <button type="button" onclick="CF.openDiscount('{{ p }}')"
+            class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-left flex items-center justify-between hover:bg-slate-50">
+      <span id="{{ p }}-discount-text" class="text-slate-400">Set discount...</span>
+      <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
+    </button>
+  </div>
+
+  <div>
+    <label class="block text-sm font-semibold text-slate-700 mb-1">How many?</label>
+    <input type="number" id="{{ p }}-qty" min="1" max="200" value="1"
+           class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+  </div>
+
+  <div class="md:col-span-2">
+    <label class="block text-sm font-semibold text-slate-700 mb-1">Description <span class="text-red-500">*</span></label>
+    <textarea id="{{ p }}-desc" rows="2" maxlength="2000" placeholder="What the coupon is for and why it is needed..."
+              class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm"></textarea>
+  </div>
+
+  <div>
+    <label class="block text-sm font-semibold text-slate-700 mb-1">Expires at</label>
+    <input type="datetime-local" id="{{ p }}-expires" class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm">
+  </div>
+  <div>
+    <label class="block text-sm font-semibold text-slate-700 mb-1">Timezone</label>
+    <select id="{{ p }}-tz" class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm bg-white">
+      <option value="Asia/Kolkata" selected>India (IST, UTC+5:30)</option>
+      <option value="UTC">UTC</option>
+      <option value="Asia/Dubai">Gulf (GST, UTC+4)</option>
+      <option value="Asia/Singapore">Singapore (SGT, UTC+8)</option>
+      <option value="Asia/Shanghai">China (CST, UTC+8)</option>
+      <option value="Asia/Tokyo">Japan (JST, UTC+9)</option>
+      <option value="Europe/London">UK (GMT/BST)</option>
+      <option value="Europe/Paris">Central Europe (CET)</option>
+      <option value="Europe/Moscow">Russia (MSK, UTC+3)</option>
+      <option value="America/New_York">US Eastern (ET)</option>
+      <option value="America/Chicago">US Central (CT)</option>
+      <option value="America/Los_Angeles">US Pacific (PT)</option>
+      <option value="America/Toronto">Canada Eastern (ET)</option>
+      <option value="Australia/Sydney">Australia Eastern (AEST)</option>
+      <option value="Pacific/Auckland">New Zealand (NZST)</option>
+    </select>
+  </div>
+
+  <div class="md:col-span-2">
+    <label class="block text-sm font-semibold text-slate-700 mb-1">Redeemable at</label>
+    <select id="{{ p }}-partner" class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm bg-white">
+      <option value="any">Any partner shop (general coupon)</option>
+    </select>
+    <p class="text-[11px] text-slate-500 mt-1">A partner-specific coupon can only be redeemed by that Outreach Partner.</p>
+  </div>
+
+  <!-- Discount builder -->
+  <div id="{{ p }}-dm" class="hidden fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-slate-900/50" onclick="if(event.target===this)CF.closeDiscount('{{ p }}')">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 class="text-base font-bold text-slate-900">Set discount</h3>
+        <button type="button" onclick="CF.closeDiscount('{{ p }}')" class="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+      </div>
+      <div class="px-6 py-5 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Discount (%)</label>
+          <select id="{{ p }}-dm-percent" onchange="CF.preview('{{ p }}')" class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white">
+            <option value="">No percentage</option>
+            {% for n in range(5, 101, 5) %}<option value="{{ n }}">{{ n }}%</option>{% endfor %}
+          </select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Up to amount</label>
+            <input type="number" id="{{ p }}-dm-amount" min="0" step="any" placeholder="e.g. 10" oninput="CF.preview('{{ p }}')"
+                   class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Currency</label>
+            <select id="{{ p }}-dm-currency" onchange="CF.preview('{{ p }}')" class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm bg-white">
+              <option value="€">EUR (€)</option><option value="$">USD ($)</option><option value="£">GBP (£)</option>
+              <option value="₹">INR (₹)</option><option value="AED ">AED</option><option value="CHF ">CHF</option>
+              <option value="CAD ">CAD</option><option value="AUD ">AUD</option><option value="SGD ">SGD</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Or write your own <span class="font-normal normal-case text-slate-400">(optional, replaces the above)</span></label>
+          <input type="text" id="{{ p }}-dm-custom" maxlength="120" placeholder="e.g. Free session" oninput="CF.preview('{{ p }}')"
+                 class="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm">
+        </div>
+        <div class="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2.5 text-sm">
+          <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Label preview</span>
+          <p id="{{ p }}-dm-preview" class="font-semibold text-slate-900 mt-0.5">-</p>
+        </div>
+      </div>
+      <div class="px-6 py-4 bg-slate-50 flex justify-end gap-2">
+        <button type="button" onclick="CF.clearDiscount('{{ p }}')" class="px-4 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-100">Clear</button>
+        <button type="button" onclick="CF.saveDiscount('{{ p }}')" class="px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% macro coupon_fields_js() %}
+<script>
+window.CF = (function () {
+  function $(p, s) { return document.getElementById(p + '-' + s); }
+  var TITLES = ['Joining Bonus','Performance Bonus','Referral Bonus','Milestone Achievement','Holiday Bonus','Referral Reward','Loyalty Reward'];
+
+  function buildLabel(p) {
+    var custom = $(p, 'dm-custom').value.trim();
+    if (custom) return custom;
+    var pct = $(p, 'dm-percent').value, amt = $(p, 'dm-amount').value.trim(), cur = $(p, 'dm-currency').value;
+    if (!pct && !amt) return '';
+    var money = amt ? (cur === '€' ? amt + cur : cur + amt) : '';
+    if (pct && money) return pct + '% off up to ' + money;
+    if (pct) return pct + '% off';
+    return money + ' off';
+  }
+  function showDiscount(p, label) {
+    $(p, 'discount').value = label || '';
+    var t = $(p, 'discount-text');
+    t.textContent = label || 'Set discount...';
+    t.className = label ? 'text-slate-900 font-medium' : 'text-slate-400';
+  }
+  var api = {
+    titleChanged: function (p) {
+      var other = $(p, 'title').value === 'Custom';
+      $(p, 'title-other-wrap').classList.toggle('hidden', !other);
+      if (!other) $(p, 'title-custom').value = '';
+    },
+    preview: function (p) { $(p, 'dm-preview').textContent = buildLabel(p) || '-'; },
+    openDiscount: function (p) {
+      var cur = $(p, 'discount').value;
+      if (cur && !$(p, 'dm-custom').value && !$(p, 'dm-percent').value && !$(p, 'dm-amount').value) $(p, 'dm-custom').value = cur;
+      $(p, 'dm').classList.remove('hidden'); api.preview(p);
+    },
+    closeDiscount: function (p) { $(p, 'dm').classList.add('hidden'); },
+    saveDiscount: function (p) { showDiscount(p, buildLabel(p)); api.closeDiscount(p); },
+    clearDiscount: function (p) {
+      $(p, 'dm-percent').value = ''; $(p, 'dm-amount').value = ''; $(p, 'dm-custom').value = '';
+      api.preview(p);
+    },
+    setSellers: function (p, sellers) {
+      var sel = $(p, 'partner'), keep = sel.value;
+      sel.innerHTML = '';
+      var o = document.createElement('option'); o.value = 'any'; o.textContent = 'Any partner shop (general coupon)'; sel.appendChild(o);
+      (sellers || []).forEach(function (s) {
+        var op = document.createElement('option'); op.value = s.user_id; op.textContent = 'Only: ' + s.name; sel.appendChild(op);
+      });
+      sel.value = keep && Array.prototype.some.call(sel.options, function (x) { return x.value === keep; }) ? keep : 'any';
+    },
+    get: function (p) {
+      var t = $(p, 'title').value;
+      if (t === 'Custom') t = $(p, 'title-custom').value.trim();
+      return {
+        title: t, description: $(p, 'desc').value.trim(), discount_label: $(p, 'discount').value,
+        quantity: parseInt($(p, 'qty').value, 10) || 1, expires_at: $(p, 'expires').value,
+        timezone: $(p, 'tz').value, partner_user_id: $(p, 'partner').value
+      };
+    },
+    set: function (p, d) {
+      var t = d.title || '';
+      if (TITLES.indexOf(t) >= 0) { $(p, 'title').value = t; $(p, 'title-custom').value = ''; }
+      else if (t) { $(p, 'title').value = 'Custom'; $(p, 'title-custom').value = t; }
+      else { $(p, 'title').value = ''; $(p, 'title-custom').value = ''; }
+      api.titleChanged(p);
+      if (t && TITLES.indexOf(t) < 0) { $(p, 'title-other-wrap').classList.remove('hidden'); $(p, 'title-custom').value = t; }
+      $(p, 'desc').value = d.description || '';
+      $(p, 'qty').value = d.quantity || 1;
+      showDiscount(p, d.discount_label || '');
+      $(p, 'dm-percent').value = ''; $(p, 'dm-amount').value = ''; $(p, 'dm-custom').value = '';
+      // The server stores expiry in UTC, so show it in UTC.
+      $(p, 'tz').value = 'UTC';
+      $(p, 'expires').value = d.expires_at ? String(d.expires_at).slice(0, 16) : '';
+      $(p, 'partner').value = d.partner_user_id ? String(d.partner_user_id) : 'any';
+      if ($(p, 'partner').value !== (d.partner_user_id ? String(d.partner_user_id) : 'any')) $(p, 'partner').value = 'any';
+    },
+    reset: function (p) {
+      api.set(p, {}); $(p, 'tz').value = 'Asia/Kolkata';
+    }
+  };
+  return api;
+})();
+</script>
+{% endmacro %}

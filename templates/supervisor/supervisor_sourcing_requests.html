@@ -757,7 +757,7 @@
               <p class="text-xs text-gray-500">${m.profession || 'Mentor'}${m.organisation ? ' at ' + m.organisation : ''}</p>
               ${m.location ? '<p class="text-xs text-gray-400">' + m.location + '</p>' : ''}
             </div>
-            ${m.id ? '<a href="/find_mentor" class="text-xs font-semibold text-blue-600 hover:text-blue-800 shrink-0">View Profile</a>' : ''}
+            ${m.id ? '<button type="button" data-profile-user="' + m.id + '" class="text-xs font-semibold text-blue-600 hover:text-blue-800 shrink-0">View Profile</button>' : ''}
           </div>
         `).join('');
       } else {

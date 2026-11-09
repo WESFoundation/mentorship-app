@@ -151,22 +151,7 @@
                             </select>
                         </div>
 
-                        {% if coupon_candidates|length > 1 %}
-                        <label for="redeemer"
-                            class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">
-                            Who is redeeming this coupon? <span class="text-red-500">*</span>
-                        </label>
-                        <select id="redeemer" name="redeemer_id" required
-                            class="w-full px-3.5 py-2.5 mb-3 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            <option value="">Select the person...</option>
-                            {% for c in coupon_candidates %}
-                            <option value="{{ c.id }}">
-                                {{ c.name }} &mdash; {{ 'Mentor' if c.user_type == '1' else 'Mentee' }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                        {% elif coupon_candidates|length == 1 %}
-                        <input type="hidden" name="redeemer_id" value="{{ coupon_candidates[0].id }}">
+                        {% if coupon_candidates|length >= 1 %}
                         <p class="text-xs text-gray-500 mb-3">
                             Redeemed by <strong>{{ coupon_candidates[0].name }}</strong>
                             ({{ 'Mentor' if coupon_candidates[0].user_type == '1' else 'Mentee' }}).

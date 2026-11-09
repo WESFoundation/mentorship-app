@@ -1593,7 +1593,7 @@ function syncSgmDefaultTitle() {
   if (!input) return;
 
   const current = (input.value || '').trim();
-  const pattern = /^SGM:\s*Group\s*Mentoring\s*&\s*Fireside\s*chat\s*with(\s*\[.*\])?$/i;
+  const pattern = /^SGM:\s*Group\s*Mentoring\s*&\s*Fireside\s*chat\s*with(\s+.*)?$/i;
   const legacyPattern = /^SGM:\s*Group\s*Mentoring\s*&\s*Discussion$/i;
 
   const isDefaultOrEmpty = !current || pattern.test(current) || legacyPattern.test(current);
@@ -1607,7 +1607,7 @@ function syncSgmDefaultTitle() {
       cb.closest('.sgm-mentor-row')?.querySelector('p.font-semibold')?.textContent?.trim() || '';
   }).filter(Boolean);
 
-  const bracketContent = mentorNames.length > 0 ? `[${mentorNames.join(', ')}]` : SGM_DEFAULT_MENTOR_PLACEHOLDER;
+  const bracketContent = mentorNames.length > 0 ? mentorNames.join(', ') : SGM_DEFAULT_MENTOR_PLACEHOLDER;
   input.value = `${SGM_TITLE_PREFIX} ${bracketContent}`;
 }
 
@@ -1616,7 +1616,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (titleInput) {
     titleInput.addEventListener('input', function () {
       const val = (this.value || '').trim();
-      const pattern = /^SGM:\s*Group\s*Mentoring\s*&\s*Fireside\s*chat\s*with(\s*\[.*\])?$/i;
+      const pattern = /^SGM:\s*Group\s*Mentoring\s*&\s*Fireside\s*chat\s*with(\s+.*)?$/i;
       const legacyPattern = /^SGM:\s*Group\s*Mentoring\s*&\s*Discussion$/i;
       if (!val || pattern.test(val) || legacyPattern.test(val)) {
         this.dataset.manuallyEdited = 'false';

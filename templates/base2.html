@@ -2062,7 +2062,7 @@
     <!-- Admin: global profile popup. Any element with data-profile-user="<id>" opens it. -->
     <div id="admin-profile-modal" class="hidden fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/50"
          onclick="if(event.target===this)closeUserProfile()">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
             <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <h3 class="text-base font-bold text-slate-900">Profile</h3>
                 <button type="button" onclick="closeUserProfile()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none" aria-label="Close">&times;</button>
@@ -2094,38 +2094,56 @@
     (function () {
         function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); }
         window.closeUserProfile = function () { document.getElementById('admin-profile-modal').classList.add('hidden'); };
+        function safeHref(h) { return /^(https?:|mailto:|tel:)/i.test(h || '') ? h : ''; }
+        function renderItem(it) {
+            var v;
+            var href = safeHref(it.href);
+            if (href && (it.kind === 'link' || it.kind === 'email' || it.kind === 'tel')) {
+                var ext = /^https?:/i.test(href);
+                v = '<a href="' + esc(href) + '"' + (ext ? ' target="_blank" rel="noopener noreferrer"' : '') +
+                    ' class="text-blue-600 hover:text-blue-800 hover:underline break-all">' + esc(it.value) + '</a>';
+            } else {
+                v = '<span class="' + (it.kind === 'long' ? 'whitespace-pre-line' : '') + '">' + esc(it.value) + '</span>';
+            }
+            return '<div class="' + (it.kind === 'long' ? 'sm:col-span-2 ' : '') + 'min-w-0"><dt class="text-xs font-medium text-slate-500">' + esc(it.label) +
+                '</dt><dd class="text-sm text-slate-900 break-words">' + v + '</dd></div>';
+        }
         window.openUserProfile = function (id) {
             var m = document.getElementById('admin-profile-modal'), b = document.getElementById('admin-profile-body');
+            if (!m || !b || !id) return;
             b.innerHTML = '<p class="text-slate-500">Loading...</p>';
             m.classList.remove('hidden');
-            fetch('/supervisor/user_summary/' + encodeURIComponent(id), {credentials: 'same-origin'})
+            fetch('/supervisor/user_profile/' + encodeURIComponent(id), {credentials: 'same-origin'})
                 .then(function (r) { return r.json(); })
                 .then(function (d) {
                     if (!d.success) { b.innerHTML = '<p class="text-rose-600">' + esc(d.message || 'Could not load this profile.') + '</p>'; return; }
-                    var img = d.picture ? '<img src="' + esc(d.picture) + '" class="w-16 h-16 rounded-full object-cover ring-2 ring-slate-200" onerror="this.style.display=\'none\'">'
-                        : '<div class="w-16 h-16 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-2xl font-bold">' + esc((d.name || '?').charAt(0).toUpperCase()) + '</div>';
+                    var initial = esc((d.name || '?').charAt(0).toUpperCase());
+                    var img = d.picture
+                        ? '<img src="' + esc(d.picture) + '" alt="" class="w-20 h-20 rounded-full object-cover ring-2 ring-slate-200" onerror="this.outerHTML=\'<div class=&quot;w-20 h-20 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-3xl font-bold&quot;>' + initial + '</div>\'">'
+                        : '<div class="w-20 h-20 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-3xl font-bold">' + initial + '</div>';
+                    var chips = ['<span class="inline-block px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold">' + esc(d.role) + '</span>']
+                        .concat((d.badges || []).map(function (x) { return '<span class="inline-block px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">' + esc(x) + '</span>'; })).join(' ');
                     var bar = (d.completion == null) ? '' :
                         '<div class="mt-4"><div class="flex justify-between text-xs mb-1"><span class="font-semibold text-slate-500 uppercase tracking-wide">Profile completion</span><span class="font-bold ' + (d.completion >= 90 ? 'text-green-600' : 'text-amber-600') + '">' + d.completion + '%</span></div>' +
                         '<div class="h-1.5 rounded-full bg-slate-100 overflow-hidden"><div class="h-1.5 rounded-full ' + (d.completion >= 90 ? 'bg-green-500' : 'bg-amber-500') + '" style="width:' + d.completion + '%"></div></div></div>';
-                    var rows = (d.rows || []).map(function (r) { return '<div class="flex gap-3 py-1.5 border-b border-slate-50"><dt class="w-32 shrink-0 text-slate-500">' + esc(r[0]) + '</dt><dd class="text-slate-900 break-words min-w-0">' + esc(r[1]) + '</dd></div>'; }).join('');
-                    b.innerHTML = '<div class="flex items-center gap-4">' + img + '<div><p class="text-lg font-bold text-slate-900">' + esc(d.name) + '</p><span class="inline-block mt-0.5 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold">' + esc(d.role) + '</span></div></div>' + bar + '<dl class="mt-4">' + rows + '</dl>';
+                    var secs = (d.sections || []).map(function (s) {
+                        return '<div class="mt-5 rounded-xl bg-slate-50 p-4"><h4 class="text-sm font-semibold text-slate-800 mb-3">' + esc(s.title) +
+                            '</h4><dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">' + s.items.map(renderItem).join('') + '</dl></div>';
+                    }).join('');
+                    b.innerHTML = '<div class="flex items-center gap-4">' + img + '<div class="min-w-0"><p class="text-xl font-bold text-slate-900 break-words">' + esc(d.name) +
+                        '</p>' + (d.subtitle ? '<p class="text-sm text-slate-500 break-words">' + esc(d.subtitle) + '</p>' : '') + '<div class="mt-1 flex flex-wrap gap-1">' + chips + '</div></div></div>' +
+                        bar + (secs || '<p class="mt-4 text-slate-500">This person has not filled in a profile yet.</p>');
                 })
                 .catch(function () { b.innerHTML = '<p class="text-rose-600">Could not load this profile.</p>'; });
         };
-        // One delegated handler for the whole admin area.
+        // One delegated handler for the whole admin area: name, picture and every
+        // "View Profile" button all open this same modal.
         document.addEventListener('click', function (e) {
             var el = e.target.closest('[data-profile-user]');
             if (!el) return;
             var id = el.getAttribute('data-profile-user');
             if (!id) return;
             e.preventDefault(); e.stopPropagation();
-            // Where the row already has a "View Profile" action (three dots menu), open exactly that
-            // same modal; otherwise fall back to the quick profile card.
-            var row = el.closest('tr');
-            var viewBtn = row && row.querySelector('.view-profile-btn');
-            if (viewBtn) { viewBtn.click(); return; }
-            var detailsLink = row && Array.prototype.find.call(row.querySelectorAll('a[href]'), function (a) { return /view details/i.test(a.textContent); });
-            if (detailsLink) { window.location.href = detailsLink.getAttribute('href'); return; }
             window.openUserProfile(id);
         }, true);
         document.addEventListener('keydown', function (e) { if (e.key === 'Escape') window.closeUserProfile(); });
