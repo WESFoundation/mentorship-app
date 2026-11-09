@@ -2746,14 +2746,6 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         if dur_str_raw.isdigit():
             duration_val = int(dur_str_raw)
 
-        # Generate meet link & platform resolution
-        meet_link = custom_link if (platform == "custom" and custom_link) else (data.get("meet_link") or data.get("custom_link"))
-        if not meet_link:
-            if platform == "teams":
-                meet_link = "https://teams.live.com/meet/create"
-            else:
-                meet_link = f"https://meet.google.com/lookup/sgm-{int(time.time())}" if is_sgm else "https://meet.google.com/new"
-
         mentor_obj = User.query.get(int(mentor_id))
         mentee_obj = User.query.get(int(mentee_id))
         
@@ -2779,6 +2771,42 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             if desc:
                 full_desc += f"\n\nAgenda / Notes:\n{desc}"
 
+        m_gcal_id = None
+        # Generate meet link & platform resolution
+        meet_link = custom_link if (platform == "custom" and custom_link) else (data.get("meet_link") or data.get("custom_link"))
+        if not meet_link:
+            if platform == "teams":
+                try:
+                    from app import create_teams_calendar_event
+                    t_attendees = []
+                    for u_obj in [user, mentor_obj, mentee_obj]:
+                        if u_obj and getattr(u_obj, "email", None) and u_obj.email not in t_attendees:
+                            t_attendees.append(u_obj.email)
+                    if is_sgm and raw_mentee_ids:
+                        for rmid in raw_mentee_ids:
+                            if str(rmid).isdigit():
+                                ru = User.query.get(int(rmid))
+                                if ru and ru.email and ru.email not in t_attendees:
+                                    t_attendees.append(ru.email)
+                    start_dt = datetime.combine(m_date, m_time)
+                    end_dt = start_dt + timedelta(minutes=duration_val)
+                    t_link, t_id = create_teams_calendar_event(
+                        title=title,
+                        start_utc=start_dt.isoformat(),
+                        end_utc=end_dt.isoformat(),
+                        attendee_emails=t_attendees,
+                        description=full_desc or title
+                    )
+                    if t_link:
+                        meet_link = t_link
+                        m_gcal_id = t_id
+                    else:
+                        meet_link = "https://teams.live.com/meet/create"
+                except Exception:
+                    meet_link = "https://teams.live.com/meet/create"
+            else:
+                meet_link = f"https://meet.google.com/lookup/sgm-{int(time.time())}" if is_sgm else "https://meet.google.com/new"
+
         m = MeetingRequest(
             requester_id=user.id if user else int(mentor_id),
             requested_to_id=int(mentee_id),
@@ -2788,6 +2816,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             meeting_time=m_time,
             meeting_duration=duration_val,
             meet_link=meet_link,
+            gcal_event_id=m_gcal_id,
             meeting_type="sgm" if is_sgm else "1on1",
             status="scheduled"
         )

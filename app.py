@@ -15312,7 +15312,8 @@ def reschedule_meeting(meeting_id):
                         new_start_utc,
                         new_end_utc,
                         title=meeting.meeting_title,
-                        description=meeting.meeting_description
+                        description=meeting.meeting_description,
+                        meet_link=meeting.meet_link
                     )
                     app.logger.info(f"Microsoft Teams event {meeting.gcal_event_id} update result: {calendar_updated}")
                 except Exception as e:
@@ -18216,7 +18217,10 @@ def create_teams_calendar_event(title, start_utc, end_utc, attendee_emails, desc
             },
             "attendees": attendees,
             "isOnlineMeeting": True,
-            "onlineMeetingProvider": "teamsForBusiness"
+            "onlineMeetingProvider": "teamsForBusiness",
+            "location": {
+                "displayName": "Microsoft Teams Meeting"
+            }
         }
 
         resp = http_requests.post(url, json=body, headers={
@@ -18228,6 +18232,26 @@ def create_teams_calendar_event(title, start_utc, end_utc, attendee_emails, desc
             event_id = event_data.get("id")
             online_meeting = event_data.get("onlineMeeting") or {}
             join_url = online_meeting.get("joinUrl") or event_data.get("onlineMeetingUrl")
+            if join_url:
+                try:
+                    patch_url = f"https://graph.microsoft.com/v1.0/users/{MS_GRAPH_ORGANIZER_EMAIL}/events/{event_id}"
+                    teams_banner = f"<div style='margin-bottom:15px;padding:10px;background:#f3f2f1;border-left:4px solid #5B5FC7;'><b>Microsoft Teams Meeting</b><br><a href='{join_url}' style='font-size:16px;color:#5B5FC7;font-weight:bold;'>Click here to join Microsoft Teams meeting</a></div>"
+                    http_requests.patch(patch_url, json={
+                        "body": {
+                            "contentType": "HTML",
+                            "content": teams_banner + formatted_content
+                        },
+                        "location": {
+                            "displayName": "Microsoft Teams Meeting"
+                        },
+                        "isOnlineMeeting": True,
+                        "onlineMeetingProvider": "teamsForBusiness"
+                    }, headers={
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json"
+                    }, timeout=15)
+                except Exception as patch_err:
+                    app.logger.warning(f"Could not patch Teams banner to event: {patch_err}")
             return join_url, event_id
         app.logger.error(f"Teams meeting creation failed: {resp.status_code} {resp.text}")
     except Exception as e:
@@ -18239,7 +18263,7 @@ def create_teams_online_meeting(title, start_utc, end_utc, attendee_emails, desc
     join_url, _ = create_teams_calendar_event(title, start_utc, end_utc, attendee_emails, description=description)
     return join_url
 
-def update_teams_calendar_event(event_id, new_start_utc, new_end_utc, title=None, description=None, attendee_emails=None):
+def update_teams_calendar_event(event_id, new_start_utc, new_end_utc, title=None, description=None, attendee_emails=None, meet_link=None):
     """Update an existing Teams calendar event via Microsoft Graph API."""
     if not event_id:
         return False
@@ -18273,14 +18297,23 @@ def update_teams_calendar_event(event_id, new_start_utc, new_end_utc, title=None
             "end": {
                 "dateTime": new_end_utc.strftime("%Y-%m-%dT%H:%M:%S"),
                 "timeZone": "UTC"
+            },
+            "isOnlineMeeting": True,
+            "onlineMeetingProvider": "teamsForBusiness",
+            "location": {
+                "displayName": "Microsoft Teams Meeting"
             }
         }
         if title:
             patch_body["subject"] = title
         if description:
+            html_content = str(description).replace("\n", "<br>")
+            if meet_link:
+                teams_banner = f"<div style='margin-bottom:15px;padding:10px;background:#f3f2f1;border-left:4px solid #5B5FC7;'><b>Microsoft Teams Meeting</b><br><a href='{meet_link}' style='font-size:16px;color:#5B5FC7;font-weight:bold;'>Click here to join Microsoft Teams meeting</a></div>"
+                html_content = teams_banner + html_content
             patch_body["body"] = {
                 "contentType": "HTML",
-                "content": str(description).replace("\n", "<br>")
+                "content": html_content
             }
         if attendee_emails:
             patch_body["attendees"] = [
@@ -19760,7 +19793,8 @@ def update_meeting_ajax():
                     new_end_utc,
                     title=title,
                     description=new_desc,
-                    attendee_emails=attendee_emails
+                    attendee_emails=attendee_emails,
+                    meet_link=meeting.meet_link
                 )
                 app.logger.info(f"Teams event {meeting.gcal_event_id} update result on edit: {calendar_updated}")
             else:
