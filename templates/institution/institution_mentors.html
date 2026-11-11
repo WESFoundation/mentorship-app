@@ -28,11 +28,6 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
         </svg>
       </div>
-      <select id="mentorAffiliationFilter" data-no-search="true" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 w-full sm:w-auto" onchange="filterMentors()">
-        <option value="">All Associated Mentors ({{ affiliation_counts.all if affiliation_counts else mentors|length }})</option>
-        <option value="direct">Direct Institution Mentors ({{ affiliation_counts.direct if affiliation_counts else 'Direct' }})</option>
-        <option value="paired">Paired with Students ({{ affiliation_counts.paired if affiliation_counts else 'Paired' }})</option>
-      </select>
       <select id="mentorStatusFilter" data-no-search="true" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 w-full sm:w-auto" onchange="filterMentors()">
         <option value="">All Status</option>
         <option value="active">Active</option>
@@ -62,11 +57,8 @@
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
           {% for mentor in mentors %}
-          {% set is_direct = direct_mentor_ids and mentor.id in direct_mentor_ids %}
-          {% set is_paired = paired_mentor_ids and mentor.id in paired_mentor_ids and not is_direct %}
           <tr class="mentor-row hover:bg-gray-50 transition-colors" data-mentor-id="{{ mentor.id }}"
               data-status="{{ mentor.status|lower if mentor.status else 'active' }}"
-              data-affiliation="{% if is_direct %}direct{% elif is_paired %}paired{% else %}other{% endif %}"
               data-org="{{ (mentor.mentor_profile.organisation or mentor.institution or '')|lower }}"
               data-profession="{{ (mentor.mentor_profile.profession if mentor.mentor_profile else '')|lower }}"
               data-location="{{ (mentor.mentor_profile.location if mentor.mentor_profile else '')|lower }}">
@@ -93,7 +85,7 @@
                 </div>
                 {% endif %}
                 <div>
-                  <div class="text-sm font-semibold text-gray-900 mentor-name flex flex-wrap items-center gap-1">{{ mentor.name }}{% if mentor.premium %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}{% if mentor.is_corporate %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200" title="Corporate Verified"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg> Corporate</span>{% endif %}{% if is_direct %} <span class="inline-flex items-center text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-300" title="Associated directly with your institution">Institution</span>{% elif is_paired %} <span class="inline-flex items-center text-[10px] font-semibold text-indigo-800 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-300" title="Paired with students from your institution">Paired</span>{% endif %}</div>
+                  <div class="text-sm font-semibold text-gray-900 mentor-name flex flex-wrap items-center gap-1">{{ mentor.name }}{% if mentor.premium %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" title="Premium Mentor"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 01.755.343l2.8 3.268 4.298.625a1 1 0 01.554 1.706l-3.11 3.032.734 4.28a1 1 0 01-1.451 1.054L10 14.347l-3.846 2.02a1 1 0 01-1.451-1.054l.734-4.28-3.11-3.032a1 1 0 01.554-1.706l4.298-.625 2.8-3.268A1 1 0 0110 2z" clip-rule="evenodd"/></svg> Premium</span>{% endif %}{% if mentor.is_corporate %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200" title="Corporate Verified"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg> Corporate</span>{% endif %}</div>
                   <div class="text-xs text-gray-500 truncate max-w-[160px] sm:max-w-[220px]">{{ mentor.mentor_profile.organisation if mentor.mentor_profile and mentor.mentor_profile.organisation else (mentor.institution or 'Not specified') }}</div>
                 </div>
               </div>
@@ -507,8 +499,6 @@
   // Client-side filtering for Mentors
   function filterMentors() {
     const input = (document.getElementById('mentorSearch') ? document.getElementById('mentorSearch').value : '').toLowerCase().trim();
-    const affEl = document.getElementById('mentorAffiliationFilter');
-    const affiliationFilter = (affEl ? affEl.value : '').toLowerCase();
     const statusEl = document.getElementById('mentorStatusFilter');
     const statusFilter = (statusEl ? statusEl.value : '').toLowerCase();
     const profEl = document.getElementById('mentorProfessionFilter');
@@ -526,20 +516,13 @@
       const rowStatus = (row.getAttribute('data-status') || '').toLowerCase();
       const rowProfession = (row.getAttribute('data-profession') || '').toLowerCase();
       const rowLocation = (row.getAttribute('data-location') || '').toLowerCase();
-      const rowAff = (row.getAttribute('data-affiliation') || '').toLowerCase();
       const rowOrg = (row.getAttribute('data-org') || '').toLowerCase();
 
       const matchSearch = !input || name.includes(input) || profession.includes(input) || email.includes(input) || location.includes(input) || rowOrg.includes(input);
-      let matchAffiliation = true;
-      if (affiliationFilter === 'direct') {
-        matchAffiliation = (rowAff === 'direct');
-      } else if (affiliationFilter === 'paired') {
-        matchAffiliation = (rowAff === 'paired');
-      }
       const matchStatus = !statusFilter || rowStatus === statusFilter;
       const matchProfession = !professionFilter || rowProfession === professionFilter;
       const matchLocation = !locationFilter || rowLocation === locationFilter;
-      const show = matchSearch && matchAffiliation && matchStatus && matchProfession && matchLocation;
+      const show = matchSearch && matchStatus && matchProfession && matchLocation;
       row.style.display = show ? '' : 'none';
       if (show) visible++;
     });
