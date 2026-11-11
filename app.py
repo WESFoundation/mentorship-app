@@ -6970,12 +6970,27 @@ def institution_mentors():
         return redirect(url_for("signin"))
     
     user = User.query.filter_by(email=session["email"]).first()
-    all_mentors, _ = _get_institution_members(user, include_paired=False)
+    all_mentors = User.query.options(joinedload(User.mentor_profile)).filter_by(user_type="1").all()
+    all_mentors.sort(key=lambda u: (u.name or "").lower())
+
+    direct_mentors, _ = _get_institution_members(user, include_paired=False)
+    paired_mentors, _ = _get_institution_members(user, include_paired=True)
+    direct_mentor_ids = {m.id for m in direct_mentors}
+    paired_mentor_ids = {m.id for m in paired_mentors}
+
+    affiliation_counts = {
+        "all": len(all_mentors),
+        "direct": len(direct_mentor_ids),
+        "paired": len(paired_mentor_ids)
+    }
     
     return render_template(
         "institution/institution_mentors.html",
         show_sidebar=True,
-        mentors=all_mentors
+        mentors=all_mentors,
+        direct_mentor_ids=direct_mentor_ids,
+        paired_mentor_ids=paired_mentor_ids,
+        affiliation_counts=affiliation_counts
     )
 
 @app.route("/institution_mentees")
@@ -6984,12 +6999,27 @@ def institution_mentees():
         return redirect(url_for("signin"))
     
     user = User.query.filter_by(email=session["email"]).first()
-    _, institution_mentees = _get_institution_members(user, include_paired=False)
+    _, direct_mentees = _get_institution_members(user, include_paired=False)
+    _, paired_mentees = _get_institution_members(user, include_paired=True)
+    all_mentees = User.query.options(joinedload(User.mentee_profile)).filter_by(user_type="2").all()
+    all_mentees.sort(key=lambda u: (u.name or "").lower())
+
+    direct_mentee_ids = {m.id for m in direct_mentees}
+    paired_mentee_ids = {m.id for m in paired_mentees}
+
+    affiliation_counts = {
+        "all": len(all_mentees),
+        "direct": len(direct_mentee_ids),
+        "paired": len(paired_mentee_ids)
+    }
     
     return render_template(
         "institution/institution_mentees.html",
         show_sidebar=True,
-        mentees=institution_mentees
+        mentees=all_mentees,
+        direct_mentee_ids=direct_mentee_ids,
+        paired_mentee_ids=paired_mentee_ids,
+        affiliation_counts=affiliation_counts
     )
 
 @app.route("/institution_mentorships")
