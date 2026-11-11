@@ -1885,7 +1885,8 @@ function openEditMeetingModal() {
     toggleEditCustomLink();
 
     // Timezone
-    document.getElementById('edit-timezone').value = meeting.timezone || (Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Luxembourg');
+    setTimezoneSelect(document.getElementById('edit-timezone'),
+        meeting.timezone || (Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Luxembourg'));
 
     // Flag Institute checkbox — pre-check if meeting was flagged
     document.getElementById('edit-include-institutions').checked = !!meeting.include_institutions;
@@ -2090,16 +2091,29 @@ function openAdminScheduleModal() {
     if (taskHint) taskHint.textContent = 'Select a mentor & mentee above to load available tasks.';
     clearAllSchedErrors();
     try {
-        var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        if (tz === 'Asia/Calcutta') tz = 'Asia/Kolkata';
-        var sel = document.getElementById('sched-timezone');
-        for (var i = 0; i < sel.options.length; i++) {
-            if (sel.options[i].value === tz) { sel.selectedIndex = i; break; }
-        }
+        setTimezoneSelect(document.getElementById('sched-timezone'), Intl.DateTimeFormat().resolvedOptions().timeZone);
     } catch(e) {}
     document.getElementById('sched-participant-banner').classList.add('hidden');
     var s = document.getElementById('sched-status'); s.classList.add('hidden'); s.textContent = '';
     switchScheduleView('mentee');
+}
+
+// Select a timezone in a <select>, never leaving it blank: map legacy IANA names and,
+// if the zone isn't in the list, add it as an extra option instead of silently clearing the field.
+function setTimezoneSelect(sel, tz) {
+    if (!sel) return;
+    var aliases = { 'Asia/Calcutta': 'Asia/Kolkata', 'Asia/Saigon': 'Asia/Ho_Chi_Minh', 'Europe/Kiev': 'Europe/Kyiv' };
+    tz = aliases[tz] || tz || 'Asia/Kolkata';
+    var found = false;
+    for (var i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === tz) { found = true; break; }
+    }
+    if (!found) {
+        var opt = document.createElement('option');
+        opt.value = tz; opt.textContent = tz.replace(/_/g, ' ');
+        sel.appendChild(opt);
+    }
+    sel.value = tz;
 }
 
 function closeScheduleMeetingModal() {

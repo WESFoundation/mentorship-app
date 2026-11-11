@@ -4071,6 +4071,16 @@ def _find_user_for_signin(typed_email):
     return user, None
 
 
+def _resolve_login_email(work_email, personal_email, choice):
+    """Return the address to use as the account (login) email given the work/personal choice."""
+    choice = (choice or "").strip().lower()
+    if choice == "work" and work_email:
+        return work_email
+    if choice == "personal" and personal_email:
+        return personal_email
+    return work_email or personal_email
+
+
 def _apply_login_email_choice(user, form):
     """Save which of work/personal email is used to sign in (the other is for records)."""
     choice = (form.get("login_email_choice") or "").strip().lower()
@@ -6330,32 +6340,32 @@ def create_account():
     
     if request.method == "POST":
         name = request.form.get("name")
-        email = (request.form.get("email") or "").strip().lower()
         work_email = (request.form.get("work_email") or "").strip().lower()
         personal_email = (request.form.get("personal_email") or "").strip().lower()
+        email = _resolve_login_email(work_email, personal_email, request.form.get("login_email_choice"))
         password = request.form.get("password")
         confirm_password = request.form.get("confirm_password")
         user_type = request.form.get("user_type")
         institution_name = request.form.get("institution", "")
-        new_institution_name = request.form.get("new_institution_name", "")
-        
-        # For institution admin, the name is the institution name
+        new_institution_name = (request.form.get("new_institution_name") or "").strip()
+        coordinator_name = (request.form.get("coordinator_name") or "").strip()
+
+        # For institution admin, the name is the institute name
         if user_type == "3":
-            if new_institution_name:
-                # Use the institution name provided in the new_institution_name field
+            if new_institution_name and coordinator_name:
                 institution_name = new_institution_name
                 name = institution_name
             else:
-                flash("Please provide an institution name!", "error")
+                flash("Please provide the institute name and coordinator name!", "error")
                 return redirect(url_for("create_account"))
-        
+
+        if not work_email and not personal_email:
+            flash("Please provide at least one of Work Email or Personal Email!", "error")
+            return redirect(url_for("create_account"))
+
         # Validation
         if not all([name, email, password, confirm_password, user_type]):
             flash("Please fill all required fields!", "error")
-            return redirect(url_for("create_account"))
-        
-        if not work_email and not personal_email:
-            flash("Please provide at least one of Work Email or Personal Email!", "error")
             return redirect(url_for("create_account"))
         
         if len(password) < 6:
@@ -6418,11 +6428,12 @@ def create_account():
             if user_type == "3":
                 institution = Institution(
                     user_id=new_user.id,
+                    contact_person=coordinator_name,
                     status="active"
                 )
                 db.session.add(institution)
                 db.session.flush()
-                
+
                 new_user.institution_id = institution.id
                 db.session.commit()
             elif user_type == "4":
@@ -6517,26 +6528,27 @@ def edit_user(user_id):
     
     if request.method == "POST":
         name = request.form.get("name")
-        email = request.form.get("email")
         work_email = (request.form.get("work_email") or "").strip().lower()
         personal_email = (request.form.get("personal_email") or "").strip().lower()
+        email = _resolve_login_email(work_email, personal_email, request.form.get("login_email_choice"))
         institution = request.form.get("institution")
-        
+        coordinator_name = (request.form.get("coordinator_name") or "").strip()
+
         # Validation
-        if not all([name, email]):
+        if not name:
             flash("Please fill all required fields!", "error")
             return redirect(url_for("edit_user", user_id=user_id))
 
         if not work_email and not personal_email:
             flash("Please provide at least one of Work Email or Personal Email!", "error")
             return redirect(url_for("edit_user", user_id=user_id))
-        
+
         # Check if email is already taken by another user
-        existing_user = User.query.filter(User.email == email, User.id != user_id).first()
+        existing_user = User.query.filter(db.func.lower(User.email) == email, User.id != user_id).first()
         if existing_user:
             flash("Email already taken by another user!", "error")
             return redirect(url_for("edit_user", user_id=user_id))
-        
+
         try:
             user.name = name
             user.email = email
@@ -6544,6 +6556,10 @@ def edit_user(user_id):
             user.personal_email = personal_email
             _apply_login_email_choice(user, request.form)
             user.institution = institution
+            if user.user_type == "3":
+                inst_profile = Institution.query.filter_by(user_id=user.id).first()
+                if inst_profile:
+                    inst_profile.contact_person = coordinator_name
             db.session.commit()
             
             refresh_user_corporate_status(user)
@@ -6557,10 +6573,12 @@ def edit_user(user_id):
     
     # Get institutions for dropdown
     institutions = Institution.query.filter_by(status="active").all()
-    
+    inst_profile = Institution.query.filter_by(user_id=user.id).first() if user.user_type == "3" else None
+
     return render_template(
         "supervisor/edit_user.html",
         user=user,
+        coordinator_name=(inst_profile.contact_person if inst_profile else "") or "",
         institutions=institutions,
         show_sidebar=True
     )
@@ -6702,12 +6720,27 @@ def _get_institution_details(user):
             base = clean_lower[:-len(sfx)].strip()
             if len(base) >= 2:
                 aliases.add(base)
+    # Acronym alias for multi-word names, e.g. "Wazir Education Society" -> "wes"
+    _words = [w for w in re.split(r"[^a-z0-9]+", re.sub(r"\(.*?\)", " ", clean_lower)) if w]
+    if len(_words) >= 3:
+        aliases.add("".join(w[0] for w in _words))
     if "wes" in clean_lower:
         aliases.add("wes")
         aliases.add("wes foundation")
         aliases.add("wazir education society")
 
     return institution, inst_id, inst_name, aliases
+
+
+def _alias_in(aliases, text):
+    """True if text equals an alias or contains it as a whole word (so 'wes' won't match 'Western Union')."""
+    text = (text or "").strip().lower()
+    if not text:
+        return False
+    for a in aliases:
+        if a == text or re.search(r"(?<![a-z0-9])" + re.escape(a) + r"(?![a-z0-9])", text):
+            return True
+    return False
 
 
 def _get_institution_members(user, include_paired=False):
@@ -6725,18 +6758,13 @@ def _get_institution_members(user, include_paired=False):
         matched = False
         if inst_id and (m.institution_id == inst_id or m.institution_id == user.id):
             matched = True
-        u_inst = (m.institution or "").strip().lower()
-        if u_inst and any(a == u_inst or a in u_inst for a in aliases):
+        if _alias_in(aliases, m.institution):
             matched = True
         mp = m.mentee_profile
         if mp:
-            for attr in ["institution", "institution_name", "current_organization"]:
-                val = (getattr(mp, attr, "") or "").strip().lower()
-                if val and any(a == val or a in val for a in aliases):
-                    matched = True
-            for attr in ["school_name", "school_college_name", "board_university"]:
-                val = (getattr(mp, attr, "") or "").strip().lower()
-                if val and any(a in val for a in aliases):
+            for attr in ["institution", "institution_name", "current_organization",
+                         "school_name", "school_college_name", "board_university"]:
+                if _alias_in(aliases, getattr(mp, attr, "")):
                     matched = True
         # For WES Foundation: also match cohort students created under WES
         if not matched and any("wes" in a for a in aliases):
@@ -6754,16 +6782,11 @@ def _get_institution_members(user, include_paired=False):
         matched = False
         if inst_id and (m.institution_id == inst_id or m.institution_id == user.id):
             matched = True
-        u_inst = (m.institution or "").strip().lower()
-        if u_inst and any(a == u_inst or a in u_inst for a in aliases):
+        if _alias_in(aliases, m.institution):
             matched = True
         mp = m.mentor_profile
         if mp:
-            mp_org = (getattr(mp, "organisation", "") or "").strip().lower()
-            mp_uni = (getattr(mp, "university_name", "") or "").strip().lower()
-            if mp_org and any(a == mp_org or a in mp_org for a in aliases):
-                matched = True
-            if mp_uni and any(a in mp_uni for a in aliases):
+            if _alias_in(aliases, getattr(mp, "organisation", "")) or _alias_in(aliases, getattr(mp, "university_name", "")):
                 matched = True
         if matched:
             direct_mentors.append(m)
@@ -6815,9 +6838,7 @@ def institutiondashboard():
     institution, inst_id, institution_name, aliases = _get_institution_details(user)
     
     # Get all mentors and mentees who belong to this institution
-    all_mentors = User.query.options(joinedload(User.mentor_profile)).filter_by(user_type="1").all()
-    all_mentors.sort(key=lambda u: (u.name or "").lower())
-    institution_mentors = all_mentors
+    institution_mentors, _ = _get_institution_members(user, include_paired=False)
     _, institution_mentees = _get_institution_members(user, include_paired=True)
 
     # Get mentorship requests involving institution members
@@ -6861,8 +6882,7 @@ def institution_mentors():
         return redirect(url_for("signin"))
     
     user = User.query.filter_by(email=session["email"]).first()
-    all_mentors = User.query.options(joinedload(User.mentor_profile)).filter_by(user_type="1").all()
-    all_mentors.sort(key=lambda u: (u.name or "").lower())
+    all_mentors, _ = _get_institution_members(user, include_paired=False)
     
     return render_template(
         "institution/institution_mentors.html",
@@ -7270,8 +7290,7 @@ def institution_all_tasks():
         return redirect(url_for("institutiondashboard"))
 
     # Lightweight: only load dropdown lists, NO tasks
-    all_mentors = User.query.filter_by(user_type="1").order_by(User.name.asc()).all()
-    _, institution_mentees = _get_institution_members(user, include_paired=True)
+    all_mentors, institution_mentees = _get_institution_members(user, include_paired=True)
 
     return render_template(
         "institution/institution_all_tasks.html",
@@ -7305,9 +7324,7 @@ def get_institution_tasks_data():
     limit = int(request.args.get("limit", 50))
 
     # Get all mentors and institution members using richer matching (aliases, profiles)
-    all_mentors = User.query.filter_by(user_type="1").all()
-    all_mentors.sort(key=lambda u: (u.name or "").lower())
-    _, institution_mentees_full = _get_institution_members(user, include_paired=True)
+    all_mentors, institution_mentees_full = _get_institution_members(user, include_paired=True)
     institution_user_ids = list(set([m.id for m in institution_mentees_full] + [user.id]))
     
     # Pre-fetch all ratings and meeting data in memory to avoid N+1 queries
@@ -15021,9 +15038,22 @@ def institution_calendar():
         m.display_institution = m_inst_name
         m.display_institution_id = m_inst_id
 
-    # SGM sessions can use ANY registered mentor (not just this institution's
-    # own or already-paired ones), so the SGM checklists get the full list.
-    sgm_mentors = User.query.filter(User.user_type == "1").all()
+    # SGM mentors: this institution's own mentors, mentors paired with its mentees,
+    # and mentors already attached to the institution's existing SGM meetings
+    # (so editing an old session never silently drops a mentor).
+    sgm_mentor_ids = set(existing_mentors_dict.keys())
+    try:
+        sgm_mentor_ids |= {m.id for m in _get_institution_members(user, include_paired=True)[0]}
+        for _cm in calendar_meetings:
+            _pi = _get_meeting_participants(_cm.get("id")) or {}
+            for _mid in (_pi.get("mentor_ids") or []) + ([_pi["mentor_id"]] if _pi.get("mentor_id") else []):
+                try:
+                    sgm_mentor_ids.add(int(_mid))
+                except (ValueError, TypeError):
+                    pass
+    except Exception as _e:
+        app.logger.warning(f"SGM mentor list fallback: {_e}")
+    sgm_mentors = User.query.filter(User.user_type == "1", User.id.in_(sgm_mentor_ids)).all() if sgm_mentor_ids else []
     for m in sgm_mentors:
         pre = existing_mentors_dict.get(m.id)
         if pre is not None and hasattr(pre, "display_institution"):
@@ -18794,6 +18824,10 @@ def supervisor_schedule_sgm_ajax():
     if not mentor_ids:
         return jsonify({"error": "Please select a Mentor for this SGM session."}), 400
 
+    if is_institution:
+        _allowed = {m.id for m in _get_institution_members(organizer, include_paired=True)[0]}
+        if any(int(i) not in _allowed for i in mentor_ids):
+            return jsonify({"error": "You can only choose mentors from your own institute (or paired with your mentees)."}), 403
     mentors = User.query.filter(User.id.in_(mentor_ids), User.user_type == "1").all()
     if not mentors:
         return jsonify({"error": "No valid mentors were found for the selected IDs."}), 400
@@ -19583,9 +19617,14 @@ def update_meeting_ajax():
             participants["mentor_ids"] = [int(mid) for mid in incoming_mentor_ids if mid]
         if incoming_mentee_ids:
             merged_mentee_ids = []
-            existing_ids = list(participants.get("mentee_ids") or [])
-            if not existing_ids and participants.get("mentee_id"):
-                existing_ids = [participants["mentee_id"]]
+            # The edit form submits the complete checked list, so it replaces the old one
+            # (unchecking a mentee removes them). Only when "replace_participants" is
+            # explicitly false do we merge with the existing participants.
+            existing_ids = []
+            if data.get("replace_participants") is False:
+                existing_ids = list(participants.get("mentee_ids") or [])
+                if not existing_ids and participants.get("mentee_id"):
+                    existing_ids = [participants["mentee_id"]]
             for mid in existing_ids + list(incoming_mentee_ids):
                 try:
                     mid = int(mid)
@@ -19594,6 +19633,8 @@ def update_meeting_ajax():
                 if mid and mid not in merged_mentee_ids:
                     merged_mentee_ids.append(mid)
             participants["mentee_ids"] = merged_mentee_ids
+            if merged_mentee_ids and participants.get("mentee_id") not in merged_mentee_ids:
+                participants["mentee_id"] = merged_mentee_ids[0]  # old primary mentee was unchecked
 
         if not participants.get("mentee_id") or not participants.get("mentor_id"):
             m_mentor, m_mentee, m_info = _resolve_meeting_participants(meeting)
@@ -19614,7 +19655,8 @@ def update_meeting_ajax():
         if user and user.email:
             attendee_emails.append(user.email)
 
-        mentor_ids_pool = list(incoming_mentor_ids) if incoming_mentor_ids else list(participants.get("mentor_ids") or [])
+        # Email/notify the FULL participant list (existing + newly added), not just the IDs in this request
+        mentor_ids_pool = list(participants.get("mentor_ids") or []) + [i for i in incoming_mentor_ids if i not in (participants.get("mentor_ids") or [])]
         if not mentor_ids_pool and participants.get("mentor_id"):
             mentor_ids_pool = [participants["mentor_id"]]
         if not mentor_ids_pool and meeting.requested_to_id:
@@ -19627,7 +19669,7 @@ def update_meeting_ajax():
             except Exception:
                 pass
 
-        mentee_ids_pool = list(incoming_mentee_ids) if incoming_mentee_ids else list(participants.get("mentee_ids") or [])
+        mentee_ids_pool = list(participants.get("mentee_ids") or []) + [i for i in incoming_mentee_ids if i not in (participants.get("mentee_ids") or [])]
         if not mentee_ids_pool and participants.get("mentee_id"):
             mentee_ids_pool = [participants["mentee_id"]]
         if not mentee_ids_pool and meeting.requester_id and meeting.requester_id != user.id:

@@ -42,15 +42,10 @@
             </select>
         </div>
 
-        <div>
+        <div id="name_block">
             <label class="block text-gray-700 font-semibold mb-2" id="name_label">Full Name *</label>
             <input type="text" name="name" id="name_input" class="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" placeholder="Enter full name" required>
-            <p class="text-sm text-gray-500 mt-1" id="name_hint" style="display: none;">For institutions, this will be automatically filled with the institution name</p>
-        </div>
-
-        <div>
-            <label class="block text-gray-700 font-semibold mb-2">Email *</label>
-            <input type="email" name="email" class="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" placeholder="Enter email address" required>
+            <p class="text-sm text-gray-500 mt-1" id="name_hint" style="display: none;"></p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -62,8 +57,9 @@
                 <label class="block text-gray-700 font-semibold mb-2">Personal Email</label>
                 <input type="email" name="personal_email" class="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" placeholder="Personal email address">
             </div>
+            {% include 'supervisor/_login_email_choice.html' %}
         </div>
-        <p class="text-sm text-gray-500 -mt-4">Provide at least one of Work Email or Personal Email.</p>
+        <p class="text-sm text-gray-500 -mt-4">Provide at least one email. The one selected for login is used to sign in; the other is the contact email.</p>
 
         <div id="institution_field" style="display: none;">
             <label class="block text-gray-700 font-semibold mb-2">Institution *</label>
@@ -76,9 +72,10 @@
         </div>
 
         <div id="institution_admin_field" style="display: none;">
-            <label class="block text-gray-700 font-semibold mb-2">Institution Name *</label>
-            <input type="text" name="new_institution_name" id="new_institution_name" class="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" placeholder="Enter institution name" required>
-            <p class="text-sm text-gray-500 mt-1">This will be used as both the institution name and the user's name</p>
+            <label class="block text-gray-700 font-semibold mb-2">Institute Name *</label>
+            <input type="text" name="new_institution_name" id="new_institution_name" class="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" placeholder="Enter institute name">
+            <label class="block text-gray-700 font-semibold mb-2 mt-4">Coordinator Name *</label>
+            <input type="text" name="coordinator_name" id="coordinator_name" class="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" placeholder="Enter coordinator name">
         </div>
 
         <div>
@@ -128,22 +125,24 @@ function toggleInstitutionField() {
     if (newInstitutionInput) newInstitutionInput.required = false;
     
     // Reset name field
+    document.getElementById('name_block').style.display = 'block';
     nameInput.disabled = false;
     nameInput.placeholder = "Enter full name";
     nameLabel.textContent = "Full Name *";
-    
+    const coordInput = document.getElementById('coordinator_name');
+    if (coordInput) coordInput.required = false;
+
     if (userType === '1' || userType === '2') {
         // Mentor or Mentee - show institution selection
         institutionField.style.display = 'block';
         if (institutionSelect) institutionSelect.required = true;
     } else if (userType === '3') {
-        // Institution Admin - show institution name field and disable name input
+        // Institution Admin - Institute Name + Coordinator Name replace the generic name field
         institutionAdminField.style.display = 'block';
         if (newInstitutionInput) newInstitutionInput.required = true;
+        if (coordInput) coordInput.required = true;
         nameInput.disabled = true;
-        nameInput.placeholder = "Will be filled automatically";
-        nameLabel.textContent = "Institution Name (Auto-filled) *";
-        nameHint.style.display = 'block';
+        document.getElementById('name_block').style.display = 'none';
     } else if (userType === '4') {
         // Partner - no institution field needed
         nameHint.style.display = 'block';
@@ -168,7 +167,6 @@ document.addEventListener('DOMContentLoaded', function() {
 // Form validation function
 function validateForm() {
     const userType = document.getElementById('user_type').value;
-    const email = document.querySelector('input[name="email"]').value;
     const password = document.querySelector('input[name="password"]').value;
     const confirmPassword = document.querySelector('input[name="confirm_password"]').value;
     
@@ -198,9 +196,8 @@ function validateForm() {
         }
     }
     
-    // Check email
-    if (!email.trim()) {
-        alert('Please provide an email address!');
+    if (userType === '3' && !document.getElementById('coordinator_name').value.trim()) {
+        alert('Please provide the coordinator name!');
         return false;
     }
 
@@ -208,6 +205,10 @@ function validateForm() {
     const personalEmail = document.querySelector('input[name="personal_email"]').value;
     if (!workEmail.trim() && !personalEmail.trim()) {
         alert('Please provide at least one of Work Email or Personal Email!');
+        return false;
+    }
+    if (!document.querySelector('input[name="login_email_choice"]:checked')) {
+        alert('Please select which email is used for login!');
         return false;
     }
     

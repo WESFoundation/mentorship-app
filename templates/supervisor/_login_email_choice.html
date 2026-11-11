@@ -1,0 +1,27 @@
+{# Pick which of work/personal is the login email; the other becomes the contact email.
+   Expects optional `current_choice` ('work'|'personal'). #}
+<div id="login-email-choice" class="md:col-span-2 col-span-full rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm">
+    <p class="font-semibold text-gray-700 mb-2">Use as login email (the other is the contact email)</p>
+    <div class="flex flex-wrap gap-x-6 gap-y-2">
+        <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="login_email_choice" value="work" {% if current_choice == 'work' %}checked{% endif %}> <span>Work email</span></label>
+        <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="login_email_choice" value="personal" {% if current_choice == 'personal' %}checked{% endif %}> <span>Personal email</span></label>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var w = document.querySelector('input[name="work_email"]');
+    var p = document.querySelector('input[name="personal_email"]');
+    var rw = document.querySelector('#login-email-choice input[value="work"]');
+    var rp = document.querySelector('#login-email-choice input[value="personal"]');
+    if (!w || !p || !rw || !rp) return;
+    function sync() {
+        rw.disabled = !w.value.trim(); rp.disabled = !p.value.trim();
+        if (rw.checked && rw.disabled) rw.checked = false;
+        if (rp.checked && rp.disabled) rp.checked = false;
+        if (!rw.checked && !rp.checked) {
+            if (!rw.disabled) rw.checked = true; else if (!rp.disabled) rp.checked = true;
+        }
+    }
+    w.addEventListener('input', sync); p.addEventListener('input', sync); sync();
+});
+</script>
