@@ -75,3 +75,11 @@ meeting_participants_data/
 static/uploads/*
 !static/uploads/.gitkeep
 scratch/
+
+
+# Documentation & non-necessary notes
+*.md
+!README.md
+*.txt
+!requirements.txt
+.artifacts/

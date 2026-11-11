@@ -275,6 +275,21 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
     get_institution_details = kwargs.get("get_institution_details")
     get_institution_members = kwargs.get("get_institution_members")
     compute_task_prog_status = kwargs.get("compute_task_progress_status")
+    PremiumApplication = kwargs.get("PremiumApplication")
+    if PremiumApplication is None:
+        try:
+            PremiumApplication = db.Model._decl_class_registry.get("PremiumApplication")
+        except Exception:
+            PremiumApplication = None
+
+    ScholarlyApplication = kwargs.get("ScholarlyApplication")
+    if ScholarlyApplication is None:
+        try:
+            ScholarlyApplication = db.Model._decl_class_registry.get("ScholarlyApplication")
+        except Exception:
+            ScholarlyApplication = None
+
+    get_supervisor_comparative_analytics = kwargs.get("get_supervisor_comparative_analytics")
 
     # -------------------------------------------------------------
     # LOCATION CASCADE ENDPOINTS (STRICT DROPDOWNS)
@@ -2731,14 +2746,6 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         if dur_str_raw.isdigit():
             duration_val = int(dur_str_raw)
 
-        # Generate meet link & platform resolution
-        meet_link = custom_link if (platform == "custom" and custom_link) else (data.get("meet_link") or data.get("custom_link"))
-        if not meet_link:
-            if platform == "teams":
-                meet_link = "https://teams.live.com/meet/create"
-            else:
-                meet_link = f"https://meet.google.com/lookup/sgm-{int(time.time())}" if is_sgm else "https://meet.google.com/new"
-
         mentor_obj = User.query.get(int(mentor_id))
         mentee_obj = User.query.get(int(mentee_id))
         
@@ -2764,6 +2771,42 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             if desc:
                 full_desc += f"\n\nAgenda / Notes:\n{desc}"
 
+        m_gcal_id = None
+        # Generate meet link & platform resolution
+        meet_link = custom_link if (platform == "custom" and custom_link) else (data.get("meet_link") or data.get("custom_link"))
+        if not meet_link:
+            if platform == "teams":
+                try:
+                    from app import create_teams_calendar_event
+                    t_attendees = []
+                    for u_obj in [user, mentor_obj, mentee_obj]:
+                        if u_obj and getattr(u_obj, "email", None) and u_obj.email not in t_attendees:
+                            t_attendees.append(u_obj.email)
+                    if is_sgm and raw_mentee_ids:
+                        for rmid in raw_mentee_ids:
+                            if str(rmid).isdigit():
+                                ru = User.query.get(int(rmid))
+                                if ru and ru.email and ru.email not in t_attendees:
+                                    t_attendees.append(ru.email)
+                    start_dt = datetime.combine(m_date, m_time)
+                    end_dt = start_dt + timedelta(minutes=duration_val)
+                    t_link, t_id = create_teams_calendar_event(
+                        title=title,
+                        start_utc=start_dt.isoformat(),
+                        end_utc=end_dt.isoformat(),
+                        attendee_emails=t_attendees,
+                        description=full_desc or title
+                    )
+                    if t_link:
+                        meet_link = t_link
+                        m_gcal_id = t_id
+                    else:
+                        meet_link = "https://teams.live.com/meet/create"
+                except Exception:
+                    meet_link = "https://teams.live.com/meet/create"
+            else:
+                meet_link = f"https://meet.google.com/lookup/sgm-{int(time.time())}" if is_sgm else "https://meet.google.com/new"
+
         m = MeetingRequest(
             requester_id=user.id if user else int(mentor_id),
             requested_to_id=int(mentee_id),
@@ -2773,6 +2816,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             meeting_time=m_time,
             meeting_duration=duration_val,
             meet_link=meet_link,
+            gcal_event_id=m_gcal_id,
             meeting_type="sgm" if is_sgm else "1on1",
             status="scheduled"
         )
@@ -2904,36 +2948,108 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "created_at": u.created_at.isoformat() if u.created_at else None
             })
 
+        institutions = []
+        if Institution:
+            institutions = db.session.query(User, Institution).outerjoin(
+                Institution, User.id == Institution.user_id
+            ).filter(or_(User.user_type == "3", User.user_type == "institution")).all()
+        else:
+            inst_users = User.query.filter(or_(User.user_type == "3", User.user_type == "institution")).all()
+            institutions = [(u, None) for u in inst_users]
+
+        i_list = []
+        for u, inst in institutions:
+            i_list.append({
+                "id": u.id,
+                "user_id": str(u.id),
+                "name": (inst.name if inst and inst.name else None) or u.name,
+                "email": u.email,
+                "contact_person": inst.contact_person if inst else "",
+                "contact_phone": inst.contact_phone if inst else "",
+                "status": inst.status if inst else "active",
+                "profile_picture": resolve_profile_pic(inst, u),
+                "role": "Institution",
+                "created_at": u.created_at.isoformat() if u.created_at else None
+            })
+
         if user_type_param in ("mentors", "mentor"):
-            return jsonify({"success": True, "users": m_list, "mentors": m_list, "mentees": [], "sellers": []})
+            return jsonify({"success": True, "users": m_list, "mentors": m_list, "mentees": [], "sellers": [], "institutions": []})
         elif user_type_param in ("mentees", "mentee"):
-            return jsonify({"success": True, "users": me_list, "mentors": [], "mentees": me_list, "sellers": []})
+            return jsonify({"success": True, "users": me_list, "mentors": [], "mentees": me_list, "sellers": [], "institutions": []})
         elif user_type_param in ("sellers", "seller", "partner", "partners"):
-            return jsonify({"success": True, "users": s_list, "mentors": [], "mentees": [], "sellers": s_list})
+            return jsonify({"success": True, "users": s_list, "mentors": [], "mentees": [], "sellers": s_list, "institutions": []})
+        elif user_type_param in ("institutions", "institution"):
+            return jsonify({"success": True, "users": i_list, "mentors": [], "mentees": [], "sellers": [], "institutions": i_list})
 
         return jsonify({
             "success": True,
-            "users": m_list + me_list + s_list,
+            "users": m_list + me_list + s_list + i_list,
             "mentors": m_list,
             "mentees": me_list,
-            "sellers": s_list
+            "sellers": s_list,
+            "institutions": i_list
         })
 
     @api_bp.route("/admin/requests", methods=["GET"])
     def api_get_admin_requests():
-        reqs = MentorshipRequest.query.order_by(MentorshipRequest.created_at.desc()).limit(50).all()
+        reqs = MentorshipRequest.query.order_by(
+            (MentorshipRequest.final_status == "pending").desc(),
+            (MentorshipRequest.final_status == "approved").desc(),
+            MentorshipRequest.created_at.desc()
+        ).limit(100).all()
         result = []
         for r in reqs:
-            me = User.query.get(r.mentee_id)
-            mo = User.query.get(r.mentor_id)
+            me = User.query.get(r.mentee_id) if r.mentee_id else None
+            mo = User.query.get(r.mentor_id) if r.mentor_id else None
+            mp = MentorProfile.query.filter_by(user_id=r.mentor_id).first() if (MentorProfile and r.mentor_id) else None
+            mep = MenteeProfile.query.filter_by(user_id=r.mentee_id).first() if (MenteeProfile and r.mentee_id) else None
+
+            mentor_name = (mo.name if mo and mo.name else None) or f"Mentor #{r.mentor_id}"
+            mentee_name = (me.name if me and me.name else None) or f"Mentee #{r.mentee_id}"
+
+            tasks_total = MenteeTask.query.filter_by(mentee_id=r.mentee_id, mentor_id=r.mentor_id).count() if MenteeTask else 0
+            tasks_completed = MenteeTask.query.filter_by(mentee_id=r.mentee_id, mentor_id=r.mentor_id, status="completed").count() if MenteeTask else 0
+            meetings_total = MeetingRequest.query.filter(
+                or_(
+                    and_(MeetingRequest.requester_id == r.mentee_id, MeetingRequest.requested_to_id == r.mentor_id),
+                    and_(MeetingRequest.requester_id == r.mentor_id, MeetingRequest.requested_to_id == r.mentee_id)
+                )
+            ).count() if MeetingRequest else 0
+            meetings_completed = MeetingRequest.query.filter(
+                or_(
+                    and_(MeetingRequest.requester_id == r.mentee_id, MeetingRequest.requested_to_id == r.mentor_id),
+                    and_(MeetingRequest.requester_id == r.mentor_id, MeetingRequest.requested_to_id == r.mentee_id)
+                ),
+                MeetingRequest.status == "approved"
+            ).count() if MeetingRequest else 0
+
             result.append({
                 "id": r.id,
                 "mentee_id": r.mentee_id,
-                "mentee_name": me.name if me else f"Mentee #{r.mentee_id}",
+                "mentee_name": mentee_name,
+                "mentee_email": me.email if me else None,
+                "mentee_avatar": format_pic_url(mep.profile_picture if mep else (me.profile_picture_url if me else None)),
+                "mentee_goal": getattr(mep, "goal", None) if mep else None,
+                "mentee_scholarly": getattr(me, "scholarly", False) if me else False,
                 "mentor_id": r.mentor_id,
-                "mentor_name": mo.name if mo else f"Mentor #{r.mentor_id}",
+                "mentor_name": mentor_name,
+                "mentor_email": mo.email if mo else None,
+                "mentor_avatar": format_pic_url(mp.profile_picture if mp else (mo.profile_picture_url if mo else None)),
+                "mentor_profession": getattr(mp, "profession", None) if mp else None,
+                "mentor_organisation": getattr(mp, "organisation", None) if mp else None,
+                "mentor_premium": getattr(mo, "premium", False) if mo else False,
+                "mentor_rating": getattr(r, "rating", 5.0) or 5.0,
+                "purpose": r.purpose or "",
+                "why_need_mentor": r.why_need_mentor or "",
+                "mentor_type": r.mentor_type or "guidance",
+                "duration_months": r.duration_months or 3,
+                "mentor_status": r.mentor_status or "pending",
                 "final_status": r.final_status or "pending",
-                "created_at": r.created_at.strftime("%Y-%m-%d") if r.created_at else ""
+                "created_at": r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else "",
+                "completed_tasks": tasks_completed,
+                "total_tasks": tasks_total,
+                "completed_meetings": meetings_completed,
+                "total_meetings": meetings_total
             })
         return jsonify({"success": True, "requests": result})
 
@@ -2960,6 +3076,235 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
         db.session.commit()
         return jsonify({"success": True, "message": f"Request {action} successfully"})
+
+    @api_bp.route("/admin/analytics", methods=["GET"])
+    def api_admin_analytics():
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) != "0":
+            return jsonify({"success": False, "message": "Administrator privileges required"}), 403
+
+        try:
+            mentors = MentorProfile.query.all() if MentorProfile else []
+            mentees = MenteeProfile.query.all() if MenteeProfile else []
+            reqs = MentorshipRequest.query.all() if MentorshipRequest else []
+
+            res_analytics = {}
+            if get_supervisor_comparative_analytics:
+                res_analytics = get_supervisor_comparative_analytics(mentors, mentees, reqs)
+            else:
+                try:
+                    import app as app_mod
+                    res_analytics = app_mod._get_supervisor_comparative_analytics(mentors, mentees, reqs)
+                except Exception as e:
+                    logger.error(f"Failed to compute comparative analytics: {e}")
+                    res_analytics = {}
+
+            return jsonify({
+                "success": True,
+                "metrics": res_analytics.get("metrics", {}),
+                "lb_task_mentees": res_analytics.get("lb_task_mentees", []),
+                "lb_task_mentors": res_analytics.get("lb_task_mentors", []),
+                "lb_profile_mentors": res_analytics.get("lb_profile_mentors", []),
+                "lb_profile_mentees": res_analytics.get("lb_profile_mentees", []),
+                "lb_connected_mentors": res_analytics.get("lb_connected_mentors", []),
+                "lb_mentor_ratings": res_analytics.get("lb_mentor_ratings", [])
+            })
+        except Exception as e:
+            logger.error(f"api_admin_analytics error: {e}")
+            return jsonify({"success": False, "message": str(e)}), 500
+
+    @api_bp.route("/admin/institutions", methods=["GET"])
+    def api_admin_institutions():
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) != "0":
+            return jsonify({"success": False, "message": "Administrator privileges required"}), 403
+
+        if not Institution:
+            return jsonify({"success": True, "institutions": []})
+
+        institutions = Institution.query.order_by(Institution.id.asc()).all()
+        users_data = db.session.query(User.user_type, User.institution_id, User.institution).filter(User.user_type.in_(["1", "2"])).all()
+        active_req_data = db.session.query(User.institution_id, User.institution).join(
+            MentorshipRequest, MentorshipRequest.mentee_id == User.id
+        ).filter(MentorshipRequest.final_status == "approved").all()
+
+        res_list = []
+        for inst in institutions:
+            inst_name_norm = (inst.name or "").strip().lower()
+            mentors_count = sum(
+                1 for ut, iid, iname in users_data
+                if ut == "1" and (iid == inst.id or (iname and iname.strip().lower() == inst_name_norm))
+            )
+            mentees_count = sum(
+                1 for ut, iid, iname in users_data
+                if ut == "2" and (iid == inst.id or (iname and iname.strip().lower() == inst_name_norm))
+            )
+            active_mentorships = sum(
+                1 for iid, iname in active_req_data
+                if (iid == inst.id or (iname and iname.strip().lower() == inst_name_norm))
+            )
+
+            res_list.append({
+                "id": inst.id,
+                "user_id": inst.user_id,
+                "name": inst.name or "Unnamed Institution",
+                "contact_person": inst.contact_person or "",
+                "contact_email": inst.contact_email or "",
+                "contact_phone": inst.contact_phone or "",
+                "city": inst.city or "",
+                "country": inst.country or "",
+                "status": inst.status or "active",
+                "mentors_count": mentors_count,
+                "mentees_count": mentees_count,
+                "active_mentorships": active_mentorships,
+                "profile_picture": format_pic_url(inst.profile_picture)
+            })
+
+        return jsonify({"success": True, "institutions": res_list})
+
+    @api_bp.route("/admin/institutions/<int:inst_id>", methods=["GET"])
+    def api_admin_institution_detail(inst_id):
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) != "0":
+            return jsonify({"success": False, "message": "Administrator privileges required"}), 403
+
+        inst = db.session.get(Institution, inst_id) if Institution else None
+        if not inst:
+            return jsonify({"success": False, "message": "Institution not found"}), 404
+
+        inst_name_norm = (inst.name or "").strip().lower()
+        users = User.query.filter(
+            or_(
+                User.institution_id == inst.id,
+                func.lower(User.institution) == inst_name_norm
+            )
+        ).all()
+
+        roster = []
+        for u in users:
+            mp = MenteeProfile.query.filter_by(user_id=u.id).first() if (MenteeProfile and u.user_type == "2") else None
+            mop = MentorProfile.query.filter_by(user_id=u.id).first() if (MentorProfile and u.user_type == "1") else None
+            roster.append({
+                "id": u.id,
+                "name": u.name or f"User #{u.id}",
+                "email": u.email,
+                "user_type": u.user_type,
+                "role": "Mentee" if u.user_type == "2" else ("Mentor" if u.user_type == "1" else "Other"),
+                "stream": getattr(mp, "stream", None) or getattr(mop, "profession", None) or "",
+                "profile_picture": format_pic_url(u.profile_picture_url)
+            })
+
+        return jsonify({
+            "success": True,
+            "institution": {
+                "id": inst.id,
+                "user_id": inst.user_id,
+                "name": inst.name,
+                "contact_person": inst.contact_person,
+                "contact_email": inst.contact_email,
+                "contact_phone": inst.contact_phone,
+                "city": inst.city,
+                "country": inst.country,
+                "status": inst.status,
+                "profile_picture": format_pic_url(inst.profile_picture)
+            },
+            "roster": roster
+        })
+
+    @api_bp.route("/admin/special_requests", methods=["GET"])
+    def api_admin_special_requests():
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) != "0":
+            return jsonify({"success": False, "message": "Administrator privileges required"}), 403
+
+        premium_list = []
+        if PremiumApplication:
+            p_apps = PremiumApplication.query.order_by(PremiumApplication.created_at.desc()).limit(100).all()
+            for p in p_apps:
+                mo = User.query.get(p.mentor_id) if p.mentor_id else None
+                premium_list.append({
+                    "id": p.id,
+                    "mentor_id": p.mentor_id,
+                    "user_id": p.mentor_id,
+                    "name": mo.name if mo else f"Mentor #{p.mentor_id}",
+                    "email": mo.email if mo else "",
+                    "reason": p.reason or "No reason provided",
+                    "status": p.status or "pending",
+                    "created_at": p.created_at.strftime("%Y-%m-%d %H:%M") if p.created_at else ""
+                })
+
+        scholarly_list = []
+        if ScholarlyApplication:
+            s_apps = ScholarlyApplication.query.order_by(ScholarlyApplication.created_at.desc()).limit(100).all()
+            for s in s_apps:
+                me = User.query.get(s.mentee_id) if s.mentee_id else None
+                scholarly_list.append({
+                    "id": s.id,
+                    "mentee_id": s.mentee_id,
+                    "user_id": s.mentee_id,
+                    "name": me.name if me else f"Mentee #{s.mentee_id}",
+                    "email": me.email if me else "",
+                    "reason": s.reason or "No reason provided",
+                    "status": s.status or "pending",
+                    "created_at": s.created_at.strftime("%Y-%m-%d %H:%M") if s.created_at else ""
+                })
+
+        return jsonify({
+            "success": True,
+            "premium_requests": premium_list,
+            "scholarly_requests": scholarly_list
+        })
+
+    @api_bp.route("/admin/special_requests/<string:req_type>/<int:req_id>/action", methods=["POST"])
+    def api_admin_special_request_action(req_type, req_id):
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) != "0":
+            return jsonify({"success": False, "message": "Administrator privileges required"}), 403
+
+        data = request.get_json(silent=True) or request.form or {}
+        new_status = data.get("status") or data.get("action")
+        if new_status in ("accept", "accepted"):
+            new_status = "approved"
+        elif new_status in ("decline", "declined"):
+            new_status = "rejected"
+
+        if new_status not in ("approved", "rejected"):
+            return jsonify({"success": False, "message": "Invalid status (must be approved or rejected)"}), 400
+
+        try:
+            if req_type == "premium":
+                if not PremiumApplication:
+                    return jsonify({"success": False, "message": "Premium application model not available"}), 503
+                record = db.session.get(PremiumApplication, req_id)
+                if not record:
+                    return jsonify({"success": False, "message": "Premium application not found"}), 404
+                record.status = new_status
+                record.reviewed_at = datetime.utcnow()
+                mo = User.query.get(record.mentor_id) if record.mentor_id else None
+                if mo:
+                    mo.premium = (new_status == "approved")
+                db.session.commit()
+                return jsonify({"success": True, "message": f"Premium application {new_status} successfully"})
+
+            elif req_type == "scholarly":
+                if not ScholarlyApplication:
+                    return jsonify({"success": False, "message": "Scholarly application model not available"}), 503
+                record = db.session.get(ScholarlyApplication, req_id)
+                if not record:
+                    return jsonify({"success": False, "message": "Scholarly application not found"}), 404
+                record.status = new_status
+                record.reviewed_at = datetime.utcnow()
+                me = User.query.get(record.mentee_id) if record.mentee_id else None
+                if me:
+                    me.scholarly = (new_status == "approved")
+                db.session.commit()
+                return jsonify({"success": True, "message": f"Scholarly application {new_status} successfully"})
+            else:
+                return jsonify({"success": False, "message": f"Unknown request type '{req_type}'"}), 400
+
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e)}), 500
 
     # -------------------------------------------------------------
     # 7. NOTIFICATIONS & RESOURCE NOTES
@@ -4592,7 +4937,37 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         user_email = target_user.email
 
         try:
+            from sqlalchemy import text as _text
+
+            # 1. Nullify references where target user is a secondary participant/actor
+            nullable_fk_cleanups = [
+                ("meeting_requests", "rescheduled_by_id"),
+                ("mentorship_requests", "rated_by"),
+                ("mentor_profile", "referred_by_seller_id"),
+                ("seller_profiles", "verified_by"),
+                ("coupon_assignments", "assigned_by"),
+                ("coupon_requests", "handled_by"),
+                ("resource_notes", "mentor_id"),
+                ("personal_tasks", "mentor_id"),
+            ]
+            for table, col in nullable_fk_cleanups:
+                try:
+                    with db.session.begin_nested():
+                        db.session.execute(_text(f"UPDATE {table} SET {col} = NULL WHERE {col} = :uid"), {"uid": user_id})
+                except Exception as null_err:
+                    logger.warning(f"api_admin_delete_user: nullify {table}.{col}: {null_err}")
+
+            # Unlink institutions owned by this user
+            try:
+                with db.session.begin_nested():
+                    db.session.execute(_text("UPDATE signup_details SET institution_id = NULL WHERE institution_id IN (SELECT id FROM institutions WHERE user_id = :uid)"), {"uid": user_id})
+                    db.session.execute(_text("UPDATE resource_notes SET institution_id = NULL WHERE institution_id IN (SELECT id FROM institutions WHERE user_id = :uid)"), {"uid": user_id})
+            except Exception as inst_err:
+                logger.warning(f"api_admin_delete_user: unlink institution: {inst_err}")
+
+            # 2. Delete related records first (due to foreign key constraints)
             tables_to_clean = [
+                ("profile_completion_reminders", "user_id"),
                 ("mentor_profile", "user_id"),
                 ("mentee_profile", "user_id"),
                 ("supervisor_profile", "user_id"),
@@ -4607,6 +4982,12 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 ("personal_tasks", "mentor_id"),
                 ("task_ratings", "mentee_id"),
                 ("task_ratings", "mentor_id"),
+                ("mentee_feedbacks", "mentee_id"),
+                ("mentor_reflections", "mentor_id"),
+                ("resource_notes", "mentee_id"),
+                ("mentor_sourcing_requests", "mentee_id"),
+                ("scholarly_applications", "mentee_id"),
+                ("premium_applications", "mentor_id"),
                 ("seller_profiles", "user_id"),
                 ("seller_shops", "seller_user_id"),
                 ("seller_referrals", "user_id"),
@@ -4620,7 +5001,6 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 ("chat_conversations", "participant2_id"),
             ]
 
-            from sqlalchemy import text as _text
             for table, column in tables_to_clean:
                 try:
                     with db.session.begin_nested():
@@ -4633,11 +5013,15 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 for col, val in (("seller_id", None), ("redeemed_by_user_id", None), ("partner_user_id", None),
                                  ("issued_by_user_id", None), ("refunded_by", None), ("mentor_id", keeper)):
                     try:
-                        db.session.execute(_text(f"UPDATE mentor_coupons SET {col} = :v WHERE {col} = :uid"), {"v": val, "uid": user_id})
+                        with db.session.begin_nested():
+                            db.session.execute(_text(f"UPDATE mentor_coupons SET {col} = :v WHERE {col} = :uid"), {"v": val, "uid": user_id})
                     except Exception as ce:
                         logger.warning(f"api_admin_delete_user: coupon unlink {col}: {ce}")
 
-            db.session.delete(target_user)
+            db.session.expire_all()
+            user_to_delete = db.session.get(User, user_id)
+            if user_to_delete:
+                db.session.delete(user_to_delete)
             db.session.commit()
             logger.info(f"ADMIN_USER_ERASED admin_id={admin.id} erased_user_id={user_id}")
 
