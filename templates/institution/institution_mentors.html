@@ -29,8 +29,8 @@
         </svg>
       </div>
       <select id="mentorAffiliationFilter" data-no-search="true" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 w-full sm:w-auto" onchange="filterMentors()">
-        <option value="">All Mentors ({{ affiliation_counts.all if affiliation_counts else mentors|length }})</option>
-        <option value="direct">My Institution Mentors ({{ affiliation_counts.direct if affiliation_counts else 'Direct' }})</option>
+        <option value="">All Associated Mentors ({{ affiliation_counts.all if affiliation_counts else mentors|length }})</option>
+        <option value="direct">Direct Institution Mentors ({{ affiliation_counts.direct if affiliation_counts else 'Direct' }})</option>
         <option value="paired">Paired with Students ({{ affiliation_counts.paired if affiliation_counts else 'Paired' }})</option>
       </select>
       <select id="mentorStatusFilter" data-no-search="true" class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 w-full sm:w-auto" onchange="filterMentors()">
@@ -63,10 +63,10 @@
         <tbody class="bg-white divide-y divide-gray-200">
           {% for mentor in mentors %}
           {% set is_direct = direct_mentor_ids and mentor.id in direct_mentor_ids %}
-          {% set is_paired = paired_mentor_ids and mentor.id in paired_mentor_ids %}
+          {% set is_paired = paired_mentor_ids and mentor.id in paired_mentor_ids and not is_direct %}
           <tr class="mentor-row hover:bg-gray-50 transition-colors" data-mentor-id="{{ mentor.id }}"
               data-status="{{ mentor.status|lower if mentor.status else 'active' }}"
-              data-affiliation="{% if is_direct %}direct{% elif is_paired %}paired{% else %}network{% endif %}"
+              data-affiliation="{% if is_direct %}direct{% elif is_paired %}paired{% else %}other{% endif %}"
               data-org="{{ (mentor.mentor_profile.organisation or mentor.institution or '')|lower }}"
               data-profession="{{ (mentor.mentor_profile.profession if mentor.mentor_profile else '')|lower }}"
               data-location="{{ (mentor.mentor_profile.location if mentor.mentor_profile else '')|lower }}">
@@ -534,7 +534,7 @@
       if (affiliationFilter === 'direct') {
         matchAffiliation = (rowAff === 'direct');
       } else if (affiliationFilter === 'paired') {
-        matchAffiliation = (rowAff === 'direct' || rowAff === 'paired');
+        matchAffiliation = (rowAff === 'paired');
       }
       const matchStatus = !statusFilter || rowStatus === statusFilter;
       const matchProfession = !professionFilter || rowProfession === professionFilter;

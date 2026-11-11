@@ -21,8 +21,8 @@
         </svg>
       </div>
       <select id="menteeAffiliationFilter" data-no-search="true" class="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentees()">
-        <option value="">All Mentees ({{ affiliation_counts.all if affiliation_counts else mentees|length }})</option>
-        <option value="direct">My Institution Mentees ({{ affiliation_counts.direct if affiliation_counts else 'Direct' }})</option>
+        <option value="">All Associated Mentees ({{ affiliation_counts.all if affiliation_counts else mentees|length }})</option>
+        <option value="direct">Direct Institution Mentees ({{ affiliation_counts.direct if affiliation_counts else 'Direct' }})</option>
         <option value="paired">Paired Mentees ({{ affiliation_counts.paired if affiliation_counts else 'Paired' }})</option>
       </select>
       <select id="menteeStatusFilter" data-no-search="true" class="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentees()">
@@ -55,10 +55,10 @@
         <tbody class="bg-white divide-y divide-gray-200">
           {% for mentee in mentees %}
           {% set is_direct = direct_mentee_ids and mentee.id in direct_mentee_ids %}
-          {% set is_paired = paired_mentee_ids and mentee.id in paired_mentee_ids %}
+          {% set is_paired = paired_mentee_ids and mentee.id in paired_mentee_ids and not is_direct %}
           <tr class="mentee-row hover:bg-gray-50 transition-colors"
               data-status="{{ mentee.status|lower if mentee.status else 'active' }}"
-              data-affiliation="{% if is_direct %}direct{% elif is_paired %}paired{% else %}network{% endif %}"
+              data-affiliation="{% if is_direct %}direct{% elif is_paired %}paired{% else %}other{% endif %}"
               data-stream="{{ (mentee.mentee_profile.stream or mentee.mentee_profile.course_stream if mentee.mentee_profile else '')|lower }}"
               data-school="{{ (mentee.mentee_profile.school_college_name or mentee.mentee_profile.institution or mentee.institution if mentee.mentee_profile else mentee.institution or '')|lower }}">
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap max-w-[280px]">
@@ -540,7 +540,7 @@
       if (affiliationFilter === 'direct') {
         matchAffiliation = (rowAff === 'direct');
       } else if (affiliationFilter === 'paired') {
-        matchAffiliation = (rowAff === 'direct' || rowAff === 'paired');
+        matchAffiliation = (rowAff === 'paired');
       }
       const matchStatus = !statusFilter || rowStatus === statusFilter;
       const matchStream = !streamFilter || rowStream === streamFilter;
