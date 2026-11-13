@@ -6990,12 +6990,12 @@ def institution_mentors():
         return redirect(url_for("signin"))
     
     user = User.query.filter_by(email=session["email"]).first()
-    all_mentors, _ = _get_institution_members(user, include_paired=False)
+    direct_mentors, _ = _get_institution_members(user, include_paired=False)
     
     return render_template(
         "institution/institution_mentors.html",
         show_sidebar=True,
-        mentors=all_mentors
+        mentors=direct_mentors
     )
 
 @app.route("/institution_mentees")
@@ -7004,12 +7004,12 @@ def institution_mentees():
         return redirect(url_for("signin"))
     
     user = User.query.filter_by(email=session["email"]).first()
-    _, institution_mentees = _get_institution_members(user, include_paired=False)
+    _, direct_mentees = _get_institution_members(user, include_paired=False)
     
     return render_template(
         "institution/institution_mentees.html",
         show_sidebar=True,
-        mentees=institution_mentees
+        mentees=direct_mentees
     )
 
 @app.route("/institution_mentorships")

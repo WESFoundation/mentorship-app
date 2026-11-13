@@ -14,24 +14,24 @@
     <!-- Search and Filters -->
     <div class="mb-6 flex flex-wrap gap-3 items-center">
       <div class="relative flex-1 min-w-full sm:min-w-[200px]">
-        <input type="text" id="menteeSearch" placeholder="Search mentees by name, school, goal..."
+        <input type="text" id="menteeSearch" placeholder="Search mentees by name, school, goal, email..."
           class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" onkeyup="filterMentees()">
         <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
         </svg>
       </div>
-      <select id="menteeStatusFilter" class="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentees()">
+      <select id="menteeStatusFilter" data-no-search="true" class="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentees()">
         <option value="">All Status</option>
         <option value="active">Active</option>
         <option value="inactive">Inactive</option>
       </select>
-      <select id="menteeStreamFilter" class="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentees()">
+      <select id="menteeStreamFilter" data-no-search="true" class="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentees()">
         <option value="">All Streams</option>
       </select>
-      <select id="menteeSchoolFilter" class="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentees()">
+      <select id="menteeSchoolFilter" data-no-search="true" class="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" onchange="filterMentees()">
         <option value="">All Schools</option>
       </select>
-      <div class="ml-auto text-xs text-gray-500" id="menteeResultsCountInstitution"></div>
+      <div class="ml-auto text-xs text-gray-500 font-medium" id="menteeResultsCountInstitution"></div>
     </div>
 
     {% if mentees and mentees|length > 0 %}
@@ -51,8 +51,8 @@
           {% for mentee in mentees %}
           <tr class="mentee-row hover:bg-gray-50 transition-colors"
               data-status="{{ mentee.status|lower if mentee.status else 'active' }}"
-              data-stream="{{ (mentee.mentee_profile.course_stream if mentee.mentee_profile else '')|lower }}"
-              data-school="{{ (mentee.mentee_profile.school_college_name if mentee.mentee_profile else '')|lower }}">
+              data-stream="{{ (mentee.mentee_profile.stream or mentee.mentee_profile.course_stream if mentee.mentee_profile else '')|lower }}"
+              data-school="{{ (mentee.mentee_profile.school_college_name or mentee.mentee_profile.institution or mentee.institution if mentee.mentee_profile else mentee.institution or '')|lower }}">
             <td class="px-3 sm:px-6 py-4 whitespace-nowrap max-w-[280px]">
               <div class="flex items-center">
                 {% if mentee.mentee_profile and mentee.mentee_profile.profile_picture %}
@@ -75,8 +75,8 @@
                 </div>
                 {% endif %}
                 <div>
-                  <div class="text-sm font-semibold text-gray-900 mentee-name">{{ mentee.name }}{% if mentee.scholarly %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-200" title="Scholarly Mentee"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3.001zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/></svg> Scholarly</span>{% endif %}</div>
-                  <div class="text-xs text-gray-500">{{ mentee.mentee_profile.class_year if mentee.mentee_profile else '' }}</div>
+                  <div class="text-sm font-semibold text-gray-900 mentee-name flex flex-wrap items-center gap-1">{{ mentee.name }}{% if mentee.scholarly %} <span class="inline-flex items-center gap-0.5 text-xs font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-200" title="Scholarly Mentee"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3.001zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/></svg> Scholarly</span>{% endif %}</div>
+                  <div class="text-xs text-gray-500">{{ mentee.mentee_profile.class_year if mentee.mentee_profile and mentee.mentee_profile.class_year else (mentee.mentee_profile.school_college_name if mentee.mentee_profile and mentee.mentee_profile.school_college_name else (mentee.institution or '')) }}</div>
                 </div>
               </div>
             </td>
@@ -505,23 +505,26 @@
 
 <script>
   function filterMentees() {
-    const input = document.getElementById('menteeSearch').value.toLowerCase();
-    const statusFilter = document.getElementById('menteeStatusFilter').value.toLowerCase();
-    const streamFilter = document.getElementById('menteeStreamFilter').value.toLowerCase();
-    const schoolFilter = document.getElementById('menteeSchoolFilter').value.toLowerCase();
+    const input = (document.getElementById('menteeSearch') ? document.getElementById('menteeSearch').value : '').toLowerCase().trim();
+    const statusEl = document.getElementById('menteeStatusFilter');
+    const statusFilter = (statusEl ? statusEl.value : '').toLowerCase();
+    const streamEl = document.getElementById('menteeStreamFilter');
+    const streamFilter = (streamEl ? streamEl.value : '').toLowerCase();
+    const schoolEl = document.getElementById('menteeSchoolFilter');
+    const schoolFilter = (schoolEl ? schoolEl.value : '').toLowerCase();
     const rows = document.querySelectorAll('.mentee-row');
     let visible = 0;
 
     rows.forEach(row => {
-      const name = row.querySelector('.mentee-name').innerText.toLowerCase();
-      const stream = row.querySelector('.mentee-stream').innerText.toLowerCase();
-      const goal = row.querySelector('.mentee-goal').innerText.toLowerCase();
-      const email = row.querySelector('.mentee-email').innerText.toLowerCase();
+      const name = (row.querySelector('.mentee-name') ? row.querySelector('.mentee-name').innerText : '').toLowerCase();
+      const stream = (row.querySelector('.mentee-stream') ? row.querySelector('.mentee-stream').innerText : '').toLowerCase();
+      const goal = (row.querySelector('.mentee-goal') ? row.querySelector('.mentee-goal').innerText : '').toLowerCase();
+      const email = (row.querySelector('.mentee-email') ? row.querySelector('.mentee-email').innerText : '').toLowerCase();
       const rowStatus = (row.getAttribute('data-status') || '').toLowerCase();
       const rowStream = (row.getAttribute('data-stream') || '').toLowerCase();
       const rowSchool = (row.getAttribute('data-school') || '').toLowerCase();
 
-      const matchSearch = !input || name.includes(input) || stream.includes(input) || goal.includes(input) || email.includes(input);
+      const matchSearch = !input || name.includes(input) || stream.includes(input) || goal.includes(input) || email.includes(input) || rowSchool.includes(input);
       const matchStatus = !statusFilter || rowStatus === statusFilter;
       const matchStream = !streamFilter || rowStream === streamFilter;
       const matchSchool = !schoolFilter || rowSchool === schoolFilter;
@@ -534,7 +537,7 @@
     if (countEl) countEl.textContent = `Showing ${visible} of ${rows.length} mentees`;
   }
 
-  // Populate stream and school filters
+  // Populate stream and school filters and trigger initial count
   (function() {
     const streams = new Set();
     const schools = new Set();
@@ -545,19 +548,24 @@
       if (sch) schools.add(sch);
     });
     const streamSelect = document.getElementById('menteeStreamFilter');
-    [...streams].sort().forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s;
-      opt.textContent = s.charAt(0).toUpperCase() + s.slice(1);
-      streamSelect.appendChild(opt);
-    });
+    if (streamSelect) {
+      [...streams].sort().forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+        streamSelect.appendChild(opt);
+      });
+    }
     const schoolSelect = document.getElementById('menteeSchoolFilter');
-    [...schools].sort().forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s;
-      opt.textContent = s.charAt(0).toUpperCase() + s.slice(1);
-      schoolSelect.appendChild(opt);
-    });
+    if (schoolSelect) {
+      [...schools].sort().forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+        schoolSelect.appendChild(opt);
+      });
+    }
+    filterMentees();
   })();
 
   function openMenteeProfileModal(mentee) {

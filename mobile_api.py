@@ -3320,6 +3320,197 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             db.session.rollback()
             return jsonify({"success": False, "message": str(e)}), 500
 
+    @api_bp.route("/admin/meetings", methods=["GET"])
+    def api_admin_all_meetings():
+        user = get_current_user_from_req(User)
+        if not user or str(getattr(user, "user_type", "")) not in ("0", "3", "admin", "supervisor"):
+            return jsonify({"success": False, "message": "Admin privileges required"}), 403
+
+        query = MeetingRequest.query.order_by(
+            MeetingRequest.meeting_date.desc(),
+            MeetingRequest.meeting_time.desc(),
+            MeetingRequest.id.desc()
+        )
+
+        status_filter = (request.args.get("status") or "").strip().lower()
+        if status_filter and status_filter != "all":
+            query = query.filter(func.lower(MeetingRequest.status) == status_filter)
+
+        search_q = (request.args.get("q") or request.args.get("search") or "").strip().lower()
+
+        meetings = query.limit(200).all()
+        now_dt = datetime.now()
+        results = []
+
+        for m in meetings:
+            if search_q and search_q not in (m.meeting_title or "").lower() and search_q not in (m.meeting_description or "").lower():
+                continue
+
+            req_u = User.query.get(m.requester_id) if m.requester_id else None
+            tar_u = User.query.get(m.requested_to_id) if m.requested_to_id else None
+
+            # Resolve mentor and mentee
+            mentor_u = req_u if (req_u and str(getattr(req_u, "user_type", "")) == "1") else (tar_u if (tar_u and str(getattr(tar_u, "user_type", "")) == "1") else None)
+            mentee_u = req_u if (req_u and str(getattr(req_u, "user_type", "")) == "2") else (tar_u if (tar_u and str(getattr(tar_u, "user_type", "")) == "2") else None)
+
+            if not mentor_u and not mentee_u:
+                mentor_u = tar_u or req_u
+                mentee_u = req_u or tar_u
+
+            mp = getattr(mentor_u, "mentor_profile", None) if mentor_u else None
+            ep = getattr(mentee_u, "mentee_profile", None) if mentee_u else None
+
+            dur_val = getattr(m, "meeting_duration", None) or getattr(m, "duration", None) or 45
+            dur_str = f"{dur_val} mins" if isinstance(dur_val, (int, float)) or (isinstance(dur_val, str) and dur_val.isdigit()) else str(dur_val)
+
+            is_upcoming = True
+            if m.meeting_date:
+                m_dt = datetime.combine(m.meeting_date, m.meeting_time if m.meeting_time else datetime.min.time())
+                is_upcoming = m_dt >= now_dt
+
+            meet_link = (m.meet_link or "").strip()
+            if not meet_link or meet_link.lower() == "not specified":
+                meet_link = "https://teams.microsoft.com"
+
+            results.append({
+                "id": m.id,
+                "title": m.meeting_title or "Mentorship Meeting",
+                "description": m.meeting_description or "",
+                "meeting_date": m.meeting_date.strftime("%Y-%m-%d") if m.meeting_date else "",
+                "meeting_time": m.meeting_time.strftime("%I:%M %p") if m.meeting_time else "",
+                "date": m.meeting_date.strftime("%d %b %Y") if m.meeting_date else "",
+                "time": m.meeting_time.strftime("%I:%M %p") if m.meeting_time else "",
+                "duration": dur_str,
+                "meet_link": meet_link,
+                "status": m.status or ("Upcoming" if is_upcoming else "Completed"),
+                "is_upcoming": is_upcoming,
+                "meeting_type": getattr(m, "meeting_type", "") or ("sgm" if (m.meeting_title or "").upper().startswith("SGM") else "1on1"),
+                "gcal_event_id": getattr(m, "gcal_event_id", None),
+                "mentor_id": mentor_u.id if mentor_u else 0,
+                "mentor_name": mentor_u.name if mentor_u else "Mentor",
+                "mentor_email": mentor_u.email if mentor_u else "",
+                "mentor_avatar": resolve_profile_pic(mp, mentor_u),
+                "mentee_id": mentee_u.id if mentee_u else 0,
+                "mentee_name": mentee_u.name if mentee_u else "Mentee",
+                "mentee_email": mentee_u.email if mentee_u else "",
+                "mentee_avatar": resolve_profile_pic(ep, mentee_u),
+            })
+
+        return jsonify({"success": True, "meetings": results, "count": len(results)})
+
+    @api_bp.route("/admin/tasks", methods=["GET"])
+    def api_admin_all_tasks():
+        user = get_current_user_from_req(User)
+        if not user or str(getattr(user, "user_type", "")) not in ("0", "3", "admin", "supervisor"):
+            return jsonify({"success": False, "message": "Admin privileges required"}), 403
+
+        status_param = (request.args.get("status") or "").strip().lower()
+        search_q = (request.args.get("q") or request.args.get("search") or "").strip().lower()
+
+        mentee_tasks_query = MenteeTask.query.order_by(MenteeTask.id.desc())
+        if status_param and status_param != "all":
+            mentee_tasks_query = mentee_tasks_query.filter(func.lower(MenteeTask.status) == status_param)
+        mentee_tasks = mentee_tasks_query.limit(150).all()
+
+        personal_tasks = []
+        if PersonalTask:
+            pquery = PersonalTask.query.order_by(PersonalTask.id.desc())
+            if status_param and status_param != "all":
+                pquery = pquery.filter(func.lower(PersonalTask.status) == status_param)
+            personal_tasks = pquery.limit(100).all()
+
+        results = []
+
+        for t in mentee_tasks:
+            mt = getattr(t, "master_task", None)
+            title = (mt.journey_phase if mt and mt.journey_phase else (mt.mentee_focus if mt and mt.mentee_focus else f"Curriculum Task #{t.meeting_number}"))
+            desc = (mt.purpose_of_call if mt and mt.purpose_of_call else (mt.mentee_focus if mt and mt.mentee_focus else "Curriculum Assignment"))
+
+            if search_q and search_q not in title.lower() and search_q not in desc.lower():
+                continue
+
+            me = User.query.get(t.mentee_id) if t.mentee_id else None
+            mo = User.query.get(t.mentor_id) if t.mentor_id else None
+
+            status_str = (t.status or "pending").strip().lower()
+            if status_str in ("done", "completed") or (t.progress or 0) >= 100:
+                display_status = "Done"
+            elif status_str in ("in-progress", "in_progress", "committed"):
+                display_status = "In Progress"
+            else:
+                display_status = "Pending"
+
+            results.append({
+                "id": t.id,
+                "task_id": t.id,
+                "title": title,
+                "description": desc,
+                "type": "Curriculum Task",
+                "task_type": "master",
+                "serial": getattr(t, "meeting_number", 1) or 1,
+                "month": str(t.month or (mt.month if mt else "") or ""),
+                "due_date": t.due_date.strftime("%Y-%m-%d") if getattr(t, "due_date", None) else "",
+                "status": display_status,
+                "raw_status": t.status or "pending",
+                "priority": getattr(t, "priority", "Medium") or "Medium",
+                "category": "curriculum",
+                "progress": t.progress if getattr(t, "progress", None) is not None else (100 if display_status == "Done" else 0),
+                "mentee_id": t.mentee_id,
+                "mentee_name": me.name if me else f"Mentee #{t.mentee_id}",
+                "mentee_email": me.email if me else "",
+                "mentor_id": t.mentor_id,
+                "mentor_name": mo.name if mo else "Unassigned",
+                "mentor_email": mo.email if mo else "",
+                "purpose_of_call": getattr(mt, "purpose_of_call", "") if mt else "",
+                "mentor_focus": getattr(mt, "mentor_focus", "") if mt else "",
+                "mentee_focus": getattr(mt, "mentee_focus", "") if mt else "",
+            })
+
+        for pt in personal_tasks:
+            title = pt.title or "Personal Task"
+            desc = pt.description or ""
+            if search_q and search_q not in title.lower() and search_q not in desc.lower():
+                continue
+
+            me = User.query.get(pt.mentee_id) if pt.mentee_id else None
+            mo = User.query.get(pt.mentor_id) if getattr(pt, "mentor_id", None) else None
+
+            status_str = (pt.status or "pending").strip().lower()
+            if status_str in ("done", "completed") or (pt.progress or 0) >= 100:
+                display_status = "Done"
+            elif status_str in ("in-progress", "in_progress"):
+                display_status = "In Progress"
+            else:
+                display_status = "Pending"
+
+            results.append({
+                "id": pt.id,
+                "task_id": pt.id,
+                "title": title,
+                "description": desc,
+                "type": "Personal Task",
+                "task_type": "personal",
+                "serial": getattr(pt, "id", 1),
+                "month": "Ongoing",
+                "due_date": pt.due_date.strftime("%Y-%m-%d") if getattr(pt, "due_date", None) else "",
+                "status": display_status,
+                "raw_status": pt.status or "pending",
+                "priority": getattr(pt, "priority", "Medium") or "Medium",
+                "category": getattr(pt, "category", "personal") or "personal",
+                "progress": pt.progress if getattr(pt, "progress", None) is not None else (100 if display_status == "Done" else 0),
+                "mentee_id": pt.mentee_id,
+                "mentee_name": me.name if me else f"Mentee #{pt.mentee_id}",
+                "mentee_email": me.email if me else "",
+                "mentor_id": getattr(pt, "mentor_id", None),
+                "mentor_name": mo.name if mo else "Self / Coordinator",
+                "mentor_email": mo.email if mo else "",
+                "purpose_of_call": "",
+                "mentor_focus": "",
+                "mentee_focus": "",
+            })
+
+        return jsonify({"success": True, "tasks": results, "count": len(results)})
+
     # -------------------------------------------------------------
     # 7. NOTIFICATIONS & RESOURCE NOTES
     # -------------------------------------------------------------
