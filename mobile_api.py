@@ -418,6 +418,13 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         session["email"] = user.email
         session["user_type"] = role
         session.permanent = True
+        try:
+            import datetime as _dtm
+            if hasattr(user, "last_login"):
+                user.last_login = _dtm.datetime.utcnow()
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
 
         return jsonify({
             "success": True,
@@ -469,6 +476,13 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         session["email"] = user.email
         session["user_type"] = role
         session.permanent = True
+        try:
+            import datetime as _dtm
+            if hasattr(user, "last_login"):
+                user.last_login = _dtm.datetime.utcnow()
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
 
         return jsonify({
             "success": True,

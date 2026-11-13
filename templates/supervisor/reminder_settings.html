@@ -108,7 +108,7 @@
           <!-- Toggle Enable Switch -->
           <div class="flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-slate-200">
             <div>
-              <label for="is_enabled" class="text-sm font-bold text-slate-800 block cursor-pointer">Enable Background Reminders</label>
+              <label for="is_enabled" class="text-sm font-bold text-slate-800 block cursor-pointer">Enable Background Reminders <button type="button" class="help-btn" data-help="is_enabled" aria-label="What does this do?">?</button></label>
               <p class="text-xs text-slate-500 mt-0.5">When disabled, automated scanning and emails are paused entirely.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
@@ -120,7 +120,7 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <!-- Frequency Hours -->
             <div>
-              <label for="frequency_hours" class="block text-sm font-semibold text-slate-700 mb-1">Execution Interval (Hours)</label>
+              <label for="frequency_hours" class="block text-sm font-semibold text-slate-700 mb-1">Execution Interval (Hours) <button type="button" class="help-btn" data-help="frequency" aria-label="What does this do?">?</button></label>
               <div class="relative">
                 <input type="number" id="frequency_hours" name="frequency_hours" min="1" max="720" value="{{ settings.frequency_hours }}" required
                        class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm">
@@ -131,7 +131,7 @@
 
             <!-- Minimum Completion for Reminders -->
             <div>
-              <label for="min_completion_for_reminder" class="block text-sm font-semibold text-slate-700 mb-1">Minimum Completion % Threshold</label>
+              <label for="min_completion_for_reminder" class="block text-sm font-semibold text-slate-700 mb-1">Minimum Completion % Threshold <button type="button" class="help-btn" data-help="min_completion" aria-label="What does this do?">?</button></label>
               <div class="relative">
                 <input type="number" id="min_completion_for_reminder" name="min_completion_for_reminder" min="0" max="99" value="{{ settings.min_completion_for_reminder }}" required
                        class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm">
@@ -144,7 +144,7 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <!-- Max Reminders Per User -->
             <div>
-              <label for="max_reminders_per_user" class="block text-sm font-semibold text-slate-700 mb-1">Max Reminders Per User</label>
+              <label for="max_reminders_per_user" class="block text-sm font-semibold text-slate-700 mb-1">Max Reminders Per User <button type="button" class="help-btn" data-help="max_reminders" aria-label="What does this do?">?</button></label>
               <input type="number" id="max_reminders_per_user" name="max_reminders_per_user" min="1" max="50" value="{{ settings.max_reminders_per_user }}" required
                      class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm">
               <p class="text-xs text-slate-500 mt-1">Stop sending reminders after user reaches this limit (default: 7)</p>
@@ -152,7 +152,7 @@
 
             <!-- Last Run Info -->
             <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">Last Successful Run</label>
+              <label class="block text-sm font-semibold text-slate-700 mb-1">Last Successful Run <button type="button" class="help-btn" data-help="last_run" aria-label="What does this do?">?</button></label>
               <div class="px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-600">
                 {% if settings.last_run %}
                   {{ settings.last_run.strftime('%b %d, %Y at %H:%M:%S UTC') }}
@@ -173,6 +173,91 @@
             </button>
           </div>
         </form>
+      </div>
+
+            <!-- Send a custom reminder (single person or custom group) -->
+      <div id="custom-reminder-card" class="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
+          <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg>
+          Send a Custom Reminder
+          <button type="button" class="help-btn" data-help="custom_send" aria-label="What does this do?">?</button>
+        </h2>
+        <p class="text-xs text-slate-500 mb-5 pb-4 border-b border-slate-100">Send your own message to one person or to a group you choose.</p>
+
+        <div class="space-y-5">
+          <!-- Who -->
+          <div>
+            <div class="flex flex-wrap items-center gap-3 mb-2">
+              <span class="text-sm font-semibold text-slate-700">Send to</span>
+              <label class="inline-flex items-center gap-1.5 text-sm cursor-pointer"><input type="radio" name="cr-mode" value="single"> One person</label>
+              <label class="inline-flex items-center gap-1.5 text-sm cursor-pointer"><input type="radio" name="cr-mode" value="group" checked> A group</label>
+              <button type="button" class="help-btn" data-help="recipient_mode" aria-label="What does this do?">?</button>
+            </div>
+
+            <div id="cr-quick" class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="text-xs text-slate-500">Quick add:</span>
+              <button type="button" class="cr-chip" data-quick="mentor">All mentors</button>
+              <button type="button" class="cr-chip" data-quick="mentee">All mentees</button>
+              <button type="button" class="cr-chip" data-quick="institution">All institutions</button>
+              <button type="button" class="cr-chip" data-quick="partner">All partners</button>
+              <select id="cr-inst" class="text-xs px-2 py-1 rounded-lg border border-slate-300 bg-white">
+                <option value="">Everyone from an institution…</option>
+              </select>
+              <button type="button" class="cr-chip" id="cr-clear">Clear</button>
+              <button type="button" class="help-btn" data-help="quick_add" aria-label="What does this do?">?</button>
+            </div>
+
+            <input type="text" id="cr-search" placeholder="Search by name, email or institution…"
+                   class="w-full px-4 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 mb-2">
+            <div id="cr-list" class="max-h-56 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 text-sm"></div>
+            <p class="text-xs text-slate-500 mt-1"><span id="cr-count" class="font-bold text-indigo-600">0</span> selected</p>
+          </div>
+
+          <!-- What -->
+          <div>
+            <label for="cr-subject" class="block text-sm font-semibold text-slate-700 mb-1">Title
+              <button type="button" class="help-btn" data-help="custom_title" aria-label="What does this do?">?</button></label>
+            <input type="text" id="cr-subject" maxlength="150" placeholder="e.g. Please update your availability"
+                   class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+          </div>
+          <div>
+            <label for="cr-message" class="block text-sm font-semibold text-slate-700 mb-1">Your message
+              <button type="button" class="help-btn" data-help="custom_message" aria-label="What does this do?">?</button></label>
+            <textarea id="cr-message" rows="4" maxlength="2000" placeholder="Write exactly what the people should read…"
+                      class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+            <p class="text-xs text-slate-400 mt-1 text-right"><span id="cr-chars">0</span>/2000</p>
+          </div>
+
+          <!-- How -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <div class="text-sm font-semibold text-slate-700">How to send
+                <button type="button" class="help-btn" data-help="channels" aria-label="What does this do?">?</button></div>
+              <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" id="cr-inapp" checked> In-app notification</label>
+              <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" id="cr-email"> Email</label>
+            </div>
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <label for="cr-max" class="text-sm font-semibold text-slate-700 block mb-1">Only if profile is below
+                <button type="button" class="help-btn" data-help="custom_filter" aria-label="What does this do?">?</button></label>
+              <div class="relative">
+                <input type="number" id="cr-max" min="1" max="100" placeholder="(optional)"
+                       class="w-full px-4 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500">
+                <span class="absolute right-3.5 top-2 text-xs text-slate-400 font-medium">%</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-1">Leave empty to send to everyone selected.</p>
+            </div>
+          </div>
+
+          <div id="cr-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
+
+          <div class="pt-4 border-t border-slate-100 flex items-center justify-end">
+            <button type="button" id="cr-send" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm transition disabled:opacity-60">
+              Send Reminder
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- How it Works section -->
@@ -214,7 +299,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
-          <h3 class="text-base font-bold text-slate-800">Manual Immediate Run</h3>
+          <h3 class="text-base font-bold text-slate-800">Manual Immediate Run <button type="button" class="help-btn" data-help="trigger_now" aria-label="What does this do?">?</button></h3>
         </div>
         <p class="text-xs text-slate-600 mb-4 leading-relaxed">
           Trigger the reminder job right now. Eligible users with incomplete profiles who haven't reached their cap or received a reminder today will be emailed.
@@ -266,4 +351,168 @@
     </div>
   </div>
 </main>
+
+<!-- Small help modal: explains an option in simple words -->
+<div id="help-modal" class="hidden fixed inset-0 z-[100] items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="help-title">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5">
+    <div class="flex items-start justify-between gap-3 mb-2">
+      <h3 id="help-title" class="text-base font-bold text-slate-800"></h3>
+      <button type="button" id="help-close" class="text-slate-400 hover:text-slate-600 text-xl leading-none" aria-label="Close">&times;</button>
+    </div>
+    <p id="help-body" class="text-sm text-slate-600 leading-relaxed"></p>
+    <p id="help-example" class="text-xs text-slate-500 mt-3 p-2.5 rounded-lg bg-slate-50 border border-slate-200 hidden"></p>
+    <div class="mt-4 text-right">
+      <button type="button" id="help-ok" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold">Got it</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .help-btn { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; margin-left:6px;
+    border-radius:9999px; border:1px solid #a5b4fc; background:#eef2ff; color:#4f46e5; font-size:11px; font-weight:700;
+    line-height:1; cursor:pointer; vertical-align:middle; }
+  .help-btn:hover { background:#4f46e5; color:#fff; }
+  .cr-chip { font-size:12px; padding:4px 10px; border-radius:9999px; border:1px solid #cbd5e1; background:#fff; color:#334155; cursor:pointer; }
+  .cr-chip:hover { background:#eef2ff; border-color:#a5b4fc; }
+  .cr-chip:disabled { opacity:.45; cursor:not-allowed; }
+</style>
+
+<script>
+(function () {
+  // ---------- Help modal ----------
+  var HELP = {
+    is_enabled: ['Enable Background Reminders', 'Master on/off switch for the automatic profile reminders. When it is off, nobody gets an automatic reminder. Custom messages you send by hand still work.', 'Turn it off while you are fixing something and nobody should be emailed.'],
+    frequency: ['Execution Interval (Hours)', 'How often the system looks for people with incomplete profiles and emails them. A bigger number means fewer, calmer reminders.', '24 = once a day. 168 = once a week.'],
+    min_completion: ['Minimum Completion %', 'People whose profile is below this number are skipped, so they do not get a reminder. Use it to leave out brand-new accounts that have barely started.', '0 = remind everyone who is not at 100%. 30 = only remind people who are already at least 30% done.'],
+    max_reminders: ['Max Reminders Per User', 'The most automatic reminders one person can ever receive. After that the system stops emailing them, so nobody gets nagged forever.', 'With 7, a person gets at most 7 reminder emails in total.'],
+    last_run: ['Last Successful Run', 'The last time the automatic job ran. You cannot change it. It updates by itself, so you can see that the system is working.'],
+    trigger_now: ['Trigger Reminders Now', 'Sends the normal profile reminders right now instead of waiting for the next scheduled run. It uses the same rules as above (cap, threshold) and skips people already reminded today.'],
+    custom_send: ['Send a Custom Reminder', 'Write your own message and send it to one person or to a group you pick. This is separate from the automatic profile reminders and does not count towards the per-user cap.'],
+    recipient_mode: ['One person or a group', 'One person: you can tick only one name. A group: you can tick as many names as you like, or use the quick-add buttons to pick many at once.'],
+    quick_add: ['Quick add', 'Shortcuts that tick many people in one click, for example all mentors or everyone from one institution. You can still untick anyone afterwards. "Clear" removes all ticks.'],
+    custom_title: ['Title', 'The short heading people see first. In the email it becomes the subject line, and in the app it starts the notification.'],
+    custom_message: ['Your message', 'The text people will read, exactly as you type it. Keep it short and clear, and say what you want them to do.'],
+    channels: ['How to send', 'In-app notification: shows up in the bell icon when the person is on the site. Email: goes to their account email. You can pick both.'],
+    custom_filter: ['Only if profile is below', 'Optional. If you enter a number, mentors and mentees whose profile is already at or above it are skipped. Handy for nudging only the people who still have work to do. Institutions and partners are not affected.', 'Enter 80 to message only people below 80% complete.']
+  };
+  var modal = document.getElementById('help-modal');
+  function openHelp(key) {
+    var h = HELP[key]; if (!h) return;
+    document.getElementById('help-title').textContent = h[0];
+    document.getElementById('help-body').textContent = h[1];
+    var ex = document.getElementById('help-example');
+    if (h[2]) { ex.textContent = 'Example: ' + h[2]; ex.classList.remove('hidden'); } else { ex.classList.add('hidden'); }
+    modal.classList.remove('hidden'); modal.classList.add('flex');
+    document.getElementById('help-ok').focus();
+  }
+  function closeHelp() { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('.help-btn');
+    if (b) { e.preventDefault(); openHelp(b.getAttribute('data-help')); return; }
+    if (e.target === modal || e.target.id === 'help-close' || e.target.id === 'help-ok') closeHelp();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeHelp(); });
+
+  // ---------- Custom reminder ----------
+  var USERS = {{ recipient_users|tojson }};
+  var selected = new Set();
+  var listEl = document.getElementById('cr-list');
+  var searchEl = document.getElementById('cr-search');
+  var countEl = document.getElementById('cr-count');
+  var instSel = document.getElementById('cr-inst');
+  function mode() { return document.querySelector('input[name="cr-mode"]:checked').value; }
+
+  var insts = {};
+  USERS.forEach(function (u) { if (u.institution) insts[u.institution] = true; });
+  Object.keys(insts).sort().forEach(function (n) {
+    var o = document.createElement('option'); o.value = n; o.textContent = n; instSel.appendChild(o);
+  });
+
+  function render() {
+    var q = (searchEl.value || '').toLowerCase().trim();
+    listEl.textContent = '';
+    var shown = 0;
+    USERS.forEach(function (u) {
+      var hay = (u.name + ' ' + u.email + ' ' + u.institution + ' ' + u.type).toLowerCase();
+      if (q && hay.indexOf(q) === -1) return;
+      shown++;
+      var row = document.createElement('label');
+      row.className = 'flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = selected.has(u.id);
+      cb.addEventListener('change', function () {
+        if (cb.checked) { if (mode() === 'single') selected.clear(); selected.add(u.id); } else { selected.delete(u.id); }
+        render();
+      });
+      var main = document.createElement('span'); main.className = 'flex-1 min-w-0';
+      var nm = document.createElement('span'); nm.className = 'font-medium text-slate-800'; nm.textContent = u.name;
+      var sub = document.createElement('span'); sub.className = 'block text-xs text-slate-500 truncate';
+      sub.textContent = u.email + (u.institution ? ' · ' + u.institution : '');
+      main.appendChild(nm); main.appendChild(sub);
+      var tag = document.createElement('span'); tag.className = 'text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 text-slate-600';
+      tag.textContent = u.type;
+      row.appendChild(cb); row.appendChild(main); row.appendChild(tag);
+      listEl.appendChild(row);
+    });
+    if (!shown) { var p = document.createElement('p'); p.className = 'p-3 text-slate-400 text-xs'; p.textContent = 'No one matches your search.'; listEl.appendChild(p); }
+    countEl.textContent = selected.size;
+  }
+  searchEl.addEventListener('input', render);
+
+  function addWhere(fn) { USERS.forEach(function (u) { if (fn(u)) selected.add(u.id); }); render(); }
+  document.querySelectorAll('[data-quick]').forEach(function (b) {
+    b.addEventListener('click', function () { var t = b.getAttribute('data-quick'); addWhere(function (u) { return u.type === t; }); });
+  });
+  instSel.addEventListener('change', function () {
+    var n = instSel.value; if (!n) return; addWhere(function (u) { return u.institution === n; }); instSel.value = '';
+  });
+  document.getElementById('cr-clear').addEventListener('click', function () { selected.clear(); render(); });
+
+  function applyMode() {
+    var single = mode() === 'single';
+    document.querySelectorAll('#cr-quick button[data-quick], #cr-quick select').forEach(function (el) { el.disabled = single; });
+    if (single && selected.size > 1) { var first = Array.from(selected)[0]; selected.clear(); selected.add(first); }
+    render();
+  }
+  document.querySelectorAll('input[name="cr-mode"]').forEach(function (r) { r.addEventListener('change', applyMode); });
+
+  var msgEl = document.getElementById('cr-message');
+  msgEl.addEventListener('input', function () { document.getElementById('cr-chars').textContent = msgEl.value.length; });
+
+  var statusEl = document.getElementById('cr-status');
+  function status(text, ok) {
+    statusEl.textContent = text;
+    statusEl.className = 'text-sm rounded-xl px-4 py-3 ' + (ok ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-rose-50 border border-rose-200 text-rose-800');
+  }
+  var sendBtn = document.getElementById('cr-send');
+  sendBtn.addEventListener('click', function () {
+    var subject = document.getElementById('cr-subject').value.trim();
+    var message = msgEl.value.trim();
+    var inapp = document.getElementById('cr-inapp').checked, email = document.getElementById('cr-email').checked;
+    if (!selected.size) return status('Please pick at least one person.', false);
+    if (!subject) return status('Please enter a title.', false);
+    if (!message) return status('Please write a message.', false);
+    if (!inapp && !email) return status('Choose how to send: notification, email, or both.', false);
+    if (!window.confirm('Send this to ' + selected.size + (selected.size === 1 ? ' person?' : ' people?'))) return;
+    sendBtn.disabled = true; sendBtn.textContent = 'Sending…';
+    fetch('{{ url_for("admin_send_custom_reminder") }}', {
+      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_ids: Array.from(selected), subject: subject, message: message, send_inapp: inapp, send_email: email,
+                             max_completion: document.getElementById('cr-max').value || null })
+    }).then(function (r) { return r.json().catch(function () { return { success: false, error: 'Unexpected server response.' }; }); })
+      .then(function (d) {
+        if (!d.success) return status(d.error || 'Could not send.', false);
+        var parts = [];
+        if (inapp) parts.push(d.notified + ' notification' + (d.notified === 1 ? '' : 's'));
+        if (email) parts.push(d.emails_queued + ' email' + (d.emails_queued === 1 ? '' : 's') + ' on the way');
+        status('Sent to ' + d.recipients + (d.recipients === 1 ? ' person' : ' people') + ': ' + parts.join(', ') + (d.skipped ? ' (' + d.skipped + ' skipped).' : '.'), true);
+        document.getElementById('cr-subject').value = ''; msgEl.value = ''; document.getElementById('cr-chars').textContent = '0';
+      })
+      .catch(function () { status('Network error. Please try again.', false); })
+      .then(function () { sendBtn.disabled = false; sendBtn.textContent = 'Send Reminder'; });
+  });
+
+  applyMode();
+})();
+</script>
 {% endblock %}

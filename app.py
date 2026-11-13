@@ -28,6 +28,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import sys
 import requests as http_requests
+from markupsafe import escape
 
 # Force UTF-8 output so emoji-heavy logs do not crash on Windows consoles (cp1252).
 if hasattr(sys.stdout, "reconfigure"):
@@ -2117,6 +2118,7 @@ class User(db.Model):
     
     # Registration timestamp
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime, nullable=True)  # set on every successful sign-in (UTC)
     
     # Scholarly Mentee status
     scholarly = db.Column(db.Boolean, default=False)
@@ -4068,6 +4070,7 @@ def signin():
         session["user_type"] = user_type_str
         session["user_id"] = user.id
         session["user_name"] = user.name
+        _touch_last_login(user)
 
         # Redirect based on role
         if user_type_str == "1":
@@ -4086,6 +4089,16 @@ def signin():
 
    
     return render_template("auth/signin.html")
+
+def _touch_last_login(user):
+    """Record a successful sign-in. Never lets a failure here block the login."""
+    try:
+        user.last_login = datetime.utcnow()
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.warning(f"Could not record last_login: {e}")
+
 
 def _login_address(user):
     """The one address this account signs in with (account email unless the user chose work/personal)."""
@@ -4299,6 +4312,7 @@ def verify_login_otp():
         session["user_type"] = user_type_str
         session["user_id"] = user.id
         session["user_name"] = user.name
+        _touch_last_login(user)
         flash("Email verified. Welcome!", "success")
         dest = {"1": "mentordashboard", "2": "menteedashboard", "0": "supervisordashboard",
                 "3": "institutiondashboard", "4": "seller_dashboard"}.get(user_type_str, "home")
@@ -4651,6 +4665,7 @@ def callback():
             session["user_type"] = user.user_type
             session["user_id"] = user.id
             session["user_name"] = user.name
+            _touch_last_login(user)
             print(f"   ✅ Session set")
             print(f"      Email: {session.get('email')}")
             print(f"      Type: {session.get('user_type')}")
@@ -6540,6 +6555,9 @@ def manage_created_accounts():
         _lst.sort(key=lambda u: u.created_at or _epoch)
     
     # Add serial numbers (no DB changes)
+    _coord = {i.user_id: (i.contact_person or "") for i in Institution.query.all()}
+    for _inst_user in institutions:
+        _inst_user.coordinator_name = _coord.get(_inst_user.id, "")
     for idx, mentor in enumerate(mentors, 1):
         mentor.serial = idx
     for idx, mentee in enumerate(mentees, 1):
@@ -6600,7 +6618,8 @@ def edit_user(user_id):
             user.work_email = work_email
             user.personal_email = personal_email
             _apply_login_email_choice(user, request.form)
-            user.institution = institution
+            if user.user_type not in ("3", "4"):  # institution & partner accounts have no institution selection
+                user.institution = institution
             if user.user_type == "3":
                 inst_profile = Institution.query.filter_by(user_id=user.id).first()
                 if inst_profile:
@@ -6623,6 +6642,7 @@ def edit_user(user_id):
     return render_template(
         "supervisor/edit_user.html",
         user=user,
+        coordinator_names={},
         coordinator_name=(inst_profile.contact_person if inst_profile else "") or "",
         institutions=institutions,
         show_sidebar=True
@@ -21316,15 +21336,121 @@ def admin_reminder_settings():
         db.func.date(ProfileCompletionReminder.sent_at) == datetime.utcnow().date()
     ).count()
     
+    _type_label = {"1": "mentor", "2": "mentee", "3": "institution", "4": "partner"}
+    recipient_users = [
+        {"id": u.id, "name": u.name or u.email, "email": u.email or "",
+         "type": _type_label[u.user_type], "institution": (u.institution or (u.name if u.user_type == "3" else "") or "")}
+        for u in User.query.filter(User.user_type.in_(list(_type_label))).order_by(User.name.asc()).all()
+    ]
+
     return render_template(
         "supervisor/reminder_settings.html",
         show_sidebar=True,
         settings=settings,
         total_reminders_sent=total_reminders_sent,
-        reminders_today=reminders_today
+        reminders_today=reminders_today,
+        recipient_users=recipient_users
     )
 
 supervisor_reminder_settings = admin_reminder_settings
+
+
+@app.route("/supervisor/send_custom_reminder", methods=["POST"])
+@app.route("/admin/send_custom_reminder", methods=["POST"])
+def admin_send_custom_reminder():
+    """Send a custom message to one person or a custom group (in-app notification and/or email)."""
+    if "email" not in session or session.get("user_type") != "0":
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    subject = (data.get("subject") or "").strip()
+    message = (data.get("message") or "").strip()
+    send_inapp = bool(data.get("send_inapp", True))
+    send_mail = bool(data.get("send_email", False))
+    raw_ids = data.get("user_ids") or []
+    max_completion = data.get("max_completion")
+
+    if not subject or len(subject) > 150:
+        return jsonify({"success": False, "error": "Please enter a title (up to 150 characters)."}), 400
+    if not message or len(message) > 2000:
+        return jsonify({"success": False, "error": "Please enter a message (up to 2000 characters)."}), 400
+    if not (send_inapp or send_mail):
+        return jsonify({"success": False, "error": "Choose at least one way to send: notification or email."}), 400
+
+    ids = []
+    for i in raw_ids:
+        try:
+            ids.append(int(i))
+        except (ValueError, TypeError):
+            pass
+    ids = list(dict.fromkeys(ids))
+    if not ids:
+        return jsonify({"success": False, "error": "Please select at least one recipient."}), 400
+    if len(ids) > 2000:
+        return jsonify({"success": False, "error": "Too many recipients selected (max 2000 at once)."}), 400
+
+    users = User.query.filter(User.id.in_(ids), User.user_type.in_(["1", "2", "3", "4"])).all()
+    skipped = len(ids) - len(users)
+
+    # Optional: only people whose profile completion is below N% (mentors & mentees only)
+    if max_completion not in (None, ""):
+        try:
+            limit = int(max_completion)
+        except (ValueError, TypeError):
+            return jsonify({"success": False, "error": "Completion limit must be a number."}), 400
+        kept = []
+        for u in users:
+            if u.user_type == "1":
+                pct = calculate_mentor_profile_completion(u.id)["percentage"]
+            elif u.user_type == "2":
+                pct = calculate_mentee_profile_completion(u.id)["percentage"]
+            else:
+                kept.append(u)  # completion doesn't apply to institutions/partners
+                continue
+            if pct < limit:
+                kept.append(u)
+        skipped += len(users) - len(kept)
+        users = kept
+        if not users:
+            return jsonify({"success": False, "error": f"No selected person has a profile below {limit}% complete."}), 400
+
+    notified = 0
+    if send_inapp:
+        text = f"{subject}: {message}"
+        for u in users:
+            if create_notification(u.id, str(escape(text))):
+                notified += 1
+
+    mail_targets = [(u.email, u.name or "there") for u in users if u.email] if send_mail else []
+    if mail_targets:
+        safe_subject = str(escape(subject))
+        safe_msg = str(escape(message)).replace("\n", "<br>")
+
+        def _worker(targets):
+            with app.app_context():
+                for addr, nm in targets:
+                    html = (
+                        '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; '
+                        'border: 1px solid #e2e8f0; border-radius: 10px;">'
+                        f'<h2 style="color:#2563eb;margin-top:0;">{safe_subject}</h2>'
+                        f'<p>Hello <strong>{escape(nm)}</strong>,</p>'
+                        f'<p style="line-height:1.6;">{safe_msg}</p>'
+                        '<p style="color:#94a3b8;font-size:12px;">Sent by the Mentor Connect team.</p></div>'
+                    )
+                    try:
+                        send_email_reminder(addr, subject, html)
+                    except Exception as mail_err:
+                        app.logger.warning(f"Custom reminder email to {addr} failed: {mail_err}")
+
+        threading.Thread(target=_worker, args=(mail_targets,), daemon=True).start()
+
+    return jsonify({
+        "success": True,
+        "recipients": len(users),
+        "notified": notified,
+        "emails_queued": len(mail_targets),
+        "skipped": skipped,
+    })
 
 
 @app.route("/supervisor/reminder_logs")
