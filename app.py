@@ -3678,6 +3678,23 @@ def ensure_schema_on_request():
     if not _schema_migrated:
         auto_migrate_schema()
 
+@app.before_request
+def track_last_active():
+    """Stamp User.last_login with the latest activity (at most once every 5 min per session),
+    so people who stay signed in via their session cookie still show a real 'last active' time."""
+    try:
+        uid = session.get("user_id")
+        if not uid or request.endpoint in (None, "static"):
+            return
+        now = time.time()
+        if now - float(session.get("_la_ts", 0) or 0) < 300:
+            return
+        session["_la_ts"] = now
+        User.query.filter_by(id=uid).update({"last_login": datetime.utcnow()})
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
 # Register Mobile REST API Blueprint
 from mobile_api import register_mobile_api
 register_mobile_api(
