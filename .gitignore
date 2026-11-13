@@ -83,3 +83,6 @@ scratch/
 *.txt
 !requirements.txt
 .artifacts/
+
+# Local Persona Tests
+tests/

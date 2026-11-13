@@ -2926,10 +2926,12 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "email": u.email,
                 "profession": mp.profession if mp and mp.profession else "Mentor",
                 "organisation": mp.organisation if mp and mp.organisation else "Organisation",
+                "institution": (mp.organisation if mp and mp.organisation else "") or "",
                 "supervisor_rating": calc_mentor_rating_helper(u.id, mp, MenteeTask, db),
                 "profile_picture": resolve_profile_pic(mp, u),
                 "role": "Mentor",
-                "created_at": u.created_at.isoformat() if u.created_at else None
+                "created_at": u.created_at.strftime('%Y-%m-%d') if u.created_at else None,
+                "last_login": u.last_login.strftime('%Y-%m-%d %I:%M %p') if getattr(u, 'last_login', None) else "Never"
             })
 
         me_list = []
@@ -2940,10 +2942,12 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "name": u.name,
                 "email": u.email,
                 "institution_name": mp.institution_name if mp and mp.institution_name else "Student",
+                "institution": (mp.institution_name if mp and mp.institution_name else "") or "",
                 "career_goal": mp.career_goal or mp.goal if mp else "Career Guidance",
                 "profile_picture": resolve_profile_pic(mp, u),
                 "role": "Mentee",
-                "created_at": u.created_at.isoformat() if u.created_at else None
+                "created_at": u.created_at.strftime('%Y-%m-%d') if u.created_at else None,
+                "last_login": u.last_login.strftime('%Y-%m-%d %I:%M %p') if getattr(u, 'last_login', None) else "Never"
             })
 
         s_list = []
@@ -2959,7 +2963,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "is_verified": True,
                 "profile_picture": resolve_profile_pic(sp, u),
                 "role": "Partner",
-                "created_at": u.created_at.isoformat() if u.created_at else None
+                "created_at": u.created_at.strftime('%Y-%m-%d') if u.created_at else None,
+                "last_login": u.last_login.strftime('%Y-%m-%d %I:%M %p') if getattr(u, 'last_login', None) else "Never"
             })
 
         institutions = []
@@ -2979,11 +2984,13 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "name": (inst.name if inst and inst.name else None) or u.name,
                 "email": u.email,
                 "contact_person": inst.contact_person if inst else "",
+                "coordinator_name": (inst.contact_person if inst and inst.contact_person else "") or u.name,
                 "contact_phone": inst.contact_phone if inst else "",
                 "status": inst.status if inst else "active",
                 "profile_picture": resolve_profile_pic(inst, u),
                 "role": "Institution",
-                "created_at": u.created_at.isoformat() if u.created_at else None
+                "created_at": u.created_at.strftime('%Y-%m-%d') if u.created_at else None,
+                "last_login": u.last_login.strftime('%Y-%m-%d %I:%M %p') if getattr(u, 'last_login', None) else "Never"
             })
 
         if user_type_param in ("mentors", "mentor"):
@@ -5623,6 +5630,113 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                     "sent_at": l.sent_at.strftime("%Y-%m-%d %H:%M") if l.sent_at else ""
                 } for l in logs
             ]
+        })
+
+    @api_bp.route("/admin/reminders/send-custom", methods=["POST"])
+    @api_bp.route("/admin/send_custom_reminder", methods=["POST"])
+    def api_admin_send_custom_reminder():
+        user = get_current_user_from_req(User)
+        if not user or str(user.user_type) not in ("0", "4"):
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+        data = request.get_json(silent=True) or request.form or {}
+        subject = (data.get("subject") or "").strip()
+        message = (data.get("message") or "").strip()
+        send_inapp = bool(data.get("send_inapp", True))
+        send_mail = bool(data.get("send_email", False))
+        raw_ids = data.get("user_ids") or []
+        max_completion = data.get("max_completion")
+
+        if not subject or len(subject) > 150:
+            return jsonify({"success": False, "error": "Please enter a title (up to 150 characters)."}), 400
+        if not message or len(message) > 2000:
+            return jsonify({"success": False, "error": "Please enter a message (up to 2000 characters)."}), 400
+        if not (send_inapp or send_mail):
+            return jsonify({"success": False, "error": "Choose at least one way to send: notification or email."}), 400
+
+        ids = []
+        for i in raw_ids:
+            try:
+                ids.append(int(i))
+            except (ValueError, TypeError):
+                pass
+        ids = list(dict.fromkeys(ids))
+        if not ids:
+            return jsonify({"success": False, "error": "Please select at least one recipient."}), 400
+        if len(ids) > 2000:
+            return jsonify({"success": False, "error": "Too many recipients selected (max 2000 at once)."}), 400
+
+        target_users = User.query.filter(User.id.in_(ids), User.user_type.in_(["1", "2", "3", "4"])).all()
+        skipped = len(ids) - len(target_users)
+
+        if max_completion not in (None, ""):
+            try:
+                limit = int(max_completion)
+            except (ValueError, TypeError):
+                return jsonify({"success": False, "error": "Completion limit must be a number."}), 400
+            kept = []
+            for u in target_users:
+                pct = 100
+                if str(u.user_type) == "1" and compute_profile_stats:
+                    pct = compute_profile_stats("1", u.id, MentorProfile, MenteeProfile).get("percentage", 100)
+                elif str(u.user_type) == "2" and compute_profile_stats:
+                    pct = compute_profile_stats("2", u.id, MentorProfile, MenteeProfile).get("percentage", 100)
+                else:
+                    kept.append(u)
+                    continue
+                if pct < limit:
+                    kept.append(u)
+            skipped += len(target_users) - len(kept)
+            target_users = kept
+            if not target_users:
+                return jsonify({"success": False, "error": f"No selected person has a profile below {limit}% complete."}), 400
+
+        notified = 0
+        if send_inapp and Notification:
+            text = f"{subject}: {message}"
+            for u in target_users:
+                try:
+                    notif = Notification(user_id=u.id, message=text)
+                    db.session.add(notif)
+                    notified += 1
+                except Exception:
+                    pass
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+        mail_targets = [(u.email, u.name or "there") for u in target_users if u.email] if send_mail else []
+        if mail_targets:
+            import sys
+            send_fn = getattr(sys.modules.get('__main__'), 'send_email_reminder', None) or getattr(sys.modules.get('app'), 'send_email_reminder', None)
+            if send_fn:
+                import threading
+                from markupsafe import escape
+                safe_subject = str(escape(subject))
+                safe_msg = str(escape(message)).replace("\n", "<br>")
+                def _worker(targets):
+                    for addr, nm in targets:
+                        html = (
+                            '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; '
+                            'border: 1px solid #e2e8f0; border-radius: 10px;">'
+                            f'<h2 style="color:#2563eb;margin-top:0;">{safe_subject}</h2>'
+                            f'<p>Hello <strong>{escape(nm)}</strong>,</p>'
+                            f'<p style="line-height:1.6;">{safe_msg}</p>'
+                            '<p style="color:#94a3b8;font-size:12px;">Sent by the Mentor Connect team.</p></div>'
+                        )
+                        try:
+                            send_fn(addr, subject, html)
+                        except Exception:
+                            pass
+                threading.Thread(target=_worker, args=(mail_targets,), daemon=True).start()
+
+        return jsonify({
+            "success": True,
+            "recipients": len(target_users),
+            "notified": notified,
+            "emails_queued": len(mail_targets),
+            "skipped": skipped
         })
 
     # -------------------------------------------------------------
