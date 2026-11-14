@@ -217,6 +217,14 @@
 
           <!-- What -->
           <div>
+            <label for="cr-preset" class="block text-sm font-semibold text-slate-700 mb-1">Ready-made message
+              <button type="button" class="help-btn" data-help="presets" aria-label="What does this do?">?</button></label>
+            <select id="cr-preset" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+              <option value="">Choose a ready-made title and message (optional)…</option>
+            </select>
+            <p class="text-xs text-slate-500 mt-1">Picking one fills in the title and message below. You can still edit them before sending.</p>
+          </div>
+          <div>
             <label for="cr-subject" class="block text-sm font-semibold text-slate-700 mb-1">Title
               <button type="button" class="help-btn" data-help="custom_title" aria-label="What does this do?">?</button></label>
             <input type="text" id="cr-subject" maxlength="150" placeholder="e.g. Please update your availability"
@@ -390,6 +398,7 @@
     custom_send: ['Send a Custom Reminder', 'Write your own message and send it to one person or to a group you pick. This is separate from the automatic profile reminders and does not count towards the per-user cap.'],
     recipient_mode: ['One person or a group', 'One person: you can tick only one name. A group: you can tick as many names as you like, or use the quick-add buttons to pick many at once.'],
     quick_add: ['Quick add', 'Shortcuts that tick many people in one click, for example all mentors or everyone from one institution. You can still untick anyone afterwards. "Clear" removes all ticks.'],
+    presets: ['Ready-made message', 'A list of common reminders written for you. Pick one and the title and message fill in automatically, so you can send it in a click. You can change the words first.', 'Choose "Complete your profile" to nudge people with unfinished profiles.'],
     custom_title: ['Title', 'The short heading people see first. In the email it becomes the subject line, and in the app it starts the notification.'],
     custom_message: ['Your message', 'The text people will read, exactly as you type it. Keep it short and clear, and say what you want them to do.'],
     channels: ['How to send', 'In-app notification: shows up in the bell icon when the person is on the site. Email: goes to their account email. You can pick both.'],
@@ -476,6 +485,29 @@
   }
   document.querySelectorAll('input[name="cr-mode"]').forEach(function (r) { r.addEventListener('change', applyMode); });
 
+  var PRESETS = [
+    ['Complete your profile', 'Please complete your profile', 'Your profile is not complete yet. A complete profile helps us match you better and makes you easier to find. It only takes a few minutes: please log in, open your profile and fill in the missing details.'],
+    ['Update your availability', 'Please update your availability', 'Please log in and update your availability so that sessions can be scheduled at times that suit you. This helps your mentors and mentees plan ahead.'],
+    ['Pending tasks', 'You have pending tasks', 'You have tasks that are still pending. Please log in, open the Tasks tab and complete them, or reach out to your mentor if you need help.'],
+    ['Upcoming session', 'Reminder: your upcoming session', 'This is a friendly reminder about your upcoming mentoring session. Please check the Calendar tab for the date, time and meeting link, and join a few minutes early.'],
+    ['Schedule your next meeting', 'Time to schedule your next meeting', 'It has been a while since your last session. Please log in and schedule your next meeting so your mentorship keeps moving forward.'],
+    ['Share your feedback', 'We would love your feedback', 'Thank you for taking part in your recent session. Please take a moment to log in and share your feedback and reflections. It helps us improve the programme for everyone.'],
+    ['Respond to a request', 'You have a request waiting for your response', 'There is a request waiting for your response. Please log in and accept or decline it so the other person is not left waiting.'],
+    ['Welcome', 'Welcome to Mentor Connect', 'Welcome! We are happy to have you. Please log in, complete your profile and explore the platform. If you need any help, just reply to this message.'],
+    ['Platform announcement', 'An update from Mentor Connect', 'We have an important update to share with you. Please log in to Mentor Connect to see the details.']
+  ];
+  var presetSel = document.getElementById('cr-preset');
+  PRESETS.forEach(function (p, i) {
+    var o = document.createElement('option'); o.value = String(i); o.textContent = p[0]; presetSel.appendChild(o);
+  });
+  presetSel.addEventListener('change', function () {
+    if (presetSel.value === '') return;
+    var p = PRESETS[parseInt(presetSel.value, 10)];
+    document.getElementById('cr-subject').value = p[1];
+    document.getElementById('cr-message').value = p[2];
+    document.getElementById('cr-chars').textContent = p[2].length;
+  });
+
   var msgEl = document.getElementById('cr-message');
   msgEl.addEventListener('input', function () { document.getElementById('cr-chars').textContent = msgEl.value.length; });
 
@@ -502,10 +534,23 @@
     }).then(function (r) { return r.json().catch(function () { return { success: false, error: 'Unexpected server response.' }; }); })
       .then(function (d) {
         if (!d.success) return status(d.error || 'Could not send.', false);
-        var parts = [];
-        if (inapp) parts.push(d.notified + ' notification' + (d.notified === 1 ? '' : 's'));
-        if (email) parts.push(d.emails_queued + ' email' + (d.emails_queued === 1 ? '' : 's') + ' on the way');
-        status('Sent to ' + d.recipients + (d.recipients === 1 ? ' person' : ' people') + ': ' + parts.join(', ') + (d.skipped ? ' (' + d.skipped + ' skipped).' : '.'), true);
+        var parts = [], problems = [];
+        if (inapp) parts.push(d.notified + ' notification' + (d.notified === 1 ? '' : 's') + ' delivered');
+        if (email) {
+          if (d.emails_background) {
+            parts.push(d.emails_requested + ' emails are being sent in the background (you will get a notification with the result)');
+          } else {
+            parts.push(d.emails_sent + ' of ' + d.emails_requested + ' email' + (d.emails_requested === 1 ? '' : 's') + ' delivered');
+            if (d.emails_failed && d.emails_failed.length) {
+              problems.push(d.emails_failed.length + ' email' + (d.emails_failed.length === 1 ? '' : 's') + ' could NOT be delivered. Reason: ' + d.emails_failed[0].error +
+                (d.emails_failed.length > 1 ? ' (+' + (d.emails_failed.length - 1) + ' more)' : '') +
+                ' - e.g. ' + d.emails_failed.slice(0, 3).map(function (f) { return f.email; }).join(', '));
+            }
+          }
+          if (d.no_email_address && d.no_email_address.length) problems.push(d.no_email_address.length + ' account(s) have no email address: ' + d.no_email_address.slice(0, 3).join(', '));
+        }
+        status('Sent to ' + d.recipients + (d.recipients === 1 ? ' person' : ' people') + ': ' + parts.join(', ') + (d.skipped ? ' (' + d.skipped + ' skipped).' : '.') +
+               (problems.length ? '  ⚠ ' + problems.join('  ⚠ ') : ''), problems.length === 0);
         document.getElementById('cr-subject').value = ''; msgEl.value = ''; document.getElementById('cr-chars').textContent = '0';
       })
       .catch(function () { status('Network error. Please try again.', false); })

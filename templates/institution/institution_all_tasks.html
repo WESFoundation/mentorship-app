@@ -912,8 +912,44 @@ async function initializePage() {
         console.warn("Error reading cached analytics:", e);
     }
 
-    // 2. Fetch tasks and populate filters immediately
-    loadInstitutionTasks(true);
+    // 2. Fetch tasks and populate filters immediately, then follow a "Feedback" link from the calendar (if any)
+    loadInstitutionTasks(true).then(handleFeedbackDeepLink);
+}
+
+// Opened from a meeting's "Feedback" button: show that meeting's task and open the feedback (reflection) modal.
+async function handleFeedbackDeepLink() {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('feedback') !== '1') return;
+    const tid = q.get('task_id');
+    const ttype = q.get('task_type') || '';
+    // Don't re-open it if the page is refreshed later
+    try { window.history.replaceState({}, '', window.location.pathname); } catch (e) {}
+
+    if (!tid) {
+        showNotification('This meeting is not linked to a task. Open the task you want to give feedback on.', 'info');
+        return;
+    }
+    // Task ids on this page look like "personal_12" / "master_5"; the meeting only knows the number.
+    const matches = (t) => {
+        const sid = String(t.id);
+        return sid === String(tid) || sid === (ttype + '_' + tid) || sid.endsWith('_' + tid);
+    };
+    const find = () => allTasks.find(t => (!ttype || t.type === ttype) && matches(t))
+                    || allTasks.find(t => matches(t));
+    let task = find();
+    let guard = 0;
+    while (!task && window._hasMoreTasks && guard < 40) {   // the task may be on a later page
+        await loadInstitutionTasks(false);
+        task = find();
+        guard++;
+    }
+    if (!task) {
+        showNotification('Could not find the task linked to this meeting. It may have been removed.', 'warning');
+        return;
+    }
+    viewTaskDetails(task.id, task.type);
+    // give the existing reflection a moment to load so the form opens pre-filled
+    setTimeout(openInstituteReflectionModal, 700);
 }
 
 // Load analytics immediately on page load (does NOT load tasks)
@@ -1026,6 +1062,7 @@ async function loadInstitutionTasks(reset = true) {
         if (result.success) {
             const newTasks = result.tasks || [];
             const hasMore = result.has_more;
+            window._hasMoreTasks = !!hasMore;
             const total = result.total;
             window._lastInstitutionTotal = total;
 
@@ -1859,8 +1896,9 @@ function clearFilterTag(index) {
 let currentSelectedTask = null;
 
 // Modal functions
-function viewTaskDetails(taskId) {
-    const task = allTasks.find(t => String(t.id) === String(taskId));
+function viewTaskDetails(taskId, taskType) {
+    const task = (taskType && allTasks.find(t => String(t.id) === String(taskId) && t.type === taskType))
+              || allTasks.find(t => String(t.id) === String(taskId));
     if (!task) {
         console.error("Task not found for id:", taskId);
         return;

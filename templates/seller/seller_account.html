@@ -44,7 +44,8 @@
   <div class="rounded-2xl border border-slate-200 bg-white p-6 mb-6">
     <h2 class="text-sm font-semibold text-slate-800 mb-3">Details</h2>
     <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-      <div class="flex gap-2"><dt class="w-36 shrink-0 text-slate-500">Shop name</dt><dd class="text-slate-900">{{ profile.shop_name or '-' }}</dd></div>
+      <div class="flex gap-2"><dt class="w-36 shrink-0 text-slate-500">Shop / Organisation</dt><dd class="text-slate-900">{{ profile.shop_name or '-' }}</dd></div>
+      <div class="flex gap-2"><dt class="w-36 shrink-0 text-slate-500">Representative</dt><dd class="text-slate-900">{{ profile.representative_name or '-' }}</dd></div>
       <div class="flex gap-2"><dt class="w-36 shrink-0 text-slate-500">Market / venue</dt><dd class="text-slate-900">{{ profile.market_name or '-' }}</dd></div>
       <div class="flex gap-2"><dt class="w-36 shrink-0 text-slate-500">Phone</dt><dd class="text-slate-900">{{ profile.contact_phone or '-' }}</dd></div>
       <div class="flex gap-2"><dt class="w-36 shrink-0 text-slate-500">Website</dt><dd class="text-slate-900 break-all">{{ profile.website or '-' }}</dd></div>

@@ -3648,7 +3648,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         checks = [
             ("Profile picture", bool(getattr(profile, "profile_picture", None))),
             ("Partner type", bool(getattr(profile, "partner_label", None))),
-            ("Shop name", bool((getattr(profile, "shop_name", None) or "").strip())),
+            ("Shop / organisation name", bool((getattr(profile, "shop_name", None) or "").strip())),
+            ("Representative name", bool((getattr(profile, "representative_name", None) or "").strip())),
             ("Description", bool((getattr(profile, "description", None) or "").strip())),
             ("Business category", bool(getattr(profile, "business_category", None))),
             ("Number of shops", bool(shop_count and shop_count >= 1)),
@@ -3757,6 +3758,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "display_name": sp.display_name,
                 "partner_label": sp.partner_label or "Partner",
                 "shop_name": sp.shop_name or "",
+                "representative_name": getattr(sp, "representative_name", None) or "",
                 "market_name": sp.market_name or "",
                 "contact_phone": sp.contact_phone or "",
                 "address": sp.address or "",
@@ -3797,6 +3799,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "display_name": sp.display_name,
                 "partner_label": sp.partner_label or "Partner",
                 "shop_name": sp.shop_name or "",
+                "representative_name": getattr(sp, "representative_name", None) or "",
                 "market_name": sp.market_name or "",
                 "contact_phone": sp.contact_phone or "",
                 "address": sp.address or "",
@@ -3836,6 +3839,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 sp.partner_label = label
 
             sp.shop_name = (data.get("shop_name") or "").strip() or None
+            sp.representative_name = (data.get("representative_name") or "").strip()[:150] or None
             sp.market_name = (data.get("market_name") or "").strip() or None
             sp.contact_phone = (data.get("contact_phone") or "").strip() or None
             sp.address = (data.get("address") or "").strip() or None

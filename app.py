@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 import os
 import json 
 import re
+import threading
 import time
 from urllib.parse import urlencode
 from google_auth_oauthlib.flow import Flow
@@ -460,6 +461,22 @@ def get_ms_graph_token():
         app.logger.warning(f"MS Graph token request failed: {e}")
     return None
 
+_email_diag = threading.local()  # how the last send_app_email() call on this thread ended
+
+
+def send_app_email_checked(to_email, subject, html_content):
+    """Like send_app_email, but says what really happened.
+    Returns {"ok": bool, "method": "graph"|"smtp"|"simulated"|None, "error": str|None}.
+    "simulated" means the server is not in PRODUCTION mode and nothing was actually sent."""
+    ok = send_app_email(to_email, subject, html_content)
+    method = getattr(_email_diag, "method", None)
+    error = getattr(_email_diag, "error", None)
+    if method == "simulated":
+        ok = False
+        error = error or "Email is not configured on this server (running in development mode), so nothing was actually sent."
+    return {"ok": bool(ok), "method": method, "error": None if ok else (error or "Unknown delivery failure")}
+
+
 def send_app_email(to_email, subject, html_content, text_content=None, is_otp=False, otp_code=None):
     """
     Unified multi-provider email dispatcher:
@@ -470,7 +487,10 @@ def send_app_email(to_email, subject, html_content, text_content=None, is_otp=Fa
     4. Tries SMTP fallback (supporting TLS and SSL with 10s timeout).
     5. In non-production development mode, succeeds gracefully so workflows are never blocked.
     """
+    _email_diag.method = None
+    _email_diag.error = None
     if not to_email:
+        _email_diag.error = "No email address"
         return False
     clean_email = to_email.strip().lower()
 
@@ -501,11 +521,17 @@ def send_app_email(to_email, subject, html_content, text_content=None, is_otp=Fa
             )
             if res.status_code in (200, 202):
                 print(f"✅ Email delivered via Microsoft Graph sendMail to {clean_email}")
+                _email_diag.method = "graph"
                 return True
             else:
                 app.logger.warning(f"Graph sendMail returned HTTP {res.status_code}: {res.text[:120]}")
+                _email_diag.error = f"Microsoft Graph refused the email (HTTP {res.status_code}" + (
+                    ": the sender mailbox has no Mail.Send permission / admin consent" if res.status_code in (401, 403) else ")")
+        else:
+            _email_diag.error = "Microsoft Graph is not configured (missing tenant/client credentials)"
     except Exception as e:
         app.logger.warning(f"Microsoft Graph sendMail exception: {e}")
+        _email_diag.error = f"Microsoft Graph error: {e}"
 
     # 2. Exchange Online Calendar invite fallback for OTP verification
     if is_otp and otp_code:
@@ -531,6 +557,7 @@ def send_app_email(to_email, subject, html_content, text_content=None, is_otp=Fa
                 )
                 if c_res.status_code in (200, 201):
                     print(f"✅ OTP invitation email dispatched by Exchange Online to {clean_email}")
+                    _email_diag.method = "graph"
                     return True
                 else:
                     app.logger.warning(f"Graph calendar invite returned HTTP {c_res.status_code}: {c_res.text[:120]}")
@@ -567,13 +594,18 @@ def send_app_email(to_email, subject, html_content, text_content=None, is_otp=Fa
                     server.login(sender_email, sender_password)
                     server.send_message(msg)
             print(f"✅ Email delivered via SMTP to {clean_email}")
+            _email_diag.method = "smtp"
             return True
         except Exception as e:
             app.logger.warning(f"SMTP sending failed for {clean_email}: {e}")
+            _email_diag.error = ((_email_diag.error + "; ") if _email_diag.error else "") + f"SMTP failed: {e}"
+    else:
+        _email_diag.error = ((_email_diag.error + "; ") if _email_diag.error else "") + "SMTP is not configured (SMTP_PASSWORD missing)"
 
     # 4. Local development fallback
     if not PRODUCTION:
         print(f"ℹ️ [DEV MODE] Email dispatch simulated successfully for {clean_email}")
+        _email_diag.method = "simulated"
         return True
 
     return False
@@ -3079,6 +3111,8 @@ class SellerProfile(db.Model):
     # The label the partner picked for their own role, e.g. "Outreach Partner".
     partner_label = db.Column(db.String(60), default="Partner")
     shop_name = db.Column(db.String(200))
+    # Name of the person who represents this shop / organisation (asked in profile completion).
+    representative_name = db.Column(db.String(150))
     market_name = db.Column(db.String(200))
     contact_phone = db.Column(db.String(40))
     address = db.Column(db.Text)
@@ -3120,6 +3154,7 @@ class SellerProfile(db.Model):
             "user_id": self.user_id,
             "partner_label": self.partner_label or "Partner",
             "shop_name": self.shop_name or "",
+            "representative_name": self.representative_name or "",
             "market_name": self.market_name or "",
             "contact_phone": self.contact_phone or "",
             "address": self.address or "",
@@ -15086,6 +15121,8 @@ def institution_calendar():
             "status": status,
             "description": _clean_meeting_description(meeting.meeting_description) or "No description provided",
             "meet_link": meeting.meet_link,
+            "task_id": (participants_info or {}).get("task_id"),
+            "task_type": (participants_info or {}).get("task_type") or "master",
             "include_institutions": participants_info.get("include_institutions", False) if participants_info else False,
             "created_at": meeting.created_at.strftime("%Y-%m-%d %H:%M:%S") if meeting.created_at else ""
         })
@@ -15433,6 +15470,114 @@ def reschedule_meeting(meeting_id):
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 # ------------------- CANCEL MEETING -------------------
+def _meeting_involved_ids(meeting):
+    """User ids of everyone connected to a meeting (requester, invitee, mentors, mentees)."""
+    ids = {meeting.requester_id, meeting.requested_to_id}
+    try:
+        _m, _e, _info = _resolve_meeting_participants(meeting)
+        for _u in (_m, _e):
+            if _u:
+                ids.add(_u.id)
+        for _key in ("mentor_ids", "mentee_ids"):
+            for _i in (_info or {}).get(_key) or []:
+                try:
+                    ids.add(int(_i))
+                except (ValueError, TypeError):
+                    pass
+    except Exception as _pe:
+        app.logger.warning(f"meeting participant lookup failed: {_pe}")
+    ids.discard(None)
+    return ids
+
+
+def _coordinator_can_manage_meeting(user, meeting, involved_ids=None):
+    """A coordinator may manage meetings they created or that involve their own institute's people."""
+    if meeting.requester_id == user.id:
+        return True
+    involved_ids = involved_ids if involved_ids is not None else _meeting_involved_ids(meeting)
+    inst_mentors, inst_mentees = _get_institution_members(user, include_paired=False)
+    inst_ids = {u.id for u in inst_mentors} | {u.id for u in inst_mentees}
+    return bool(involved_ids & inst_ids)
+
+
+def _remove_calendar_event(meeting):
+    """Best-effort removal of the Teams / Google event behind a meeting."""
+    if not meeting.gcal_event_id:
+        return
+    try:
+        if str(meeting.gcal_event_id).startswith("AAMk") or "teams" in str(meeting.meet_link or "").lower():
+            delete_teams_calendar_event(meeting.gcal_event_id)
+        else:
+            delete_google_calendar_event(meeting.gcal_event_id)
+    except Exception as e:
+        app.logger.warning(f"Could not remove calendar event for meeting {meeting.id}: {e}")
+
+
+@app.route("/delete_meeting/<int:meeting_id>", methods=["POST"])
+def delete_meeting(meeting_id):
+    """Permanently delete a session: the meeting itself, its calendar event, and the tasks,
+    ratings, feedback and reflections that were created for it."""
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    user_type = session.get("user_type")
+    if user_type not in ("0", "3"):
+        return jsonify({"success": False, "message": "Only admins and institution coordinators can delete sessions"}), 403
+
+    user = User.query.filter_by(email=session["email"]).first()
+    meeting = db.session.get(MeetingRequest, meeting_id)
+    if not user or not meeting:
+        return jsonify({"success": False, "message": "Meeting not found"}), 404
+
+    involved_ids = _meeting_involved_ids(meeting)
+    if user_type == "3" and not _coordinator_can_manage_meeting(user, meeting, involved_ids):
+        return jsonify({"success": False, "message": "You can only delete sessions of your own institute"}), 403
+
+    title = meeting.meeting_title
+    when = meeting.meeting_date.strftime("%B %d, %Y") if meeting.meeting_date else ""
+    was_cancelled = meeting.status == "cancelled"
+    try:
+        # 1) the Teams/Google event (a cancelled meeting's event was already removed)
+        if not was_cancelled:
+            _remove_calendar_event(meeting)
+
+        # 2) tasks that exist only because of this meeting (SGM tasks) and everything attached to them
+        info = _get_meeting_participants(meeting.id) or {}
+        task_ids = set()
+        for tid in info.get("task_ids") or []:
+            try:
+                task_ids.add(int(tid))
+            except (ValueError, TypeError):
+                pass
+        if info.get("task_id") and str(info.get("task_type")) == "personal":
+            try:
+                task_ids.add(int(info["task_id"]))
+            except (ValueError, TypeError):
+                pass
+        for t in PersonalTask.query.filter_by(sgm_meeting_id=meeting.id).all():
+            task_ids.add(t.id)
+        removed_tasks = 0
+        if task_ids:
+            ids_list = list(task_ids)
+            for model in (TaskRating, MenteeFeedback, InstitutionReflection, MentorReflection):
+                model.query.filter(model.task_type == "personal", model.task_id.in_(ids_list)).delete(synchronize_session=False)
+            removed_tasks = PersonalTask.query.filter(PersonalTask.id.in_(ids_list)).delete(synchronize_session=False)
+
+        # 3) the meeting itself (participants metadata lives inside it, so it goes too)
+        db.session.delete(meeting)
+        db.session.commit()
+        _invalidate_meeting_participants_cache()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error deleting meeting {meeting_id}: {e}")
+        return jsonify({"success": False, "message": f"Could not delete the session: {e}"}), 500
+
+    if not was_cancelled:
+        for uid in involved_ids:
+            if uid and uid != user.id:
+                create_notification(uid, f'Meeting "{title}" on {when} was removed from the calendar.')
+    return jsonify({"success": True, "message": "Session deleted", "removed_tasks": removed_tasks})
+
+
 @app.route("/cancel_meeting/<int:meeting_id>", methods=["POST"])
 def cancel_meeting(meeting_id):
     if "email" not in session:
@@ -15458,27 +15603,11 @@ def cancel_meeting(meeting_id):
         if user_type == "1" and meeting.requested_to_id != user.id:
             return jsonify({"success": False, "message": "You can only cancel your own meetings"}), 403
 
-        involved_ids = {meeting.requester_id, meeting.requested_to_id}
-        try:
-            _m, _e, _info = _resolve_meeting_participants(meeting)
-            for _u in (_m, _e):
-                if _u:
-                    involved_ids.add(_u.id)
-            for _key in ("mentor_ids", "mentee_ids"):
-                for _i in (_info or {}).get(_key) or []:
-                    try:
-                        involved_ids.add(int(_i))
-                    except (ValueError, TypeError):
-                        pass
-        except Exception as _pe:
-            app.logger.warning(f"cancel_meeting participant lookup failed: {_pe}")
+        involved_ids = _meeting_involved_ids(meeting)
 
-        if user_type == "3":
+        if user_type == "3" and not _coordinator_can_manage_meeting(user, meeting, involved_ids):
             # A coordinator can only cancel meetings that involve their own institute
-            inst_mentors, inst_mentees = _get_institution_members(user, include_paired=False)
-            inst_ids = {u.id for u in inst_mentors} | {u.id for u in inst_mentees}
-            if meeting.requester_id != user.id and not (involved_ids & inst_ids):
-                return jsonify({"success": False, "message": "You can only cancel meetings of your own institute"}), 403
+            return jsonify({"success": False, "message": "You can only cancel meetings of your own institute"}), 403
 
         if meeting.status == "cancelled":
             return jsonify({"success": False, "message": "This meeting is already cancelled"}), 400
@@ -21422,6 +21551,16 @@ def admin_reminder_settings():
 supervisor_reminder_settings = admin_reminder_settings
 
 
+def _notification_email(user):
+    """Where notifications/reminders for this account should go: the contact address
+    (work/personal - whichever is NOT the sign-in one), otherwise the account email."""
+    choice = (user.login_email_choice or "").strip().lower()
+    work = (user.work_email or "").strip()
+    personal = (user.personal_email or "").strip()
+    contact = personal if choice == "work" else (work if choice == "personal" else "")
+    return contact or (user.email or "").strip()
+
+
 @app.route("/supervisor/send_custom_reminder", methods=["POST"])
 @app.route("/admin/send_custom_reminder", methods=["POST"])
 def admin_send_custom_reminder():
@@ -21488,26 +21627,59 @@ def admin_send_custom_reminder():
             if create_notification(u.id, str(escape(text))):
                 notified += 1
 
-    mail_targets = [(u.email, u.name or "there") for u in users if u.email] if send_mail else []
-    if mail_targets:
-        safe_subject = str(escape(subject))
-        safe_msg = str(escape(message)).replace("\n", "<br>")
+    # ---- Email: goes to the account's contact address (the one NOT used to sign in) when it has one ----
+    mail_targets = []   # (user_id, address, display name)
+    no_address = []
+    if send_mail:
+        for u in users:
+            addr = _notification_email(u)
+            if addr:
+                mail_targets.append((u.id, addr, u.name or "there"))
+            else:
+                no_address.append(u.name or str(u.id))
+
+    safe_subject = str(escape(subject))
+    safe_msg = str(escape(message)).replace("\n", "<br>")
+
+    def _build_html(nm):
+        return (
+            '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; '
+            'border: 1px solid #e2e8f0; border-radius: 10px;">'
+            f'<h2 style="color:#2563eb;margin-top:0;">{safe_subject}</h2>'
+            f'<p>Hello <strong>{escape(nm)}</strong>,</p>'
+            f'<p style="line-height:1.6;">{safe_msg}</p>'
+            '<p style="color:#94a3b8;font-size:12px;">Sent by the Mentor Connect team.</p></div>'
+        )
+
+    def _deliver(targets):
+        """Send each email and report what REALLY happened per recipient."""
+        sent, failed = 0, []
+        for _uid, addr, nm in targets:
+            try:
+                res = send_app_email_checked(addr, subject, _build_html(nm))
+            except Exception as mail_err:  # never let one bad address stop the rest
+                res = {"ok": False, "error": str(mail_err)}
+            if res["ok"]:
+                sent += 1
+            else:
+                failed.append({"name": nm, "email": addr, "error": res.get("error") or "Unknown error"})
+                app.logger.warning(f"Custom reminder email to {addr} failed: {res.get('error')}")
+        return sent, failed
+
+    emails_sent, emails_failed, emails_background = 0, [], False
+    SYNC_LIMIT = 30
+    if mail_targets and len(mail_targets) <= SYNC_LIMIT:
+        emails_sent, emails_failed = _deliver(mail_targets)
+    elif mail_targets:
+        emails_background = True
+        admin_id = session.get("user_id")
 
         def _worker(targets):
             with app.app_context():
-                for addr, nm in targets:
-                    html = (
-                        '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; '
-                        'border: 1px solid #e2e8f0; border-radius: 10px;">'
-                        f'<h2 style="color:#2563eb;margin-top:0;">{safe_subject}</h2>'
-                        f'<p>Hello <strong>{escape(nm)}</strong>,</p>'
-                        f'<p style="line-height:1.6;">{safe_msg}</p>'
-                        '<p style="color:#94a3b8;font-size:12px;">Sent by the Mentor Connect team.</p></div>'
-                    )
-                    try:
-                        send_email_reminder(addr, subject, html)
-                    except Exception as mail_err:
-                        app.logger.warning(f"Custom reminder email to {addr} failed: {mail_err}")
+                sent, failed = _deliver(targets)
+                if admin_id:
+                    reason = f" First error: {failed[0]['error']}" if failed else ""
+                    create_notification(admin_id, f"Custom reminder emails finished: {sent} delivered, {len(failed)} failed.{reason}")
 
         threading.Thread(target=_worker, args=(mail_targets,), daemon=True).start()
 
@@ -21515,7 +21687,11 @@ def admin_send_custom_reminder():
         "success": True,
         "recipients": len(users),
         "notified": notified,
-        "emails_queued": len(mail_targets),
+        "emails_requested": len(mail_targets),
+        "emails_sent": emails_sent,
+        "emails_failed": emails_failed,
+        "emails_background": emails_background,
+        "no_email_address": no_address,
         "skipped": skipped,
     })
 
@@ -22511,7 +22687,8 @@ def _seller_completion(profile):
     checks = [
         ("Profile picture", bool(profile.profile_picture)),
         ("Partner type", bool(profile.partner_label)),
-        ("Shop name", bool((profile.shop_name or "").strip())),
+        ("Shop / organisation name", bool((profile.shop_name or "").strip())),
+        ("Representative name", bool((profile.representative_name or "").strip())),
         ("Description", bool((profile.description or "").strip())),
         ("Business category", bool(profile.business_category)),
         ("Number of shops", bool(profile.shop_count and profile.shop_count >= 1)),
@@ -22559,6 +22736,7 @@ def seller_profile():
             label = "Partner"
         profile.partner_label = label
         profile.shop_name = (data.get("shop_name") or "").strip() or None
+        profile.representative_name = (data.get("representative_name") or "").strip()[:150] or None
         profile.market_name = (data.get("market_name") or "").strip() or None
         profile.contact_phone = (data.get("contact_phone") or "").strip() or None
         profile.address = (data.get("address") or "").strip() or None

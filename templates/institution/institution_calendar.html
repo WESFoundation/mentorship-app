@@ -285,6 +285,12 @@
     </div>
 </div>
 
+<style>
+  /* A cancelled session stays on the calendar, struck through */
+  .meeting-cancelled { text-decoration: line-through; text-decoration-thickness: 2px; }
+  .calendar-event.meeting-cancelled { opacity: .55; text-decoration: line-through; filter: grayscale(.5); }
+</style>
+
 <!-- Meeting Detail Modal -->
 <div id="meetingModal" class="fixed inset-0 hidden bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm sm:max-w-md md:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1276,6 +1282,7 @@ function renderMonthView() {
                 const eventElement = document.createElement('div');
                 const mtype = event.meeting_type || 'standard';
                 eventElement.className = `calendar-event type-${mtype}`;
+                if (event.status === 'cancelled') eventElement.classList.add('meeting-cancelled');
                 if (event.hex_color) eventElement.style.backgroundColor = event.hex_color;
                 const prefix = mtype === 'sgm' ? 'SGM' : mtype === 'anchor' ? 'ANCHOR' : mtype === 'special' ? 'SPEC' : '';
                 const prefixHtml = prefix ? `<span class="opacity-90 font-bold mr-1 text-[10px] uppercase">[${prefix}]</span>` : '';
@@ -1341,6 +1348,7 @@ function renderWeekView() {
                 const eventElement = document.createElement('div');
                 const mtype = event.meeting_type || 'standard';
                 eventElement.className = `calendar-event type-${mtype} shadow-sm`;
+                if (event.status === 'cancelled') eventElement.classList.add('meeting-cancelled');
                 if (event.hex_color) eventElement.style.backgroundColor = event.hex_color;
                 const prefix = mtype === 'sgm' ? 'SGM' : mtype === 'anchor' ? 'ANCHOR' : mtype === 'special' ? 'SPEC' : '';
                 const prefixHtml = prefix ? `<span class="font-bold opacity-90 mr-1">[${prefix}]</span>` : '';
@@ -1394,7 +1402,7 @@ function renderDayView() {
                 <div class="flex-1">
                     <div class="flex items-center gap-2 mb-1">
                         ${typeBadgeHtml}
-                        <h4 class="font-semibold text-gray-800">${event.title}</h4>
+                        <h4 class="font-semibold text-gray-800 ${event.status === 'cancelled' ? 'meeting-cancelled' : ''}">${event.title}</h4>
                     </div>
                     <p class="text-sm text-gray-600 mt-1">${formatMeetingTime(event)} • ${event.duration} minutes</p>
                     <p class="text-sm text-gray-700 mt-2">${event.description || 'No description provided'}</p>
@@ -1449,7 +1457,7 @@ function renderListView() {
                 <div class="flex-1">
                     <div class="flex items-center space-x-3 mb-2 flex-wrap gap-y-1">
                         ${typeBadgeHtml}
-                        <h4 class="text-lg font-semibold text-gray-800">${meeting.title}</h4>
+                        <h4 class="text-lg font-semibold text-gray-800 ${meeting.status === 'cancelled' ? 'meeting-cancelled' : ''}">${meeting.title}</h4>
                         <span class="px-2 py-1 rounded-full text-xs font-medium
                             ${meeting.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
                               meeting.status === 'completed' ? 'bg-green-100 text-green-800' :
@@ -1634,66 +1642,106 @@ function openMeetingModal(meeting) {
         `;
     }
 
+    const isCancelled = meeting.status === 'cancelled';
+    const isUpcoming = meeting.status === 'upcoming';
+    const hasLink = isRealMeetingLink(meeting.meet_link);
+    const linkText = escHtml(meeting.meet_link || '');
+    const feedbackUrl = "{{ url_for('institution_all_tasks') }}" + '?feedback=1&meeting_id=' + meeting.id +
+        (meeting.task_id ? '&task_id=' + encodeURIComponent(meeting.task_id) + '&task_type=' + encodeURIComponent(meeting.task_type || 'master') : '');
+    const agenda = shortAgenda(meeting.description);
+
     modalContent.innerHTML = `
-        <div class="space-y-5">
-            <!-- Header section -->
-            <div class="flex items-start justify-between pb-4 border-b border-gray-100">
-                <div>
-                    <div class="flex items-center gap-2 flex-wrap mb-1">
-                        ${(meeting.meeting_type && meeting.meeting_type !== 'standard') ? `
-                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${meeting.badge_bg || 'bg-sky-100'} ${meeting.badge_text || 'text-sky-800'} border ${meeting.badge_border || 'border-sky-300'}">
-                            ${meeting.type || 'Mentoring'}
-                        </span>` : ''}
-                        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold
-                            ${meeting.status === 'upcoming' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
-                              meeting.status === 'completed' ? 'bg-green-100 text-green-800 border border-green-200' :
-                              'bg-red-100 text-red-800 border border-red-200'}">
-                            ${meeting.status ? meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1) : ''}
-                        </span>
-                    </div>
-                    <h4 class="text-xl font-bold text-gray-900 tracking-tight">${meeting.title}</h4>
-                    <p class="text-xs text-gray-500 mt-1 flex items-center gap-2">
-                        <span><svg class="w-3.5 h-3.5 inline mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>${formatMeetingDateTime(meeting.date)}</span>
-                        <span>•</span>
-                        <span><svg class="w-3.5 h-3.5 inline mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>${meeting.duration} minutes</span>
-                    </p>
+        <div class="space-y-4">
+            <!-- Header -->
+            <div>
+                <div class="flex items-center gap-2 flex-wrap mb-1">
+                    ${(meeting.meeting_type && meeting.meeting_type !== 'standard') ? `
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${meeting.badge_bg || 'bg-sky-100'} ${meeting.badge_text || 'text-sky-800'} border ${meeting.badge_border || 'border-sky-300'}">
+                        ${escHtml(meeting.type || 'Mentoring')}
+                    </span>` : ''}
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold
+                        ${isUpcoming ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                          meeting.status === 'completed' ? 'bg-green-100 text-green-800 border border-green-200' :
+                          'bg-red-100 text-red-800 border border-red-200'}">
+                        ${meeting.status ? meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1) : ''}
+                    </span>
                 </div>
+                <h4 class="text-lg font-bold text-gray-900 tracking-tight ${isCancelled ? 'meeting-cancelled' : ''}">${escHtml(meeting.title)}</h4>
+                <p class="text-xs text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
+                    <span><svg class="w-3.5 h-3.5 inline mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>${formatMeetingDateTime(meeting.date)}</span>
+                    <span>&bull;</span>
+                    <span><svg class="w-3.5 h-3.5 inline mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>${meeting.duration} min</span>
+                </p>
             </div>
-            
-            <!-- Description -->
-            <div>
-                <h5 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Agenda & Description</h5>
-                <div class="text-sm text-gray-700 bg-gray-50/80 p-3.5 rounded-xl border border-gray-100 whitespace-pre-wrap leading-relaxed">${meeting.description || 'No description provided'}</div>
+
+            <!-- Short agenda -->
+            <div class="text-sm text-gray-700 bg-gray-50/80 px-3.5 py-2.5 rounded-xl border border-gray-100 leading-relaxed">
+                <span id="agendaText">${agenda.short}</span>
+                ${agenda.more ? `<button type="button" id="agendaToggle" onclick="toggleAgenda()" class="ml-1 text-blue-600 hover:underline text-xs font-medium">Show more</button>` : ''}
             </div>
-            
-            <!-- Participants Grid -->
+
+            ${isCancelled ? `
+            <div class="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700">
+                This session was cancelled. Delete it to remove it from the calendar and from all records.
+            </div>` : `
+            <!-- Meeting link -->
+            <div class="rounded-xl border border-blue-100 bg-blue-50/60 p-3.5">
+                <div class="flex flex-wrap items-center gap-2">
+                    ${hasLink ? `
+                    <a href="${linkText}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        Join Meeting
+                    </a>` : `
+                    <a href="https://teams.live.com/meet/create" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 transition">
+                        Create in Teams
+                    </a>`}
+                    <button type="button" onclick="copyMeetingLink(this)" ${hasLink ? '' : 'disabled'} class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        <span>Copy link</span>
+                    </button>
+                    <div class="relative">
+                        <button type="button" onclick="toggleSyncMenu(event)" class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            Sync to calendar
+                        </button>
+                        <div id="syncMenu" class="hidden absolute left-0 mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 text-sm">
+                            <a href="#" onclick="syncToGoogleCalendar(event)" class="block px-3 py-2 hover:bg-gray-50 text-gray-700">Google Calendar</a>
+                            <a href="#" onclick="downloadMeetingIcs(event)" class="block px-3 py-2 hover:bg-gray-50 text-gray-700">Outlook / Apple (.ics file)</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2.5 flex items-center gap-2 text-xs min-w-0">
+                    <span class="text-gray-500 shrink-0">Link:</span>
+                    ${hasLink
+                        ? `<a href="${linkText}" target="_blank" rel="noopener" class="truncate text-blue-600 hover:underline" title="${linkText}">${linkText}</a>`
+                        : `<span class="text-gray-400 italic">No meeting link yet. Create one in Teams, then use Edit Meeting to add the link.</span>`}
+                </div>
+            </div>`}
+
+            <!-- Participants -->
             <div>
-                <h5 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">Participant Roster</h5>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50/50 p-3.5 rounded-2xl border border-gray-200/70">
+                <h5 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Participants</h5>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 bg-gray-50/50 p-3 rounded-2xl border border-gray-200/70">
                     <div>${mentorsHtml}</div>
                     <div>${menteesHtml}</div>
                 </div>
             </div>
 
-            <!-- Details footer / link -->
-            <div class="pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2 text-xs text-gray-500">
-                <span>Created: ${formatMeetingDateTime(meeting.created_at)}</span>
-                <div class="flex items-center gap-2">
-                ${meeting.status === 'upcoming' ? `
-                    <button type="button" onclick="cancelMeeting(${meeting.id}, this)" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 font-medium rounded-lg hover:bg-red-100 transition">
-                        Cancel Meeting
+            <!-- Actions -->
+            <div class="pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
+                <span class="text-xs text-gray-400">Created: ${formatMeetingDateTime(meeting.created_at)}</span>
+                <div class="flex flex-wrap items-center gap-2">
+                    ${!isCancelled ? `
+                    <a href="${feedbackUrl}" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 text-sm font-medium rounded-lg hover:bg-indigo-100 transition">
+                        Feedback
+                    </a>` : ''}
+                    ${isUpcoming ? `
+                    <button type="button" onclick="cancelMeeting(${meeting.id}, this)" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-200 text-sm font-medium rounded-lg hover:bg-amber-100 transition">
+                        Cancel Session
+                    </button>` : ''}
+                    <button type="button" onclick="deleteMeeting(${meeting.id}, this)" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition">
+                        Delete Session
                     </button>
-                ` : ''}
-                ${isRealMeetingLink(meeting.meet_link) ? `
-                    <a href="${meeting.meet_link}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                        Join Video Call
-                    </a>
-                ` : (meeting.status === 'upcoming' ? `
-                    <a href="https://teams.live.com/meet/create" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition">
-                        Create in Teams
-                    </a>
-                ` : '')}
                 </div>
             </div>
         </div>
@@ -1719,6 +1767,118 @@ function closeMeetingModal() {
     m.classList.add('hidden');
     m.classList.remove('flex');
     currentDetailMeeting = null;
+}
+
+// ========== MEETING MODAL HELPERS ==========
+function escHtml(v) {
+    return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Keep the agenda short: first paragraph only, trimmed; the full text is one click away.
+var _agendaFull = '';
+var _agendaShort = '';
+function shortAgenda(desc) {
+    var full = String(desc || '').trim();
+    if (!full || full === 'No description provided') return { short: '<span class="text-gray-400">No agenda added.</span>', more: false };
+    var first = full.split(/\n\s*\n|\n--- /)[0].replace(/\s+/g, ' ').trim();
+    var limit = 110;
+    var shortText = first.length > limit ? first.slice(0, limit).replace(/\s+\S*$/, '') + '…' : first;
+    _agendaFull = full;
+    _agendaShort = shortText;
+    var more = first.length > limit || full.length > first.length + 2;
+    return { short: escHtml(shortText), more: more };
+}
+function toggleAgenda() {
+    var t = document.getElementById('agendaText'), b = document.getElementById('agendaToggle');
+    if (!t || !b) return;
+    var expanded = b.getAttribute('data-expanded') === '1';
+    if (expanded) { t.textContent = _agendaShort; t.style.whiteSpace = ''; b.textContent = 'Show more'; b.setAttribute('data-expanded', '0'); }
+    else { t.textContent = _agendaFull; t.style.whiteSpace = 'pre-wrap'; b.textContent = 'Show less'; b.setAttribute('data-expanded', '1'); }
+}
+
+function copyMeetingLink(btn) {
+    var link = currentDetailMeeting && currentDetailMeeting.meet_link;
+    if (!isRealMeetingLink(link)) return;
+    var label = btn.querySelector('span');
+    function done() { if (label) { var old = label.textContent; label.textContent = 'Copied ✓'; setTimeout(function () { label.textContent = old; }, 1600); } }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(done, function () { fallbackCopy(link); done(); });
+    } else { fallbackCopy(link); done(); }
+}
+function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+}
+
+function toggleSyncMenu(e) {
+    if (e) { e.stopPropagation(); }
+    var m = document.getElementById('syncMenu');
+    if (m) m.classList.toggle('hidden');
+}
+document.addEventListener('click', function () {
+    var m = document.getElementById('syncMenu');
+    if (m) m.classList.add('hidden');
+});
+
+// Local ("floating") date-time strings: YYYYMMDDTHHMMSS, so the calendar app uses the viewer's own time zone.
+function _calParts(meeting) {
+    var d = parseMeetingDate(meeting.date);
+    if (isNaN(d.getTime())) d = new Date();
+    var end = new Date(d.getTime() + (parseInt(meeting.duration, 10) || 60) * 60000);
+    function f(x) {
+        var p = function (n) { return String(n).padStart(2, '0'); };
+        return x.getFullYear() + p(x.getMonth() + 1) + p(x.getDate()) + 'T' + p(x.getHours()) + p(x.getMinutes()) + p(x.getSeconds());
+    }
+    return { start: f(d), end: f(end) };
+}
+function syncToGoogleCalendar(e) {
+    if (e) e.preventDefault();
+    var m = currentDetailMeeting; if (!m) return;
+    var c = _calParts(m);
+    var link = isRealMeetingLink(m.meet_link) ? m.meet_link : '';
+    var url = 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
+        '&text=' + encodeURIComponent(m.title || 'Meeting') +
+        '&dates=' + c.start + '/' + c.end +
+        '&details=' + encodeURIComponent(((m.description || '').split('\n')[0] || '') + (link ? '\nJoin: ' + link : '')) +
+        (link ? '&location=' + encodeURIComponent(link) : '');
+    window.open(url, '_blank', 'noopener');
+}
+function downloadMeetingIcs(e) {
+    if (e) e.preventDefault();
+    var m = currentDetailMeeting; if (!m) return;
+    var c = _calParts(m);
+    var link = isRealMeetingLink(m.meet_link) ? m.meet_link : '';
+    function esc(t) { return String(t || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
+    var stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+    var lines = [
+        'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Mentor Connect//Meetings//EN', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+        'UID:meeting-' + m.id + '@mentor-connect', 'DTSTAMP:' + stamp, 'DTSTART:' + c.start, 'DTEND:' + c.end,
+        'SUMMARY:' + esc(m.title), 'DESCRIPTION:' + esc(((m.description || '').split('\n')[0] || '') + (link ? '\nJoin: ' + link : ''))
+    ];
+    if (link) { lines.push('LOCATION:' + esc(link)); lines.push('URL:' + link); }
+    lines.push('END:VEVENT', 'END:VCALENDAR');
+    var blob = new Blob([lines.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'meeting-' + m.id + '.ics';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+}
+
+function deleteMeeting(meetingId, btn) {
+    if (!window.confirm('Delete this session permanently?\n\nIt will be removed from the calendar and from all records (including any tasks and feedback created for it). This cannot be undone.')) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
+    fetch('/delete_meeting/' + meetingId, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+        .then(function (r) { return r.json().catch(function () { return { success: false, message: 'Unexpected server response.' }; }); })
+        .then(function (d) {
+            if (d.success) { window.location.reload(); return; }
+            alert(d.message || 'Could not delete the session.');
+            if (btn) { btn.disabled = false; btn.textContent = 'Delete Session'; }
+        })
+        .catch(function () { alert('Network error. Please try again.'); if (btn) { btn.disabled = false; btn.textContent = 'Delete Session'; } });
 }
  
 // ========== SGM PARTICIPANT MANAGEMENT FUNCTIONS ==========
