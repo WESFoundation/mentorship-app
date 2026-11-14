@@ -442,6 +442,7 @@
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
           Edit Meeting
         </button>
+        <button id="cancel-meeting-btn" class="hidden px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-medium rounded-xl text-xs transition shadow-sm">Cancel Meeting</button>
         <button id="join-meeting-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl text-xs transition shadow-sm">Join Meeting</button>
         <button id="view-details-btn" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-xl text-xs transition shadow-sm">Full Details</button>
       </div>
@@ -1360,8 +1361,21 @@ function showEventDetails(event) {
     }
   }
   
-  if (event.status === 'upcoming' && event.meet_link) {
+  const cancelBtn = document.getElementById('cancel-meeting-btn');
+  if (cancelBtn) {
+    if (event.status === 'upcoming') {
+      cancelBtn.classList.remove('hidden');
+      cancelBtn.disabled = false;
+      cancelBtn.textContent = 'Cancel Meeting';
+      cancelBtn.onclick = function() { cancelMeeting(event.id, cancelBtn); };
+    } else {
+      cancelBtn.classList.add('hidden');
+    }
+  }
+
+  if (event.status === 'upcoming' && isRealMeetingLink(event.meet_link)) {
     joinBtn.style.display = 'inline-block';
+    joinBtn.style.backgroundColor = '';
     joinBtn.textContent = 'Join Meeting';
     joinBtn.onclick = function() {
       window.open(event.meet_link, '_blank');
@@ -2773,13 +2787,13 @@ async function handleScheduleMeeting() {
     var result = await response.json();
 
     if (response.ok && result.message) {
-      statusEl.textContent = 'Meeting scheduled successfully!';
+      statusEl.textContent = 'Meeting scheduled successfully!' + (result.warning ? ' Note: ' + result.warning : '');
       statusEl.className = 'text-sm mt-2 text-green-700 bg-green-50 p-3 rounded-lg border border-green-200';
       statusEl.classList.remove('hidden');
       setTimeout(function() {
         closeScheduleMeetingModal();
         window.location.reload();
-      }, 1200);
+      }, result.warning ? 6000 : 1200);
     } else {
       statusEl.textContent = result.error || 'Failed to schedule meeting. Please try again.';
       statusEl.className = 'text-sm mt-2 text-red-700 bg-red-50 p-3 rounded-lg border border-red-200';
@@ -2830,4 +2844,5 @@ async function handleScheduleMeeting() {
 });
 </script>
 
+{% include 'components/meeting_cancel_js.html' %}
 {% endblock %}

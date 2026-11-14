@@ -6808,6 +6808,30 @@ def delete_user(user_id):
         return redirect(url_for("manage_created_accounts"))
 
 
+def _institution_member_clause(user, institution_name):
+    """SQL condition for 'belongs to this coordinator's institute'. Never matches everyone:
+    a NULL institution_id/name on the coordinator must not turn into 'IS NULL' (all unaffiliated users)."""
+    ids, names = set(), set()
+    if user.institution_id:
+        ids.add(user.institution_id)
+    if institution_name:
+        names.add(institution_name)
+    try:  # fall back to the coordinator's own institute record (older accounts may lack institution_id)
+        _inst, _iid, _iname, _ = _get_institution_details(user)
+        if _iid:
+            ids.add(_iid)
+        if _iname:
+            names.add(_iname)
+    except Exception:
+        pass
+    parts = []
+    if ids:
+        parts.append(User.institution_id.in_(list(ids)))
+    if names:
+        parts.append(User.institution.in_(list(names)))
+    return or_(*parts) if parts else db.false()
+
+
 def _get_institution_details(user):
     """Resolve institution record, ID, name, and matching aliases for an institution user."""
     institution = None
@@ -7053,8 +7077,7 @@ def institution_mentorships():
             MentorshipRequest.mentee_id.in_(
                 db.session.query(User.id).filter(
                     (User.user_type == "2") & (
-                        (User.institution_id == user.institution_id) |
-                        (User.institution == institution_name)
+                        _institution_member_clause(user, institution_name)
                     )
                 )
             )
@@ -7063,8 +7086,7 @@ def institution_mentorships():
             MentorshipRequest.mentor_id.in_(
                 db.session.query(User.id).filter(
                     (User.user_type == "1") & (
-                        (User.institution_id == user.institution_id) |
-                        (User.institution == institution_name)
+                        _institution_member_clause(user, institution_name)
                     )
                 )
             )
@@ -7176,16 +7198,14 @@ def institution_requests():
             (MentorshipRequest.mentee_id.in_(
                 db.session.query(User.id).filter(
                     (User.user_type == "2") & (
-                        (User.institution_id == user.institution_id) |
-                        (User.institution == institution_name)
+                        _institution_member_clause(user, institution_name)
                     )
                 )
             )) |
             (MentorshipRequest.mentor_id.in_(
                 db.session.query(User.id).filter(
                     (User.user_type == "1") & (
-                        (User.institution_id == user.institution_id) |
-                        (User.institution == institution_name)
+                        _institution_member_clause(user, institution_name)
                     )
                 )
             ))
@@ -7231,8 +7251,7 @@ def institution_all_meetings():
         .filter(
             (User.user_type.in_(["1", "2"])) &
             (
-                (User.institution_id == user.institution_id) |
-                (User.institution == institution_name)
+                _institution_member_clause(user, institution_name)
             )
         )
         .order_by(MeetingRequest.meeting_date.desc(), MeetingRequest.meeting_time.desc())
@@ -7316,8 +7335,7 @@ def institution_response():
         mentorship_request.mentee_id in [
             u.id for u in User.query.filter(
                 (User.user_type == "2") & (
-                    (User.institution_id == user.institution_id) |
-                    (User.institution == institution_name)
+                    _institution_member_clause(user, institution_name)
                 )
             ).all()
         ]
@@ -7326,8 +7344,7 @@ def institution_response():
         mentorship_request.mentor_id in [
             u.id for u in User.query.filter(
                 (User.user_type == "1") & (
-                    (User.institution_id == user.institution_id) |
-                    (User.institution == institution_name)
+                    _institution_member_clause(user, institution_name)
                 )
             ).all()
         ]
@@ -7871,7 +7888,7 @@ def institutionprofile_old():
     active_mentorships = MentorshipRequest.query\
         .join(User, MentorshipRequest.mentee_id == User.id)\
         .filter(
-            User.institution_id == user.institution_id,
+            (User.institution_id == user.institution_id) if user.institution_id else db.false(),
             MentorshipRequest.final_status == "approved"
         ).count()
 
@@ -15422,12 +15439,12 @@ def cancel_meeting(meeting_id):
         return jsonify({"success": False, "message": "Unauthorized"}), 401
 
     user_type = session.get("user_type")
-    if user_type not in ("0", "1"):
+    if user_type not in ("0", "1", "3"):
         return jsonify({"success": False, "message": "Unauthorized"}), 401
 
     try:
-        data = request.get_json()
-        reason = data.get("reason", "").strip()
+        data = request.get_json(silent=True) or {}
+        reason = (data.get("reason") or "").strip()
 
         if not reason:
             return jsonify({"success": False, "message": "Please provide a reason for cancellation"}), 400
@@ -15440,6 +15457,31 @@ def cancel_meeting(meeting_id):
 
         if user_type == "1" and meeting.requested_to_id != user.id:
             return jsonify({"success": False, "message": "You can only cancel your own meetings"}), 403
+
+        involved_ids = {meeting.requester_id, meeting.requested_to_id}
+        try:
+            _m, _e, _info = _resolve_meeting_participants(meeting)
+            for _u in (_m, _e):
+                if _u:
+                    involved_ids.add(_u.id)
+            for _key in ("mentor_ids", "mentee_ids"):
+                for _i in (_info or {}).get(_key) or []:
+                    try:
+                        involved_ids.add(int(_i))
+                    except (ValueError, TypeError):
+                        pass
+        except Exception as _pe:
+            app.logger.warning(f"cancel_meeting participant lookup failed: {_pe}")
+
+        if user_type == "3":
+            # A coordinator can only cancel meetings that involve their own institute
+            inst_mentors, inst_mentees = _get_institution_members(user, include_paired=False)
+            inst_ids = {u.id for u in inst_mentors} | {u.id for u in inst_mentees}
+            if meeting.requester_id != user.id and not (involved_ids & inst_ids):
+                return jsonify({"success": False, "message": "You can only cancel meetings of your own institute"}), 403
+
+        if meeting.status == "cancelled":
+            return jsonify({"success": False, "message": "This meeting is already cancelled"}), 400
 
         meeting.status = "cancelled"
         meeting.reschedule_reason = reason
@@ -15461,6 +15503,14 @@ def cancel_meeting(meeting_id):
                     print(f"Error deleting Google Calendar event: {str(e)}")
 
         db.session.commit()
+
+        # Let everyone involved know (in-app), except the person who cancelled
+        for _uid in involved_ids:
+            if _uid and _uid != user.id:
+                create_notification(
+                    _uid,
+                    f'Meeting "{meeting.meeting_title}" on {meeting.meeting_date.strftime("%B %d, %Y")} was cancelled. Reason: {escape(reason)}'
+                )
 
         return jsonify({
             "success": True,

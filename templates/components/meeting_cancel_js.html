@@ -1,0 +1,28 @@
+<script>
+// Shared by the meeting pages: ask for a reason, cancel on the server, then refresh.
+// Also: isRealMeetingLink() tells a real join link from the "create a meeting" placeholders.
+function isRealMeetingLink(l) {
+  return !!l && l.indexOf('teams.live.com/meet/create') === -1 && l.indexOf('meet.google.com/new') === -1;
+}
+function cancelMeeting(meetingId, btn) {
+  var reason = window.prompt('Why is this meeting being cancelled? (the reason is required)');
+  if (reason === null) return;
+  reason = reason.trim();
+  if (!reason) { alert('Please enter a reason to cancel the meeting.'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Cancelling…'; }
+  fetch('/cancel_meeting/' + meetingId, {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason: reason })
+  }).then(function (r) { return r.json().catch(function () { return { success: false, message: 'Unexpected server response.' }; }); })
+    .then(function (d) {
+      if (d.success) { window.location.reload(); return; }
+      alert(d.message || 'Could not cancel the meeting.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Cancel'; }
+    })
+    .catch(function () {
+      alert('Network error. Please try again.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Cancel'; }
+    });
+}
+</script>

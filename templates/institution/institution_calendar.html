@@ -1468,7 +1468,7 @@ function renderListView() {
                             <p><span class="font-semibold">Mentee:</span> ${meeting.mentee}</p>
                         </div>
                         <div>
-                            ${meeting.meet_link ? `<p><span class="font-semibold">Meeting Link:</span> <a href="${meeting.meet_link}" target="_blank" class="text-blue-500 hover:underline">Join</a></p>` : (meeting.status === 'upcoming' ? `<p><span class="font-semibold">Meeting Link:</span> <a href="https://teams.live.com/meet/create" target="_blank" class="text-purple-600 hover:underline">Create in Teams</a></p>` : '')}
+                            ${isRealMeetingLink(meeting.meet_link) ? `<p><span class="font-semibold">Meeting Link:</span> <a href="${meeting.meet_link}" target="_blank" class="text-blue-500 hover:underline">Join</a></p>` : (meeting.status === 'upcoming' ? `<p><span class="font-semibold">Meeting Link:</span> <a href="https://teams.live.com/meet/create" target="_blank" class="text-purple-600 hover:underline">Create in Teams</a></p>` : '')}
                             <p><span class="font-semibold">Created:</span> ${formatMeetingDateTime(meeting.created_at)}</p>
                         </div>
                     </div>
@@ -1678,7 +1678,13 @@ function openMeetingModal(meeting) {
             <!-- Details footer / link -->
             <div class="pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2 text-xs text-gray-500">
                 <span>Created: ${formatMeetingDateTime(meeting.created_at)}</span>
-                ${meeting.meet_link ? `
+                <div class="flex items-center gap-2">
+                ${meeting.status === 'upcoming' ? `
+                    <button type="button" onclick="cancelMeeting(${meeting.id}, this)" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 font-medium rounded-lg hover:bg-red-100 transition">
+                        Cancel Meeting
+                    </button>
+                ` : ''}
+                ${isRealMeetingLink(meeting.meet_link) ? `
                     <a href="${meeting.meet_link}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                         Join Video Call
@@ -1688,6 +1694,7 @@ function openMeetingModal(meeting) {
                         Create in Teams
                     </a>
                 ` : '')}
+                </div>
             </div>
         </div>
     `;
@@ -2873,7 +2880,7 @@ document.getElementById('scheduleMeetingForm').addEventListener('submit', async 
         });
         var result = await res.json();
         if (res.ok && result.message) {
-            var successMsg = 'Meeting scheduled successfully!';
+            var successMsg = 'Meeting scheduled successfully!' + (result.warning ? ' Note: ' + result.warning : '');
             var statusTopEl = document.getElementById('sched-status-top');
             if (statusTopEl) {
                 statusTopEl.textContent = successMsg;
@@ -2883,7 +2890,7 @@ document.getElementById('scheduleMeetingForm').addEventListener('submit', async 
             statusEl.textContent = successMsg;
             statusEl.className = 'text-sm text-green-700 bg-green-50 p-3 rounded-lg border border-green-200';
             statusEl.classList.remove('hidden');
-            setTimeout(function() { closeScheduleMeetingModal(); window.location.reload(); }, 1200);
+            setTimeout(function() { closeScheduleMeetingModal(); window.location.reload(); }, result.warning ? 6000 : 1200);
         } else {
             var errMsg = result.error || 'Failed to schedule meeting. Please try again.';
             var statusTopEl = document.getElementById('sched-status-top');
@@ -3229,4 +3236,5 @@ document.addEventListener('keydown', function(e) {
     }
 });
 </script>
+{% include 'components/meeting_cancel_js.html' %}
 {% endblock %}
