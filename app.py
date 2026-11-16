@@ -12018,6 +12018,8 @@ def _clean_meeting_description(desc):
     import re
     return re.sub(r'<!--participants:.*?-->', '', desc, flags=re.DOTALL).strip()
 
+app.add_template_filter(_clean_meeting_description, 'clean_meeting_desc')
+
 def _embed_participants_in_description(desc, participants):
     """Embed participants JSON metadata as an HTML comment in meeting description to ensure DB durability."""
     clean = _clean_meeting_description(desc)

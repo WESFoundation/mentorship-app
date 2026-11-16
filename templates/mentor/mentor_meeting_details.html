@@ -30,7 +30,8 @@
                data-month="{{ meeting.meeting_date.month - 1 }}"
                data-date="{{ meeting.meeting_date.strftime('%Y-%m-%d') }}"
                data-time="{{ meeting.meeting_time.strftime('%H:%M') }}"
-               data-meeting-id="{{ meeting.id }}">
+               data-meeting-id="{{ meeting.id }}"
+               data-meeting="{{ {'id': meeting.id, 'title': meeting.meeting_title, 'description': (meeting.meeting_description or '')|clean_meeting_desc, 'date': meeting.meeting_date.strftime('%Y-%m-%d') ~ 'T' ~ meeting.meeting_time.strftime('%H:%M:%S'), 'duration': meeting.meeting_duration, 'meet_link': meeting.meet_link or '', 'status': (meeting.status or ''), 'participants': [{'role': ('Mentee' if meeting.requester.user_type == '2' else 'Organizer'), 'name': meeting.requester.name, 'email': meeting.requester.email}]}|tojson|forceescape }}">
             <div class="p-5">
               <!-- Title and Status -->
               <div class="flex justify-between items-start mb-3">
@@ -82,6 +83,7 @@
                   </div>
                 {% endif %}
                 
+                <button type="button" data-view-meeting class="w-full mb-1 mt-2 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition">View details</button>
                 <!-- Meeting Link -->
                 {% if meeting.meet_link %}
                   <div class="flex items-center mt-3 pt-3 border-t border-gray-100">
@@ -483,4 +485,5 @@
   });
 </script>
 
+{% include 'components/meeting_view_modal.html' %}
 {% endblock %}
