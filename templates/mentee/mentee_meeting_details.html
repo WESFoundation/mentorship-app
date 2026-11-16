@@ -28,7 +28,8 @@
         {% for meeting in meetings %}
           <div class="meeting-card upcoming-meeting bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300" 
                data-month="{{ meeting.meeting_date.month - 1 }}"
-               data-date="{{ meeting.meeting_date.strftime('%Y-%m-%d') }}">
+               data-date="{{ meeting.meeting_date.strftime('%Y-%m-%d') }}"
+               data-meeting="{{ {'id': meeting.id, 'title': meeting.meeting_title, 'description': (meeting.meeting_description or '')|clean_meeting_desc, 'date': meeting.meeting_date.strftime('%Y-%m-%d') ~ 'T' ~ meeting.meeting_time.strftime('%H:%M:%S'), 'duration': meeting.meeting_duration, 'meet_link': meeting.meet_link or '', 'status': (meeting.status or ''), 'participants': [{'role': 'Mentor', 'name': meeting.requested_to.name, 'email': meeting.requested_to.email}]}|tojson|forceescape }}">
             <div class="p-5">
               <!-- Title only - no status badges -->
               <h4 class="text-lg font-semibold text-gray-800 mb-3">{{ meeting.meeting_title }}</h4>
@@ -58,6 +59,7 @@
                   </div>
                 </div>
                 
+                <button type="button" data-view-meeting class="w-full mb-1 mt-2 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition">View details</button>
                 <!-- Meeting Link - Always show if available -->
                 {% if meeting.meet_link %}
                   <div class="flex items-center mt-3 pt-3 border-t border-gray-100">
@@ -275,4 +277,5 @@
 </script>
 
 
+{% include 'components/meeting_view_modal.html' %}
 {% endblock %}

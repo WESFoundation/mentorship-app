@@ -399,7 +399,7 @@ function showEventDetails(event) {
   // Join / Copy link / Sync live in the shared panel; the link is withheld while approval is pending.
   var joinBtn = document.getElementById('join-meeting-btn');
   if (joinBtn) { joinBtn.classList.add('hidden'); joinBtn.onclick = null; }
-  mmRender(document.getElementById('mm-extras'), event, { hideLink: gated, participants: [{ role: 'Mentor', name: event.mentor }] });
+  mmRender(document.getElementById('mm-extras'), event, { hideLink: gated, participants: [{ role: 'Mentor', name: event.mentor }, { role: 'Mentee', name: {{ (current_user.name or 'You') | tojson }}, email: {{ (current_user.email or '') | tojson }} }] });
 
   modal.classList.remove('hidden');
 }
