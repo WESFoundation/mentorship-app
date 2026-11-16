@@ -1,0 +1,104 @@
+<script>
+// Shared meeting-modal extras for the mentor and mentee calendars (same design as the institution modal):
+// a meeting-link panel (Join / Copy link / Sync to calendar) and a short agenda with "Show more".
+// Usage: mmRender(containerEl, meeting, { hideLink: bool })  -- meeting: {id,title,description,date,duration,meet_link,status}
+var _mmMeeting = null, _mmAgendaFull = '', _mmAgendaShort = '';
+function mmEsc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function mmReal(l) { return !!l && l.indexOf('teams.live.com/meet/create') === -1 && l.indexOf('meet.google.com/new') === -1; }
+
+function mmRender(el, meeting, opts) {
+  if (!el) return;
+  opts = opts || {};
+  _mmMeeting = meeting;
+  var full = String(meeting.description || '').trim();
+  var agendaHtml;
+  if (!full || full === 'No description provided') {
+    agendaHtml = '<span class="text-gray-400">No agenda added.</span>';
+  } else {
+    var first = full.split(/\n\s*\n|\n--- /)[0].replace(/\s+/g, ' ').trim();
+    var limit = 110;
+    var shortText = first.length > limit ? first.slice(0, limit).replace(/\s+\S*$/, '') + '…' : first;
+    _mmAgendaFull = full; _mmAgendaShort = shortText;
+    var more = first.length > limit || full.length > first.length + 2;
+    agendaHtml = '<span id="mm-agenda-text">' + mmEsc(shortText) + '</span>' +
+      (more ? ' <button type="button" id="mm-agenda-toggle" onclick="mmToggleAgenda()" class="ml-1 text-blue-600 hover:underline text-xs font-medium">Show more</button>' : '');
+  }
+
+  var html = '<div class="text-sm text-gray-700 bg-gray-50/80 px-3.5 py-2.5 rounded-xl border border-gray-100 leading-relaxed">' + agendaHtml + '</div>';
+
+  var showLink = !opts.hideLink && meeting.status === 'upcoming';
+  if (showLink) {
+    var has = mmReal(meeting.meet_link), link = mmEsc(meeting.meet_link || '');
+    html += '<div class="rounded-xl border border-blue-100 bg-blue-50/60 p-3.5">' +
+      '<div class="flex flex-wrap items-center gap-2">' +
+      (has ? '<a href="' + link + '" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition">Join Meeting</a>' : '') +
+      '<button type="button" onclick="mmCopy(this)" ' + (has ? '' : 'disabled') + ' class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"><span>Copy link</span></button>' +
+      '<div class="relative">' +
+      '<button type="button" onclick="mmToggleSync(event)" class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">Sync to calendar</button>' +
+      '<div id="mm-sync-menu" class="hidden absolute left-0 mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 text-sm">' +
+      '<a href="#" onclick="mmGoogle(event)" class="block px-3 py-2 hover:bg-gray-50 text-gray-700">Google Calendar</a>' +
+      '<a href="#" onclick="mmIcs(event)" class="block px-3 py-2 hover:bg-gray-50 text-gray-700">Outlook / Apple (.ics file)</a>' +
+      '</div></div></div>' +
+      '<div class="mt-2.5 flex items-center gap-2 text-xs min-w-0"><span class="text-gray-500 shrink-0">Link:</span>' +
+      (has ? '<a href="' + link + '" target="_blank" rel="noopener" class="truncate text-blue-600 hover:underline" title="' + link + '">' + link + '</a>'
+           : '<span class="text-gray-400 italic">No meeting link has been added yet.</span>') +
+      '</div></div>';
+  }
+  el.innerHTML = html;
+}
+
+function mmToggleAgenda() {
+  var t = document.getElementById('mm-agenda-text'), b = document.getElementById('mm-agenda-toggle');
+  if (!t || !b) return;
+  if (b.getAttribute('data-expanded') === '1') { t.textContent = _mmAgendaShort; t.style.whiteSpace = ''; b.textContent = 'Show more'; b.setAttribute('data-expanded', '0'); }
+  else { t.textContent = _mmAgendaFull; t.style.whiteSpace = 'pre-wrap'; b.textContent = 'Show less'; b.setAttribute('data-expanded', '1'); }
+}
+function mmCopy(btn) {
+  var link = _mmMeeting && _mmMeeting.meet_link;
+  if (!mmReal(link)) return;
+  var label = btn.querySelector('span');
+  function done() { if (label) { var old = label.textContent; label.textContent = 'Copied ✓'; setTimeout(function () { label.textContent = old; }, 1600); } }
+  function fallback() {
+    var ta = document.createElement('textarea'); ta.value = link; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta); done();
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, fallback); else fallback();
+}
+function mmToggleSync(e) { if (e) e.stopPropagation(); var m = document.getElementById('mm-sync-menu'); if (m) m.classList.toggle('hidden'); }
+document.addEventListener('click', function () { var m = document.getElementById('mm-sync-menu'); if (m) m.classList.add('hidden'); });
+
+function mmParts(m) {
+  var d = new Date(m.date); if (isNaN(d.getTime())) d = new Date();
+  var end = new Date(d.getTime() + (parseInt(m.duration, 10) || 60) * 60000);
+  function f(x) { var p = function (n) { return String(n).padStart(2, '0'); }; return x.getFullYear() + p(x.getMonth() + 1) + p(x.getDate()) + 'T' + p(x.getHours()) + p(x.getMinutes()) + p(x.getSeconds()); }
+  return { start: f(d), end: f(end) };
+}
+function mmGoogle(e) {
+  if (e) e.preventDefault();
+  var m = _mmMeeting; if (!m) return;
+  var c = mmParts(m), link = mmReal(m.meet_link) ? m.meet_link : '';
+  window.open('https://calendar.google.com/calendar/render?action=TEMPLATE' +
+    '&text=' + encodeURIComponent(m.title || 'Meeting') + '&dates=' + c.start + '/' + c.end +
+    '&details=' + encodeURIComponent(((m.description || '').split('\n')[0] || '') + (link ? '\nJoin: ' + link : '')) +
+    (link ? '&location=' + encodeURIComponent(link) : ''), '_blank', 'noopener');
+}
+function mmIcs(e) {
+  if (e) e.preventDefault();
+  var m = _mmMeeting; if (!m) return;
+  var c = mmParts(m), link = mmReal(m.meet_link) ? m.meet_link : '';
+  function esc(t) { return String(t || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
+  var stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+  var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Mentor Connect//Meetings//EN', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+    'UID:meeting-' + m.id + '@mentor-connect', 'DTSTAMP:' + stamp, 'DTSTART:' + c.start, 'DTEND:' + c.end,
+    'SUMMARY:' + esc(m.title), 'DESCRIPTION:' + esc(((m.description || '').split('\n')[0] || '') + (link ? '\nJoin: ' + link : ''))];
+  if (link) { lines.push('LOCATION:' + esc(link)); lines.push('URL:' + link); }
+  lines.push('END:VEVENT', 'END:VCALENDAR');
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'text/calendar;charset=utf-8' }));
+  a.download = 'meeting-' + m.id + '.ics';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+}
+</script>
