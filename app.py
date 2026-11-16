@@ -526,15 +526,16 @@ def send_app_email(to_email, subject, html_content, text_content=None, is_otp=Fa
             else:
                 app.logger.warning(f"Graph sendMail returned HTTP {res.status_code}: {res.text[:120]}")
                 _email_diag.error = f"Microsoft Graph refused the email (HTTP {res.status_code}" + (
-                    ": the sender mailbox has no Mail.Send permission / admin consent" if res.status_code in (401, 403) else ")")
+                    ": the sender mailbox has no Mail.Send permission / admin consent)" if res.status_code in (401, 403) else ")")
         else:
             _email_diag.error = "Microsoft Graph is not configured (missing tenant/client credentials)"
     except Exception as e:
         app.logger.warning(f"Microsoft Graph sendMail exception: {e}")
         _email_diag.error = f"Microsoft Graph error: {e}"
 
-    # 2. Exchange Online Calendar invite fallback for OTP verification
-    if is_otp and otp_code:
+    # 2. Exchange Online calendar-invite fallback (works with Calendars permission when Mail.Send is not granted).
+    #    Used for OTPs and for every other email (reminders, notifications) so delivery never depends on Mail.Send.
+    if True:
         try:
             token = get_ms_graph_token()
             if token and MS_GRAPH_ORGANIZER_EMAIL:
@@ -542,8 +543,10 @@ def send_app_email(to_email, subject, html_content, text_content=None, is_otp=Fa
                 start_iso = now.isoformat().replace("+00:00", "Z")
                 end_iso = (now + dt.timedelta(minutes=15)).isoformat().replace("+00:00", "Z")
                 ev_payload = {
-                    "subject": f"Mentor Connect Verification Code: {otp_code}",
+                    "subject": (f"Mentor Connect Verification Code: {otp_code}" if (is_otp and otp_code) else subject),
                     "body": {"contentType": "HTML", "content": html_content},
+                    "isReminderOn": False,
+                    "showAs": "free",
                     "start": {"dateTime": start_iso, "timeZone": "UTC"},
                     "end": {"dateTime": end_iso, "timeZone": "UTC"},
                     "attendees": [{"emailAddress": {"address": clean_email, "name": clean_email.split('@')[0]}, "type": "required"}],
@@ -556,11 +559,13 @@ def send_app_email(to_email, subject, html_content, text_content=None, is_otp=Fa
                     timeout=12
                 )
                 if c_res.status_code in (200, 201):
-                    print(f"✅ OTP invitation email dispatched by Exchange Online to {clean_email}")
+                    print(f"✅ Email dispatched by Exchange Online (calendar invitation) to {clean_email}")
                     _email_diag.method = "graph"
+                    _email_diag.error = None
                     return True
                 else:
                     app.logger.warning(f"Graph calendar invite returned HTTP {c_res.status_code}: {c_res.text[:120]}")
+                    _email_diag.error = ((_email_diag.error + "; ") if _email_diag.error else "") + f"calendar-invite fallback also failed (HTTP {c_res.status_code})"
         except Exception as e:
             app.logger.warning(f"Microsoft Graph calendar dispatch exception: {e}")
 
