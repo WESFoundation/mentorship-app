@@ -9831,6 +9831,7 @@ def mentee_calendar():
             "date": meeting_datetime,
             "duration": meeting.meeting_duration,
             "mentor": mentor.name if mentor else "Unknown Mentor",
+            "mentor_email": mentor.email if mentor else "",
             "type": tinfo["label"],
             "meeting_type": tinfo["type"],
             "type_color": tinfo["color_code"],

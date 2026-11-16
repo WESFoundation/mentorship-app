@@ -1,7 +1,7 @@
 <script>
-// Shared meeting-modal extras for the mentor and mentee calendars (same design as the institution modal):
-// a meeting-link panel (Join / Copy link / Sync to calendar) and a short agenda with "Show more".
-// Usage: mmRender(containerEl, meeting, { hideLink: bool })  -- meeting: {id,title,description,date,duration,meet_link,status}
+// Shared meeting-modal extras for mentor, mentee, and institution calendars:
+// exact parity with institution meeting detail modal design.
+// Usage: mmRender(containerEl, meeting, { hideLink: bool, mentors: [...], mentees: [...], participants: [...] })
 var _mmMeeting = null, _mmAgendaFull = '', _mmAgendaShort = '';
 function mmEsc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function mmReal(l) { return !!l && l.indexOf('teams.live.com/meet/create') === -1 && l.indexOf('meet.google.com/new') === -1; }
@@ -30,6 +30,7 @@ function mmRender(el, meeting, opts) {
   var dateTxt = isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
   var icoCal = '<svg class="w-3.5 h-3.5 inline mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>';
   var icoClk = '<svg class="w-3.5 h-3.5 inline mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+  
   var html = '<div class="space-y-4"><div>' +
     '<div class="flex items-center gap-2 flex-wrap mb-1">' +
     ((meeting.meeting_type && meeting.meeting_type !== 'standard') ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold ' + (meeting.badge_bg || 'bg-sky-100') + ' ' + (meeting.badge_text || 'text-sky-800') + ' border ' + (meeting.badge_border || 'border-sky-300') + '">' + mmEsc(meeting.type || 'Mentoring') + '</span>' : '') +
@@ -37,16 +38,21 @@ function mmRender(el, meeting, opts) {
     '<h4 class="text-lg font-bold text-gray-900 tracking-tight' + (cancelled ? ' line-through opacity-70' : '') + '">' + mmEsc(meeting.title) + '</h4>' +
     '<p class="text-xs text-gray-500 mt-1 flex items-center gap-2 flex-wrap"><span>' + icoCal + mmEsc(dateTxt) + '</span><span>&bull;</span><span>' + icoClk + mmEsc(meeting.duration) + ' min</span></p></div>' +
     '<div class="text-sm text-gray-700 bg-gray-50/80 px-3.5 py-2.5 rounded-xl border border-gray-100 leading-relaxed">' + agendaHtml + '</div>';
-  if (cancelled) html += '<div class="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700">This session was cancelled.</div>';
+
+  if (cancelled) {
+    html += '<div class="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700">This session was cancelled.</div>';
+  }
+
   var showLink = !opts.hideLink && upcoming;
   if (showLink) {
     var has = mmReal(meeting.meet_link), link = mmEsc(meeting.meet_link || '');
     html += '<div class="rounded-xl border border-blue-100 bg-blue-50/60 p-3.5">' +
       '<div class="flex flex-wrap items-center gap-2">' +
-      (has ? '<a href="' + link + '" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition">Join Meeting</a>' : '') +
-      '<button type="button" onclick="mmCopy(this)" ' + (has ? '' : 'disabled') + ' class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"><span>Copy link</span></button>' +
+      (has ? '<a href="' + link + '" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>Join Meeting</a>'
+           : '<a href="https://teams.live.com/meet/create" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 transition">Create in Teams</a>') +
+      '<button type="button" onclick="mmCopy(this)" ' + (has ? '' : 'disabled') + ' class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg><span>Copy link</span></button>' +
       '<div class="relative">' +
-      '<button type="button" onclick="mmToggleSync(event)" class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">Sync to calendar</button>' +
+      '<button type="button" onclick="mmToggleSync(event)" class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>Sync to calendar</button>' +
       '<div id="mm-sync-menu" class="hidden absolute left-0 mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 text-sm">' +
       '<a href="#" onclick="mmGoogle(event)" class="block px-3 py-2 hover:bg-gray-50 text-gray-700">Google Calendar</a>' +
       '<a href="#" onclick="mmIcs(event)" class="block px-3 py-2 hover:bg-gray-50 text-gray-700">Outlook / Apple (.ics file)</a>' +
@@ -56,16 +62,57 @@ function mmRender(el, meeting, opts) {
            : '<span class="text-gray-400 italic">No meeting link has been added yet.</span>') +
       '</div></div>';
   }
-  var ppl = (opts.participants || []).filter(function (x) { return x && x.name; });
-  if (ppl.length) {
-    html += '<div><h5 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Participants</h5><div class="grid grid-cols-1 md:grid-cols-2 gap-3 bg-gray-50/50 p-3 rounded-2xl border border-gray-200/70">' +
-      ppl.map(function (x) {
-        var mentor = x.role === 'Mentor', bg = mentor ? 'bg-blue-50/70 border-blue-100/80' : 'bg-emerald-50/70 border-emerald-100/80', av = mentor ? 'bg-blue-600' : 'bg-emerald-600';
-        return '<div><span class="text-xs font-bold text-gray-500 uppercase tracking-wider">' + mmEsc(x.role) + '</span>' +
-          '<div class="mt-2 flex items-center space-x-3 p-2.5 rounded-xl border ' + bg + '"><div class="w-9 h-9 rounded-full ' + av + ' text-white font-bold flex items-center justify-center shrink-0 text-sm shadow-sm">' + mmEsc(x.name.charAt(0).toUpperCase()) + '</div>' +
-          '<div class="min-w-0 flex-1"><p class="text-sm font-semibold text-gray-900 truncate">' + mmEsc(x.name) + '</p>' + (x.email ? '<p class="text-xs text-gray-500 truncate">' + mmEsc(x.email) + '</p>' : '') + '</div></div></div>';
-      }).join('') + '</div></div>';
+
+  // Participants resolution (Mentors column and Mentees column)
+  var mentorsList = opts.mentors || (opts.participants || []).filter(function (x) { return x && x.role === 'Mentor'; });
+  if (!mentorsList.length && meeting.mentor) {
+    mentorsList = [{ name: meeting.mentor, email: meeting.mentor_email }];
   }
+  var menteesList = opts.mentees || (opts.participants || []).filter(function (x) { return x && x.role === 'Mentee'; });
+  if (!menteesList.length && meeting.mentee) {
+    menteesList = [{ name: meeting.mentee, email: meeting.mentee_email }];
+  }
+
+  var mentorsHtml = '';
+  if (mentorsList.length > 0) {
+    mentorsHtml = '<div class="space-y-2">' +
+      '<div class="flex items-center justify-between"><span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Mentor' + (mentorsList.length > 1 ? 's (' + mentorsList.length + ')' : '') + '</span></div>' +
+      '<div class="space-y-2 max-h-44 overflow-y-auto pr-1">' +
+      mentorsList.map(function(m) {
+        var n = m.name || 'Unknown Mentor', e = m.email || '';
+        return '<div class="flex items-center space-x-3 p-2.5 rounded-xl bg-blue-50/70 border border-blue-100/80">' +
+          '<div class="w-9 h-9 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shrink-0 text-sm shadow-sm">' + mmEsc(n.charAt(0).toUpperCase()) + '</div>' +
+          '<div class="min-w-0 flex-1"><p class="text-sm font-semibold text-gray-900 truncate">' + mmEsc(n) + '</p>' + (e ? '<p class="text-xs text-gray-500 truncate">' + mmEsc(e) + '</p>' : '') + '</div>' +
+          '</div>';
+      }).join('') + '</div></div>';
+  } else {
+    mentorsHtml = '<div class="p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs text-gray-500">No mentor assigned</div>';
+  }
+
+  var menteesHtml = '';
+  var isSgm = (meeting.meeting_type === 'sgm' || meeting.is_sgm);
+  if (menteesList.length > 0) {
+    menteesHtml = '<div class="space-y-2">' +
+      '<div class="flex items-center justify-between"><span class="text-xs font-bold text-gray-500 uppercase tracking-wider">' + (isSgm ? 'Small Group Mentees' : 'Mentee') + (menteesList.length > 1 ? ' (' + menteesList.length + ')' : '') + '</span>' +
+      (isSgm ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">SGM Group</span>' : '') + '</div>' +
+      '<div class="space-y-2 max-h-44 overflow-y-auto pr-1">' +
+      menteesList.map(function(m) {
+        var n = m.name || 'Unknown Mentee', e = m.email || '';
+        return '<div class="flex items-center space-x-3 p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-100/80">' +
+          '<div class="w-9 h-9 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center shrink-0 text-sm shadow-sm">' + mmEsc(n.charAt(0).toUpperCase()) + '</div>' +
+          '<div class="min-w-0 flex-1"><p class="text-sm font-semibold text-gray-900 truncate">' + mmEsc(n) + '</p>' + (e ? '<p class="text-xs text-gray-500 truncate">' + mmEsc(e) + '</p>' : '') + '</div>' +
+          '</div>';
+      }).join('') + '</div></div>';
+  } else {
+    menteesHtml = '<div class="p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs text-gray-500">No mentee assigned</div>';
+  }
+
+  html += '<div><h5 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Participants</h5>' +
+    '<div class="grid grid-cols-1 md:grid-cols-2 gap-3 bg-gray-50/50 p-3 rounded-2xl border border-gray-200/70">' +
+    '<div>' + mentorsHtml + '</div>' +
+    '<div>' + menteesHtml + '</div>' +
+    '</div></div>';
+
   html += '</div>';
   el.innerHTML = html;
 }

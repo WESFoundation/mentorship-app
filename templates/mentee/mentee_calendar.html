@@ -216,22 +216,32 @@
 </main>
 
 <!-- Event Details Modal -->
-<div id="event-details-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 hidden transition-opacity p-3">
-  <div class="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md mx-auto shadow-2xl">
-    <div class="flex items-start justify-between mb-4">
-      <h3 id="event-title" class="text-lg font-bold text-gray-800">Meeting Details</h3>
-      <button id="close-event-modal" class="p-1 rounded-lg hover:bg-slate-100 text-slate-400 transition">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-      </button>
+<div id="event-details-modal" class="fixed inset-0 hidden bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm sm:max-w-md md:max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div class="p-6 border-b border-gray-200">
+      <div class="flex justify-between items-center">
+        <h3 class="text-xl font-bold text-gray-800">Meeting Details</h3>
+        <button id="close-event-modal" class="text-gray-400 hover:text-gray-600 transition">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
     </div>
-    <div class="space-y-3 text-sm">
-      <div id="mm-extras" class="pt-2 space-y-3"></div>
-      <div id="sgm-invite-banner" class="hidden"></div>
+    
+    <div class="p-6">
+      <div id="mm-extras"></div>
+      <div id="sgm-invite-banner" class="hidden mt-4"></div>
     </div>
-    <div class="flex items-center justify-end gap-2 mt-6 pt-4 border-t border-slate-100">
-      <span id="sgm-request-note" class="hidden mr-auto text-xs text-slate-500"></span>
-      <button id="sgm-request-btn" class="hidden px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition">Request to join</button>
-      <button id="join-meeting-btn" class="hidden px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">Join Meeting</button>
+    
+    <div class="p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+      <div class="flex justify-end items-center space-x-3">
+        <span id="sgm-request-note" class="hidden mr-auto text-xs font-medium text-blue-700"></span>
+        <button id="sgm-request-btn" class="hidden px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition">Request to join</button>
+        <button id="close-event-modal-footer" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 font-medium transition text-sm">
+          Close
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -251,6 +261,7 @@ function initializeEvents() {
       date: new Date("{{ meeting.date.strftime('%Y-%m-%dT%H:%M:%S') }}"),
       duration: {{ meeting.duration or 0 }},
       mentor: {{ (meeting.mentor or '') | tojson }},
+      mentor_email: {{ (meeting.mentor_email or '') | tojson }},
       type: {{ (meeting.type or '') | tojson }},
       meeting_type: {{ (meeting.meeting_type or 'standard') | tojson }},
       type_color: {{ (meeting.type_color or 'sky') | tojson }},
@@ -396,12 +407,16 @@ function showEventDetails(event) {
   }
   if (requestNote) requestNote.classList.add('hidden');
 
-  // Join / Copy link / Sync live in the shared panel; the link is withheld while approval is pending.
-  var joinBtn = document.getElementById('join-meeting-btn');
-  if (joinBtn) { joinBtn.classList.add('hidden'); joinBtn.onclick = null; }
-  mmRender(document.getElementById('mm-extras'), event, { hideLink: gated, participants: [{ role: 'Mentor', name: event.mentor }] });
+  mmRender(document.getElementById('mm-extras'), event, {
+    hideLink: gated,
+    participants: [
+      { role: 'Mentor', name: event.mentor, email: event.mentor_email },
+      { role: 'Mentee', name: {{ (current_user.name or 'You') | tojson }}, email: {{ (current_user.email or '') | tojson }} }
+    ]
+  });
 
   modal.classList.remove('hidden');
+  modal.classList.add('flex');
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -474,12 +489,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  document.getElementById('close-event-modal').addEventListener('click', function() {
-    document.getElementById('event-details-modal').classList.add('hidden');
-  });
+  function closeDetailsModal() {
+    var modal = document.getElementById('event-details-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+
+  document.getElementById('close-event-modal').addEventListener('click', closeDetailsModal);
+  var footerCloseBtn = document.getElementById('close-event-modal-footer');
+  if (footerCloseBtn) footerCloseBtn.addEventListener('click', closeDetailsModal);
 
   document.getElementById('event-details-modal').addEventListener('click', function(e) {
-    if (e.target === this) this.classList.add('hidden');
+    if (e.target === this) closeDetailsModal();
   });
 });
 </script>
