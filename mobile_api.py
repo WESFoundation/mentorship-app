@@ -15,6 +15,7 @@ Replaces all direct PostgreSQL client queries in the Flutter app.
 from flask import Blueprint, request, jsonify, session, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy import or_, and_, func
+from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta, time as dtime
 import time
 import json
@@ -2186,10 +2187,13 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         inst_obj = None
         inst_id = None
         inst_name = "Institution"
+        aliases = set()
         if u:
             if callable(get_institution_details):
                 try:
-                    inst_obj, inst_id, inst_name, _ = get_institution_details(u)
+                    res_inst = get_institution_details(u)
+                    if isinstance(res_inst, tuple) and len(res_inst) == 4:
+                        inst_obj, inst_id, inst_name, aliases = res_inst
                 except Exception as e:
                     logger.warning(f"Error calling get_institution_details: {e}")
             if not inst_obj and getattr(u, "institution_id", None):
@@ -2206,23 +2210,39 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         mentees = []
         if u and callable(get_institution_members):
             try:
-                # Match Flask app.py institutiondashboard & institution_mentors routes:
-                # Institution mentors directory exposes all platform mentors so coordinators can browse/pair
-                all_m = User.query.options(joinedload(User.mentor_profile)).filter_by(user_type="1").all()
-                all_m.sort(key=lambda x: (x.name or "").lower())
-                mentors = all_m
-                _, mentees = get_institution_members(u, include_paired=True)
+                # Scoped strictly to the institution (direct mentors and direct mentees)
+                inst_m, inst_me = get_institution_members(u, include_paired=False)
+                mentors = list(inst_m) if inst_m else []
+                mentees = list(inst_me) if inst_me else []
             except Exception as e:
                 logger.warning(f"Error calling get_institution_members: {e}")
 
-        if not mentors:
-            mentors = User.query.filter_by(user_type="1").all()
-        if not mentees:
+        # Fallback scoping if get_institution_members was not callable or returned empty
+        if not mentors and (inst_id or u):
+            q_m = User.query.filter_by(user_type="1")
+            conds_m = []
             if inst_id:
-                mentees = User.query.filter(User.user_type == "2", User.institution_id == inst_id).all()
-            if not mentees and u:
-                mentees = User.query.filter(User.user_type == "2", func.lower(User.institution) == func.lower(u.name)).all()
-            if not mentees and (not u or getattr(u, "user_type", None) == "0"):
+                conds_m.append(User.institution_id == inst_id)
+            if inst_name and inst_name != "Institution":
+                conds_m.append(func.lower(User.institution) == inst_name.lower())
+            if conds_m:
+                mentors = q_m.filter(or_(*conds_m)).all()
+
+        if not mentees and (inst_id or u):
+            q_me = User.query.filter_by(user_type="2")
+            conds_me = []
+            if inst_id:
+                conds_me.append(User.institution_id == inst_id)
+            if inst_name and inst_name != "Institution":
+                conds_me.append(func.lower(User.institution) == inst_name.lower())
+            if conds_me:
+                mentees = q_me.filter(or_(*conds_me)).all()
+
+        # Only for admin / supervisor preview (user_type "0") when not scoped to a specific institution
+        if not u or getattr(u, "user_type", None) == "0":
+            if not mentors:
+                mentors = User.query.filter_by(user_type="1").all()
+            if not mentees:
                 mentees = User.query.filter_by(user_type="2").all()
 
         return u, inst_obj, inst_id, inst_name, mentors, mentees
