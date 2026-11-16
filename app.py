@@ -9825,13 +9825,22 @@ def mentee_calendar():
             status = "upcoming"
         
         tinfo = _resolve_meeting_type(meeting, pdata)
+        mreq = None
+        if mentor:
+            mreq = MentorshipRequest.query.filter_by(
+                mentee_id=mentee.id,
+                mentor_id=mentor.id
+            ).first()
         calendar_meetings.append({
             "id": meeting.id,
             "title": meeting.meeting_title,
             "date": meeting_datetime,
             "duration": meeting.meeting_duration,
             "mentor": mentor.name if mentor else "Unknown Mentor",
+            "mentor_id": mentor.id if mentor else None,
             "mentor_email": mentor.email if mentor else "",
+            "mentorship_id": mreq.id if mreq else None,
+            "created_at": meeting.created_at,
             "type": tinfo["label"],
             "meeting_type": tinfo["type"],
             "type_color": tinfo["color_code"],
@@ -9936,6 +9945,7 @@ def mentor_calendar():
             "duration": meeting.meeting_duration,
             "mentee": mentee_display,
             "mentee_email": mentee_email_display,
+            "created_at": meeting.created_at,
             "type": tinfo["label"],
             "meeting_type": tinfo["type"],
             "type_color": tinfo["color_code"],

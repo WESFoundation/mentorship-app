@@ -113,8 +113,46 @@ function mmRender(el, meeting, opts) {
     '<div>' + menteesHtml + '</div>' +
     '</div></div>';
 
+  // Actions row (Created timestamp + action buttons)
+  var createdTxt = meeting.created_at ? mmFormatDateTime(meeting.created_at) : '';
+  var actionsHtml = opts.actionsHtml || '';
+  if (!actionsHtml && opts.feedbackBtn) {
+    var fbLabel = opts.feedbackBtn.label || 'Feedback Mentor';
+    var fbClick = opts.feedbackBtn.onClick ? ' onclick="' + mmEsc(opts.feedbackBtn.onClick) + '"' : '';
+    var fbHref = opts.feedbackBtn.href ? ' href="' + mmEsc(opts.feedbackBtn.href) + '"' : '';
+    if (fbHref) {
+      actionsHtml = '<a' + fbHref + fbClick + ' class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 text-sm font-medium rounded-lg hover:bg-indigo-100 transition">' + mmEsc(fbLabel) + '</a>';
+    } else {
+      actionsHtml = '<button type="button"' + fbClick + ' class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 text-sm font-medium rounded-lg hover:bg-indigo-100 transition">' + mmEsc(fbLabel) + '</button>';
+    }
+  }
+
+  if (createdTxt || actionsHtml) {
+    html += '<div class="pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">' +
+      '<span class="text-xs text-gray-400">' + (createdTxt ? 'Created: ' + mmEsc(createdTxt) : '') + '</span>' +
+      '<div class="flex flex-wrap items-center gap-2">' + actionsHtml + '</div>' +
+      '</div>';
+  }
+
   html += '</div>';
   el.innerHTML = html;
+}
+
+function mmFormatDateTime(dateStr) {
+  if (!dateStr) return '';
+  var date = new Date(dateStr);
+  if (isNaN(date.getTime())) return dateStr;
+  var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var month = months[date.getMonth()];
+  var day = date.getDate().toString().padStart(2, '0');
+  var year = date.getFullYear();
+  var hours = date.getHours();
+  var minutes = date.getMinutes().toString().padStart(2, '0');
+  var ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  var formattedHours = hours.toString().padStart(2, '0');
+  return month + ' ' + day + ', ' + year + ' ' + formattedHours + ':' + minutes + ' ' + ampm;
 }
 
 function mmToggleAgenda() {
