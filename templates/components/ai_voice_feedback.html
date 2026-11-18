@@ -1,0 +1,129 @@
+{# Record-your-feedback block. Set before including:
+     vf_id    unique id for this block
+     vf_form  mentee_reflection | mentor_reflection | mentor_rating | institution_reflection
+     vf_map   JSON object mapping each AI field to the id of the textarea it fills
+   The recording is sent to /ai/feedback_from_audio, transcribed, split into the form's
+   fields and placed in the boxes for the user to review and edit before saving. #}
+<div class="rounded-xl border border-violet-200 bg-violet-50/60 p-4" id="{{ vf_id }}" data-form="{{ vf_form }}" data-map='{{ vf_map }}'>
+    <div class="flex flex-wrap items-center gap-3">
+        <button type="button" data-role="rec"
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 12a3 3 0 003-3V5a3 3 0 10-6 0v4a3 3 0 003 3z"/><path d="M5 9a1 1 0 10-2 0 7 7 0 006 6.93V18H7a1 1 0 100 2h6a1 1 0 100-2h-2v-2.07A7 7 0 0017 9a1 1 0 10-2 0 5 5 0 01-10 0z"/></svg>
+            <span data-role="label">Record your feedback</span>
+        </button>
+        <span data-role="timer" class="text-sm font-mono text-slate-500"></span>
+    </div>
+    <p class="text-xs text-slate-500 mt-2">Speak naturally &mdash; AI will transcribe your recording and fill in the boxes below. Please review before saving. The audio is not stored.</p>
+    <p data-role="status" class="text-sm mt-2 hidden"></p>
+</div>
+
+{% if not vf_script_loaded %}
+<script>
+(function () {
+    if (window.AIVoice) { window.AIVoice.scan(); return; }
+    var MAX_SECONDS = 600;
+
+    function setup(box) {
+        if (box.dataset.ready) return;
+        box.dataset.ready = '1';
+        var btn = box.querySelector('[data-role=rec]');
+        var label = box.querySelector('[data-role=label]');
+        var timer = box.querySelector('[data-role=timer]');
+        var status = box.querySelector('[data-role=status]');
+        var map = {};
+        try { map = JSON.parse(box.dataset.map || '{}'); } catch (e) {}
+        var rec = null, chunks = [], stream = null, tick = null, started = 0;
+
+        function say(msg, cls) {
+            status.textContent = msg;
+            status.className = 'text-sm mt-2 ' + cls;
+        }
+        function cleanup() {
+            if (tick) clearInterval(tick);
+            tick = null;
+            timer.textContent = '';
+            if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+            stream = null;
+        }
+
+        function send(blob) {
+            btn.disabled = true;
+            label.textContent = 'Processing…';
+            say('Transcribing and organising your feedback…', 'text-slate-500');
+            var fd = new FormData();
+            fd.append('form_type', box.dataset.form);
+            fd.append('audio', blob, 'recording');
+            fetch('/ai/feedback_from_audio', { method: 'POST', body: fd, credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    if (!res.success) { say(res.message || 'Could not process the recording.', 'text-red-600'); return; }
+                    var filled = 0;
+                    Object.keys(map).forEach(function (field) {
+                        var el = document.getElementById(map[field]);
+                        var val = res.fields && res.fields[field];
+                        if (!el || !val) return;
+                        el.value = el.value.trim() ? el.value.trim() + '\n' + val : val;
+                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                        filled++;
+                    });
+                    say(filled ? 'Done — ' + filled + ' field' + (filled > 1 ? 's' : '') + ' filled. Please review and edit before saving.'
+                               : 'We heard you, but nothing could be placed in the form. Try recording again.',
+                        filled ? 'text-emerald-600' : 'text-amber-600');
+                })
+                .catch(function () { say('Upload failed. Check your connection and try again.', 'text-red-600'); })
+                .then(function () { btn.disabled = false; label.textContent = 'Record again'; });
+        }
+
+        function stop() { if (rec && rec.state !== 'inactive') rec.stop(); }
+
+        btn.addEventListener('click', function () {
+            if (rec && rec.state === 'recording') { stop(); return; }
+            if (!navigator.mediaDevices || !window.MediaRecorder) {
+                say('Recording is not supported in this browser.', 'text-red-600');
+                return;
+            }
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
+                stream = s;
+                chunks = [];
+                rec = new MediaRecorder(s);
+                rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+                rec.onstop = function () {
+                    var type = rec.mimeType || 'audio/webm';
+                    cleanup();
+                    var blob = new Blob(chunks, { type: type });
+                    if (blob.size < 1000) { label.textContent = 'Record your feedback'; say('The recording was empty.', 'text-amber-600'); return; }
+                    send(blob);
+                };
+                rec.start();
+                started = Date.now();
+                label.textContent = 'Stop recording';
+                btn.classList.replace('bg-violet-600', 'bg-red-600');
+                btn.classList.replace('hover:bg-violet-700', 'hover:bg-red-700');
+                say('Recording… speak now.', 'text-red-600');
+                tick = setInterval(function () {
+                    var sec = Math.floor((Date.now() - started) / 1000);
+                    timer.textContent = Math.floor(sec / 60) + ':' + ('0' + (sec % 60)).slice(-2);
+                    if (sec >= MAX_SECONDS) stop();
+                }, 500);
+            }).catch(function () {
+                say('Microphone access was blocked. Allow it in your browser and try again.', 'text-red-600');
+            });
+            // restore button colour once recording ends
+            var restore = setInterval(function () {
+                if (!rec || rec.state === 'inactive') {
+                    btn.classList.replace('bg-red-600', 'bg-violet-600');
+                    btn.classList.replace('hover:bg-red-700', 'hover:bg-violet-700');
+                    clearInterval(restore);
+                }
+            }, 300);
+        });
+    }
+
+    window.AIVoice = {
+        scan: function () { document.querySelectorAll('[data-form][data-map]').forEach(setup); }
+    };
+    document.addEventListener('DOMContentLoaded', window.AIVoice.scan);
+    if (document.readyState !== 'loading') window.AIVoice.scan();
+})();
+</script>
+{% endif %}

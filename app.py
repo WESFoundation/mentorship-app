@@ -2948,6 +2948,33 @@ class InstitutionReflection(db.Model):
         }
 
 
+#------------Reflection Attachment Table-------------------
+class ReflectionAttachment(db.Model):
+    """A photo/PDF a mentee, mentor or institution attaches to a task in place of
+    (or alongside) the written reflection form. The bytes live in the Teams
+    channel Files folder when Teams sharing is configured (see
+    teams_share_service.py); otherwise they fall back to instance storage. Either
+    way the row only stores a pointer, never the file itself."""
+    __tablename__ = "reflection_attachments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    task_type = db.Column(db.String(20), nullable=False)   # 'master' or 'personal'
+    task_id = db.Column(db.Integer, nullable=False)
+    role = db.Column(db.String(20), nullable=False)        # 'mentee' | 'mentor' | 'institution'
+    uploader_id = db.Column(db.Integer, db.ForeignKey("signup_details.id", ondelete="CASCADE"), nullable=False)
+    file_name = db.Column(db.String(255), nullable=False)
+    content_type = db.Column(db.String(100))
+    size = db.Column(db.Integer)
+    storage = db.Column(db.String(20), nullable=False)     # 'teams' | 'local'
+    drive_id = db.Column(db.String(255))
+    item_id = db.Column(db.String(255))
+    web_url = db.Column(db.Text)                           # Teams/SharePoint link
+    local_path = db.Column(db.String(255))                 # fallback storage name
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    uploader = db.relationship("User", foreign_keys=[uploader_id])
+
+
 #------------Mentor Coupon / QR Key Table-------------------
 class MentorCoupon(db.Model):
     """A single-use coupon a mentor hands out.
@@ -9015,6 +9042,7 @@ def supervisor_find_mentee():
     consent_filter = request.args.get("consent_status", "")
     city_filter = request.args.get("city", "")
     state_filter = request.args.get("state", "")
+    country_filter = request.args.get("country", "")
     govt_private_filter = request.args.get("govt_private", "")
     education_level_filter = request.args.get("education_level", "")
 
@@ -9038,6 +9066,8 @@ def supervisor_find_mentee():
         mentee_query = mentee_query.filter(MenteeProfile.city == city_filter)
     if state_filter:
         mentee_query = mentee_query.filter(MenteeProfile.state == state_filter)
+    if country_filter:
+        mentee_query = mentee_query.filter(MenteeProfile.country == country_filter)
     if govt_private_filter:
         mentee_query = mentee_query.filter(MenteeProfile.govt_private == govt_private_filter)
     if education_level_filter:
@@ -9057,9 +9087,11 @@ def supervisor_find_mentee():
         MenteeProfile.city,
         MenteeProfile.state,
         MenteeProfile.govt_private,
-        MenteeProfile.education_level
+        MenteeProfile.education_level,
+        MenteeProfile.country
     ).distinct().all()
 
+    mentee_countries = sorted({row[7] for row in distinct_rows if row[7]})
     mentee_streams = sorted({row[0] for row in distinct_rows if row[0]})
     mentee_schools = sorted({row[1] for row in distinct_rows if row[1]})
     mentee_who_am_i = sorted({row[2] for row in distinct_rows if row[2]})
@@ -9080,6 +9112,7 @@ def supervisor_find_mentee():
         mentee_states=mentee_states,
         mentee_govt_private=mentee_govt_private,
         mentee_education_levels=mentee_education_levels,
+        mentee_countries=mentee_countries,
         active_section="mentees",
         show_sidebar=True
     )
@@ -13210,6 +13243,352 @@ def get_institution_reflection(task_type, task_id):
         return jsonify({'success': True, 'reflection': refl.to_dict()})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+
+
+
+# ===== REFLECTION ATTACHMENTS (photo / PDF instead of the written form) =====
+import mimetypes as _mimetypes
+import teams_share_service as _teams_share
+from flask import Response as _FlaskResponse
+
+REFLECTION_ATTACHMENT_EXTS = {"png", "jpg", "jpeg", "gif", "webp", "pdf"}
+REFLECTION_ATTACHMENT_MAX = 10 * 1024 * 1024
+ATTACHMENT_PLACEHOLDER = "(Reflection submitted as an attached file)"
+_REFLECTION_ROLE_BY_TYPE = {"2": "mentee", "1": "mentor", "3": "institution", "0": "institution"}
+
+
+def _looks_like_allowed_file(ext, head):
+    """Cheap signature check so a renamed .exe/.html cannot be stored as a photo."""
+    if ext == "pdf":
+        return head.startswith(b"%PDF")
+    if ext in ("jpg", "jpeg"):
+        return head.startswith(b"\xff\xd8\xff")
+    if ext == "png":
+        return head.startswith(b"\x89PNG")
+    if ext == "gif":
+        return head[:6] in (b"GIF87a", b"GIF89a")
+    if ext == "webp":
+        return head[:4] == b"RIFF" and head[8:12] == b"WEBP"
+    return False
+
+
+def _reflection_task_access(viewer, vtype, task_type, task_id):
+    """Return (task, mentee_user) when ``viewer`` may see this task's reflections."""
+    if task_type == "master":
+        task = db.session.get(MenteeTask, task_id)
+        mentor_ok = bool(task) and task.mentor_id == viewer.id
+    elif task_type == "personal":
+        task = db.session.get(PersonalTask, task_id)
+        mentor_ok = bool(task) and task.mentor_has_access(viewer.id)
+    else:
+        return None, None
+    if not task:
+        return None, None
+    mentee = db.session.get(User, task.mentee_id)
+    if vtype == "2":
+        ok = task.mentee_id == viewer.id
+    elif vtype == "1":
+        ok = mentor_ok
+    elif vtype == "0":
+        ok = True
+    elif vtype == "3":
+        # Same membership rules the institution's own task pages use (id, name and alias matching).
+        try:
+            _mentors, inst_mentees = _get_institution_members(viewer, include_paired=True)
+            ok = task.mentee_id in {m.id for m in inst_mentees}
+        except Exception as err:
+            app.logger.error(f"institution membership lookup failed: {err}")
+            ok = False
+    else:
+        ok = False
+    return (task, mentee) if ok else (None, None)
+
+
+def _attachment_to_dict(a, viewer_id):
+    ext = (a.file_name.rsplit(".", 1)[-1] if "." in a.file_name else "").lower()
+    return {
+        "id": a.id,
+        "role": a.role,
+        "uploader": a.uploader.name if a.uploader else "",
+        "file_name": a.file_name,
+        "is_image": ext in ("png", "jpg", "jpeg", "gif", "webp"),
+        "url": url_for("reflection_attachment_file", attachment_id=a.id),
+        "teams_url": a.web_url if a.storage == "teams" else None,
+        "storage": a.storage,
+        "date": a.created_at.isoformat() if a.created_at else "",
+        "can_delete": a.uploader_id == viewer_id,
+    }
+
+
+def _ensure_reflection_row(role, user, task_type, task_id):
+    """An attachment counts as that persona's reflection, so progress/completion
+    logic (which looks at the reflection rows) keeps working unchanged."""
+    if role == "mentee":
+        row = MenteeFeedback.query.filter_by(mentee_id=user.id, task_type=task_type, task_id=task_id).first()
+        if not row:
+            db.session.add(MenteeFeedback(mentee_id=user.id, task_type=task_type, task_id=task_id,
+                                          text=ATTACHMENT_PLACEHOLDER))
+        elif not (row.text or "").strip():
+            row.text = ATTACHMENT_PLACEHOLDER
+    elif role == "mentor":
+        row = MentorReflection.query.filter_by(task_type=task_type, task_id=task_id, mentor_id=user.id).first()
+        if not row:
+            db.session.add(MentorReflection(mentor_id=user.id, task_type=task_type, task_id=task_id,
+                                            text=ATTACHMENT_PLACEHOLDER))
+        elif not ((row.text or "").strip() or (row.extra or "").strip()):
+            row.text = ATTACHMENT_PLACEHOLDER
+    else:
+        inst_id = user.institution_id or user.id
+        row = InstitutionReflection.query.filter_by(institution_id=inst_id, task_type=task_type, task_id=task_id).first()
+        if not row:
+            db.session.add(InstitutionReflection(institution_id=inst_id, task_type=task_type, task_id=task_id,
+                                                 text=ATTACHMENT_PLACEHOLDER))
+        elif not ((row.text or "").strip() or (row.notes or "").strip()):
+            row.text = ATTACHMENT_PLACEHOLDER
+
+
+@app.route("/reflection_attachments/upload", methods=["POST"])
+def upload_reflection_attachment():
+    vtype = str(session.get("user_type", ""))
+    role = _REFLECTION_ROLE_BY_TYPE.get(vtype)
+    if "email" not in session or not role:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    try:
+        user = User.query.filter_by(email=session["email"]).first()
+        task_type = request.form.get("task_type", "")
+        task_id = request.form.get("task_id", "")
+        file = request.files.get("file")
+        if not user or task_type not in ("master", "personal") or not str(task_id).isdigit():
+            return jsonify({"success": False, "message": "Invalid task"}), 400
+        task_id = int(task_id)
+        if not file or not file.filename:
+            return jsonify({"success": False, "message": "Choose a photo or PDF to attach."}), 400
+        task, _mentee = _reflection_task_access(user, vtype, task_type, task_id)
+        if not task:
+            return jsonify({"success": False, "message": "Task not found or access denied"}), 403
+
+        orig = secure_filename(file.filename) or "attachment"
+        ext = orig.rsplit(".", 1)[-1].lower() if "." in orig else ""
+        if ext not in REFLECTION_ATTACHMENT_EXTS:
+            return jsonify({"success": False, "message": "Only JPG, PNG, GIF, WEBP or PDF files are allowed."}), 400
+        data = file.read(REFLECTION_ATTACHMENT_MAX + 1)
+        if not data:
+            return jsonify({"success": False, "message": "The file is empty."}), 400
+        if len(data) > REFLECTION_ATTACHMENT_MAX:
+            return jsonify({"success": False, "message": "File is too large (10 MB maximum)."}), 400
+        if not _looks_like_allowed_file(ext, data[:16]):
+            return jsonify({"success": False, "message": "That file does not look like a valid photo or PDF."}), 400
+
+        ctype = _mimetypes.guess_type(orig)[0] or "application/octet-stream"
+        stored_name = f"{role}_{user.id}_{int(datetime.utcnow().timestamp())}_{orig}"
+        att = ReflectionAttachment(task_type=task_type, task_id=task_id, role=role, uploader_id=user.id,
+                                   file_name=orig, content_type=ctype, size=len(data), storage="local")
+
+        # Teams share first (no database / Drive storage); local fallback if it is
+        # not configured or Graph refuses.
+        shared = None
+        if _teams_share.is_configured():
+            shared = _teams_share.upload(get_ms_graph_token(), data, stored_name, ctype,
+                                         subfolder=f"{task_type}_{task_id}")
+        if shared and shared.get("item_id"):
+            att.storage = "teams"
+            att.drive_id = shared["drive_id"]
+            att.item_id = shared["item_id"]
+            att.web_url = shared.get("web_url")
+        else:
+            folder = os.path.join(app.instance_path, "reflection_uploads")
+            os.makedirs(folder, exist_ok=True)
+            att.local_path = stored_name
+            with open(os.path.join(folder, stored_name), "wb") as fh:
+                fh.write(data)
+
+        db.session.add(att)
+        _ensure_reflection_row(role, user, task_type, task_id)
+        db.session.commit()
+
+        new_status = compute_task_progress_status(task_type, task_id, task.mentee_id, getattr(task, "mentor_id", None),
+                                                  task_obj=task if task_type == "personal" else None)
+        _sync_task_completion_status(task, new_status)
+        return jsonify({"success": True, "attachment": _attachment_to_dict(att, user.id), "status": new_status,
+                        "stored_in": att.storage})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"upload_reflection_attachment failed: {e}")
+        return jsonify({"success": False, "message": "Upload failed. Please try again."}), 500
+
+
+@app.route("/reflection_attachments/<task_type>/<int:task_id>")
+def list_reflection_attachments(task_type, task_id):
+    """Everything the other personas can see about a task's reflections: the
+    attachments from all three personas plus the institution's written feedback."""
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    viewer = User.query.filter_by(email=session["email"]).first()
+    vtype = str(session.get("user_type", ""))
+    if not viewer:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    task, mentee = _reflection_task_access(viewer, vtype, task_type, task_id)
+    if not task:
+        return jsonify({"success": False, "message": "Task not found or access denied"}), 403
+
+    rows = ReflectionAttachment.query.filter_by(task_type=task_type, task_id=task_id) \
+        .order_by(ReflectionAttachment.created_at.asc()).all()
+
+    inst_rows = InstitutionReflection.query.filter_by(task_type=task_type, task_id=task_id) \
+        .order_by(InstitutionReflection.created_at.desc()).all()
+    feedback = None
+    for r in inst_rows:
+        text = (r.text or "").strip()
+        notes = (r.notes or "").strip()
+        if text == ATTACHMENT_PLACEHOLDER:
+            text = ""
+        if text or notes:
+            inst_user = db.session.get(User, r.institution_id)
+            feedback = {"text": text,
+                        # administrative notes are internal: institution + admin only
+                        "notes": notes if vtype in ("0", "3") else "",
+                        "institution": getattr(inst_user, "name", "") or "Institution",
+                        "date": r.created_at.isoformat() if r.created_at else ""}
+            break
+    return jsonify({"success": True, "attachments": [_attachment_to_dict(a, viewer.id) for a in rows],
+                    "institution_feedback": feedback, "teams_enabled": _teams_share.is_configured()})
+
+
+@app.route("/reflection_attachment/<int:attachment_id>/file")
+def reflection_attachment_file(attachment_id):
+    if "email" not in session:
+        return abort(401)
+    viewer = User.query.filter_by(email=session["email"]).first()
+    att = db.session.get(ReflectionAttachment, attachment_id)
+    if not viewer or not att:
+        return abort(404)
+    task, _m = _reflection_task_access(viewer, str(session.get("user_type", "")), att.task_type, att.task_id)
+    if not task:
+        return abort(403)
+
+    body = None
+    if att.storage == "teams":
+        got = _teams_share.download(get_ms_graph_token(), att.drive_id, att.item_id)
+        body = got[0] if got else None
+    elif att.local_path:
+        path = os.path.join(app.instance_path, "reflection_uploads", os.path.basename(att.local_path))
+        if os.path.isfile(path):
+            with open(path, "rb") as fh:
+                body = fh.read()
+    if body is None:
+        return abort(404)
+    resp = _FlaskResponse(body, mimetype=att.content_type or "application/octet-stream")
+    resp.headers["Content-Disposition"] = f'inline; filename="{att.file_name}"'
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["Cache-Control"] = "private, max-age=300"
+    return resp
+
+
+@app.route("/reflection_attachments/<int:attachment_id>/delete", methods=["POST"])
+def delete_reflection_attachment(attachment_id):
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    viewer = User.query.filter_by(email=session["email"]).first()
+    att = db.session.get(ReflectionAttachment, attachment_id)
+    if not viewer or not att or att.uploader_id != viewer.id:
+        return jsonify({"success": False, "message": "Not found or not yours to delete"}), 404
+    try:
+        if att.local_path:
+            path = os.path.join(app.instance_path, "reflection_uploads", os.path.basename(att.local_path))
+            if os.path.isfile(path):
+                os.remove(path)
+        db.session.delete(att)
+        db.session.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+
+# ===== AI: LinkedIn-PDF profile autofill + voice feedback =====
+import ai_service as _ai
+
+_ai_calls = {}  # user email -> [timestamps]; protects the API budget
+AI_CALLS_PER_HOUR = 20
+
+
+def _ai_rate_limited(email):
+    now = time.time()
+    recent = [t for t in _ai_calls.get(email, []) if now - t < 3600]
+    if len(recent) >= AI_CALLS_PER_HOUR:
+        _ai_calls[email] = recent
+        return True
+    recent.append(now)
+    _ai_calls[email] = recent
+    return False
+
+
+@app.route("/ai/profile_from_linkedin", methods=["POST"])
+def ai_profile_from_linkedin():
+    """Reads an uploaded LinkedIn PDF export and returns suggested profile values.
+    Nothing is saved: the page fills the form and the user reviews it."""
+    vtype = str(session.get("user_type", ""))
+    if "email" not in session or vtype not in ("1", "2"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    if _ai_rate_limited(session["email"]):
+        return jsonify({"success": False, "message": "Too many AI requests. Please try again later."}), 429
+    file = request.files.get("file")
+    if not file or not file.filename:
+        return jsonify({"success": False, "message": "Choose your LinkedIn PDF first."}), 400
+    data = file.read(5 * 1024 * 1024 + 1)
+    if len(data) > 5 * 1024 * 1024:
+        return jsonify({"success": False, "message": "PDF is too large (5 MB maximum)."}), 400
+    if not data.startswith(b"%PDF"):
+        return jsonify({"success": False, "message": "That is not a PDF file."}), 400
+    try:
+        fields = _ai.extract_profile_from_pdf(data, "mentor" if vtype == "1" else "mentee")
+    except _ai.AIError as e:
+        return jsonify({"success": False, "message": str(e)}), 502
+    except Exception as e:
+        app.logger.error(f"ai_profile_from_linkedin failed: {e}")
+        return jsonify({"success": False, "message": "Could not read the PDF."}), 500
+    if not fields:
+        return jsonify({"success": False, "message": "No profile details could be found in that PDF."}), 422
+    return jsonify({"success": True, "fields": fields})
+
+
+_VOICE_FORMS_BY_TYPE = {
+    "2": {"mentee_reflection"},
+    "1": {"mentor_reflection", "mentor_rating"},
+    "3": {"institution_reflection"},
+    "0": {"institution_reflection"},
+}
+
+
+@app.route("/ai/feedback_from_audio", methods=["POST"])
+def ai_feedback_from_audio():
+    """Transcribes a recording and splits it into the feedback form's fields.
+    The audio is processed in memory and never stored."""
+    vtype = str(session.get("user_type", ""))
+    form_type = request.form.get("form_type", "")
+    if "email" not in session or form_type not in _VOICE_FORMS_BY_TYPE.get(vtype, set()):
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    if _ai_rate_limited(session["email"]):
+        return jsonify({"success": False, "message": "Too many AI requests. Please try again later."}), 429
+    file = request.files.get("audio")
+    data = file.read() if file else b""
+    if not data:
+        return jsonify({"success": False, "message": "No recording received."}), 400
+    mimetype = (file.mimetype or "").split(";")[0]
+    if not mimetype.startswith(("audio/", "video/webm")):
+        return jsonify({"success": False, "message": "Unsupported recording type."}), 400
+    ext = {"audio/webm": "webm", "video/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "m4a",
+           "audio/mpeg": "mp3", "audio/wav": "wav", "audio/x-wav": "wav"}.get(mimetype, "webm")
+    try:
+        transcript = _ai.transcribe_audio(data, f"recording.{ext}", mimetype)
+        fields = _ai.structure_feedback(transcript, form_type)
+    except _ai.AIError as e:
+        return jsonify({"success": False, "message": str(e)}), 502
+    except Exception as e:
+        app.logger.error(f"ai_feedback_from_audio failed: {e}")
+        return jsonify({"success": False, "message": "Could not process the recording."}), 500
+    return jsonify({"success": True, "transcript": transcript, "fields": fields})
 
 
 # ===== MENTORSHIP RATING SYSTEM =====

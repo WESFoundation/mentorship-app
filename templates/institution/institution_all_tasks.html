@@ -822,6 +822,8 @@
                 </div>
             </div>
             
+            {% include 'components/reflection_attachments_panel.html' %}
+
             <!-- Institution Coordinator Actions -->
             <div class="flex justify-end gap-3 pt-4 border-t">
                 <button onclick="closeTaskDetailsModal()" class="px-5 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition">Close</button>
@@ -844,13 +846,15 @@
         </div>
         <form id="institute-reflection-form" class="p-5 space-y-4">
             <div>
-                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Institute Reflection *</label>
-                <textarea id="institute-reflection-input" required rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm placeholder-gray-400" placeholder="Enter institute notes, assessment of mentee progress, or session review..."></textarea>
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Institute Reflection * <span class="text-gray-400 font-normal normal-case">(not needed if you attach a file)</span></label>
+                <textarea id="institute-reflection-input" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm placeholder-gray-400" placeholder="Enter institute notes, assessment of mentee progress, or session review..."></textarea>
             </div>
             <div>
                 <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Administrative Notes (Optional)</label>
                 <textarea id="institute-notes-input" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm placeholder-gray-400" placeholder="Internal tracking notes, follow-up flags..."></textarea>
             </div>
+            {% with vf_id='vf-institution', vf_form='institution_reflection', vf_map='{"text":"institute-reflection-input","notes":"institute-notes-input"}' %}{% include 'components/ai_voice_feedback.html' %}{% endwith %}
+            {% with ra_id='ra-file-institution' %}{% include 'components/reflection_attachment_field.html' %}{% endwith %}
             <div id="institute-reflection-status" class="text-xs hidden"></div>
             <div class="flex justify-end gap-2 pt-3 border-t border-gray-100">
                 <button type="button" onclick="closeInstituteReflectionModal()" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 font-medium">Cancel</button>
@@ -2222,8 +2226,11 @@ async function saveInstituteReflection(e) {
     const sEl = document.getElementById('institute-reflection-status');
     const btn = document.getElementById('save-inst-reflection-btn');
     
-    if (!text) {
-        sEl.textContent = 'Please provide reflection text.';
+    // A photo/PDF can be submitted instead of the written form.
+    const raInput = document.getElementById('ra-file-institution');
+    const hasFile = !!(raInput && raInput.files && raInput.files.length);
+    if (!text && !hasFile) {
+        sEl.textContent = 'Please provide reflection text or attach a photo/PDF.';
         sEl.className = 'text-xs text-red-600 block';
         sEl.classList.remove('hidden');
         return;
@@ -2231,6 +2238,24 @@ async function saveInstituteReflection(e) {
     
     btn.disabled = true;
     btn.textContent = 'Saving...';
+
+    if (hasFile && !text) {
+        const ok = await RA.uploadFrom(raInput, taskType, actualTaskId, 'institute-reflection-status', function (res) {
+            if (res && res.status) {
+                currentSelectedTask.status = res.status;
+                renderTasks();
+            }
+        });
+        btn.disabled = false;
+        btn.textContent = 'Save Reflection';
+        if (ok) {
+            closeInstituteReflectionModal();
+            await loadInstituteReflection(currentSelectedTask.id);
+            updateCardReflectionBadge(currentSelectedTask.id, true);
+            showNotification('Attachment saved and shared on Teams.', 'success');
+        }
+        return;
+    }
     
     const payload = {
         task_type: taskType,
@@ -2266,6 +2291,9 @@ async function saveInstituteReflection(e) {
         }
     } catch(e) { console.error('Error saving reflection:', e); }
     
+    if (hasFile) {
+        await RA.uploadFrom(raInput, taskType, actualTaskId, 'institute-reflection-status');
+    }
     btn.disabled = false;
     btn.textContent = 'Save Reflection';
     closeInstituteReflectionModal();
@@ -2439,4 +2467,10 @@ function showNotification(message, type) {
 document.addEventListener('DOMContentLoaded', initializePage);
 </script>
 
+{% include 'components/reflection_attachments.html' %}
+<script>window.RA_getTask = function () {
+    var id = (typeof currentSelectedTask !== 'undefined' && currentSelectedTask) ? String(currentSelectedTask.id) : '';
+    var i = id.indexOf('_');
+    return i < 0 ? null : { type: id.slice(0, i), id: id.slice(i + 1) };
+};</script>
 {% endblock %}

@@ -1,0 +1,11 @@
+{# Upload control for a reflection modal. Set `ra_id` before including, e.g.
+   {% with ra_id='ra-file-mentee' %}{% include 'components/reflection_attachment_field.html' %}{% endwith %} #}
+<div class="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/70 p-4">
+    <label for="{{ ra_id }}" class="block text-sm font-medium text-slate-700 mb-1">
+        Attach a photo or PDF <span class="text-slate-400 font-normal">(optional &mdash; use this instead of filling the form)</span>
+    </label>
+    <p class="text-xs text-slate-500 mb-2">Take a picture of a handwritten reflection or upload a PDF. It is shared with the mentee, mentor and institution through Microsoft Teams. JPG, PNG, WEBP, GIF or PDF, up to 10&nbsp;MB.</p>
+    <input type="file" id="{{ ra_id }}" accept="image/*,.pdf,application/pdf" onchange="RA.showName(this)"
+        class="block w-full text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+    <p id="{{ ra_id }}-name" class="text-xs text-slate-500 mt-1 truncate"></p>
+</div>

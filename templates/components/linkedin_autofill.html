@@ -1,0 +1,57 @@
+{# Autofill the profile form from a LinkedIn PDF export. Set li_form to the form's id. #}
+<div id="li-autofill" class="rounded-xl border border-sky-200 bg-sky-50/70 p-4 mb-6" data-form="{{ li_form }}">
+    <h3 class="font-semibold text-sky-900 text-sm mb-1">Save time: fill your profile from LinkedIn</h3>
+    <p class="text-xs text-sky-800/80 mb-3">
+        On your LinkedIn profile choose <b>More &rarr; Save to PDF</b>, then upload that file here. AI reads it and fills the empty
+        boxes below. Nothing is saved until you review the form and press Save.
+    </p>
+    <div class="flex flex-wrap items-center gap-3">
+        <input type="file" id="li-pdf" accept="application/pdf,.pdf"
+            class="text-sm text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-sky-100 file:text-sky-800 hover:file:bg-sky-200">
+        <button type="button" id="li-go"
+            class="px-4 py-2 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-700 transition">Fill from LinkedIn PDF</button>
+    </div>
+    <p id="li-status" class="text-sm mt-2 hidden"></p>
+</div>
+<script>
+(function () {
+    var box = document.getElementById('li-autofill');
+    var go = document.getElementById('li-go');
+    var status = document.getElementById('li-status');
+    function say(m, c) { status.textContent = m; status.className = 'text-sm mt-2 ' + c; }
+    go.addEventListener('click', function () {
+        var f = document.getElementById('li-pdf').files[0];
+        if (!f) { say('Choose your LinkedIn PDF first.', 'text-amber-600'); return; }
+        var fd = new FormData();
+        fd.append('file', f);
+        go.disabled = true;
+        say('Reading your profile…', 'text-slate-500');
+        fetch('/ai/profile_from_linkedin', { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                if (!res.success) { say(res.message || 'Could not read the PDF.', 'text-red-600'); return; }
+                var form = document.getElementById(box.dataset.form);
+                var filled = [], kept = 0;
+                Object.keys(res.fields).forEach(function (name) {
+                    var el = form && form.querySelector('[name="' + name + '"]');
+                    // only plain text boxes; dropdowns have cascading logic and stay under user control
+                    if (!el || !/^(INPUT|TEXTAREA)$/.test(el.tagName) || /file|checkbox|radio|hidden/.test(el.type || '')) return;
+                    if (el.value && el.value.trim()) { kept++; return; }
+                    el.value = res.fields[name];
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                    el.classList.add('ring-2', 'ring-sky-300');
+                    filled.push(name);
+                });
+                say(filled.length
+                    ? 'Filled ' + filled.length + ' field' + (filled.length > 1 ? 's' : '') + ' (highlighted)' +
+                      (kept ? '; ' + kept + ' already-filled field' + (kept > 1 ? 's were' : ' was') + ' left unchanged' : '') +
+                      '. Please check them, then Save.'
+                    : 'Nothing new to fill — your fields already have values.',
+                    filled.length ? 'text-emerald-600' : 'text-amber-600');
+            })
+            .catch(function () { say('Upload failed. Check your connection and try again.', 'text-red-600'); })
+            .then(function () { go.disabled = false; });
+    });
+})();
+</script>
