@@ -822,7 +822,7 @@
                 </div>
             </div>
             
-            <!-- Institution Admin Actions -->
+            <!-- Institution Coordinator Actions -->
             <div class="flex justify-end gap-3 pt-4 border-t">
                 <button onclick="closeTaskDetailsModal()" class="px-5 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition">Close</button>
             </div>
@@ -2325,7 +2325,7 @@ function updateCardReflectionBadge(taskId, exists) {
     }
 }
 
-// Institution admin actions
+// Institution coordinator actions
 function sendInstitutionAlert() {
     const taskTitle = document.getElementById('detail-task-title').textContent;
     showNotification(`Institution alert sent for task: "${taskTitle}"`, 'success');

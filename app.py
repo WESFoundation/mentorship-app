@@ -21570,13 +21570,16 @@ supervisor_reminder_settings = admin_reminder_settings
 
 
 def _notification_email(user):
-    """Where notifications/reminders for this account should go: the contact address
-    (work/personal - whichever is NOT the sign-in one), otherwise the account email."""
+    """Where notifications/reminders for this account should go:
+    primary account email, falling back to contact/work/personal addresses."""
+    email = (user.email or "").strip()
+    if email:
+        return email
     choice = (user.login_email_choice or "").strip().lower()
     work = (user.work_email or "").strip()
     personal = (user.personal_email or "").strip()
     contact = personal if choice == "work" else (work if choice == "personal" else "")
-    return contact or (user.email or "").strip()
+    return contact or work or personal
 
 
 @app.route("/supervisor/send_custom_reminder", methods=["POST"])

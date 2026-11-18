@@ -1571,6 +1571,13 @@ document.addEventListener('click', function (e) {
     .catch(function () { btn.disabled = false; alert('Network error. Please try again.'); });
 });
 
+function isRealMeetingLink(l) {
+    if (!l || typeof l !== 'string') return false;
+    l = l.trim();
+    if (!l || l.toLowerCase() === 'none' || l.toLowerCase() === 'null') return false;
+    return true;
+}
+
 function openMeetingModal(meeting) {
     currentDetailMeeting = meeting;
     const modalContent = document.getElementById('meetingModalContent');
@@ -1644,8 +1651,9 @@ function openMeetingModal(meeting) {
 
     const isCancelled = meeting.status === 'cancelled';
     const isUpcoming = meeting.status === 'upcoming';
-    const hasLink = isRealMeetingLink(meeting.meet_link);
-    const linkText = escHtml(meeting.meet_link || '');
+    const rawLink = (meeting.meet_link || meeting.meeting_link || '').trim();
+    const hasLink = !!rawLink && rawLink.toLowerCase() !== 'none' && rawLink.toLowerCase() !== 'null';
+    const joinUrl = hasLink ? (/^https?:\/\//i.test(rawLink) ? rawLink : 'https://' + rawLink) : 'https://teams.live.com/meet/create';
     const feedbackUrl = "{{ url_for('institution_all_tasks') }}" + '?feedback=1&meeting_id=' + meeting.id +
         (meeting.task_id ? '&task_id=' + encodeURIComponent(meeting.task_id) + '&task_type=' + encodeURIComponent(meeting.task_type || 'master') : '');
     const agenda = shortAgenda(meeting.description);
@@ -1684,18 +1692,14 @@ function openMeetingModal(meeting) {
             <div class="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700">
                 This session was cancelled. Delete it to remove it from the calendar and from all records.
             </div>` : `
-            <!-- Meeting link -->
+            <!-- Meeting links section -->
             <div class="rounded-xl border border-blue-100 bg-blue-50/60 p-3.5">
                 <div class="flex flex-wrap items-center gap-2">
-                    ${hasLink ? `
-                    <a href="${linkText}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition">
+                    <a href="${joinUrl}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition shadow-sm">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                         Join Meeting
-                    </a>` : `
-                    <a href="https://teams.live.com/meet/create" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 transition">
-                        Create in Teams
-                    </a>`}
-                    <button type="button" onclick="copyMeetingLink(this)" ${hasLink ? '' : 'disabled'} class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    </a>
+                    <button type="button" onclick="copyMeetingLink(this)" class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                         <span>Copy link</span>
                     </button>
@@ -1713,8 +1717,8 @@ function openMeetingModal(meeting) {
                 <div class="mt-2.5 flex items-center gap-2 text-xs min-w-0">
                     <span class="text-gray-500 shrink-0">Link:</span>
                     ${hasLink
-                        ? `<a href="${linkText}" target="_blank" rel="noopener" class="truncate text-blue-600 hover:underline" title="${linkText}">${linkText}</a>`
-                        : `<span class="text-gray-400 italic">No meeting link yet. Create one in Teams, then use Edit Meeting to add the link.</span>`}
+                        ? `<a href="${joinUrl}" target="_blank" rel="noopener" class="truncate text-blue-600 hover:underline" title="${joinUrl}">${escHtml(rawLink)}</a>`
+                        : `<span class="text-gray-400 italic">No meeting link yet. Use Edit Meeting to add one.</span>`}
                 </div>
             </div>`}
 
@@ -1735,7 +1739,7 @@ function openMeetingModal(meeting) {
                     <a href="${feedbackUrl}" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 text-sm font-medium rounded-lg hover:bg-indigo-100 transition">
                         Feedback
                     </a>` : ''}
-                    ${isUpcoming ? `
+                    ${(!isCancelled && isUpcoming) ? `
                     <button type="button" onclick="cancelMeeting(${meeting.id}, this)" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-200 text-sm font-medium rounded-lg hover:bg-amber-100 transition">
                         Cancel Session
                     </button>` : ''}
@@ -1797,9 +1801,9 @@ function toggleAgenda() {
 }
 
 function copyMeetingLink(btn) {
-    var link = currentDetailMeeting && currentDetailMeeting.meet_link;
-    if (!isRealMeetingLink(link)) return;
-    var label = btn.querySelector('span');
+    var link = (currentDetailMeeting && (currentDetailMeeting.meet_link || currentDetailMeeting.meeting_link)) || '';
+    if (!link) return;
+    var label = btn ? btn.querySelector('span') : null;
     function done() { if (label) { var old = label.textContent; label.textContent = 'Copied ✓'; setTimeout(function () { label.textContent = old; }, 1600); } }
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(link).then(done, function () { fallbackCopy(link); done(); });

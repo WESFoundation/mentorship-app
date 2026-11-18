@@ -2567,11 +2567,54 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "requested_to_name": tar_u.name if tar_u else "User",
                 "other_party_name": f"{req_u.name if req_u else 'User'} & {tar_u.name if tar_u else 'User'}",
                 "mentor_name": mentor_u.name if mentor_u else (tar_u.name if tar_u else "Mentor"),
+                "mentor_email": mentor_u.email if mentor_u else (tar_u.email if tar_u else ""),
                 "mentor_avatar": resolve_profile_pic(mp, mentor_u) if mentor_u else "",
                 "mentee_name": mentee_u.name if mentee_u else (req_u.name if req_u else "Mentee"),
-                "mentee_avatar": resolve_profile_pic(ep, mentee_u) if mentee_u else ""
+                "mentee_email": mentee_u.email if mentee_u else (req_u.email if req_u else ""),
+                "mentee_avatar": resolve_profile_pic(ep, mentee_u) if mentee_u else "",
+                "created_at": m.created_at.strftime("%Y-%m-%d %H:%M:%S") if getattr(m, "created_at", None) else ""
             })
         return jsonify({"success": True, "meetings": result})
+
+    @api_bp.route("/institution/meetings/<int:meeting_id>/cancel", methods=["POST"])
+    def api_institution_cancel_meeting(meeting_id):
+        user = get_current_user_from_req(User)
+        if not user or str(getattr(user, "user_type", "")) not in ("0", "3"):
+            return jsonify({"success": False, "message": "Unauthorized"}), 403
+        meeting = MeetingRequest.query.get(meeting_id)
+        if not meeting:
+            return jsonify({"success": False, "message": "Meeting not found"}), 404
+        data = request.get_json(silent=True) or request.form or {}
+        reason = (data.get("reason") or "Cancelled by coordinator").strip()
+        meeting.status = "cancelled"
+        meeting.reschedule_reason = reason
+        meeting.rescheduled_at = datetime.utcnow()
+        try:
+            db.session.commit()
+            return jsonify({"success": True, "message": "Meeting cancelled successfully"})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": f"Error cancelling meeting: {e}"}), 500
+
+    @api_bp.route("/institution/meetings/<int:meeting_id>/delete", methods=["POST", "DELETE"])
+    def api_institution_delete_meeting(meeting_id):
+        user = get_current_user_from_req(User)
+        if not user or str(getattr(user, "user_type", "")) not in ("0", "3"):
+            return jsonify({"success": False, "message": "Unauthorized"}), 403
+        meeting = MeetingRequest.query.get(meeting_id)
+        if not meeting:
+            return jsonify({"success": False, "message": "Meeting not found"}), 404
+        try:
+            if PersonalTask:
+                pts = PersonalTask.query.filter_by(sgm_meeting_id=meeting.id).all()
+                for pt in pts:
+                    db.session.delete(pt)
+            db.session.delete(meeting)
+            db.session.commit()
+            return jsonify({"success": True, "message": "Meeting deleted successfully"})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": f"Error deleting meeting: {e}"}), 500
 
     @api_bp.route("/institution/profile", methods=["GET", "POST", "PUT"])
     def api_institution_profile():
@@ -5158,6 +5201,51 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             "rows": rows,
         })
 
+    @api_bp.route("/admin/users/<int:user_id>/update", methods=["POST", "PUT"])
+    def api_admin_update_user(user_id):
+        admin = get_current_user_from_req(User)
+        if not admin or str(admin.user_type) != "0":
+            return jsonify({"success": False, "message": "Administrator privileges required"}), 403
+
+        target_user = db.session.get(User, user_id)
+        if not target_user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        data = request.get_json(silent=True) or request.form or {}
+        name = (data.get("name") or "").strip()
+        email = (data.get("email") or "").strip().lower()
+
+        if not name:
+            return jsonify({"success": False, "message": "Name is required"}), 400
+
+        if email and email != (target_user.email or "").lower():
+            existing = User.query.filter(db.func.lower(User.email) == email, User.id != user_id).first()
+            if existing:
+                return jsonify({"success": False, "message": "Email already in use"}), 400
+            target_user.email = email
+
+        target_user.name = name
+        if "work_email" in data:
+            target_user.work_email = (data.get("work_email") or "").strip()
+        if "personal_email" in data:
+            target_user.personal_email = (data.get("personal_email") or "").strip()
+
+        if str(target_user.user_type) == "4" and hasattr(target_user, "seller_profile") and target_user.seller_profile:
+            target_user.seller_profile.shop_name = name
+        elif str(target_user.user_type) == "3":
+            target_user.institution = name
+            if Institution:
+                inst = Institution.query.filter_by(user_id=target_user.id).first()
+                if inst:
+                    inst.name = name
+
+        try:
+            db.session.commit()
+            return jsonify({"success": True, "message": "User updated successfully"})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": f"Update failed: {e}"}), 500
+
     @api_bp.route("/admin/users/<int:user_id>", methods=["DELETE", "POST"])
     @api_bp.route("/admin/users/<int:user_id>/delete", methods=["POST"])
     def api_admin_delete_user(user_id):
@@ -5733,26 +5821,34 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         mail_targets = [(u.email, u.name or "there") for u in target_users if u.email] if send_mail else []
         if mail_targets:
             import sys
-            send_fn = getattr(sys.modules.get('__main__'), 'send_email_reminder', None) or getattr(sys.modules.get('app'), 'send_email_reminder', None)
+            send_fn = (
+                getattr(sys.modules.get('__main__'), 'send_app_email', None)
+                or getattr(sys.modules.get('app'), 'send_app_email', None)
+                or getattr(sys.modules.get('__main__'), 'send_email_reminder', None)
+                or getattr(sys.modules.get('app'), 'send_email_reminder', None)
+            )
             if send_fn:
                 import threading
+                from flask import current_app
                 from markupsafe import escape
                 safe_subject = str(escape(subject))
                 safe_msg = str(escape(message)).replace("\n", "<br>")
+                flask_app = current_app._get_current_object()
                 def _worker(targets):
-                    for addr, nm in targets:
-                        html = (
-                            '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; '
-                            'border: 1px solid #e2e8f0; border-radius: 10px;">'
-                            f'<h2 style="color:#2563eb;margin-top:0;">{safe_subject}</h2>'
-                            f'<p>Hello <strong>{escape(nm)}</strong>,</p>'
-                            f'<p style="line-height:1.6;">{safe_msg}</p>'
-                            '<p style="color:#94a3b8;font-size:12px;">Sent by the Mentor Connect team.</p></div>'
-                        )
-                        try:
-                            send_fn(addr, subject, html)
-                        except Exception:
-                            pass
+                    with flask_app.app_context():
+                        for addr, nm in targets:
+                            html = (
+                                '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; '
+                                'border: 1px solid #e2e8f0; border-radius: 10px;">'
+                                f'<h2 style="color:#2563eb;margin-top:0;">{safe_subject}</h2>'
+                                f'<p>Hello <strong>{escape(nm)}</strong>,</p>'
+                                f'<p style="line-height:1.6;">{safe_msg}</p>'
+                                '<p style="color:#94a3b8;font-size:12px;">Sent by the Mentor Connect team.</p></div>'
+                            )
+                            try:
+                                send_fn(addr, subject, html)
+                            except Exception as err:
+                                logger.warning(f"Mobile custom reminder email to {addr} failed: {err}")
                 threading.Thread(target=_worker, args=(mail_targets,), daemon=True).start()
 
         return jsonify({

@@ -35,7 +35,7 @@
         </div>
 
         <div>
-            <label class="block text-gray-700 font-semibold mb-2">{% if user.user_type == '3' %}Institute Name *{% elif user.user_type == '4' %}Shop / Organisation Name *{% else %}Full Name *{% endif %}</label>
+            <label class="block text-gray-700 font-semibold mb-2">{% if user.user_type == '3' %}Organization Name *{% elif user.user_type == '4' %}Shop Name *{% else %}Full Name *{% endif %}</label>
             <input type="text" name="name" value="{{ user.name }}" class="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" required>
         </div>
 

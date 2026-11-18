@@ -151,7 +151,7 @@ function toggleInstitutionField() {
     }
 }
 
-// Handle institution name auto-fill for institution admin
+// Handle institution name auto-fill for institution coordinator
 document.addEventListener('DOMContentLoaded', function() {
     const institutionNameInput = document.getElementById('new_institution_name');
     const nameInput = document.getElementById('name_input');
@@ -177,7 +177,7 @@ function validateForm() {
         return false;
     }
     
-    // Check institution name for institution admin
+    // Check institution name for institution coordinator
     if (userType === '3') {
         const institutionName = document.getElementById('new_institution_name').value;
         if (!institutionName.trim()) {
