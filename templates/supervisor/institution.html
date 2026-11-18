@@ -108,7 +108,7 @@
                     <tr>
                         <th class="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Institution</th>
                         <th class="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
-                        <th class="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Description</th>
+                        <th class="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Country</th>
                         <th class="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Location</th>
                         <th class="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Statistics</th>
                         <th class="px-3 sm:px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
@@ -153,20 +153,8 @@
                             <div class="text-sm text-gray-900">{{ stat.institution.contact_person or 'Not set' }}</div>
                             <div class="text-xs text-gray-500">{{ stat.institution.contact_email or 'Not set' }}</div>
                         </td>
-                        <td class="px-3 sm:px-4 py-3 max-w-[200px] xl:max-w-xs">
-                            <div class="description-container text-sm text-gray-900">
-                                {% if stat.institution.description %}
-                                    {% if stat.institution.description|length > 60 %}
-                                        <span class="description-short">{{ stat.institution.description[:60] }}...</span>
-                                        <span class="description-full hidden">{{ stat.institution.description }}</span>
-                                        <button type="button" class="see-more-btn ml-1 text-blue-600 hover:text-blue-800 font-semibold text-xs focus:outline-none" onclick="toggleDescription(this)">See more</button>
-                                    {% else %}
-                                        <span>{{ stat.institution.description }}</span>
-                                    {% endif %}
-                                {% else %}
-                                    <span class="text-gray-400 italic">Not specified</span>
-                                {% endif %}
-                            </div>
+                        <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {{ stat.institution.country or 'Not specified' }}
                         </td>
                         <td class="px-3 sm:px-4 py-3 text-sm text-gray-700">
                             <div class="location-cell" data-full="{{ stat.institution.city }}{% if stat.institution.state %}, {{ stat.institution.state }}{% endif %}{% if stat.institution.country %}, {{ stat.institution.country }}{% endif %}{% if stat.institution.address %}, {{ stat.institution.address }}{% endif %}">

@@ -34,6 +34,8 @@
 
         <form id="menteeProfileForm" action="{{ url_for('editmenteeprofile') }}" method="POST"
             enctype="multipart/form-data" class="px-4 sm:px-6 md:px-8 pb-6 sm:pb-8" onsubmit="return validateMenteeForm()" novalidate>
+{% with li_form='menteeProfileForm' %}{% include 'components/linkedin_autofill.html' %}{% endwith %}
+
 
             <!-- Profile Header & Picture -->
             <div class="flex flex-col md:flex-row items-start md:items-end gap-4 sm:gap-6 -mt-12 sm:-mt-14 mb-8 sm:mb-10 relative z-10">

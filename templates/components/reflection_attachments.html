@@ -1,0 +1,146 @@
+{# Shared reflection-attachment support. Included once per task page.
+   - <div id="ra-panel"> (see reflection_attachments_panel.html) is filled whenever the
+     task-details modal opens: all personas' attached photos/PDFs + institution feedback.
+   - RA.uploadFrom(input, taskType, taskId, statusElId, onDone) uploads the chosen file.
+   Each page defines window.RA_getTask = () => ({type, id}). #}
+<script>
+(function () {
+    var ROLE_STYLE = {
+        mentee: ['Mentee', 'bg-blue-100 text-blue-700'],
+        mentor: ['Mentor', 'bg-emerald-100 text-emerald-700'],
+        institution: ['Institution', 'bg-indigo-100 text-indigo-700']
+    };
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+    function fmt(d) {
+        if (!d) return '';
+        var dt = new Date(d);
+        return isNaN(dt) ? '' : dt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+    function currentTask() {
+        try { return typeof window.RA_getTask === 'function' ? window.RA_getTask() : null; } catch (e) { return null; }
+    }
+
+    function render(res) {
+        var panel = document.getElementById('ra-panel');
+        if (!panel) return;
+        var body = document.getElementById('ra-panel-body');
+        var html = '';
+
+        var fb = res.institution_feedback;
+        if (fb) {
+            html += '<div class="mb-4 p-4 rounded-xl border border-indigo-200 bg-indigo-50/60">' +
+                '<div class="flex items-center justify-between mb-1">' +
+                '<span class="text-xs font-bold uppercase tracking-wider text-indigo-700">Institution feedback</span>' +
+                '<span class="text-xs text-slate-400">' + esc(fmt(fb.date)) + '</span></div>';
+            if (fb.text) html += '<p class="text-sm text-slate-700 whitespace-pre-line">' + esc(fb.text) + '</p>';
+            if (fb.notes) html += '<p class="text-xs text-slate-500 mt-2 whitespace-pre-line"><b>Notes:</b> ' + esc(fb.notes) + '</p>';
+            html += '<p class="text-xs text-slate-400 mt-2">&mdash; ' + esc(fb.institution) + '</p></div>';
+        }
+
+        var atts = res.attachments || [];
+        if (!atts.length) {
+            html += '<p class="text-sm text-slate-500">No photos or PDFs have been attached to this task yet.</p>';
+        } else {
+            html += '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">';
+            atts.forEach(function (a) {
+                var rs = ROLE_STYLE[a.role] || [a.role, 'bg-slate-100 text-slate-600'];
+                var thumb = a.is_image
+                    ? '<img src="' + esc(a.url) + '" alt="' + esc(a.file_name) + '" loading="lazy" class="w-full h-32 object-cover rounded-lg border border-slate-200 bg-white">'
+                    : '<div class="w-full h-32 rounded-lg border border-slate-200 bg-white flex flex-col items-center justify-center text-red-500">' +
+                      '<svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9l-5-5H7a2 2 0 00-2 2v13a2 2 0 002 2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 4v5h5"/></svg>' +
+                      '<span class="text-xs font-semibold mt-1">PDF</span></div>';
+                html += '<div class="p-2.5 rounded-xl border border-slate-200 bg-slate-50">' +
+                    '<a href="' + esc(a.url) + '" target="_blank" rel="noopener">' + thumb + '</a>' +
+                    '<div class="flex items-center justify-between gap-2 mt-2">' +
+                    '<span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ' + rs[1] + '">' + esc(rs[0]) + '</span>' +
+                    '<span class="text-[11px] text-slate-400">' + esc(fmt(a.date)) + '</span></div>' +
+                    '<p class="text-xs text-slate-700 mt-1 truncate" title="' + esc(a.file_name) + '">' + esc(a.file_name) + '</p>' +
+                    '<p class="text-[11px] text-slate-400 truncate">' + esc(a.uploader) + '</p>' +
+                    '<div class="flex items-center gap-3 mt-1.5 text-xs">' +
+                    '<a class="text-blue-600 hover:underline font-medium" href="' + esc(a.url) + '" target="_blank" rel="noopener">Open</a>' +
+                    (a.teams_url ? '<a class="text-indigo-600 hover:underline font-medium" href="' + esc(a.teams_url) + '" target="_blank" rel="noopener">View in Teams</a>' : '') +
+                    (a.can_delete ? '<button type="button" class="text-red-500 hover:underline font-medium ml-auto" onclick="RA.remove(' + a.id + ')">Delete</button>' : '') +
+                    '</div></div>';
+            });
+            html += '</div>';
+        }
+        body.innerHTML = html;
+    }
+
+    var RA = window.RA = {
+        refresh: function () {
+            var t = currentTask();
+            var body = document.getElementById('ra-panel-body');
+            if (!t || !t.id || !body) return Promise.resolve();
+            body.innerHTML = '<p class="text-sm text-slate-400">Loading&hellip;</p>';
+            return fetch('/reflection_attachments/' + encodeURIComponent(t.type) + '/' + encodeURIComponent(t.id), { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    if (res && res.success) render(res);
+                    else body.innerHTML = '<p class="text-sm text-slate-400">Attachments are not available for this task.</p>';
+                })
+                .catch(function () { body.innerHTML = '<p class="text-sm text-slate-400">Could not load attachments.</p>'; });
+        },
+
+        // Uploads the file chosen in <input type=file>. Resolves true on success,
+        // false on failure, null when nothing was chosen.
+        uploadFrom: function (input, taskType, taskId, statusElId, onDone) {
+            if (!input || !input.files || !input.files.length) return Promise.resolve(null);
+            var status = statusElId ? document.getElementById(statusElId) : null;
+            function say(msg, cls) {
+                if (!status) return;
+                status.textContent = msg;
+                status.className = 'text-sm mt-2 ' + cls;
+                status.classList.remove('hidden');
+            }
+            var file = input.files[0];
+            if (file.size > 10 * 1024 * 1024) { say('File is too large (10 MB maximum).', 'text-red-600'); return Promise.resolve(false); }
+            var fd = new FormData();
+            fd.append('task_type', taskType);
+            fd.append('task_id', taskId);
+            fd.append('file', file);
+            say('Uploading ' + file.name + '…', 'text-slate-500');
+            return fetch('/reflection_attachments/upload', { method: 'POST', body: fd, credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    if (!res.success) { say(res.message || 'Upload failed.', 'text-red-600'); return false; }
+                    input.value = '';
+                    var label = document.getElementById(input.id + '-name');
+                    if (label) label.textContent = '';
+                    if (typeof onDone === 'function') onDone(res);
+                    RA.refresh();
+                    return true;
+                })
+                .catch(function () { say('Upload failed. Check your connection and try again.', 'text-red-600'); return false; });
+        },
+
+        remove: function (id) {
+            if (!confirm('Delete this attachment?')) return;
+            fetch('/reflection_attachments/' + id + '/delete', { method: 'POST', credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (res) { if (res.success) RA.refresh(); else alert(res.message || 'Could not delete.'); });
+        },
+
+        showName: function (input) {
+            var label = document.getElementById(input.id + '-name');
+            if (label) label.textContent = input.files && input.files.length ? input.files[0].name : '';
+        }
+    };
+
+    // Refresh whenever the task-details modal is opened.
+    document.addEventListener('DOMContentLoaded', function () {
+        var modal = document.getElementById('task-details-modal');
+        if (!modal || !window.MutationObserver) return;
+        var wasHidden = modal.classList.contains('hidden');
+        new MutationObserver(function () {
+            var hidden = modal.classList.contains('hidden');
+            if (wasHidden && !hidden) RA.refresh();
+            wasHidden = hidden;
+        }).observe(modal, { attributes: true, attributeFilter: ['class'] });
+    });
+})();
+</script>

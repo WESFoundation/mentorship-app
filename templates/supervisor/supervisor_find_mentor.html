@@ -127,15 +127,6 @@
             {% endfor %}
           </select>
 
-          <!-- State / Province -->
-          <select name="state" id="mentor-state-filter" data-no-search
-            class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs sm:text-sm text-gray-700 bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
-            <option value="">All States / Provinces</option>
-            {% for s in states %}
-            <option value="{{ s }}" {% if selected_state == s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-
           <!-- City -->
           <select name="city" id="mentor-city-filter" data-no-search
             class="w-auto shrink-0 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs sm:text-sm text-gray-700 bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">

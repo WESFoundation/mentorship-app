@@ -672,6 +672,8 @@
                     </div>
                 </div>
 
+                {% include 'components/reflection_attachments_panel.html' %}
+
                 <!-- Actions -->
                 <div class="flex gap-3 pt-6 border-t border-slate-100">
                     <button onclick="closeTaskDetailsModal()"
@@ -731,8 +733,8 @@
 
             <!-- Reflection -->
             <div>
-                <label class="block text-sm font-medium text-slate-700 mb-2">Your Reflection *</label>
-                <textarea id="mentee-feedback-input" name="text" rows="4" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-slate-700 placeholder-slate-400" placeholder="What did you learn? What went well?" required></textarea>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Your Reflection *<span class="text-slate-400 font-normal"> (not needed if you attach a file)</span></label>
+                <textarea id="mentee-feedback-input" name="text" rows="4" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-slate-700 placeholder-slate-400" placeholder="What did you learn? What went well?"></textarea>
                 <div class="flex items-center justify-between mt-1">
                     <p id="mentee-char-count" class="text-xs text-slate-400">0 / 2000</p>
                 </div>
@@ -756,6 +758,8 @@
                 <textarea id="mentee-extra-input" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm text-slate-700 placeholder-slate-400" placeholder="Anything else you'd like to share..."></textarea>
             </div>
 
+            {% with vf_id='vf-mentee', vf_form='mentee_reflection', vf_map='{"text":"mentee-feedback-input","challenges":"mentee-challenges-input","nextSteps":"mentee-next-input","extra":"mentee-extra-input"}' %}{% include 'components/ai_voice_feedback.html' %}{% endwith %}
+            {% with ra_id='ra-file-mentee' %}{% include 'components/reflection_attachment_field.html' %}{% endwith %}
             <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-4 border-t border-slate-200">
                 <button type="button" onclick="closeMenteeFeedbackModal()" class="w-full sm:w-auto px-4 py-2.5 text-slate-600 hover:text-slate-800 transition text-center font-medium rounded-lg">Cancel</button>
                 <button type="submit" class="w-full sm:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2 font-medium">
@@ -1554,6 +1558,17 @@
         var rating = ratingInput ? ratingInput.value : '';
         var mentorRating = mentorRatingInput ? mentorRatingInput.value : '';
 
+        // A photo/PDF can be submitted instead of the written form.
+        var raInput = document.getElementById('ra-file-mentee');
+        var hasFile = !!(raInput && raInput.files && raInput.files.length);
+        if (hasFile && !text) {
+            if (!currentTaskId || !currentTaskType) { alert('No task selected'); return; }
+            RA.uploadFrom(raInput, currentTaskType, currentTaskId, 'mentee-feedback-status', function (res) {
+                if (res && res.status) updateTaskCardBadge(currentTaskId, currentTaskType, res.status);
+            }).then(function (ok) { if (ok) closeMenteeFeedbackModal(); });
+            return;
+        }
+
         if (!text) {
             var s = document.getElementById('mentee-feedback-status');
             if (s) { s.textContent = 'Please enter your reflection.'; s.className = 'text-sm mt-2 text-amber-600'; s.classList.remove('hidden'); }
@@ -1600,6 +1615,9 @@
         }).catch(function(err) { console.error('Failed to sync feedback to server:', err); });
 
         updateTaskCardBadge(currentTaskId, currentTaskType, 'in-progress');
+        if (hasFile) {
+            RA.uploadFrom(raInput, currentTaskType, currentTaskId, 'mentee-feedback-status');
+        }
         closeMenteeFeedbackModal();
     }
 
@@ -1713,4 +1731,6 @@
     });
 </script>
 
+{% include 'components/reflection_attachments.html' %}
+<script>window.RA_getTask = function () { return { type: currentTaskType, id: currentTaskId }; };</script>
 {% endblock %}

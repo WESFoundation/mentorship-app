@@ -94,6 +94,8 @@
 
 <div class="max-w-[90rem] mx-auto mt-8 p-6 bg-gradient-to-br from-gray-50 to-blue-50 rounded-2xl shadow-2xl">
     <form id="mentorProfileForm" action="{{ url_for('editmentorprofile') }}" method="POST" enctype="multipart/form-data" class="space-y-8" onsubmit="return validateForm()">
+{% with li_form='mentorProfileForm' %}{% include 'components/linkedin_autofill.html' %}{% endwith %}
+
         {% if not profile_picture %}
         <div class="rounded-xl border-l-4 border-red-500 bg-red-50 p-4">
             <p class="font-semibold text-red-800">Profile photo strongly recommended</p>
