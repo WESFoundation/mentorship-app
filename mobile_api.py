@@ -211,6 +211,20 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         except Exception:
             CouponAssignment = None
 
+    CouponRedemption = kwargs.get("CouponRedemption")
+    if CouponRedemption is None:
+        try:
+            CouponRedemption = db.Model._decl_class_registry.get("CouponRedemption")
+        except Exception:
+            CouponRedemption = None
+
+    def _coupon_app_fn(name):
+        """A helper that lives in app.py (shared with the web redemption page)."""
+        import sys as _s
+        main = _s.modules.get('__main__')
+        mod = main if hasattr(main, name) else _s.modules.get('app')
+        return getattr(mod, name, None)
+
     CouponRequest = kwargs.get("CouponRequest")
     if CouponRequest is None:
         try:
@@ -4285,6 +4299,10 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "seller_name": getattr(c, "seller_display_name", c.used_by or ""),
                 "redeemed_by_name": c.redeemed_by.name if getattr(c, "redeemed_by", None) else "",
                 "verification_count": c.verification_count or 0,
+                "has_balance": bool(getattr(c, "has_balance", False)),
+                "face_value": str(c.face_value) if getattr(c, "face_value", None) is not None else None,
+                "remaining_balance": str(c.remaining_balance) if getattr(c, "remaining_balance", None) is not None else None,
+                "balance_currency": getattr(c, "balance_currency", None) or "",
                 "verify_url": f"{base_url}/coupon/verify/{c.code}",
                 "qr_url": f"/api/coupons/{c.code}/qr"
             }
@@ -4463,7 +4481,11 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "seller_name": getattr(coupon, "seller_display_name", coupon.used_by or ""),
                 "redeemed_by_name": coupon.redeemed_by.name if getattr(coupon, "redeemed_by", None) else "",
                 "expires_at": coupon.expires_at.isoformat() if getattr(coupon, "expires_at", None) else None,
-                "partner_user_id": getattr(coupon, "partner_user_id", None)
+                "partner_user_id": getattr(coupon, "partner_user_id", None),
+                "has_balance": bool(getattr(coupon, "has_balance", False)),
+                "face_value": str(coupon.face_value) if getattr(coupon, "face_value", None) is not None else None,
+                "remaining_balance": str(coupon.remaining_balance) if getattr(coupon, "remaining_balance", None) is not None else None,
+                "balance_currency": getattr(coupon, "balance_currency", None) or ""
             },
             "verified_sellers": verified_sellers,
             "candidates": candidates,
@@ -4484,7 +4506,9 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             return jsonify({"success": False, "message": "Coupon not found"}), 404
 
         if coupon.status == "used":
-            return jsonify({"success": False, "message": "This coupon has already been used."}), 409
+            return jsonify({"success": False,
+                            "message": ("This coupon has no balance left." if getattr(coupon, "has_balance", False)
+                                        else "This coupon has already been used.")}), 409
         if coupon.status == "revoked":
             return jsonify({"success": False, "message": "This coupon has been withdrawn."}), 409
         if getattr(coupon, "is_expired", False):
@@ -4531,67 +4555,47 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         if not redeemer:
             return jsonify({"success": False, "message": "This coupon has not been assigned to anyone yet."}), 400
 
-        # Purchase total -> the coupon value WES owes the partner (same maths as the web page).
-        import sys as _sys
-        _app_mod = _sys.modules.get('__main__') if hasattr(_sys.modules.get('__main__'), '_money') else _sys.modules.get('app')
-        _money_fn = getattr(_app_mod, '_money', None)
-        _calc_fn = getattr(_app_mod, '_compute_coupon_discount', None)
-        _cur_fn = getattr(_app_mod, '_currency_code_from_label', None)
-        if _money_fn:
-            goods = _money_fn(data.get("goods_total"))
-            if goods is None or goods <= 0:
-                return jsonify({"success": False, "message": "Please enter the total amount of goods purchased."}), 400
-            coupon.goods_total = goods
-            coupon.goods_currency = (str(data.get("goods_currency") or (_cur_fn(coupon.discount_label) if _cur_fn else None) or "EUR")).upper()[:8]
-            coupon.discount_amount = _calc_fn(coupon.discount_label, goods) if _calc_fn else None
-            coupon.refunded = False
+        # Same redemption logic as the web page (single-use or partial balance).
+        _apply_fn = _coupon_app_fn('_apply_coupon_redemption')
+        _money_fn = _coupon_app_fn('_money')
+        _cur_fn = _coupon_app_fn('_currency_code_from_label')
+        _email_fn = _coupon_app_fn('_send_coupon_redemption_emails')
+        if not (_apply_fn and _money_fn):
+            return jsonify({"success": False, "message": "Redemption service unavailable"}), 503
 
-        coupon.status = "used"
-        coupon.used_at = datetime.utcnow()
-        coupon.seller_id = seller_profile.user_id
-        coupon.redeemed_by_user_id = redeemer.id
-        coupon.used_by = seller_profile.display_name
-        if used_shop_id:
-            coupon.used_shop_id = used_shop_id
-        coupon.verification_count = (coupon.verification_count or 0) + 1
+        goods = _money_fn(data.get("goods_total"))
+        if goods is None or goods <= 0:
+            return jsonify({"success": False, "message": "Please enter the total amount of goods purchased."}), 400
+        currency = str(data.get("goods_currency") or (_cur_fn(coupon.discount_label) if _cur_fn else None) or "EUR").strip().upper()[:8]
+        requested = None
+        raw_amount = str(data.get("redeem_amount") or "").strip()
+        if raw_amount:
+            requested = _money_fn(raw_amount)
+            if requested is None or requested <= 0:
+                return jsonify({"success": False, "message": "The amount to redeem must be a number above 0."}), 400
 
+        shop_obj = db.session.get(SellerShop, used_shop_id) if (used_shop_id and SellerShop) else None
         try:
+            redemption, err, err_status = _apply_fn(coupon, seller_profile, shop_obj, redeemer, goods, currency, requested)
+            if err:
+                db.session.rollback()
+                return jsonify({"success": False, "message": err}), err_status
             db.session.commit()
         except Exception as e:
             db.session.rollback()
             return jsonify({"success": False, "message": f"Verification error: {str(e)}"}), 500
 
-        import sys
-        send_fn = getattr(sys.modules.get('__main__'), 'send_email_reminder', None) or getattr(sys.modules.get('app'), 'send_email_reminder', None)
-        if send_fn:
-            role = "Mentor" if str(redeemer.user_type) == "1" else "Mentee"
-            when = coupon.used_at.strftime("%d %B %Y at %H:%M UTC") if coupon.used_at else "just now"
-            html = f"""
-            <div style="font-family:sans-serif;max-width:560px;margin:auto;">
-                <h2 style="color:#0f172a;">Coupon Successfully Redeemed</h2>
-                <p>The following coupon has been verified and used:</p>
-                <ul>
-                    <li><strong>Code:</strong> {coupon.code}</li>
-                    <li><strong>Offer:</strong> {coupon.title}</li>
-                    <li><strong>Discount:</strong> {coupon.discount_label or '-'}</li>
-                    <li><strong>Redeemed by:</strong> {redeemer.name} ({role})</li>
-                    <li><strong>Redeemed at:</strong> {seller_profile.display_name}</li>
-                    <li><strong>Date/Time:</strong> {when}</li>
-                </ul>
-            </div>
-            """
+        if _email_fn:
             try:
-                if redeemer.email:
-                    send_fn(redeemer.email, f"Coupon Redeemed: {coupon.code}", html)
-                seller_user = User.query.get(seller_profile.user_id)
-                if seller_user and seller_user.email:
-                    send_fn(seller_user.email, f"Coupon Verification Confirmation: {coupon.code}", html)
+                _email_fn(coupon, redeemer, seller_profile, redemption)
             except Exception as e:
                 logger.warning("Failed to send coupon redemption email: %s", e)
 
         return jsonify({
             "success": True,
-            "message": "Coupon successfully verified and marked as redeemed.",
+            "message": ("Coupon successfully verified and marked as redeemed." if coupon.status == "used"
+                        else "Partial redemption recorded. The rest of the balance stays on the coupon."),
+            "redemption": redemption.to_dict(),
             "coupon": {
                 "id": coupon.id,
                 "code": coupon.code,
@@ -4601,7 +4605,11 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "used_at": coupon.used_at.isoformat() if coupon.used_at else None,
                 "used_by": coupon.used_by,
                 "redeemed_by_name": redeemer.name,
-                "seller_name": seller_profile.display_name
+                "seller_name": seller_profile.display_name,
+                "has_balance": bool(coupon.has_balance),
+                "face_value": str(coupon.face_value) if coupon.face_value is not None else None,
+                "remaining_balance": str(coupon.remaining_balance) if coupon.remaining_balance is not None else None,
+                "balance_currency": coupon.balance_currency or ""
             }
         })
 
@@ -4736,6 +4744,7 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                         status="active",
                         expires_at=expires_at
                     )
+                    coupon.init_balance()
                     db.session.add(coupon)
                     db.session.flush()
                     if holder is not None and CouponAssignment:
@@ -4781,11 +4790,11 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 return jsonify({"success": False, "message": "A redeemed coupon cannot be reinstated."}), 400
             coupon.status = "active"
         elif action == "reset":
-            coupon.status = "active"
-            coupon.used_at = None
-            coupon.used_by = None
-            coupon.seller_id = None
-            coupon.redeemed_by_user_id = None
+            _reset_fn = _coupon_app_fn('_reset_coupon_usage')
+            reset_err = _reset_fn(coupon) if _reset_fn else "Reset unavailable"
+            if reset_err:
+                db.session.rollback()
+                return jsonify({"success": False, "message": reset_err}), 409
         elif action == "expire":
             coupon.status = "expired"
         else:
@@ -4946,7 +4955,12 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                 "manual": bool(r.get("manual")),
                 "edited_at": r["edited_at"].isoformat() if r.get("edited_at") else None,
                 "edit_role": r.get("edit_role") or "",
-                "edited_by": r.get("edited_by") or ""
+                "edited_by": r.get("edited_by") or "",
+                "coupon_id": r.get("coupon_id"),
+                "partial": bool(r.get("partial")),
+                "amount_applied": float(r["amount_applied"]) if r.get("amount_applied") is not None else None,
+                "balance_after": float(r["balance_after"]) if r.get("balance_after") is not None else None,
+                "face_value": float(r["face_value"]) if r.get("face_value") is not None else None
             })
 
         serialized_totals = {}
@@ -4966,42 +4980,29 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             "currencies": _currencies
         })
 
-    @api_bp.route("/coupons/<int:coupon_id>/refund", methods=["POST"])
-    def api_coupon_refund(coupon_id):
+    # NOTE: the id in these URLs is the ledger row id, i.e. a REDEMPTION id (a partially
+    # redeemed coupon has one row per use). The path keeps the old /coupons/<id> shape so
+    # shipped app builds keep working; they only echo back the id the ledger gave them.
+    @api_bp.route("/coupons/redemptions/<int:redemption_id>/refund", methods=["POST"])
+    @api_bp.route("/coupons/<int:redemption_id>/refund", methods=["POST"])
+    def api_coupon_refund(redemption_id):
         user = get_current_user_from_req(User)
         if not user or str(user.user_type) != "0":
             return jsonify({"success": False, "message": "Administrator privileges required"}), 403
 
-        if not MentorCoupon:
+        if not CouponRedemption:
             return jsonify({"success": False, "message": "Coupon service unavailable"}), 503
 
-        c = db.session.get(MentorCoupon, coupon_id)
-        if not c or c.status != "used":
+        r = db.session.get(CouponRedemption, redemption_id)
+        if not r or r.voided_at is not None:
             return jsonify({"success": False, "message": "Coupon not found or not redeemed"}), 404
 
         data = request.get_json(silent=True) or request.form or {}
         refunded = str(data.get("refunded")).lower() in ("1", "true", "yes", "on")
-
-        import sys as _sys
-        _app_mod = _sys.modules.get('__main__') if hasattr(_sys.modules.get('__main__'), '_money') else _sys.modules.get('app')
-        _money_fn = getattr(_app_mod, '_money', None)
-
-        if refunded:
-            raw_rec = data.get("recovered_amount")
-            amount = _money_fn(raw_rec) if _money_fn and raw_rec not in (None, "") else c.discount_amount
-            if amount is None:
-                return jsonify({"success": False, "message": "Set the coupon value first, then mark it refunded."}), 400
-            c.refunded = True
-            c.refunded_at = datetime.utcnow()
-            c.refunded_by = user.id
-            c.recovered_amount = amount
-        else:
-            c.refunded = False
-            c.refunded_at = None
-            c.refunded_by = None
-            c.recovered_amount = None
-
-        c.refund_note = (data.get("note") or "").strip()[:300] or None
+        _refund_fn = _coupon_app_fn('_set_redemption_refund')
+        err, status = _refund_fn(r, refunded, user.id, data.get("recovered_amount"), data.get("note"))
+        if err:
+            return jsonify({"success": False, "message": err}), status
         try:
             db.session.commit()
         except Exception as e:
@@ -5010,79 +5011,35 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
         return jsonify({
             "success": True,
-            "refunded": c.refunded,
-            "recovered_amount": float(c.recovered_amount) if c.recovered_amount is not None else None,
-            "message": f"Coupon marked as {'refunded' if c.refunded else 'unrefunded'}."
+            "refunded": r.refunded,
+            "recovered_amount": float(r.recovered_amount) if r.recovered_amount is not None else None,
+            "message": f"Coupon marked as {'refunded' if r.refunded else 'unrefunded'}."
         })
 
-    @api_bp.route("/coupons/<int:coupon_id>/ledger", methods=["POST"])
-    def api_coupon_ledger_update(coupon_id):
+    @api_bp.route("/coupons/redemptions/<int:redemption_id>/ledger", methods=["POST"])
+    @api_bp.route("/coupons/<int:redemption_id>/ledger", methods=["POST"])
+    def api_coupon_ledger_update(redemption_id):
         user = get_current_user_from_req(User)
         if not user or str(user.user_type) not in ("0", "4"):
             return jsonify({"success": False, "message": "Unauthorized"}), 403
 
-        if not MentorCoupon:
+        if not CouponRedemption:
             return jsonify({"success": False, "message": "Coupon service unavailable"}), 503
 
-        c = db.session.get(MentorCoupon, coupon_id)
-        if not c or c.status != "used":
+        r = db.session.get(CouponRedemption, redemption_id)
+        if not r or r.voided_at is not None:
             return jsonify({"success": False, "message": "Coupon not found or not redeemed"}), 404
 
-        data = request.get_json(silent=True) or request.form or {}
-        import sys as _sys
-        _app_mod = _sys.modules.get('__main__') if hasattr(_sys.modules.get('__main__'), '_money') else _sys.modules.get('app')
-        _money_fn = getattr(_app_mod, '_money', None)
-        _calc_fn = getattr(_app_mod, '_compute_coupon_discount', None)
+        is_partner = str(user.user_type) == "4"
+        if is_partner and r.seller_id != user.id:
+            return jsonify({"success": False, "message": "This coupon was redeemed at another partner's shop."}), 403
 
-        if str(user.user_type) == "4":
-            if c.seller_id != user.id:
-                return jsonify({"success": False, "message": "This coupon was redeemed at another partner's shop."}), 403
-            if c.refunded:
-                return jsonify({
-                    "success": False, "locked": True,
-                    "message": "This coupon has already been refunded, so the bill can no longer be changed. Contact admin for adjustments."
-                }), 409
-            g = _money_fn(data.get("goods_total")) if _money_fn else None
-            if g is None or g <= 0:
-                return jsonify({"success": False, "message": "Enter total bill amount (more than 0)."}), 400
-            c.goods_total = g
-            cur = (data.get("goods_currency") or "").strip().upper()
-            if cur:
-                c.goods_currency = cur
-            if not c.discount_manual and _calc_fn:
-                calc = _calc_fn(c.discount_label, g)
-                if calc is not None:
-                    c.discount_amount = calc
-            c.ledger_edited_by = user.id
-            c.ledger_edited_at = datetime.utcnow()
-            c.ledger_edit_role = "partner"
-        else:
-            if "goods_total" in data:
-                g = _money_fn(data.get("goods_total")) if _money_fn else None
-                if g is None or g < 0:
-                    return jsonify({"success": False, "message": "Enter a valid goods total."}), 400
-                c.goods_total = g
-                if "discount_amount" not in data and not c.discount_manual and _calc_fn:
-                    calc = _calc_fn(c.discount_label, g)
-                    if calc is not None:
-                        c.discount_amount = calc
-            if "discount_amount" in data:
-                d = _money_fn(data.get("discount_amount")) if _money_fn else None
-                if d is None or d < 0:
-                    return jsonify({"success": False, "message": "Enter a valid coupon value."}), 400
-                c.discount_amount = d
-                c.discount_manual = True
-            cur = (data.get("goods_currency") or "").strip().upper()
-            if cur:
-                c.goods_currency = cur
-            if c.refunded and c.discount_amount is not None:
-                c.recovered_amount = c.discount_amount
-            c.ledger_edited_by = user.id
-            c.ledger_edited_at = datetime.utcnow()
-            c.ledger_edit_role = "admin"
-            note = (data.get("note") or "").strip()[:300]
-            if note:
-                c.refund_note = note
+        data = request.get_json(silent=True) or request.form or {}
+        _edit_fn = _coupon_app_fn('_apply_ledger_edit')
+        err, status = _edit_fn(r, data, user.id, "partner" if is_partner else "admin")
+        if err:
+            db.session.rollback()
+            return jsonify({"success": False, **err}), status
 
         try:
             db.session.commit()
@@ -5092,9 +5049,9 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
 
         return jsonify({
             "success": True,
-            "goods_total": float(c.goods_total) if c.goods_total is not None else None,
-            "discount_amount": float(c.discount_amount) if c.discount_amount is not None else None,
-            "refunded": bool(c.refunded),
+            "goods_total": float(r.goods_total) if r.goods_total is not None else None,
+            "discount_amount": float(r.discount_amount) if r.discount_amount is not None else None,
+            "refunded": bool(r.refunded),
             "message": "Ledger entry updated successfully."
         })
 

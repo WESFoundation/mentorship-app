@@ -102,7 +102,7 @@ PROFILE_FIELDS = {
     "mentor": {
         "skills": 500, "role": 150, "organisation": 150, "years_of_experience": 4,
         "degree_name": 150, "field_of_study": 150, "university_name": 200,
-        "graduation_year": 4, "certifications": 500, "linkedin_link": 300,
+        "graduation_year": 4, "certifications": 500, "research_work": 1000, "linkedin_link": 300,
     },
     "mentee": {
         "key_skills": 500, "current_role": 150, "current_organization": 150,
@@ -122,6 +122,7 @@ PROFILE_HELP = {
     "school_name": "most recent school or university",
     "graduation_year": "4-digit year of the highest degree",
     "certifications": "certifications, comma separated",
+    "research_work": "publications, patents or notable projects, comma separated (empty if none)",
     "career_interest": "career interest or headline", "industry": "industry sector",
     "linkedin_link": "the profile URL if printed in the document",
 }

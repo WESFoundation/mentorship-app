@@ -194,11 +194,18 @@
                 <p class="text-[11px] text-gray-500 mono">{{ c.code }}</p>
             </div>
             <span class="shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
-                Active
+                {% if c.partially_used %}Partly used{% else %}Active{% endif %}
             </span>
         </div>
         {% if c.discount_label %}
         <p class="text-sm font-medium text-gray-700 mb-2">{{ c.discount_label }}</p>
+        {% endif %}
+        {% if c.has_balance %}
+        <div class="mb-3 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-900">
+            <span class="font-bold text-sm">{{ c.balance_currency }} {{ c.remaining_balance }}</span> left
+            <span class="text-blue-700">of {{ c.balance_currency }} {{ c.face_value }}</span>
+            {% if c.partially_used %}<span class="block text-[11px] text-blue-700 mt-0.5">The unused balance carries over to your next purchase.</span>{% endif %}
+        </div>
         {% endif %}
         {% if c.description %}
         <p class="text-xs text-gray-500 mb-3">{{ c.description }}</p>

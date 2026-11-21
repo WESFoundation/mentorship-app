@@ -104,7 +104,7 @@
         {% for r in rows %}
         <tr class="ledger-row {{ 'bg-emerald-50/40' if r.refunded else '' }}" data-id="{{ r.id }}" data-currency="{{ r.currency }}">
           <td class="px-3 py-2.5 text-slate-400">{{ loop.index }}</td>
-          <td class="px-3 py-2.5"><p class="font-semibold text-slate-900 text-sm">{{ r.title }}</p><p class="mono text-slate-500">{{ r.code }}</p></td>
+          <td class="px-3 py-2.5"><p class="font-semibold text-slate-900 text-sm">{{ r.title }}</p><p class="mono text-slate-500">{{ r.code }}</p>{% if r.partial %}<p class="text-[11px] text-blue-700">Part use: {{ r.currency }} {{ '%.2f'|format(r.amount_applied) }} taken &middot; {{ '%.2f'|format(r.balance_after) }} left</p>{% endif %}</td>
           <td class="px-3 py-2.5">{{ r.discount_label or '-' }}</td>
           <td class="px-3 py-2.5 whitespace-nowrap">{{ r.used_at.strftime('%d %b %Y, %H:%M') if r.used_at else '-' }}</td>
           <td class="px-3 py-2.5"><span class="font-medium text-slate-800" {% if r.partner_id %}data-profile-user="{{ r.partner_id }}"{% endif %}>{{ r.partner }}</span>{% if r.shop %}<p class="text-slate-500">{{ r.shop }}</p>{% endif %}</td>
@@ -205,7 +205,7 @@
   function setRefund(id, refunded) {
     var note = '';
     if (refunded) { note = prompt('Optional note (e.g. bank transfer reference):', '') || ''; }
-    post('/supervisor/coupons/' + id + '/refund', {refunded: refunded, note: note}).then(function (res) {
+    post('/supervisor/redemptions/' + id + '/refund', {refunded: refunded, note: note}).then(function (res) {
       if (res.ok) { window.location.reload(); } else { ledgerMsg((res.body && res.body.message) || 'Could not update.', false); }
     });
   }
@@ -231,7 +231,7 @@
     if (g !== leCurrent.goods) body.goods_total = g;
     if (v !== leCurrent.value && v !== '') body.discount_amount = v;
     if (!('goods_total' in body) && !('discount_amount' in body)) { closeLedgerEdit(); return; }
-    post('/supervisor/coupons/' + leCurrent.id + '/ledger', body).then(function (res) {
+    post('/supervisor/redemptions/' + leCurrent.id + '/ledger', body).then(function (res) {
       if (res.ok) { window.location.reload(); } else { alert((res.body && res.body.message) || 'Could not save.'); }
     });
   }

@@ -3034,6 +3034,18 @@ class MentorCoupon(db.Model):
     ledger_edited_at = db.Column(db.DateTime)
     ledger_edit_role = db.Column(db.String(10))     # 'partner' | 'admin'
 
+    # ---- Partial redemption (carry-over balance) ----
+    # A coupon is "balance-tracked" when face_value is set (a fixed-amount coupon such
+    # as "5€ off"). It can then be redeemed in several instalments: remaining_balance
+    # drops by the amount applied each time, and the coupon only flips to `used` when
+    # it reaches zero. NULL face_value = legacy / percent / free-text coupon, which
+    # stays single-use exactly as before. The per-use money trail lives in
+    # coupon_redemptions; the goods_total / discount_amount columns above just mirror
+    # the most recent redemption for older readers.
+    face_value = db.Column(db.Numeric(12, 2))
+    remaining_balance = db.Column(db.Numeric(12, 2))
+    balance_currency = db.Column(db.String(8))
+
     mentor = db.relationship("User", foreign_keys=[mentor_id], backref=db.backref("reflections", cascade="all, delete-orphan", passive_deletes=True))
 
     @property
@@ -3043,6 +3055,34 @@ class MentorCoupon(db.Model):
     @property
     def is_usable(self):
         return self.status == "active" and not self.is_expired
+
+    @property
+    def has_balance(self):
+        """True for fixed-amount coupons whose unused value carries over."""
+        return self.face_value is not None
+
+    @property
+    def used_amount(self):
+        if self.face_value is None:
+            return None
+        return self.face_value - (self.remaining_balance or 0)
+
+    def init_balance(self, face_value=None, currency=None):
+        """Turn this coupon into a balance-tracked one. With no explicit value, derive it
+        from a flat discount label ('5€ off'); percent / free-text labels are left alone.
+        Only ever applied to a coupon that has never been redeemed. Returns True if set."""
+        if self.face_value is not None or self.used_at is not None or self.status == "used":
+            return False
+        cur = (currency or "").strip().upper() or None
+        if face_value is None:
+            face_value, label_cur = _flat_value_from_label(self.discount_label)
+            cur = cur or label_cur
+        if face_value is None or face_value <= 0:
+            return False
+        self.face_value = face_value
+        self.remaining_balance = face_value
+        self.balance_currency = (cur or _currency_code_from_label(self.discount_label) or "EUR")[:8]
+        return True
 
     def to_dict(self, include_mentor=False):
         data = {
@@ -3068,6 +3108,13 @@ class MentorCoupon(db.Model):
             'partner_name': self.partner_display_name,
             'is_general': self.partner_user_id is None,
             'used_shop_name': self.used_shop_name,
+            'has_balance': self.has_balance,
+            'face_value': str(self.face_value) if self.face_value is not None else None,
+            'remaining_balance': str(self.remaining_balance) if self.remaining_balance is not None else None,
+            'used_amount': str(self.used_amount) if self.used_amount is not None else None,
+            'balance_currency': self.balance_currency or '',
+            'partially_used': bool(self.has_balance and self.status == 'active'
+                                   and (self.used_amount or 0) > 0),
         }
         if include_mentor:
             data['mentor_id'] = self.mentor_id
@@ -3131,6 +3178,119 @@ class MentorCoupon(db.Model):
             .all()
         )
         return [r.user for r in rows if r.user]
+
+
+class CouponRedemption(db.Model):
+    """One redemption of a coupon at a partner shop - the unit of the money ledger.
+
+    A single-use coupon has exactly one of these; a balance-tracked coupon gets one
+    per partial use. Everything the finance team edits or refunds lives here, so each
+    instalment is paid back to the partner (and corrected) independently.
+    """
+    __tablename__ = "coupon_redemptions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    coupon_id = db.Column(db.Integer, db.ForeignKey("mentor_coupons.id", ondelete="CASCADE"),
+                          nullable=False, index=True)
+    seller_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), index=True)
+    redeemed_by_user_id = db.Column(db.Integer, db.ForeignKey("signup_details.id"), index=True)
+    used_shop_id = db.Column(db.Integer, db.ForeignKey("seller_shops.id"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    goods_total = db.Column(db.Numeric(12, 2))        # the bill the partner entered
+    goods_currency = db.Column(db.String(8))
+    # Value drawn from the coupon balance by this use. NULL for single-use coupons.
+    # Immutable: it is what the balance arithmetic was done with.
+    amount_applied = db.Column(db.Numeric(12, 2))
+    balance_before = db.Column(db.Numeric(12, 2))
+    balance_after = db.Column(db.Numeric(12, 2))
+    # What WES owes the partner for this use. Equals amount_applied for balance
+    # coupons unless an admin adjusts it by hand (the balance is not touched).
+    discount_amount = db.Column(db.Numeric(12, 2))
+    discount_manual = db.Column(db.Boolean, default=False, nullable=False, server_default="0")
+
+    refunded = db.Column(db.Boolean, default=False, nullable=False, server_default="0")
+    refunded_at = db.Column(db.DateTime)
+    refunded_by = db.Column(db.Integer, db.ForeignKey("signup_details.id"))
+    recovered_amount = db.Column(db.Numeric(12, 2))
+    refund_note = db.Column(db.String(300))
+    ledger_edited_by = db.Column(db.Integer)
+    ledger_edited_at = db.Column(db.DateTime)
+    ledger_edit_role = db.Column(db.String(10))
+    # Set when an admin resets the coupon: the use is undone, its balance restored, and
+    # it drops out of the ledger. Rows are never deleted so there is an audit trail.
+    voided_at = db.Column(db.DateTime)
+
+    coupon = db.relationship("MentorCoupon", foreign_keys=[coupon_id],
+                             backref=db.backref("redemptions", passive_deletes=True))
+
+    __table_args__ = (db.Index("ix_coupon_redemptions_live", "seller_id", "voided_at"),)
+
+    @property
+    def seller_user(self):
+        return db.session.get(User, self.seller_id) if self.seller_id else None
+
+    @property
+    def redeemed_by(self):
+        return db.session.get(User, self.redeemed_by_user_id) if self.redeemed_by_user_id else None
+
+    @property
+    def shop_name(self):
+        shop = db.session.get(SellerShop, self.used_shop_id) if self.used_shop_id else None
+        return shop.name if shop else ""
+
+    @property
+    def seller_display_name(self):
+        prof = SellerProfile.query.filter_by(user_id=self.seller_id).first() if self.seller_id else None
+        if prof is not None and prof.display_name:
+            return prof.display_name
+        u = self.seller_user
+        return (u.name if u else "") or ""
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "coupon_id": self.coupon_id,
+            "redeemed_at": self.created_at.isoformat() if self.created_at else None,
+            "goods_total": str(self.goods_total) if self.goods_total is not None else None,
+            "currency": self.goods_currency or "EUR",
+            "amount_applied": str(self.amount_applied) if self.amount_applied is not None else None,
+            "balance_before": str(self.balance_before) if self.balance_before is not None else None,
+            "balance_after": str(self.balance_after) if self.balance_after is not None else None,
+            "discount_amount": str(self.discount_amount) if self.discount_amount is not None else None,
+            "partner": self.seller_display_name,
+            "shop": self.shop_name,
+            "refunded": bool(self.refunded),
+            "voided": self.voided_at is not None,
+        }
+
+
+# Defined here, next to the model, because auto_migrate_schema() runs at import time
+# and calls it before the rest of this file has been executed.
+def _backfill_coupon_redemptions():
+    """Give every coupon redeemed before partial redemption existed a ledger row.
+
+    The ledger now reads coupon_redemptions only, so old `used` coupons need one row
+    each (carrying their bill / value / refund state across). Idempotent: coupons that
+    already have a row are skipped, so it is safe to run on every start-up.
+    """
+    have = db.session.query(CouponRedemption.coupon_id)
+    orphans = MentorCoupon.query.filter(
+        MentorCoupon.status == "used", MentorCoupon.used_at.isnot(None),
+        ~MentorCoupon.id.in_(have)).all()
+    for c in orphans:
+        db.session.add(CouponRedemption(
+            coupon_id=c.id, seller_id=c.seller_id, redeemed_by_user_id=c.redeemed_by_user_id,
+            used_shop_id=c.used_shop_id, created_at=c.used_at,
+            goods_total=c.goods_total, goods_currency=c.goods_currency,
+            discount_amount=c.discount_amount, discount_manual=bool(c.discount_manual),
+            refunded=bool(c.refunded), refunded_at=c.refunded_at, refunded_by=c.refunded_by,
+            recovered_amount=c.recovered_amount, refund_note=c.refund_note,
+            ledger_edited_by=c.ledger_edited_by, ledger_edited_at=c.ledger_edited_at,
+            ledger_edit_role=c.ledger_edit_role))
+    if orphans:
+        db.session.commit()
+    return len(orphans)
 
 
 class SellerProfile(db.Model):
@@ -3613,6 +3773,16 @@ def auto_migrate_schema():
                             except Exception as col_err:
                                 print(f"⚠️ Notice adding column {table_name}.{col.name}: {col_err}")
 
+            # 2b. Partial redemption: the coupon ledger reads coupon_redemptions, so
+            # coupons redeemed before it existed each get one row (idempotent).
+            try:
+                moved = _backfill_coupon_redemptions()
+                if moved:
+                    print(f"✅ Backfilled {moved} coupon redemption ledger row(s)")
+            except Exception as bf_err:
+                db.session.rollback()
+                print(f"⚠️ Coupon redemption backfill notice: {bf_err}")
+
             # 3. Direct targeted fallback for critical rating columns
             target_migrations = [
                 ("mentorship_requests", "rating", "FLOAT"),
@@ -3774,6 +3944,7 @@ register_mobile_api(
     start_login_otp=lambda user: _start_login_otp(user),
     verify_login_otp=lambda user, code: _verify_login_otp_for_user(user, code),
     SellerProfile=SellerProfile, SellerShop=SellerShop, MentorCoupon=MentorCoupon, CouponAssignment=CouponAssignment,
+    CouponRedemption=CouponRedemption,
     CouponRequest=CouponRequest, SellerReferral=SellerReferral,
     ChatConversation=ChatConversation, ChatMessage=ChatMessage, ResourceNote=ResourceNote,
     ReminderSettings=ReminderSettings, ProfileCompletionReminder=ProfileCompletionReminder,
@@ -6833,6 +7004,10 @@ def delete_user(user_id):
             ("coupon_assignments", "assigned_by"),
             ("coupon_requests", "handled_by"),
             ("coupon_requests", "partner_user_id"),
+            # Redemptions are the money ledger: keep every row, drop the link to the person.
+            ("coupon_redemptions", "seller_id"),
+            ("coupon_redemptions", "redeemed_by_user_id"),
+            ("coupon_redemptions", "refunded_by"),
             ("resource_notes", "mentor_id"),
         ):
             try:
@@ -23045,9 +23220,12 @@ def _parse_coupon_window(args):
     return "All time", None
 
 
-def _coupon_audit_row(coupon, redeemer, seller_profile):
-    """Full detail of one redemption, for the partner dashboard + emails."""
-    return {
+def _coupon_audit_row(coupon, redeemer, seller_profile, redemption=None):
+    """Full detail of one redemption, for the partner dashboard + emails.
+
+    With `redemption` the money fields describe that single use; without it they fall
+    back to the coupon's own (latest-use) mirror columns."""
+    row = {
         "id": coupon.id,
         "code": coupon.code,
         "title": coupon.title,
@@ -23071,7 +23249,24 @@ def _coupon_audit_row(coupon, redeemer, seller_profile):
         "refunded_at": coupon.refunded_at,
         "is_general": coupon.partner_user_id is None,
         "issued_by": (coupon.issuer.name if coupon.issuer else ""),
+        "redemption_id": None, "amount_applied": None, "balance_after": None,
+        "face_value": coupon.face_value, "partial": False,
     }
+    if redemption is not None:
+        row.update({
+            "redemption_id": redemption.id,
+            "redeemed_at": redemption.created_at,
+            "shop_name": redemption.shop_name,
+            "goods_total": redemption.goods_total,
+            "currency": redemption.goods_currency or "EUR",
+            "discount_amount": redemption.discount_amount,
+            "refunded": bool(redemption.refunded),
+            "refunded_at": redemption.refunded_at,
+            "amount_applied": redemption.amount_applied,
+            "balance_after": redemption.balance_after,
+            "partial": redemption.amount_applied is not None,
+        })
+    return row
 
 
 BUSINESS_CATEGORIES = [
@@ -23275,12 +23470,14 @@ def seller_dashboard():
 
     label, cutoff = _parse_coupon_window(request.args)
 
-    query = MentorCoupon.query.filter(MentorCoupon.seller_id == seller.id)
+    # One entry per redemption: a coupon used in three instalments shows up three times.
+    R = CouponRedemption
+    query = R.query.filter(R.seller_id == seller.id, R.voided_at.is_(None))
     if cutoff is not None:
-        query = query.filter(MentorCoupon.used_at.isnot(None), MentorCoupon.used_at >= cutoff)
-    rows = query.order_by(MentorCoupon.used_at.desc()).all()
+        query = query.filter(R.created_at >= cutoff)
+    rows = query.options(joinedload(R.coupon)).order_by(R.created_at.desc(), R.id.desc()).all()
 
-    entries = [_coupon_audit_row(c, c.redeemed_by, profile) for c in rows]
+    entries = [_coupon_audit_row(r.coupon, r.redeemed_by, profile, r) for r in rows]
 
     tab = (request.args.get("tab") or "redemptions").strip().lower()
     if tab not in ("redemptions", "referrals"):
@@ -23291,9 +23488,9 @@ def seller_dashboard():
               "reserved for you can be redeemed.", "warning")
 
     # Everything this partner has ever verified, for the "all time" headline number.
-    lifetime = MentorCoupon.query.filter(
-        MentorCoupon.seller_id == seller.id,
-        MentorCoupon.used_at.isnot(None),
+    lifetime = CouponRedemption.query.filter(
+        CouponRedemption.seller_id == seller.id,
+        CouponRedemption.voided_at.is_(None),
     ).count()
 
     by_discount = {}
@@ -23385,6 +23582,10 @@ def supervisor_coupons():
             "issued_by_name": (c.issuer.name if c.issuer else ""),
             "issued_by_email": (c.issuer.email if c.issuer else ""),
             "verification_count": c.verification_count or 0,
+            "has_balance": c.has_balance,
+            "face_value": c.face_value,
+            "remaining_balance": c.remaining_balance,
+            "balance_currency": c.balance_currency or "EUR",
             "redeemed_by_id": c.redeemed_by_user_id,
             "redeemed_by_name": (c.redeemed_by.name if c.redeemed_by else ""),
             "redeemed_by_email": (c.redeemed_by.email if c.redeemed_by else ""),
@@ -23506,7 +23707,7 @@ def supervisor_user_summary(user_id):
             add("Location", ", ".join(x for x in (sp.city, sp.state, sp.country) if x))
             add("Phone", sp.contact_phone)
             add("Shops owned", sp.shop_count)
-            add("Coupons redeemed", MentorCoupon.query.filter(MentorCoupon.seller_id == user.id, MentorCoupon.used_at.isnot(None)).count())
+            add("Coupons redeemed", CouponRedemption.query.filter(CouponRedemption.seller_id == user.id, CouponRedemption.voided_at.is_(None)).count())
             add("People referred", SellerReferral.query.filter_by(seller_id=user.id).count())
     if ut in ("1", "2"):
         try:
@@ -23741,7 +23942,7 @@ def supervisor_user_profile(user_id):
             b("Address", sp.address)
             b("Location", ", ".join(x for x in (sp.city, sp.state, sp.country) if x))
             st = section("Activity")
-            st("Coupons redeemed", MentorCoupon.query.filter(MentorCoupon.seller_id == user.id, MentorCoupon.used_at.isnot(None)).count())
+            st("Coupons redeemed", CouponRedemption.query.filter(CouponRedemption.seller_id == user.id, CouponRedemption.voided_at.is_(None)).count())
             st("People referred", SellerReferral.query.filter_by(seller_id=user.id).count())
             lk = section("Links")
             add_link(lk, "Website", sp.website)
@@ -23817,54 +24018,211 @@ def _compute_coupon_discount(label, goods_total):
     return None
 
 
+def _flat_value_from_label(label):
+    """(amount, currency) for a fixed-amount label ('5€ off', '£10 flat'); (None, None)
+    for percentage or free-text labels, which have no balance to carry over."""
+    if not label or "%" in label or "free" in label.lower():
+        return None, None
+    value = _compute_coupon_discount(label, _decimal.Decimal("9999999999.99"))
+    if value is None or value <= 0:
+        return None, None
+    return value, _currency_code_from_label(label)
+
+
+# ---------------------------------------------------------------------------
+# Partial redemption: redeem part of a fixed-amount coupon, keep the rest
+# ---------------------------------------------------------------------------
+REDEMPTION_DUPLICATE_WINDOW_SECONDS = 20
+
+
+def _fmt_money(value, currency):
+    sym = LEDGER_CURRENCIES.get((currency or "EUR").upper(), f"{currency} ")
+    return f"{sym}{_money(value):.2f}"
+
+
+def _apply_coupon_redemption(coupon, seller_profile, shop, redeemer, goods, currency, requested_amount=None):
+    """Record one redemption of `coupon`. Shared by the web page and the mobile API.
+
+    Returns (redemption, error_message, http_status); on success error/status are
+    None and the CALLER COMMITS. For a balance-tracked coupon this draws
+    min(balance, bill) - or `requested_amount` if the partner chose a smaller figure -
+    from the balance and leaves the coupon active until the balance reaches zero. Any
+    other coupon is single-use exactly as before.
+
+    The balance is decremented with one guarded UPDATE (`... WHERE remaining_balance >=
+    :amount`), so two partners scanning the same coupon at once cannot spend the same
+    money twice: the loser sees rowcount 0 and is told to refresh.
+    """
+    now = datetime.utcnow()
+    currency = (currency or "EUR").upper()
+
+    # A never-redeemed fixed-amount coupon issued before this feature becomes
+    # balance-tracked on first use.
+    if coupon.status == "active" and coupon.init_balance():
+        db.session.flush()
+
+    if not coupon.has_balance:
+        discount = _compute_coupon_discount(coupon.discount_label, goods)
+        red = CouponRedemption(
+            coupon_id=coupon.id, seller_id=seller_profile.user_id, redeemed_by_user_id=redeemer.id,
+            used_shop_id=shop.id if shop else None, created_at=now,
+            goods_total=goods, goods_currency=currency, discount_amount=discount)
+        db.session.add(red)
+        coupon.refunded = False
+        coupon.discount_amount = discount
+        fully_used = True
+    else:
+        remaining = coupon.remaining_balance if coupon.remaining_balance is not None else _decimal.Decimal("0.00")
+        bal_cur = (coupon.balance_currency or "EUR").upper()
+        if remaining <= 0:
+            return None, "This coupon has no balance left.", 409
+        if currency != bal_cur:
+            return None, (f"This coupon's balance is in {bal_cur}. "
+                          f"Please enter the bill in {bal_cur}."), 400
+        if requested_amount is None:
+            amount = min(remaining, goods)
+        else:
+            amount = requested_amount
+            if amount <= 0:
+                return None, "The amount to redeem must be more than 0.", 400
+            if amount > goods:
+                return None, "You cannot redeem more than the bill total.", 400
+            if amount > remaining:
+                return None, f"Only {_fmt_money(remaining, bal_cur)} is left on this coupon.", 409
+
+        dup = CouponRedemption.query.filter(
+            CouponRedemption.coupon_id == coupon.id,
+            CouponRedemption.seller_id == seller_profile.user_id,
+            CouponRedemption.voided_at.is_(None),
+            CouponRedemption.amount_applied == amount,
+            CouponRedemption.created_at >= now - timedelta(seconds=REDEMPTION_DUPLICATE_WINDOW_SECONDS),
+        ).first()
+        if dup is not None:
+            return None, ("This exact redemption was just recorded. If you really need to redeem "
+                          f"{_fmt_money(amount, bal_cur)} again, wait a few seconds."), 409
+
+        tbl = MentorCoupon.__table__
+        res = db.session.execute(
+            tbl.update()
+            .where(and_(tbl.c.id == coupon.id, tbl.c.status == "active", tbl.c.remaining_balance >= amount))
+            .values(remaining_balance=tbl.c.remaining_balance - amount))
+        if res.rowcount != 1:
+            db.session.rollback()
+            return None, "This coupon's balance just changed. Please reload the page and try again.", 409
+        db.session.refresh(coupon)            # authoritative post-update balance
+        after = coupon.remaining_balance
+        fully_used = after <= 0
+        red = CouponRedemption(
+            coupon_id=coupon.id, seller_id=seller_profile.user_id, redeemed_by_user_id=redeemer.id,
+            used_shop_id=shop.id if shop else None, created_at=now,
+            goods_total=goods, goods_currency=currency,
+            amount_applied=amount, balance_before=remaining, balance_after=after, discount_amount=amount)
+        db.session.add(red)
+        coupon.discount_amount = amount
+
+    coupon.goods_total = goods
+    coupon.goods_currency = currency
+    coupon.status = "used" if fully_used else "active"
+    coupon.used_at = now
+    coupon.seller_id = seller_profile.user_id
+    coupon.redeemed_by_user_id = redeemer.id
+    coupon.used_by = seller_profile.display_name
+    coupon.used_shop_id = shop.id if shop else None
+    coupon.verification_count = (coupon.verification_count or 0) + 1
+    return red, None, None
+
+
+def _reset_coupon_usage(coupon):
+    """Admin 'Reset usage': undo every redemption and restore the full balance.
+
+    Returns an error string (nothing changed) or None. A redemption WES has already
+    refunded to the partner cannot silently disappear, so the refund must be undone
+    in the ledger first. Redemption rows are voided, not deleted, to keep the trail.
+    """
+    live = CouponRedemption.query.filter_by(coupon_id=coupon.id, voided_at=None).all()
+    if any(r.refunded for r in live):
+        return ("Part of this coupon has already been refunded to a partner. "
+                "Undo that refund in the Coupon Ledger before resetting usage.")
+    now = datetime.utcnow()
+    for r in live:
+        r.voided_at = now
+    if coupon.has_balance:
+        coupon.remaining_balance = coupon.face_value
+    coupon.status = "active"
+    coupon.used_at = None
+    coupon.used_by = None
+    coupon.seller_id = None
+    coupon.redeemed_by_user_id = None
+    coupon.used_shop_id = None
+    return None
+
+
 def _ledger_filters(args, seller_id=None):
     """Parse the ledger query-string into (filters dict, SQLAlchemy query).
 
-    seller_id scopes the sheet to one partner (the partner's own ledger page)."""
+    The ledger is one row per REDEMPTION (a balance coupon used three times is three
+    rows). seller_id scopes the sheet to one partner (the partner's own ledger page)."""
     f = {
         "from": (args.get("from") or "").strip(), "to": (args.get("to") or "").strip(),
         "partner": (args.get("partner") or "").strip(), "status": (args.get("status") or "all").strip(),
         "hide_recovered": args.get("hide_recovered") in ("1", "true", "on", "yes"),
         "q": (args.get("q") or "").strip().lower(), "currency": (args.get("currency") or "").strip().upper(),
     }
-    q = MentorCoupon.query.filter(MentorCoupon.status == "used", MentorCoupon.used_at.isnot(None))
+    R = CouponRedemption
+    q = R.query.filter(R.voided_at.is_(None))
     if seller_id is not None:
-        q = q.filter(MentorCoupon.seller_id == seller_id)
+        q = q.filter(R.seller_id == seller_id)
     try:
         if f["from"]:
-            q = q.filter(MentorCoupon.used_at >= datetime.strptime(f["from"], "%Y-%m-%d"))
+            q = q.filter(R.created_at >= datetime.strptime(f["from"], "%Y-%m-%d"))
         if f["to"]:
-            q = q.filter(MentorCoupon.used_at < datetime.strptime(f["to"], "%Y-%m-%d") + timedelta(days=1))
+            q = q.filter(R.created_at < datetime.strptime(f["to"], "%Y-%m-%d") + timedelta(days=1))
     except ValueError:
         pass
     if f["partner"].isdigit():
-        q = q.filter(MentorCoupon.seller_id == int(f["partner"]))
+        q = q.filter(R.seller_id == int(f["partner"]))
     if f["currency"]:
-        q = q.filter(MentorCoupon.goods_currency == f["currency"])
+        q = q.filter(R.goods_currency == f["currency"])
     if f["status"] == "refunded":
-        q = q.filter(MentorCoupon.refunded.is_(True))
+        q = q.filter(R.refunded.is_(True))
     elif f["status"] == "pending":
-        q = q.filter(MentorCoupon.refunded.is_(False))
+        q = q.filter(R.refunded.is_(False))
     if f["hide_recovered"]:
-        q = q.filter(MentorCoupon.refunded.is_(False))
-    return f, q.order_by(MentorCoupon.used_at.desc())
+        q = q.filter(R.refunded.is_(False))
+    return f, q.options(joinedload(R.coupon)).order_by(R.created_at.desc(), R.id.desc())
 
 
 def _ledger_rows(args, seller_id=None):
     f, q = _ledger_filters(args, seller_id)
+    names = {}
+
+    def _name(uid):
+        if not uid:
+            return ""
+        if uid not in names:
+            u = db.session.get(User, uid)
+            names[uid] = u.name if u else ""
+        return names[uid]
+
     rows = []
-    for c in q.all():
-        red = c.redeemed_by
+    for r in q.all():
+        c = r.coupon
+        red = r.redeemed_by
         row = {
-            "id": c.id, "code": c.code, "title": c.title, "discount_label": c.discount_label or "",
-            "used_at": c.used_at, "partner_id": c.seller_id, "partner": c.seller_display_name,
-            "shop": c.used_shop_name, "redeemer": red.name if red else "", "redeemer_email": red.email if red else "",
-            "goods_total": c.goods_total, "currency": c.goods_currency or "EUR",
-            "discount_amount": c.discount_amount, "refunded": bool(c.refunded),
-            "refunded_at": c.refunded_at, "refunded_by": (db.session.get(User, c.refunded_by).name if c.refunded_by and db.session.get(User, c.refunded_by) else ""),
-            "recovered": c.recovered_amount if c.refunded else None, "note": c.refund_note or "",
-            "manual": bool(c.discount_manual), "edited_at": c.ledger_edited_at, "edit_role": c.ledger_edit_role or "",
-            "edited_by": (db.session.get(User, c.ledger_edited_by).name if c.ledger_edited_by and db.session.get(User, c.ledger_edited_by) else ""),
+            # `id` is the REDEMPTION id: the refund / bill / ledger endpoints act on it.
+            "id": r.id, "coupon_id": r.coupon_id,
+            "code": c.code, "title": c.title, "discount_label": c.discount_label or "",
+            "used_at": r.created_at, "partner_id": r.seller_id, "partner": r.seller_display_name,
+            "shop": r.shop_name, "redeemer": red.name if red else "", "redeemer_email": red.email if red else "",
+            "goods_total": r.goods_total, "currency": r.goods_currency or "EUR",
+            "discount_amount": r.discount_amount, "refunded": bool(r.refunded),
+            "refunded_at": r.refunded_at, "refunded_by": _name(r.refunded_by),
+            "recovered": r.recovered_amount if r.refunded else None, "note": r.refund_note or "",
+            "manual": bool(r.discount_manual), "edited_at": r.ledger_edited_at, "edit_role": r.ledger_edit_role or "",
+            "edited_by": _name(r.ledger_edited_by),
+            # Partial-redemption detail (None for single-use coupons).
+            "amount_applied": r.amount_applied, "balance_after": r.balance_after,
+            "face_value": c.face_value, "partial": r.amount_applied is not None,
         }
         if f["q"]:
             hay = " ".join(str(row[k] or "") for k in ("code", "title", "partner", "shop", "redeemer", "redeemer_email", "discount_label")).lower()
@@ -23907,44 +24265,116 @@ def partner_ledger():
     )
 
 
-@app.route("/partner/coupons/<int:coupon_id>/bill", methods=["POST"])
-def partner_coupon_bill(coupon_id):
-    """Partner enters / corrects the total bill for a coupon redeemed at their shop.
+def _redemption_value_for_bill(r, goods):
+    """Coupon value owed for a (corrected) bill. A balance redemption is worth exactly
+    what was drawn from the balance, whatever the bill; a single-use one is recalculated
+    from the coupon's discount label."""
+    if r.amount_applied is not None:
+        return r.amount_applied
+    return _compute_coupon_discount(r.coupon.discount_label, goods)
 
-    Locked once the admin has marked the coupon as refunded. The coupon value is
-    recalculated from the discount label unless the admin set it by hand."""
+
+def _apply_ledger_edit(r, data, actor_id, role):
+    """Edit a redemption's bill / value. role is 'partner' or 'admin'.
+
+    Returns (error_payload_or_None, http_status). Partners may only correct the bill,
+    and only until the redemption is refunded; admins may also set the value by hand.
+    The amount drawn from a coupon balance is never changed here."""
+    cur = (data.get("goods_currency") or "").strip().upper()
+    set_cur = cur in LEDGER_CURRENCIES and r.amount_applied is None   # a balance coupon currency is fixed
+    if role == "partner":
+        if r.refunded:
+            return {"locked": True,
+                    "message": "This coupon has already been refunded, so the bill can no longer be changed. "
+                               "Please contact the admin if it needs correcting."}, 409
+        g = _money(data.get("goods_total"))
+        if g is None or g <= 0:
+            return {"message": "Enter the total bill amount (more than 0)."}, 400
+        if r.amount_applied is not None and g < r.amount_applied:
+            return {"message": f"The bill cannot be lower than the {_fmt_money(r.amount_applied, r.goods_currency)} "
+                               "already taken from the coupon."}, 400
+        r.goods_total = g
+        if set_cur:
+            r.goods_currency = cur
+        if not r.discount_manual:
+            calc = _redemption_value_for_bill(r, g)
+            if calc is not None:
+                r.discount_amount = calc
+    else:
+        if "goods_total" in data:
+            g = _money(data.get("goods_total"))
+            if g is None or g < 0:
+                return {"message": "Enter a valid goods total."}, 400
+            r.goods_total = g
+            if "discount_amount" not in data and not r.discount_manual:
+                calc = _redemption_value_for_bill(r, g)
+                if calc is not None:
+                    r.discount_amount = calc
+        if "discount_amount" in data:
+            d = _money(data.get("discount_amount"))
+            if d is None or d < 0:
+                return {"message": "Enter a valid coupon value."}, 400
+            r.discount_amount = d
+            r.discount_manual = True
+        if set_cur:
+            r.goods_currency = cur
+        if r.refunded and r.discount_amount is not None:
+            r.recovered_amount = r.discount_amount          # keep the recovered figure in step
+        note = (data.get("note") or "").strip()[:300]
+        if note:
+            r.refund_note = note
+    r.ledger_edited_by = actor_id
+    r.ledger_edited_at = datetime.utcnow()
+    r.ledger_edit_role = role
+    return None, 200
+
+
+def _set_redemption_refund(r, refunded, actor_id, raw_amount=None, note=None):
+    """Mark one redemption as refunded to the partner, or undo it. Returns (error, status)."""
+    if refunded:
+        amount = _money(raw_amount) if raw_amount not in (None, "") else r.discount_amount
+        if amount is None:
+            return "Set the coupon value first, then mark it refunded.", 400
+        r.refunded = True
+        r.refunded_at = datetime.utcnow()
+        r.refunded_by = actor_id
+        r.recovered_amount = amount
+    else:
+        r.refunded = False
+        r.refunded_at = None
+        r.refunded_by = None
+        r.recovered_amount = None
+    r.refund_note = (note or "").strip()[:300] or None
+    return None, 200
+
+
+# NOTE: ledger ids are REDEMPTION ids. The legacy /coupons/<id>/... URLs stay as aliases
+# so older bookmarks and the shipped mobile app keep working - they only ever echo back
+# the `id` the ledger gave them.
+@app.route("/partner/redemptions/<int:redemption_id>/bill", methods=["POST"])
+@app.route("/partner/coupons/<int:redemption_id>/bill", methods=["POST"])
+def partner_coupon_bill(redemption_id):
+    """Partner enters / corrects the total bill for one redemption at their shop.
+
+    Locked once the admin has marked it as refunded. The coupon value is recalculated
+    from the discount label unless the admin set it by hand."""
     seller = _seller_or_none()
     if not seller:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
-    c = db.session.get(MentorCoupon, coupon_id)
-    if not c or c.status != "used" or c.seller_id != seller.id:
+    r = db.session.get(CouponRedemption, redemption_id)
+    if not r or r.voided_at is not None or r.seller_id != seller.id:
         return jsonify({"success": False, "message": "Coupon not found"}), 404
-    if c.refunded:
-        return jsonify({"success": False, "locked": True,
-                        "message": "This coupon has already been refunded, so the bill can no longer be changed. "
-                                   "Please contact the admin if it needs correcting."}), 409
     data = request.get_json(silent=True) or request.form or {}
-    g = _money(data.get("goods_total"))
-    if g is None or g <= 0:
-        return jsonify({"success": False, "message": "Enter the total bill amount (more than 0)."}), 400
-    cur = (data.get("goods_currency") or "").strip().upper()
-    c.goods_total = g
-    if cur in LEDGER_CURRENCIES:
-        c.goods_currency = cur
-    if not c.discount_manual:
-        calc = _compute_coupon_discount(c.discount_label, g)
-        if calc is not None:
-            c.discount_amount = calc
-    c.ledger_edited_by = seller.id
-    c.ledger_edited_at = datetime.utcnow()
-    c.ledger_edit_role = "partner"
+    err, status = _apply_ledger_edit(r, data, seller.id, "partner")
+    if err:
+        return jsonify({"success": False, **err}), status
     try:
         db.session.commit()
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "message": str(e)}), 500
-    return jsonify({"success": True, "goods_total": str(c.goods_total),
-                    "discount_amount": str(c.discount_amount) if c.discount_amount is not None else None})
+    return jsonify({"success": True, "goods_total": str(r.goods_total),
+                    "discount_amount": str(r.discount_amount) if r.discount_amount is not None else None})
 
 
 @app.route("/supervisor/coupon_ledger")
@@ -23976,7 +24406,8 @@ def supervisor_coupon_ledger_export():
     f, rows = _ledger_rows(request.args)
     wb = Workbook(); ws = wb.active; ws.title = "Coupon ledger"
     head = ["Coupon", "Offer", "Discount", "Redeemed on", "Partner", "Shop", "Redeemed by", "Redeemer email", "Currency",
-            "Goods total", "Coupon value owed", "Refunded to partner", "Refunded on", "Recovered from WES", "Note"]
+            "Goods total", "Coupon value owed", "Refunded to partner", "Refunded on", "Recovered from WES", "Note",
+            "Amount taken from coupon", "Balance left after use"]
     for ci, h in enumerate(head, 1):
         c = ws.cell(row=1, column=ci, value=h); c.font = Font(bold=True, color="FFFFFF"); c.fill = PatternFill("solid", fgColor="1E40AF")
     for ri, r in enumerate(rows, 2):
@@ -23985,7 +24416,9 @@ def supervisor_coupon_ledger_export():
                 float(r["goods_total"]) if r["goods_total"] is not None else None,
                 float(r["discount_amount"]) if r["discount_amount"] is not None else None,
                 "Yes" if r["refunded"] else "No", r["refunded_at"].strftime("%Y-%m-%d") if r["refunded_at"] else "",
-                float(r["recovered"]) if r["recovered"] is not None else None, r["note"]]
+                float(r["recovered"]) if r["recovered"] is not None else None, r["note"],
+                float(r["amount_applied"]) if r["amount_applied"] is not None else None,
+                float(r["balance_after"]) if r["balance_after"] is not None else None]
         for ci, v in enumerate(vals, 1):
             ws.cell(row=ri, column=ci, value=v)
     base = len(rows) + 3
@@ -24003,90 +24436,59 @@ def supervisor_coupon_ledger_export():
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
-@app.route("/supervisor/coupons/<int:coupon_id>/ledger", methods=["POST"])
-def supervisor_coupon_ledger_update(coupon_id):
+@app.route("/supervisor/redemptions/<int:redemption_id>/ledger", methods=["POST"])
+@app.route("/supervisor/coupons/<int:redemption_id>/ledger", methods=["POST"])
+def supervisor_coupon_ledger_update(redemption_id):
     """Admin edits the bill total / coupon value. Allowed at any time, including after the
-    coupon was refunded, but the admin must confirm the warning; every edit is recorded."""
+    redemption was refunded, but the admin must confirm the warning; every edit is recorded."""
     supervisor = _supervisor_or_none()
     if not supervisor:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
-    c = db.session.get(MentorCoupon, coupon_id)
-    if not c or c.status != "used":
+    r = db.session.get(CouponRedemption, redemption_id)
+    if not r or r.voided_at is not None:
         return jsonify({"success": False, "message": "Coupon not found or not redeemed"}), 404
     data = request.get_json(silent=True) or request.form or {}
     if str(data.get("confirm")).lower() not in ("1", "true", "yes", "on"):
         return jsonify({"success": False, "needs_confirm": True,
                         "message": "Please confirm that you want to change this financial record."}), 409
 
-    old = (c.goods_total, c.discount_amount)
-    if "goods_total" in data:
-        g = _money(data.get("goods_total"))
-        if g is None or g < 0:
-            return jsonify({"success": False, "message": "Enter a valid goods total."}), 400
-        c.goods_total = g
-        if "discount_amount" not in data and not c.discount_manual:
-            calc = _compute_coupon_discount(c.discount_label, g)
-            if calc is not None:
-                c.discount_amount = calc
-    if "discount_amount" in data:
-        d = _money(data.get("discount_amount"))
-        if d is None or d < 0:
-            return jsonify({"success": False, "message": "Enter a valid coupon value."}), 400
-        c.discount_amount = d
-        c.discount_manual = True
-    cur = (data.get("goods_currency") or "").strip().upper()
-    if cur in LEDGER_CURRENCIES:
-        c.goods_currency = cur
-    if c.refunded and c.discount_amount is not None:
-        c.recovered_amount = c.discount_amount          # keep the recovered figure in step
-    c.ledger_edited_by = supervisor.id
-    c.ledger_edited_at = datetime.utcnow()
-    c.ledger_edit_role = "admin"
-    note = (data.get("note") or "").strip()[:300]
-    if note:
-        c.refund_note = note
+    old = (r.goods_total, r.discount_amount)
+    err, status = _apply_ledger_edit(r, data, supervisor.id, "admin")
+    if err:
+        db.session.rollback()
+        return jsonify({"success": False, **err}), status
     try:
         db.session.commit()
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "message": str(e)}), 500
-    app.logger.info(f"LEDGER_EDIT admin_id={supervisor.id} coupon_id={c.id} refunded={c.refunded} "
-                    f"goods {old[0]}->{c.goods_total} value {old[1]}->{c.discount_amount}")
-    return jsonify({"success": True, "discount_amount": str(c.discount_amount) if c.discount_amount is not None else None,
-                    "goods_total": str(c.goods_total) if c.goods_total is not None else None, "refunded": bool(c.refunded)})
+    app.logger.info(f"LEDGER_EDIT admin_id={supervisor.id} redemption_id={r.id} coupon_id={r.coupon_id} "
+                    f"refunded={r.refunded} goods {old[0]}->{r.goods_total} value {old[1]}->{r.discount_amount}")
+    return jsonify({"success": True, "discount_amount": str(r.discount_amount) if r.discount_amount is not None else None,
+                    "goods_total": str(r.goods_total) if r.goods_total is not None else None, "refunded": bool(r.refunded)})
 
 
-@app.route("/supervisor/coupons/<int:coupon_id>/refund", methods=["POST"])
-def supervisor_coupon_refund(coupon_id):
-    """Admin marks a redeemed coupon as refunded to the partner (or undoes it)."""
+@app.route("/supervisor/redemptions/<int:redemption_id>/refund", methods=["POST"])
+@app.route("/supervisor/coupons/<int:redemption_id>/refund", methods=["POST"])
+def supervisor_coupon_refund(redemption_id):
+    """Admin marks one redemption as refunded to the partner (or undoes it)."""
     supervisor = _supervisor_or_none()
     if not supervisor:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
-    c = db.session.get(MentorCoupon, coupon_id)
-    if not c or c.status != "used":
+    r = db.session.get(CouponRedemption, redemption_id)
+    if not r or r.voided_at is not None:
         return jsonify({"success": False, "message": "Coupon not found or not redeemed"}), 404
     data = request.get_json(silent=True) or request.form or {}
     refunded = str(data.get("refunded")).lower() in ("1", "true", "yes", "on")
-    if refunded:
-        amount = _money(data.get("recovered_amount")) if data.get("recovered_amount") not in (None, "") else c.discount_amount
-        if amount is None:
-            return jsonify({"success": False, "message": "Set the coupon value first, then mark it refunded."}), 400
-        c.refunded = True
-        c.refunded_at = datetime.utcnow()
-        c.refunded_by = supervisor.id
-        c.recovered_amount = amount
-    else:
-        c.refunded = False
-        c.refunded_at = None
-        c.refunded_by = None
-        c.recovered_amount = None
-    c.refund_note = (data.get("note") or "").strip()[:300] or None
+    err, status = _set_redemption_refund(r, refunded, supervisor.id, data.get("recovered_amount"), data.get("note"))
+    if err:
+        return jsonify({"success": False, "message": err}), status
     try:
         db.session.commit()
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "message": str(e)}), 500
-    return jsonify({"success": True, "refunded": c.refunded})
+    return jsonify({"success": True, "refunded": r.refunded})
 
 
 @app.route("/supervisor/partners")
@@ -24106,8 +24508,8 @@ def supervisor_partners():
         ref_by_seller.setdefault(r.seller_id, []).append(r)
 
     redeemed_counts = {}
-    for sid, cnt in (db.session.query(MentorCoupon.seller_id, func.count(MentorCoupon.id))
-                     .filter(MentorCoupon.used_at.isnot(None)).group_by(MentorCoupon.seller_id).all()):
+    for sid, cnt in (db.session.query(CouponRedemption.seller_id, func.count(CouponRedemption.id))
+                     .filter(CouponRedemption.voided_at.is_(None)).group_by(CouponRedemption.seller_id).all()):
         redeemed_counts[sid] = cnt
     reserved_counts = {}
     for pid, cnt in (db.session.query(MentorCoupon.partner_user_id, func.count(MentorCoupon.id))
@@ -24215,12 +24617,25 @@ def supervisor_coupon_create():
     if expiry_err:
         return jsonify({"success": False, "message": expiry_err}), 400
 
+    # Optional explicit coupon value. Blank = derive it from a flat discount label
+    # ("5€ off"); percent / free-text coupons have no balance and stay single-use.
+    face_value = None
+    raw_face = str(data.get("face_value") or "").strip()
+    if raw_face:
+        face_value = _money(raw_face)
+        if face_value is None or face_value <= 0:
+            return jsonify({"success": False, "message": "The coupon value must be a number above 0."}), 400
+    face_currency = (data.get("face_currency") or "").strip().upper() or None
+    if face_currency and face_currency not in LEDGER_CURRENCIES:
+        return jsonify({"success": False, "message": f"Unsupported currency '{face_currency}'."}), 400
+
     # One key per holder per unit of quantity: every person gets their OWN unique
     # code, even when assigned in the same form submission.
     try:
         created = _mint_coupons(
             supervisor.id, holders, title, (data.get("description") or "").strip(),
-            (data.get("discount_label") or "").strip(), quantity, expires_at, partner_user_id)
+            (data.get("discount_label") or "").strip(), quantity, expires_at, partner_user_id,
+            face_value, face_currency)
         db.session.commit()
     except Exception as e:
         db.session.rollback()
@@ -24264,11 +24679,9 @@ def supervisor_coupon_status(coupon_id):
                             "message": "A used coupon cannot be reinstated. Use 'Reset usage' first."}), 400
         coupon.status = "active"
     elif action == "reset":
-        coupon.status = "active"
-        coupon.used_at = None
-        coupon.used_by = None
-        coupon.seller_id = None
-        coupon.redeemed_by_user_id = None
+        reset_err = _reset_coupon_usage(coupon)
+        if reset_err:
+            return jsonify({"success": False, "message": reset_err}), 409
     elif action == "expire":
         coupon.status = "expired"
     else:
@@ -24442,9 +24855,12 @@ def _read_coupon_fields(data, current=None):
 
 
 def _mint_coupons(issuer_id, holders, title, description, discount_label, quantity,
-                  expires_at, partner_user_id):
+                  expires_at, partner_user_id, face_value=None, face_currency=None):
     """Create `quantity` coupons FOR EACH holder, every one with its own unique key.
-    With no holders it mints `quantity` unassigned coupons. Caller commits."""
+    With no holders it mints `quantity` unassigned coupons. Caller commits.
+
+    A fixed-amount coupon ('5€ off', or an explicit face_value) is minted balance-tracked
+    so it can be redeemed in instalments; percent / free-text coupons stay single-use."""
     created = []
     for holder in (holders or [None]):
         for _ in range(quantity):
@@ -24459,6 +24875,7 @@ def _mint_coupons(issuer_id, holders, title, description, discount_label, quanti
                 status="active",
                 expires_at=expires_at,
             )
+            coupon.init_balance(face_value, face_currency)
             db.session.add(coupon)
             db.session.flush()
             if holder is not None:
@@ -24701,11 +25118,9 @@ def mentor_coupon_status(coupon_id):
                             "message": "A used coupon cannot be reinstated."}), 400
         coupon.status = "active"
     elif action == "reset":
-        coupon.status = "active"
-        coupon.used_at = None
-        coupon.used_by = None
-        coupon.seller_id = None
-        coupon.redeemed_by_user_id = None
+        reset_err = _reset_coupon_usage(coupon)
+        if reset_err:
+            return jsonify({"success": False, "message": reset_err}), 409
     else:
         return jsonify({"success": False, "message": "Unknown action."}), 400
 
@@ -24768,6 +25183,15 @@ def coupon_verify(code):
             verified_sellers=[], coupon_candidates=[],
         ), 404
 
+    # A never-redeemed fixed-amount coupon issued before partial redemption existed
+    # (e.g. "5€ off") starts tracking its balance the first time anyone looks at it.
+    if coupon.status == "active" and not coupon.is_expired and coupon.init_balance():
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            coupon = MentorCoupon.query.filter_by(code=code).first()
+
     # Only a signed-in partner may redeem. Everyone else just sees the details.
     me_seller = _seller_or_none()
     viewer_role = "seller" if me_seller else ("other" if "email" in session else "guest")
@@ -24779,7 +25203,9 @@ def coupon_verify(code):
     verified_sellers = [my_profile] if can_redeem else []
     coupon_candidates = coupon.assignees
     shop_map = _sellers_shop_map(verified_sellers)
-    verify_ctx = dict(default_currency=_currency_code_from_label(coupon.discount_label) or "EUR",
+    verify_ctx = dict(default_currency=(coupon.balance_currency if coupon.has_balance else None)
+                      or _currency_code_from_label(coupon.discount_label) or "EUR",
+                      symbols=LEDGER_CURRENCIES,
                       can_redeem=can_redeem, viewer_role=viewer_role,
                       reserved_for_other=reserved_for_other, my_profile=my_profile)
 
@@ -24801,7 +25227,8 @@ def coupon_verify(code):
             return render_template(
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
                 code=code, show_result=False,
-                message="This coupon has already been used.",
+                message=("This coupon has no balance left." if coupon.has_balance
+                         else "This coupon has already been used."),
                 verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map, **verify_ctx,
             ), 409
         if coupon.status == "revoked":
@@ -24855,30 +25282,36 @@ def coupon_verify(code):
 
         # Total value of the goods bought: the partner enters it, and the coupon's
         # value (what WES owes the partner) is calculated from it.
-        goods = _money(payload.get("goods_total"))
-        if goods is None or goods <= 0:
+        def _verify_error(msg, status):
             return render_template(
                 "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
-                code=code, show_result=False,
-                message="Please enter the total amount of goods purchased.",
-                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map, **verify_ctx,
-            ), 400
+                code=code, show_result=False, message=msg,
+                verified_sellers=verified_sellers, coupon_candidates=coupon_candidates,
+                shop_map=shop_map, **verify_ctx,
+            ), status
+
+        goods = _money(payload.get("goods_total"))
+        if goods is None or goods <= 0:
+            return _verify_error("Please enter the total amount of goods purchased.", 400)
         currency = (payload.get("goods_currency") or _currency_code_from_label(coupon.discount_label) or "EUR").strip().upper()
         if currency not in LEDGER_CURRENCIES:
             currency = "EUR"
-        coupon.goods_total = goods
-        coupon.goods_currency = currency
-        coupon.discount_amount = _compute_coupon_discount(coupon.discount_label, goods)
-        coupon.refunded = False
 
-        coupon.status = "used"
-        coupon.used_at = datetime.utcnow()
-        coupon.seller_id = seller_profile.user_id
-        coupon.redeemed_by_user_id = redeemer.id
-        coupon.used_by = seller_profile.display_name
-        coupon.used_shop_id = shop.id if shop else None
-        coupon.verification_count = (coupon.verification_count or 0) + 1
+        # Optional: redeem less than the whole available value (balance coupons only).
+        requested = None
+        raw_amount = str(payload.get("redeem_amount") or "").strip()
+        if raw_amount:
+            requested = _money(raw_amount)
+            if requested is None or requested <= 0:
+                return _verify_error("The amount to redeem must be a number above 0.", 400)
+
         try:
+            redemption, err, err_status = _apply_coupon_redemption(
+                coupon, seller_profile, shop, redeemer, goods, currency, requested)
+            if err:
+                db.session.rollback()
+                coupon = MentorCoupon.query.filter_by(code=code).first()
+                return _verify_error(err, err_status)
             db.session.commit()
         except Exception as e:
             db.session.rollback()
@@ -24890,14 +25323,17 @@ def coupon_verify(code):
             ), 500
 
         app.logger.info(
-            f"Coupon {code} verified by {seller_profile.display_name} for {redeemer.name}"
+            f"Coupon {code} redeemed by {seller_profile.display_name} for {redeemer.name}: "
+            f"applied={redemption.amount_applied} remaining={redemption.balance_after}"
         )
-        _send_coupon_redemption_emails(coupon, redeemer, seller_profile)
+        _send_coupon_redemption_emails(coupon, redeemer, seller_profile, redemption)
 
         return render_template(
             "coupon_verify.html", coupon=coupon.to_dict(include_mentor=True),
             code=code, show_result=True,
-            message="Coupon verified and marked as used.",
+            message=("Coupon verified and marked as used." if coupon.status == "used"
+                     else "Partial redemption recorded. The rest of the balance stays on the coupon."),
+            redemption=redemption.to_dict(),
             verified_sellers=verified_sellers, coupon_candidates=coupon_candidates, shop_map=shop_map, **verify_ctx,
         )
 
@@ -24913,10 +25349,23 @@ def coupon_verify(code):
     )
 
 
-def _send_coupon_redemption_emails(coupon, redeemer, seller_profile):
+def _send_coupon_redemption_emails(coupon, redeemer, seller_profile, redemption=None):
     """Email BOTH the person who redeemed it and the shop, with every detail."""
     role = "Mentor" if str(redeemer.user_type) == "1" else "Mentee"
     when = coupon.used_at.strftime("%d %B %Y at %H:%M UTC") if coupon.used_at else "just now"
+
+    balance_rows = ()
+    footer = "This coupon is now used and cannot be redeemed again."
+    if redemption is not None and redemption.amount_applied is not None:
+        cur = coupon.balance_currency or redemption.goods_currency or "EUR"
+        balance_rows = (
+            ("Amount redeemed", _fmt_money(redemption.amount_applied, cur)),
+            ("Coupon value", _fmt_money(coupon.face_value, cur)),
+            ("Balance remaining", _fmt_money(redemption.balance_after, cur)),
+        )
+        if redemption.balance_after is not None and redemption.balance_after > 0:
+            footer = (f"{_fmt_money(redemption.balance_after, cur)} is still available on this coupon "
+                      "and can be used on a future purchase until it expires.")
 
     rows = "".join(
         f"<tr><td style='padding:4px 12px 4px 0;color:#64748b'>{label}</td>"
@@ -24925,6 +25374,7 @@ def _send_coupon_redemption_emails(coupon, redeemer, seller_profile):
             ("Coupon code", coupon.code),
             ("Offer", coupon.title or "-"),
             ("Discount", coupon.discount_label or "-"),
+            *balance_rows,
             ("Details", coupon.description or "-"),
             ("Redeemed by", f"{redeemer.name} ({role})"),
             ("Redeemer email", redeemer.email or "-"),
@@ -24946,7 +25396,7 @@ def _send_coupon_redemption_emails(coupon, redeemer, seller_profile):
         {rows}
       </table>
       <p style="color:#64748b;font-size:12px">
-        This coupon is now used and cannot be redeemed again.
+        {footer}
       </p>
     </div>
     """

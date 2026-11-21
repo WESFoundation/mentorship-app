@@ -334,6 +334,9 @@
           </td>
           <td class="px-3 py-3">
             {% if c.discount_label %}<span class="rounded-full bg-blue-100 px-2.5 py-1 font-semibold text-blue-700">{{ c.discount_label }}</span>{% else %}-{% endif %}
+            {% if c.has_balance %}
+            <p class="mt-1.5 text-[11px] text-slate-600">Balance <strong class="text-slate-900">{{ c.balance_currency }} {{ '%.2f'|format(c.remaining_balance or 0) }}</strong> / {{ '%.2f'|format(c.face_value) }}</p>
+            {% endif %}
           </td>
           <td class="px-3 py-3">
             <span class="rounded-full px-2.5 py-1 font-semibold
@@ -384,7 +387,8 @@
                       class="px-3 py-1.5 font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700">Revoke</button>
               <button type="button" onclick="couponAction({{ c.id }}, 'reinstate')"
                       class="px-3 py-1.5 font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Reinstate</button>
-              {% else %}
+              {% endif %}
+              {% if c.status == 'used' or (c.has_balance and (c.remaining_balance or 0) < c.face_value) %}
               <button type="button" onclick="couponAction({{ c.id }}, 'reset')"
                       class="px-3 py-1.5 font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700">Reset usage</button>
               {% endif %}

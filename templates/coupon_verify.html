@@ -85,11 +85,20 @@
                     <p class="text-sm text-gray-600 mt-1">{{ message }}</p>
                     <p class="text-xs text-gray-500 mt-2">Expired on {{ coupon.expires_at }} UTC</p>
                     {% else %}
-                    <h2 class="text-lg font-bold text-blue-800">Valid coupon</h2>
+                    <h2 class="text-lg font-bold text-blue-800">
+                        {% if coupon.has_balance and coupon.partially_used %}Partly used &middot; balance available{% else %}Valid coupon{% endif %}
+                    </h2>
+                    {% if coupon.has_balance %}
+                    <p class="text-2xl font-extrabold text-blue-900 mt-1">{{ symbols.get(coupon.balance_currency, coupon.balance_currency + ' ') }}{{ coupon.remaining_balance }}
+                        <span class="text-sm font-medium text-blue-700">of {{ symbols.get(coupon.balance_currency, coupon.balance_currency + ' ') }}{{ coupon.face_value }} left</span></p>
+                    {% endif %}
                     {% if message %}
                     <p class="mt-2 rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700">{{ message }}</p>
                     {% else %}
-                    <p class="text-sm text-blue-700 mt-1">Fill in the purchase total and press the button below to redeem this coupon.</p>
+                    <p class="text-sm text-blue-700 mt-1">
+                        {% if coupon.has_balance %}Enter the purchase total. Only what is needed is taken from the coupon; the rest stays on it for next time.
+                        {% else %}Fill in the purchase total and press the button below to redeem this coupon.{% endif %}
+                    </p>
                     {% endif %}
                     {% endif %}
                 </div>
@@ -119,6 +128,21 @@
                             <dt class="text-gray-500">Discount</dt>
                             <dd class="font-semibold text-gray-900 text-right">{{ coupon.discount_label or 'As described' }}</dd>
                         </div>
+                        {% if coupon.has_balance %}
+                        {% set sym = symbols.get(coupon.balance_currency, coupon.balance_currency + ' ') %}
+                        <div class="flex items-center justify-between px-4 py-3">
+                            <dt class="text-gray-500">Coupon value</dt>
+                            <dd class="font-medium text-gray-800 text-right">{{ sym }}{{ coupon.face_value }}</dd>
+                        </div>
+                        <div class="flex items-center justify-between px-4 py-3">
+                            <dt class="text-gray-500">Already used</dt>
+                            <dd class="font-medium text-gray-800 text-right">{{ sym }}{{ coupon.used_amount }}</dd>
+                        </div>
+                        <div class="flex items-center justify-between px-4 py-3 bg-blue-50/60">
+                            <dt class="text-gray-700 font-semibold">Balance remaining</dt>
+                            <dd class="font-bold text-blue-800 text-right">{{ sym }}{{ coupon.remaining_balance }}</dd>
+                        </div>
+                        {% endif %}
                         <div class="flex items-center justify-between px-4 py-3">
                             <dt class="text-gray-500">Key</dt>
                             <dd class="mono text-xs text-gray-700 text-right">{{ coupon.code }}</dd>
@@ -166,22 +190,39 @@
                             <input type="number" id="goods_total" name="goods_total" min="0.01" step="0.01" required inputmode="decimal"
                                 placeholder="e.g. 48.50"
                                 class="flex-1 px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            <select name="goods_currency" aria-label="Currency"
+                            <select id="goods_currency" name="goods_currency" aria-label="Currency"
                                 class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                {% for code in ['EUR', 'USD', 'GBP', 'INR', 'CHF', 'AED', 'CAD', 'AUD', 'SGD'] %}
+                                {# A balance coupon is held in one currency, so the bill must be in it too. #}
+                                {% for code in (([coupon.balance_currency]) if coupon.has_balance else ['EUR', 'USD', 'GBP', 'INR', 'CHF', 'AED', 'CAD', 'AUD', 'SGD']) %}
                                 <option value="{{ code }}" {% if code == (default_currency or 'EUR') %}selected{% endif %}>{{ code }}</option>
                                 {% endfor %}
                             </select>
                         </div>
                         <p class="text-[11px] text-gray-500 -mt-1 mb-3">Used to calculate the coupon value that WES refunds to you.</p>
 
+                        {% if coupon.has_balance %}
+                        <label for="redeem_amount"
+                            class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">
+                            Amount to take from the coupon <span class="font-normal normal-case text-gray-400">(optional)</span>
+                        </label>
+                        <input type="number" id="redeem_amount" name="redeem_amount" min="0.01" step="0.01"
+                            max="{{ coupon.remaining_balance }}" inputmode="decimal"
+                            placeholder="Leave blank to use as much as the bill allows"
+                            class="w-full px-3.5 py-2.5 mb-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <p id="redeem-preview" class="text-xs rounded-lg bg-blue-50 border border-blue-100 text-blue-900 px-3 py-2 mb-3">
+                            Balance available: {{ symbols.get(coupon.balance_currency, coupon.balance_currency + ' ') }}{{ coupon.remaining_balance }}
+                        </p>
+                        {% endif %}
+
                         <button type="submit"
                             class="w-full py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-sm shadow-lg shadow-green-600/25 flex items-center justify-center gap-2 transition">
                             <i class="fas fa-check-circle"></i>
-                            Verify coupon &amp; mark as redeemed
+                            {% if coupon.has_balance %}Redeem from coupon balance{% else %}Verify coupon &amp; mark as redeemed{% endif %}
                         </button>
                         <p class="text-[11px] text-gray-500 mt-3 text-center leading-relaxed">
-                            This marks the key as used in the WES database. <strong>Apply the discount yourself</strong>
+                            {% if coupon.has_balance %}This takes the amount from the coupon balance in the WES database; any remainder stays on the coupon.
+                            {% else %}This marks the key as used in the WES database.{% endif %}
+                            <strong>Apply the discount yourself</strong>
                             after verification - this page does not charge anything. A confirmation email is sent
                             to the person who redeemed it and to your shop.
                         </p>
@@ -208,12 +249,23 @@
                     {% if show_result %}
                     <div class="mt-5 rounded-xl bg-blue-50 border border-blue-200 p-4 text-left">
                         <p class="text-xs font-semibold uppercase tracking-wider text-blue-700 mb-1">Next step for the partner</p>
+                        {% if redemption and redemption.amount_applied %}
+                        {% set sym = symbols.get(coupon.balance_currency, coupon.balance_currency + ' ') %}
+                        <p class="text-sm text-blue-900">
+                            Take <strong>{{ sym }}{{ redemption.amount_applied }}</strong> off the bill
+                            {% if coupon.redeemed_by_name %}for <strong>{{ coupon.redeemed_by_name }}</strong>{% endif %}
+                            at <strong>{{ coupon.seller_name or 'your shop' }}</strong>.
+                            {% if coupon.status == 'used' %}This coupon has no balance left.
+                            {% else %}<strong>{{ sym }}{{ coupon.remaining_balance }}</strong> is still on the coupon for a future purchase.{% endif %}
+                        </p>
+                        {% else %}
                         <p class="text-sm text-blue-900">
                             Apply <strong>{{ coupon.discount_label or 'the discount described above' }}</strong>
                             {% if coupon.redeemed_by_name %}for <strong>{{ coupon.redeemed_by_name }}</strong>{% endif %}
                             at <strong>{{ coupon.seller_name or 'your shop' }}</strong>.
                             This coupon cannot be used again.
                         </p>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
@@ -245,6 +297,28 @@
         }
     }
     document.addEventListener('DOMContentLoaded', onSellerChange);
+
+    // Balance coupons: preview how much will be taken and what stays on the coupon.
+    (function () {
+        var bill = document.getElementById('goods_total');
+        var amt = document.getElementById('redeem_amount');
+        var out = document.getElementById('redeem-preview');
+        if (!bill || !amt || !out) return;
+        var remaining = parseFloat(amt.max) || 0;
+        var cur = (document.getElementById('goods_currency') || {}).value || '';
+        function fmt(n) { return cur + ' ' + n.toFixed(2); }
+        function update() {
+            var b = parseFloat(bill.value), a = parseFloat(amt.value);
+            if (!(b > 0)) { out.textContent = 'Balance available: ' + fmt(remaining); return; }
+            var take = amt.value !== '' ? a : Math.min(remaining, b);
+            if (!(take > 0)) { out.textContent = 'Enter an amount above 0.'; return; }
+            if (take > remaining + 1e-9) { out.textContent = 'Only ' + fmt(remaining) + ' is left on this coupon.'; return; }
+            if (take > b + 1e-9) { out.textContent = 'You cannot take more than the bill total.'; return; }
+            out.textContent = 'Takes ' + fmt(take) + ' off the bill. ' + fmt(Math.max(remaining - take, 0)) + ' will stay on the coupon.';
+        }
+        bill.addEventListener('input', update);
+        amt.addEventListener('input', update);
+    })();
 </script>
 </body>
 

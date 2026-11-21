@@ -189,6 +189,13 @@
           <dt class="text-slate-500 w-32 shrink-0">Discount</dt>
           <dd class="text-slate-800">{{ e.discount_label or '-' }}</dd>
         </div>
+        {% if e.partial %}
+        <div class="flex gap-2">
+          <dt class="text-slate-500 w-32 shrink-0">Part redemption</dt>
+          <dd class="text-slate-800">{{ e.currency }} {{ '%.2f'|format(e.amount_applied) }} taken from the coupon
+            <span class="text-slate-500">&middot; {{ '%.2f'|format(e.balance_after) }} of {{ '%.2f'|format(e.face_value) }} left after this use</span></dd>
+        </div>
+        {% endif %}
         <div class="flex gap-2">
           <dt class="text-slate-500 w-32 shrink-0">Redeemed at</dt>
           <dd class="text-slate-800">{{ e.redeemed_at.strftime('%d %b %Y, %H:%M') if e.redeemed_at else '-' }} UTC</dd>
