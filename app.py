@@ -13728,6 +13728,48 @@ def ai_profile_from_linkedin():
     return jsonify({"success": True, "fields": fields})
 
 
+import linkedin_provider as _li
+
+
+@app.route("/ai/profile_from_linkedin_url", methods=["POST"])
+def ai_profile_from_linkedin_url():
+    """Suggested profile values from a LinkedIn profile URL alone (no PDF).
+
+    The lookup returns personal data, so the user must confirm it is their own
+    profile; every lookup is logged. Nothing is saved: the page fills the empty form
+    boxes and the user reviews them before pressing Save."""
+    vtype = str(session.get("user_type", ""))
+    if "email" not in session or vtype not in ("1", "2"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or request.form or {}
+    if str(data.get("own_profile")).lower() not in ("1", "true", "yes", "on"):
+        return jsonify({"success": False,
+                        "message": "Please confirm this is your own LinkedIn profile."}), 400
+    if not _li.is_configured():
+        return jsonify({"success": False,
+                        "message": "Filling from a LinkedIn link isn't set up on this server yet. "
+                                   "Please upload your LinkedIn PDF or fill the form by hand."}), 503
+    try:
+        url = _li.normalize_url(data.get("url"))
+    except _li.LinkedInError as e:
+        return jsonify({"success": False, "message": str(e)}), e.status
+    if _ai_rate_limited(session["email"]):
+        return jsonify({"success": False, "message": "Too many lookups. Please try again later."}), 429
+    app.logger.info(f"LINKEDIN_LOOKUP user={session['email']} url={url}")
+    try:
+        profile = _li.fetch_profile(url)
+    except _li.LinkedInError as e:
+        return jsonify({"success": False, "message": str(e)}), e.status
+    except Exception as e:
+        app.logger.error(f"ai_profile_from_linkedin_url failed: {e}")
+        return jsonify({"success": False, "message": "Could not look up that profile."}), 500
+    fields = _li.map_to_fields(profile, "mentor" if vtype == "1" else "mentee")
+    if not fields:
+        return jsonify({"success": False, "message": "No usable details were found for that profile."}), 422
+    fields["linkedin_link"] = url
+    return jsonify({"success": True, "fields": fields})
+
+
 _VOICE_FORMS_BY_TYPE = {
     "2": {"mentee_reflection"},
     "1": {"mentor_reflection", "mentor_rating"},
@@ -18312,6 +18354,74 @@ def view_mentee_profile(mentee_id):
         support_expected=profile.support_expected if profile else "",
         mentorship_expectations=profile.mentorship_expectations if profile else ""
     )
+
+# Columns never exported: internal ids, secrets and uploaded-file paths.
+_PROFILE_EXPORT_SKIP = {"id", "user_id", "parent_consent_token", "profile_picture", "criminal_certificate",
+                        "auto_request_id"}
+
+
+def _profile_export_rows(user):
+    """[(section, [(label, value)])] for one mentor/mentee, built from the profile columns."""
+    role = {"1": "Mentor", "2": "Mentee"}.get(str(user.user_type), "User")
+    sections = [("Account", [("Name", user.name), ("Email", user.email), ("Role", role),
+                             ("Institution", user.institution)])]
+    profile = (MentorProfile if str(user.user_type) == "1" else MenteeProfile).query.filter_by(user_id=user.id).first()
+    if profile is not None:
+        rows = []
+        for col in profile.__table__.columns:
+            if col.name in _PROFILE_EXPORT_SKIP:
+                continue
+            val = getattr(profile, col.name, None)
+            if val is None or str(val).strip() == "":
+                continue
+            rows.append((col.name.replace("_", " ").strip().capitalize(), val))
+        sections.append((f"{role} profile", rows))
+    return sections
+
+
+@app.route("/institution/download_profile/<int:user_id>")
+def institution_download_profile(user_id):
+    """An institution account downloads (as Excel) the profile of one of its own mentors or mentees."""
+    if "email" not in session or str(session.get("user_type")) != "3":
+        return redirect(url_for("signin"))
+    inst_user = User.query.filter_by(email=session["email"]).first()
+    target = db.session.get(User, user_id)
+    if not inst_user or not target or str(target.user_type) not in ("1", "2"):
+        return jsonify({"success": False, "message": "Profile not found"}), 404
+    mentors, mentees = _get_institution_members(inst_user, include_paired=True)
+    if target.id not in {u.id for u in mentors} | {u.id for u in mentees}:
+        return jsonify({"success": False, "message": "Profile not found"}), 404
+
+    import io
+    from flask import send_file
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Profile"
+    row = 1
+    for title, items in _profile_export_rows(target):
+        c = ws.cell(row=row, column=1, value=title)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="1E40AF")
+        ws.cell(row=row, column=2).fill = PatternFill("solid", fgColor="1E40AF")
+        row += 1
+        for label, val in items:
+            ws.cell(row=row, column=1, value=label).font = Font(bold=True)
+            cell = ws.cell(row=row, column=2, value=str(val))
+            cell.alignment = Alignment(wrap_text=True, vertical="top")
+            row += 1
+        row += 1
+    ws.column_dimensions["A"].width = 30
+    ws.column_dimensions["B"].width = 80
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "_", target.name or "profile").strip("_") or "profile"
+    app.logger.info(f"PROFILE_DOWNLOAD institution={inst_user.id} target={target.id}")
+    return send_file(buf, as_attachment=True, download_name=f"{safe}_profile.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 # API endpoint to fetch mentor/mentee profile data for modals
 @app.route("/api/profile/<string:user_type>/<int:user_id>")

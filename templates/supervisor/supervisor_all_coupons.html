@@ -114,6 +114,7 @@
           <div class="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2.5 text-sm">
             <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Label preview</span>
             <p id="dm-preview" class="font-semibold text-slate-900 mt-0.5">-</p>
+            <p id="dm-hint" class="text-xs mt-1.5 text-slate-500"></p>
           </div>
         </div>
         <div class="px-6 py-4 bg-slate-50 flex justify-end gap-2">
@@ -513,6 +514,17 @@ document.addEventListener('click', function (e) {
   }
   function updateDiscountPreview() {
     document.getElementById('dm-preview').textContent = buildDiscountLabel() || '-';
+    var custom = document.getElementById('dm-custom').value.trim();
+    var pct = document.getElementById('dm-percent').value;
+    var amt = document.getElementById('dm-amount').value.trim();
+    var hint = document.getElementById('dm-hint');
+    if (!custom && !pct && parseFloat(amt) > 0) {
+      hint.textContent = 'Amount only: a balance coupon. It can be used in parts and any unused value carries over until it expires.';
+      hint.className = 'text-xs mt-1.5 text-blue-700 font-medium';
+    } else if (custom || pct) {
+      hint.textContent = 'Percentage or custom text: a single-use coupon.';
+      hint.className = 'text-xs mt-1.5 text-slate-500';
+    } else { hint.textContent = ''; }
   }
   function openDiscountModal() {
     document.getElementById('discount-modal').classList.remove('hidden');

@@ -20,7 +20,7 @@ import sys
 import tempfile
 
 APP_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-LOCAL_DB = os.path.join(APP_ROOT, "instance", "mentors_connect.db")
+LOCAL_DB = os.environ.get("WES_TEST_SOURCE_DB") or os.path.join(APP_ROOT, "instance", "mentors_connect.db")
 
 
 def _is_safe_url(url):
