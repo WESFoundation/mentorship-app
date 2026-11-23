@@ -534,8 +534,10 @@ def send_app_email(to_email, subject, html_content, text_content=None, is_otp=Fa
         _email_diag.error = f"Microsoft Graph error: {e}"
 
     # 2. Exchange Online calendar-invite fallback (works with Calendars permission when Mail.Send is not granted).
-    #    Used for OTPs and for every other email (reminders, notifications) so delivery never depends on Mail.Send.
-    if True:
+    #    CRITICAL: ONLY used for OTP verification code delivery when Mail.Send is not granted.
+    #    MUST NEVER be used for meeting notifications, reminders, or general emails,
+    #    as creating an event at `now` produces phantom duplicate calendar meetings.
+    if is_otp and otp_code:
         try:
             token = get_ms_graph_token()
             if token and MS_GRAPH_ORGANIZER_EMAIL:
@@ -19247,33 +19249,55 @@ def get_ms_graph_token():
         app.logger.error(f"MS Graph token request failed: {e}")
     return None
 
-def create_teams_calendar_event(title, start_utc, end_utc, attendee_emails, description=None):
+def create_teams_calendar_event(title, start_utc, end_utc, attendee_emails, description=None, timezone=None):
     """Create a calendar event with online MS Teams meeting via Microsoft Graph API.
     Returns (join_url, event_id) tuple, or (None, None) on failure."""
     token = get_ms_graph_token()
     if not token:
         return None, None
     try:
-        # Support string ISO dates defensively
-        if isinstance(start_utc, str):
-            try:
-                start_utc = dt.datetime.fromisoformat(start_utc.replace("Z", "+00:00"))
-            except Exception:
-                pass
-        if isinstance(end_utc, str):
-            try:
-                end_utc = dt.datetime.fromisoformat(end_utc.replace("Z", "+00:00"))
-            except Exception:
-                pass
+        from zoneinfo import ZoneInfo
+        tz_default = "Europe/Luxembourg"
+        target_tz_str = timezone or tz_default
+
+        def _to_utc(val):
+            if val is None:
+                return dt.datetime.now(dt.timezone.utc)
+            if isinstance(val, str):
+                val_str = val.strip()
+                if "+" in val_str or val_str.endswith("Z"):
+                    return dt.datetime.fromisoformat(val_str.replace("Z", "+00:00")).astimezone(dt.timezone.utc)
+                else:
+                    parsed = dt.datetime.fromisoformat(val_str)
+                    try:
+                        tz = ZoneInfo(target_tz_str)
+                    except Exception:
+                        tz = dt.timezone.utc
+                    return parsed.replace(tzinfo=tz).astimezone(dt.timezone.utc)
+            elif isinstance(val, dt.datetime):
+                if val.tzinfo is not None:
+                    return val.astimezone(dt.timezone.utc)
+                else:
+                    try:
+                        tz = ZoneInfo(target_tz_str)
+                    except Exception:
+                        tz = dt.timezone.utc
+                    return val.replace(tzinfo=tz).astimezone(dt.timezone.utc)
+            return val
+
+        start_dt_utc = _to_utc(start_utc)
+        end_dt_utc = _to_utc(end_utc)
 
         url = f"https://graph.microsoft.com/v1.0/users/{MS_GRAPH_ORGANIZER_EMAIL}/events"
         attendees = []
         for email in attendee_emails:
             if email and isinstance(email, str) and email.strip():
-                attendees.append({
-                    "emailAddress": {"address": email.strip()},
-                    "type": "required"
-                })
+                clean_em = email.strip()
+                if not any(a["emailAddress"]["address"].lower() == clean_em.lower() for a in attendees):
+                    attendees.append({
+                        "emailAddress": {"address": clean_em},
+                        "type": "required"
+                    })
 
         formatted_content = (description or title or "Mentorship Session").replace("\n", "<br>")
 
@@ -19284,11 +19308,11 @@ def create_teams_calendar_event(title, start_utc, end_utc, attendee_emails, desc
                 "content": formatted_content
             },
             "start": {
-                "dateTime": start_utc.strftime("%Y-%m-%dT%H:%M:%S"),
+                "dateTime": start_dt_utc.strftime("%Y-%m-%dT%H:%M:%S"),
                 "timeZone": "UTC"
             },
             "end": {
-                "dateTime": end_utc.strftime("%Y-%m-%dT%H:%M:%S"),
+                "dateTime": end_dt_utc.strftime("%Y-%m-%dT%H:%M:%S"),
                 "timeZone": "UTC"
             },
             "attendees": attendees,
@@ -19308,26 +19332,6 @@ def create_teams_calendar_event(title, start_utc, end_utc, attendee_emails, desc
             event_id = event_data.get("id")
             online_meeting = event_data.get("onlineMeeting") or {}
             join_url = online_meeting.get("joinUrl") or event_data.get("onlineMeetingUrl")
-            if join_url:
-                try:
-                    patch_url = f"https://graph.microsoft.com/v1.0/users/{MS_GRAPH_ORGANIZER_EMAIL}/events/{event_id}"
-                    teams_banner = f"<div style='margin-bottom:15px;padding:10px;background:#f3f2f1;border-left:4px solid #5B5FC7;'><b>Microsoft Teams Meeting</b><br><a href='{join_url}' style='font-size:16px;color:#5B5FC7;font-weight:bold;'>Click here to join Microsoft Teams meeting</a></div>"
-                    http_requests.patch(patch_url, json={
-                        "body": {
-                            "contentType": "HTML",
-                            "content": teams_banner + formatted_content
-                        },
-                        "location": {
-                            "displayName": "Microsoft Teams Meeting"
-                        },
-                        "isOnlineMeeting": True,
-                        "onlineMeetingProvider": "teamsForBusiness"
-                    }, headers={
-                        "Authorization": f"Bearer {token}",
-                        "Content-Type": "application/json"
-                    }, timeout=15)
-                except Exception as patch_err:
-                    app.logger.warning(f"Could not patch Teams banner to event: {patch_err}")
             return join_url, event_id
         app.logger.error(f"Teams meeting creation failed: {resp.status_code} {resp.text}")
     except Exception as e:
@@ -19826,7 +19830,8 @@ def create_meeting_ajax():
             start_utc=start_utc,
             end_utc=end_utc,
             attendee_emails=all_emails_teams,
-            description=formatted_desc
+            description=formatted_desc,
+            timezone=timezone
         )
         if teams_meet_link:
             meet_link = teams_meet_link
@@ -20121,16 +20126,28 @@ def supervisor_schedule_sgm_ajax():
         title = f"{SGM_TITLE_PREFIX} {mentor_names_str}"
     canonical_title = title if title.upper().startswith("SGM") else f"SGM: {title}"
 
+    mentor_names_str = ", ".join([m.name for m in mentors])
+    mentee_names_str = ", ".join([m.name for m in mentees])
+    full_description = f"Small Group Mentoring (SGM) session scheduled by {organizer_role_label} {organizer.name}.\nMentors ({len(mentors)}): {mentor_names_str}\nMentees ({len(mentees)}): {mentee_names_str}"
+    if description:
+        full_description += f"\n\nAgenda / Notes:\n{description}"
+    if pending_mentee_ids:
+        full_description += (
+            f"\n\nInvited but awaiting coordinator approval: {len(pending_mentee_ids)} "
+            f"institution mentee(s). They must request access and be approved before joining."
+        )
+
     if platform == "custom":
         meet_link = custom_link or f"https://meet.google.com/new"
     elif platform == "teams":
         try:
             teams_meet_link, teams_event_id = create_teams_calendar_event(
                 title=canonical_title,
-                start_utc=start_datetime.astimezone(dt.timezone.utc).isoformat() if hasattr(start_datetime, 'astimezone') else start_datetime.isoformat(),
-                end_utc=end_datetime.astimezone(dt.timezone.utc).isoformat() if hasattr(end_datetime, 'astimezone') else end_datetime.isoformat(),
+                start_utc=start_utc,
+                end_utc=end_utc,
                 attendee_emails=attendee_emails,
-                description=description or f"Small Group Mentoring session scheduled by {organizer_role_label} {organizer.name}"
+                description=full_description,
+                timezone=timezone
             )
             if teams_meet_link:
                 meet_link = teams_meet_link
@@ -20146,7 +20163,7 @@ def supervisor_schedule_sgm_ajax():
             if service:
                 event_body = {
                     "summary": canonical_title,
-                    "description": f"Small Group Mentoring session scheduled by {organizer_role_label} {organizer.name}.\nMentors: {mentor_names_str}\nMentees: {', '.join([m.name for m in mentees])}\n\n{description}",
+                    "description": full_description,
                     "start": {"dateTime": start_str, "timeZone": timezone},
                     "end": {"dateTime": end_str, "timeZone": timezone},
                     "attendees": [{"email": em} for em in attendee_emails if em],
@@ -20170,18 +20187,6 @@ def supervisor_schedule_sgm_ajax():
 
     if not meet_link:
         meet_link = f"https://meet.google.com/lookup/sgm-{int(time.time())}"
-
-    # Build description and embed participants metadata
-    mentor_names_str = ", ".join([m.name for m in mentors])
-    mentee_names_str = ", ".join([m.name for m in mentees])
-    full_description = f"Small Group Mentoring (SGM) session scheduled by {organizer_role_label} {organizer.name}.\nMentors ({len(mentors)}): {mentor_names_str}\nMentees ({len(mentees)}): {mentee_names_str}"
-    if description:
-        full_description += f"\n\nAgenda / Notes:\n{description}"
-    if pending_mentee_ids:
-        full_description += (
-            f"\n\nInvited but awaiting coordinator approval: {len(pending_mentee_ids)} "
-            f"institution mentee(s). They must request access and be approved before joining."
-        )
 
     sgm_task_title = f"{canonical_title}: Feedback & Learning Task"
     sgm_task_description = (

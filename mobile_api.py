@@ -2879,14 +2879,21 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
                                 ru = User.query.get(int(rmid))
                                 if ru and ru.email and ru.email not in t_attendees:
                                     t_attendees.append(ru.email)
-                    start_dt = datetime.combine(m_date, m_time)
+                    try:
+                        from zoneinfo import ZoneInfo
+                        tzobj = ZoneInfo(timezone_str)
+                    except Exception:
+                        from datetime import timezone as dt_tz
+                        tzobj = dt_tz.utc
+                    start_dt = datetime.combine(m_date, m_time).replace(tzinfo=tzobj)
                     end_dt = start_dt + timedelta(minutes=duration_val)
                     t_link, t_id = create_teams_calendar_event(
                         title=title,
-                        start_utc=start_dt.isoformat(),
-                        end_utc=end_dt.isoformat(),
+                        start_utc=start_dt,
+                        end_utc=end_dt,
                         attendee_emails=t_attendees,
-                        description=full_desc or title
+                        description=full_desc or title,
+                        timezone=timezone_str
                     )
                     if t_link:
                         meet_link = t_link
