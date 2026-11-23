@@ -2,18 +2,67 @@
      vf_id    unique id for this block
      vf_form  mentee_reflection | mentor_reflection | mentor_rating | institution_reflection
      vf_map   JSON object mapping each AI field to the id of the textarea it fills
-   The recording is sent to /ai/feedback_from_audio, transcribed, split into the form's
-   fields and placed in the boxes for the user to review and edit before saving. #}
-<div class="rounded-xl border border-violet-200 bg-violet-50/60 p-4" id="{{ vf_id }}" data-form="{{ vf_form }}" data-map='{{ vf_map }}'>
-    <div class="flex flex-wrap items-center gap-3">
-        <button type="button" data-role="rec"
-            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition">
-            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 12a3 3 0 003-3V5a3 3 0 10-6 0v4a3 3 0 003 3z"/><path d="M5 9a1 1 0 10-2 0 7 7 0 006 6.93V18H7a1 1 0 100 2h6a1 1 0 100-2h-2v-2.07A7 7 0 0017 9a1 1 0 10-2 0 5 5 0 01-10 0z"/></svg>
-            <span data-role="label">Record your feedback</span>
-        </button>
-        <span data-role="timer" class="text-sm font-mono text-slate-500"></span>
+   The recording is transcribed via cloud STT (Groq Whisper Turbo), shown to the user
+   in an editable transcript box, and enhanced with AI into structured form fields. #}
+<div class="rounded-xl border border-violet-200 bg-violet-50/60 p-4 transition-all" id="{{ vf_id }}" data-form="{{ vf_form }}" data-map='{{ vf_map }}'>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+            <button type="button" data-role="rec"
+                class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition shadow-sm">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 12a3 3 0 003-3V5a3 3 0 10-6 0v4a3 3 0 003 3z"/><path d="M5 9a1 1 0 10-2 0 7 7 0 006 6.93V18H7a1 1 0 100 2h6a1 1 0 100-2h-2v-2.07A7 7 0 0017 9a1 1 0 10-2 0 5 5 0 01-10 0z"/></svg>
+                <span data-role="label">Record your feedback</span>
+            </button>
+            <span data-role="timer" class="text-sm font-mono text-slate-500"></span>
+        </div>
+
+        <!-- Three dots more options menu -->
+        <div class="relative">
+            <button type="button" data-role="more-menu-btn" title="More options"
+                class="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-violet-100/70 transition">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                </svg>
+            </button>
+            <div data-role="more-menu-dropdown"
+                class="hidden absolute right-0 mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-lg z-20 py-1 text-xs">
+                <label data-role="upload-label" class="flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-violet-50 cursor-pointer transition">
+                    <svg class="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    <span>Upload audio file</span>
+                    <input type="file" data-role="file-input" accept="audio/*,video/webm" class="hidden">
+                </label>
+                <button type="button" data-role="download-btn" disabled
+                    class="w-full flex items-center gap-2 px-3 py-2 text-slate-400 hover:bg-violet-50 disabled:opacity-40 disabled:cursor-not-allowed transition text-left">
+                    <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    <span>Download recording</span>
+                </button>
+                <button type="button" data-role="retry-btn" disabled
+                    class="w-full flex items-center gap-2 px-3 py-2 text-slate-400 hover:bg-violet-50 disabled:opacity-40 disabled:cursor-not-allowed transition text-left border-t border-slate-100">
+                    <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <span>Retry transcription</span>
+                </button>
+            </div>
+        </div>
     </div>
-    <p class="text-xs text-slate-500 mt-2">Speak naturally &mdash; AI will transcribe your recording and fill in the boxes below. Please review before saving. The audio is not stored.</p>
+
+    <!-- Speech Transcription Preview Box (Editable) -->
+    <div data-role="transcript-box" class="mt-3 pt-3 border-t border-violet-200/80 hidden">
+        <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-semibold text-violet-900 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                Voice Transcription (Edit before AI fills fields):
+            </span>
+            <button type="button" data-role="enhance-btn"
+                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition shadow-sm">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span>Enhance with AI</span>
+            </button>
+        </div>
+        <textarea data-role="transcript-text" rows="3"
+            class="w-full text-xs font-mono p-2.5 rounded-lg border border-violet-300 bg-white text-slate-800 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 shadow-inner resize-y"
+            placeholder="Your spoken transcription will appear here. You can edit any details before processing..."></textarea>
+    </div>
+
+    <p class="text-xs text-slate-500 mt-2">Speak naturally &mdash; AI transcribes your audio, allows you to review/edit, then fills the form fields below.</p>
     <p data-role="status" class="text-sm mt-2 hidden"></p>
 </div>
 
@@ -26,18 +75,31 @@
     function setup(box) {
         if (box.dataset.ready) return;
         box.dataset.ready = '1';
+
         var btn = box.querySelector('[data-role=rec]');
         var label = box.querySelector('[data-role=label]');
         var timer = box.querySelector('[data-role=timer]');
         var status = box.querySelector('[data-role=status]');
+        var moreBtn = box.querySelector('[data-role=more-menu-btn]');
+        var dropdown = box.querySelector('[data-role=more-menu-dropdown]');
+        var fileInput = box.querySelector('[data-role=file-input]');
+        var downloadBtn = box.querySelector('[data-role=download-btn]');
+        var retryBtn = box.querySelector('[data-role=retry-btn]');
+        var transcriptBox = box.querySelector('[data-role=transcript-box]');
+        var transcriptText = box.querySelector('[data-role=transcript-text]');
+        var enhanceBtn = box.querySelector('[data-role=enhance-btn]');
+
         var map = {};
         try { map = JSON.parse(box.dataset.map || '{}'); } catch (e) {}
         var rec = null, chunks = [], stream = null, tick = null, started = 0;
+        var lastAudioBlob = null;
 
         function say(msg, cls) {
             status.textContent = msg;
             status.className = 'text-sm mt-2 ' + cls;
+            status.classList.remove('hidden');
         }
+
         function cleanup() {
             if (tick) clearInterval(tick);
             tick = null;
@@ -46,17 +108,112 @@
             stream = null;
         }
 
-        function send(blob) {
+        // Toggle dropdown menu
+        if (moreBtn && dropdown) {
+            moreBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                dropdown.classList.toggle('hidden');
+            });
+            document.addEventListener('click', function () {
+                dropdown.classList.add('hidden');
+            });
+        }
+
+        // Download last recorded audio
+        if (downloadBtn) {
+            downloadBtn.addEventListener('click', function () {
+                if (!lastAudioBlob) return;
+                var url = URL.createObjectURL(lastAudioBlob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = 'feedback_recording_' + Date.now() + '.webm';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(function () {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            });
+        }
+
+        // Upload custom audio file
+        if (fileInput) {
+            fileInput.addEventListener('change', function () {
+                var f = fileInput.files && fileInput.files[0];
+                if (!f) return;
+                lastAudioBlob = f;
+                if (downloadBtn) { downloadBtn.disabled = false; downloadBtn.classList.remove('text-slate-400'); downloadBtn.classList.add('text-slate-700'); }
+                if (retryBtn) { retryBtn.disabled = false; retryBtn.classList.remove('text-slate-400'); retryBtn.classList.add('text-slate-700'); }
+                sendAudioForTranscription(f);
+                fileInput.value = '';
+            });
+        }
+
+        // Retry transcription
+        if (retryBtn) {
+            retryBtn.addEventListener('click', function () {
+                if (lastAudioBlob) sendAudioForTranscription(lastAudioBlob);
+            });
+        }
+
+        // Step 1: Send audio to backend for transcription only (so user can review)
+        function sendAudioForTranscription(blob) {
             btn.disabled = true;
-            label.textContent = 'Processing…';
-            say('Transcribing and organising your feedback…', 'text-slate-500');
+            label.textContent = 'Transcribing…';
+            say('Transcribing your speech in cloud...', 'text-violet-600');
             var fd = new FormData();
             fd.append('form_type', box.dataset.form);
-            fd.append('audio', blob, 'recording');
+            fd.append('mode', 'transcribe_only');
+            fd.append('audio', blob, 'recording.webm');
+
             fetch('/ai/feedback_from_audio', { method: 'POST', body: fd, credentials: 'same-origin' })
                 .then(function (r) { return r.json(); })
                 .then(function (res) {
-                    if (!res.success) { say(res.message || 'Could not process the recording.', 'text-red-600'); return; }
+                    if (!res.success) {
+                        say(res.message || 'Could not transcribe recording.', 'text-red-600');
+                        return;
+                    }
+                    if (transcriptBox && transcriptText) {
+                        transcriptText.value = res.transcript || '';
+                        transcriptBox.classList.remove('hidden');
+                    }
+                    say('Transcription ready! Review or edit above, then click "Enhance with AI".', 'text-emerald-600');
+                })
+                .catch(function () {
+                    say('Upload failed. Check your connection and try again.', 'text-red-600');
+                })
+                .then(function () {
+                    btn.disabled = false;
+                    label.textContent = 'Record again';
+                });
+        }
+
+        // Step 2: Enhance edited transcript with AI and distribute to form fields
+        function processTranscriptWithAI() {
+            var rawText = (transcriptText ? transcriptText.value : '').trim();
+            if (!rawText) {
+                say('Please enter or record some feedback before enhancing.', 'text-amber-600');
+                return;
+            }
+
+            if (enhanceBtn) {
+                enhanceBtn.disabled = true;
+                enhanceBtn.innerHTML = '<span>Enhancing…</span>';
+            }
+            say('Processing feedback and organizing form fields with AI…', 'text-violet-600');
+
+            var fd = new FormData();
+            fd.append('form_type', box.dataset.form);
+            fd.append('transcript', rawText);
+            fd.append('mode', 'transcribe_and_structure');
+
+            fetch('/ai/feedback_from_audio', { method: 'POST', body: fd, credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    if (!res.success) {
+                        say(res.message || 'Could not structure feedback.', 'text-red-600');
+                        return;
+                    }
                     var filled = 0;
                     Object.keys(map).forEach(function (field) {
                         var el = document.getElementById(map[field]);
@@ -66,12 +223,33 @@
                         el.dispatchEvent(new Event('input', { bubbles: true }));
                         filled++;
                     });
-                    say(filled ? 'Done — ' + filled + ' field' + (filled > 1 ? 's' : '') + ' filled. Please review and edit before saving.'
-                               : 'We heard you, but nothing could be placed in the form. Try recording again.',
+
+                    // If rating slider or field is present and returned
+                    if (res.fields && res.fields.rating && map['rating']) {
+                        var rEl = document.getElementById(map['rating']);
+                        if (rEl) {
+                            rEl.value = res.fields.rating;
+                            rEl.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    }
+
+                    say(filled ? 'Done — ' + filled + ' field' + (filled > 1 ? 's' : '') + ' updated. Please review before saving.'
+                               : 'We processed the text, but could not fit it into fields. Check transcript and try again.',
                         filled ? 'text-emerald-600' : 'text-amber-600');
                 })
-                .catch(function () { say('Upload failed. Check your connection and try again.', 'text-red-600'); })
-                .then(function () { btn.disabled = false; label.textContent = 'Record again'; });
+                .catch(function () {
+                    say('Enhancement failed. Check connection and try again.', 'text-red-600');
+                })
+                .then(function () {
+                    if (enhanceBtn) {
+                        enhanceBtn.disabled = false;
+                        enhanceBtn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg><span>Enhance with AI</span>';
+                    }
+                });
+        }
+
+        if (enhanceBtn) {
+            enhanceBtn.addEventListener('click', processTranscriptWithAI);
         }
 
         function stop() { if (rec && rec.state !== 'inactive') rec.stop(); }
@@ -91,8 +269,15 @@
                     var type = rec.mimeType || 'audio/webm';
                     cleanup();
                     var blob = new Blob(chunks, { type: type });
-                    if (blob.size < 1000) { label.textContent = 'Record your feedback'; say('The recording was empty.', 'text-amber-600'); return; }
-                    send(blob);
+                    if (blob.size < 1000) {
+                        label.textContent = 'Record your feedback';
+                        say('The recording was empty.', 'text-amber-600');
+                        return;
+                    }
+                    lastAudioBlob = blob;
+                    if (downloadBtn) { downloadBtn.disabled = false; downloadBtn.classList.remove('text-slate-400'); downloadBtn.classList.add('text-slate-700'); }
+                    if (retryBtn) { retryBtn.disabled = false; retryBtn.classList.remove('text-slate-400'); retryBtn.classList.add('text-slate-700'); }
+                    sendAudioForTranscription(blob);
                 };
                 rec.start();
                 started = Date.now();
@@ -108,7 +293,7 @@
             }).catch(function () {
                 say('Microphone access was blocked. Allow it in your browser and try again.', 'text-red-600');
             });
-            // restore button colour once recording ends
+
             var restore = setInterval(function () {
                 if (!rec || rec.state === 'inactive') {
                     btn.classList.replace('bg-red-600', 'bg-violet-600');

@@ -5846,6 +5846,146 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         db.session.commit()
         return jsonify({"success": True, "message": "Coupon created", "coupon": coupon.to_dict() if hasattr(coupon, 'to_dict') else {"id": coupon.id, "code": code}})
 
+    # ==========================================
+    # CLOUD AUDIO QUEUE & AI ENHANCEMENT ROUTES
+    # ==========================================
+    @api_bp.route("/process_audio", methods=["POST"])
+    def api_process_audio():
+        import ai_feedback_service
+        audio_bytes = None
+        filename = "feedback.webm"
+        mimetype = "audio/webm"
+        transcript = ""
+        form_type = request.form.get("form_type") or "generic"
+        mode = request.form.get("mode") or "transcribe_and_structure"
+
+        if "audio" in request.files:
+            audio_file = request.files["audio"]
+            audio_bytes = audio_file.read()
+            filename = audio_file.filename or "recording.webm"
+            mimetype = audio_file.mimetype or "audio/webm"
+        elif request.is_json:
+            req_data = request.get_json(silent=True) or {}
+            transcript = req_data.get("transcript", "").strip()
+            form_type = req_data.get("form_type") or form_type
+            mode = req_data.get("mode") or mode
+
+        if not audio_bytes and not transcript:
+            return jsonify({"success": False, "error": "No audio or transcript provided"}), 400
+
+        task_id = ai_feedback_service.enqueue_task(
+            audio_bytes=audio_bytes,
+            filename=filename,
+            mimetype=mimetype,
+            transcript=transcript,
+            form_type=form_type,
+            mode=mode
+        )
+        return jsonify({
+            "success": True,
+            "task_id": task_id,
+            "status": "queued",
+            "queue_position": ai_feedback_service.task_queue.qsize()
+        })
+
+    @api_bp.route("/task_status/<task_id>", methods=["GET"])
+    def api_get_task_status(task_id):
+        import ai_feedback_service
+        result = ai_feedback_service.get_task_result(task_id)
+        if not result:
+            return jsonify({"success": False, "error": "Task not found"}), 404
+        return jsonify(result)
+
+    @api_bp.route("/enhance_transcript", methods=["POST"])
+    def api_enhance_transcript():
+        import ai_feedback_service
+        data = request.get_json(silent=True) or request.form or {}
+        transcript = (data.get("transcript") or "").strip()
+        form_type = (data.get("form_type") or "generic").strip()
+
+        if not transcript:
+            return jsonify({"success": False, "error": "Transcript cannot be empty"}), 400
+
+        task_id = ai_feedback_service.enqueue_task(
+            transcript=transcript,
+            form_type=form_type,
+            mode="transcribe_and_structure"
+        )
+        return jsonify({
+            "success": True,
+            "task_id": task_id,
+            "status": "queued"
+        })
+
+    @api_bp.route("/ai/health", methods=["GET"])
+    def api_ai_health():
+        import ai_feedback_service
+        return jsonify({
+            "success": True,
+            "configured": ai_feedback_service.is_ai_configured(),
+            "has_groq": bool(ai_feedback_service.get_groq_api_key()),
+            "queue_size": ai_feedback_service.task_queue.qsize(),
+            "stt_model": ai_feedback_service.GROQ_STT_MODEL,
+            "llm_model": ai_feedback_service.GROQ_LLM_MODEL
+        })
+
+    # ==========================================
+    # PARTICIPANT SEARCH FALLBACK (ZERO GATEKEEPING)
+    # ==========================================
+    @api_bp.route("/institution/search_participants", methods=["GET"])
+    def api_institution_search_participants():
+        query = (request.args.get("query") or request.args.get("q") or "").strip().lower()
+        role = (request.args.get("role") or "").strip().lower()
+
+        if not query:
+            return jsonify({"success": True, "participants": []})
+
+        user_type_filter = []
+        if role in ("mentor", "1"):
+            user_type_filter = ["1"]
+        elif role in ("mentee", "2"):
+            user_type_filter = ["2"]
+        else:
+            user_type_filter = ["1", "2"]
+
+        term = f"%{query}%"
+        users = User.query.filter(
+            User.user_type.in_(user_type_filter),
+            or_(
+                func.lower(User.name).ilike(term),
+                func.lower(User.email).ilike(term),
+                func.lower(User.institution).ilike(term)
+            )
+        ).limit(30).all()
+
+        results = []
+        for u in users:
+            inst_display = (u.institution or "").strip()
+            org_display = ""
+            if str(u.user_type) == "1" and MentorProfile:
+                mp = MentorProfile.query.filter_by(user_id=u.id).first()
+                if mp and mp.organisation:
+                    org_display = mp.organisation.strip()
+            elif str(u.user_type) == "2" and MenteeProfile:
+                mep = MenteeProfile.query.filter_by(user_id=u.id).first()
+                if mep:
+                    org_display = (mep.current_organization or mep.institution_name or "").strip()
+
+            display_org = org_display or inst_display or "External / Independent"
+
+            results.append({
+                "id": u.id,
+                "name": u.name or u.email.split("@")[0],
+                "email": u.email,
+                "user_type": u.user_type,
+                "role": "mentor" if str(u.user_type) == "1" else "mentee",
+                "organisation": display_org,
+                "institution": inst_display or display_org,
+                "is_fallback": True
+            })
+
+        return jsonify({"success": True, "participants": results})
+
     @api_bp.errorhandler(Exception)
     def handle_api_exception(e):
         logger.error(f"Unhandled API error: {e}", exc_info=True)

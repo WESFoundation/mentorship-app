@@ -2095,19 +2095,34 @@ async function loadMentorRating(taskId) {
         if (response.ok) {
             const result = await response.json();
             
-            if (result.success && result.rating) {
+            const rData = result.rating || (result.reflection ? {
+                rating: null,
+                feedback: result.reflection.text || result.reflection.extra || 'Mentor reflection submitted',
+                strengths: result.reflection.extra || '',
+                improvements: '',
+                rated_at: result.reflection.created_at || new Date().toISOString()
+            } : null);
+
+            if (result.success && rData) {
                 noRatingMsg.classList.add('hidden');
                 ratingDetails.classList.remove('hidden');
                 
-                // Display stars
+                // Display stars or reflection badge
                 const starsContainer = document.getElementById('display-stars');
                 if (starsContainer) {
                     starsContainer.innerHTML = '';
-                    for (let i = 1; i <= 5; i++) {
-                        const star = document.createElement('span');
-                        star.className = i <= result.rating.rating ? 'text-yellow-400' : 'text-gray-300';
-                        star.innerHTML = '★';
-                        starsContainer.appendChild(star);
+                    if (rData.rating && rData.rating > 0 && !rData.is_reflection_only) {
+                        for (let i = 1; i <= 5; i++) {
+                            const star = document.createElement('span');
+                            star.className = i <= rData.rating ? 'text-yellow-400' : 'text-gray-300';
+                            star.innerHTML = '★';
+                            starsContainer.appendChild(star);
+                        }
+                    } else {
+                        const badge = document.createElement('span');
+                        badge.className = 'px-2 py-0.5 text-xs font-semibold rounded bg-emerald-100 text-emerald-800';
+                        badge.textContent = 'Mentor Feedback Submitted';
+                        starsContainer.appendChild(badge);
                     }
                 }
                 
@@ -2117,11 +2132,14 @@ async function loadMentorRating(taskId) {
                 const displayStrengths = document.getElementById('display-strengths');
                 const displayImprovements = document.getElementById('display-improvements');
                 
-                if (ratingScore) ratingScore.textContent = `${result.rating.rating}/5`;
-                if (ratingDate && result.rating.rated_at) ratingDate.textContent = `Rated on ${new Date(result.rating.rated_at).toLocaleDateString()}`;
-                if (displayFeedback) displayFeedback.textContent = result.rating.feedback || 'No overall feedback provided';
-                if (displayStrengths) displayStrengths.textContent = result.rating.strengths || 'Not specified';
-                if (displayImprovements) displayImprovements.textContent = result.rating.improvements || 'Not specified';
+                if (ratingScore) ratingScore.textContent = (rData.rating && !rData.is_reflection_only) ? `${rData.rating}/5` : 'Reviewed';
+                if (ratingDate && rData.rated_at) {
+                    const parsedDate = new Date(rData.rated_at);
+                    ratingDate.textContent = isNaN(parsedDate) ? `Submitted ${rData.rated_at}` : `Reviewed on ${parsedDate.toLocaleDateString()}`;
+                }
+                if (displayFeedback) displayFeedback.textContent = rData.feedback || 'No overall feedback provided';
+                if (displayStrengths) displayStrengths.textContent = rData.strengths || 'Not specified';
+                if (displayImprovements) displayImprovements.textContent = rData.improvements || 'Not specified';
                 return;
             }
         }

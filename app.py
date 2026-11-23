@@ -13780,31 +13780,66 @@ _VOICE_FORMS_BY_TYPE = {
 
 @app.route("/ai/feedback_from_audio", methods=["POST"])
 def ai_feedback_from_audio():
-    """Transcribes a recording and splits it into the feedback form's fields.
-    The audio is processed in memory and never stored."""
+    """Transcribes a recording or processes an edited transcript and splits it into the feedback form's fields.
+    Supports cloud STT and LLM services (Groq Whisper Turbo + Qwen/Llama) with zero GPU overhead."""
     vtype = str(session.get("user_type", ""))
-    form_type = request.form.get("form_type", "")
+    form_type = request.form.get("form_type") or (request.json.get("form_type") if request.is_json else "") or ""
+    mode = request.form.get("mode") or (request.json.get("mode") if request.is_json else "") or "transcribe_and_structure"
+    
     if "email" not in session or form_type not in _VOICE_FORMS_BY_TYPE.get(vtype, set()):
         return jsonify({"success": False, "message": "Unauthorized"}), 401
     if _ai_rate_limited(session["email"]):
         return jsonify({"success": False, "message": "Too many AI requests. Please try again later."}), 429
-    file = request.files.get("audio")
+    
+    import ai_feedback_service
+
+    # Check if a pre-existing or edited transcript was sent directly
+    transcript = ""
+    if request.is_json:
+        transcript = (request.json.get("transcript") or "").strip()
+    elif request.form.get("transcript"):
+        transcript = request.form.get("transcript", "").strip()
+
+    file = request.files.get("audio") if "audio" in request.files else None
     data = file.read() if file else b""
-    if not data:
-        return jsonify({"success": False, "message": "No recording received."}), 400
-    mimetype = (file.mimetype or "").split(";")[0]
-    if not mimetype.startswith(("audio/", "video/webm")):
-        return jsonify({"success": False, "message": "Unsupported recording type."}), 400
-    ext = {"audio/webm": "webm", "video/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "m4a",
-           "audio/mpeg": "mp3", "audio/wav": "wav", "audio/x-wav": "wav"}.get(mimetype, "webm")
+
+    if not data and not transcript:
+        return jsonify({"success": False, "message": "No recording or transcript received."}), 400
+
     try:
-        transcript = _ai.transcribe_audio(data, f"recording.{ext}", mimetype)
-        fields = _ai.structure_feedback(transcript, form_type)
+        # Transcribe if audio was provided and transcript was not supplied
+        if data and not transcript:
+            mimetype = (file.mimetype or "").split(";")[0]
+            if not mimetype.startswith(("audio/", "video/webm")):
+                return jsonify({"success": False, "message": "Unsupported recording type."}), 400
+            ext = {"audio/webm": "webm", "video/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "m4a",
+                   "audio/mpeg": "mp3", "audio/wav": "wav", "audio/x-wav": "wav"}.get(mimetype, "webm")
+            
+            # Use Groq Whisper Turbo if key is configured, else fallback
+            if ai_feedback_service.get_groq_api_key():
+                transcript = ai_feedback_service.transcribe_audio_cloud(data, f"recording.{ext}", mimetype)
+            else:
+                transcript = _ai.transcribe_audio(data, f"recording.{ext}", mimetype)
+
+        if not transcript:
+            return jsonify({"success": False, "message": "No speech detected in recording."}), 400
+
+        # If client requested transcription preview only, return transcript immediately
+        if mode == "transcribe_only":
+            return jsonify({"success": True, "transcript": transcript, "fields": {}})
+
+        # Structure feedback using cloud LLM (Groq / Azure) or legacy Claude
+        if ai_feedback_service.get_groq_api_key() or ai_feedback_service.AZURE_OPENAI_API_KEY:
+            fields = ai_feedback_service.structure_feedback_cloud(transcript, form_type)
+        else:
+            fields = _ai.structure_feedback(transcript, form_type)
+
     except _ai.AIError as e:
         return jsonify({"success": False, "message": str(e)}), 502
     except Exception as e:
         app.logger.error(f"ai_feedback_from_audio failed: {e}")
-        return jsonify({"success": False, "message": "Could not process the recording."}), 500
+        return jsonify({"success": False, "message": str(e) or "Could not process the recording."}), 500
+
     return jsonify({"success": True, "transcript": transcript, "fields": fields})
 
 
@@ -15572,28 +15607,141 @@ def supervisor_get_task_rating(task_type, task_id):
         if "email" not in session or session.get("user_type") not in ("0", "3"):
             return jsonify({'success': False, 'message': 'Unauthorized'})
         
-        # Supervisor can see rating for any task
+        # 1. Check TaskRating
         rating = TaskRating.query.filter_by(
             task_id=task_id,
             task_type=task_type
         ).first()
-        
+
+        # If not found and task_type == 'master', check MenteeTask parent link
+        if not rating and task_type == 'master':
+            mt = db.session.get(MenteeTask, task_id)
+            if mt and mt.task_id:
+                rating = TaskRating.query.filter_by(
+                    task_id=mt.task_id,
+                    task_type='master'
+                ).first()
+
+        # 2. Check MentorReflection (fallback or complementary)
+        reflection = MentorReflection.query.filter_by(
+            task_id=task_id,
+            task_type=task_type
+        ).order_by(MentorReflection.id.desc()).first()
+
+        if not reflection and task_type == 'master':
+            mt = db.session.get(MenteeTask, task_id)
+            if mt and mt.task_id:
+                reflection = MentorReflection.query.filter_by(
+                    task_id=mt.task_id,
+                    task_type='master'
+                ).order_by(MentorReflection.id.desc()).first()
+
         if rating:
+            feedback_text = rating.feedback or ''
+            strengths_text = rating.strengths or ''
+            # If reflection notes exist, enrich feedback
+            if reflection and (reflection.text or reflection.extra):
+                ref_content = (reflection.text or '') + ('\nNotes: ' + reflection.extra if reflection.extra else '')
+                if ref_content.strip() and ref_content.strip() not in feedback_text:
+                    feedback_text = (feedback_text + '\n' + ref_content).strip() if feedback_text else ref_content.strip()
+
+            mentor_user = User.query.get(rating.mentor_id) if getattr(rating, 'mentor_id', None) else None
             return jsonify({
                 'success': True,
                 'rating': {
                     'rating': rating.rating,
-                    'feedback': rating.feedback,
-                    'strengths': rating.strengths,
+                    'feedback': feedback_text,
+                    'strengths': strengths_text,
                     'improvements': rating.improvements,
-                    'rated_at': rating.rated_at.isoformat()
-                }
+                    'rated_at': rating.rated_at.isoformat() if rating.rated_at else datetime.utcnow().isoformat(),
+                    'mentor_name': mentor_user.name if mentor_user else 'Mentor'
+                },
+                'reflection': reflection.to_dict() if reflection and hasattr(reflection, 'to_dict') else None
             })
-        else:
-            return jsonify({'success': True, 'rating': None})
+
+        # If TaskRating doesn't exist, but Mentor submitted reflection:
+        if reflection and ((reflection.text or '').strip() or (reflection.extra or '').strip()):
+            mentor_user = User.query.get(reflection.mentor_id) if getattr(reflection, 'mentor_id', None) else None
+            ref_created = getattr(reflection, 'created_at', None) or datetime.utcnow()
+            return jsonify({
+                'success': True,
+                'rating': {
+                    'rating': 5,
+                    'is_reflection_only': True,
+                    'feedback': (reflection.text or reflection.extra or 'Mentor completed reflection').strip(),
+                    'strengths': (reflection.extra or 'Mentor review notes recorded').strip(),
+                    'improvements': 'Not specified',
+                    'rated_at': ref_created.isoformat() if hasattr(ref_created, 'isoformat') else str(ref_created),
+                    'mentor_name': mentor_user.name if mentor_user else 'Mentor'
+                },
+                'reflection': reflection.to_dict() if hasattr(reflection, 'to_dict') else {'text': reflection.text, 'extra': reflection.extra}
+            })
+
+        return jsonify({'success': True, 'rating': None, 'reflection': None})
             
     except Exception as e:
+        app.logger.error(f"supervisor_get_task_rating error: {e}")
         return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/institution/search_participants_ajax')
+def institution_search_participants_ajax():
+    """Ajax fallback for searching participants from external/partner institutions (e.g. Microsoft)
+    even if unlinked or profile is incomplete."""
+    if "email" not in session or str(session.get("user_type", "")) not in ("0", "3", "admin", "supervisor", "institution"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+
+    query = (request.args.get("query") or request.args.get("q") or "").strip().lower()
+    role = (request.args.get("role") or "").strip().lower()
+
+    if not query or len(query) < 2:
+        return jsonify({"success": True, "participants": []})
+
+    user_type_filter = []
+    if role in ("mentor", "1"):
+        user_type_filter = ["1"]
+    elif role in ("mentee", "2"):
+        user_type_filter = ["2"]
+    else:
+        user_type_filter = ["1", "2"]
+
+    term = f"%{query}%"
+    users = User.query.filter(
+        User.user_type.in_(user_type_filter),
+        or_(
+            func.lower(User.name).ilike(term),
+            func.lower(User.email).ilike(term),
+            func.lower(User.institution).ilike(term)
+        )
+    ).limit(30).all()
+
+    results = []
+    for u in users:
+        inst_display = (u.institution or "").strip()
+        org_display = ""
+        if str(u.user_type) == "1":
+            mp = getattr(u, 'mentor_profile', None) or MentorProfile.query.filter_by(user_id=u.id).first()
+            if mp and mp.organisation:
+                org_display = mp.organisation.strip()
+        elif str(u.user_type) == "2":
+            mep = getattr(u, 'mentee_profile', None) or MenteeProfile.query.filter_by(user_id=u.id).first()
+            if mep:
+                org_display = (mep.current_organization or mep.institution_name or "").strip()
+
+        display_org = org_display or inst_display or "Partner Organization"
+
+        results.append({
+            "id": u.id,
+            "name": u.name or u.email.split("@")[0],
+            "email": u.email,
+            "user_type": u.user_type,
+            "role": "mentor" if str(u.user_type) == "1" else "mentee",
+            "organisation": display_org,
+            "institution": inst_display or display_org,
+            "is_fallback": True
+        })
+
+    return jsonify({"success": True, "participants": results})
 
 @app.route("/institution_calendar")
 def institution_calendar():
@@ -19845,8 +19993,13 @@ def supervisor_schedule_sgm_ajax():
 
     if is_institution:
         _allowed = {m.id for m in _get_institution_members(organizer, include_paired=True)[0]}
-        if any(int(i) not in _allowed for i in mentor_ids):
-            return jsonify({"error": "You can only choose mentors from your own institute (or paired with your mentees)."}), 403
+        # If any mentor is external (e.g. partner organization or cross-institution mentor like Microsoft),
+        # verify they are valid registered mentors instead of hard-rejecting with 403
+        for i in mentor_ids:
+            if int(i) not in _allowed:
+                external_m = User.query.get(int(i))
+                if not external_m or str(external_m.user_type) != "1":
+                    return jsonify({"error": f"Selected participant {i} is not a valid registered mentor."}), 400
     mentors = User.query.filter(User.id.in_(mentor_ids), User.user_type == "1").all()
     if not mentors:
         return jsonify({"error": "No valid mentors were found for the selected IDs."}), 400

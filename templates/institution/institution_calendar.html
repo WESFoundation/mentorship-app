@@ -3155,17 +3155,60 @@ function toggleSgmCustomLink(val) {
   }
 }
 
+let _sgmMentorSearchTimer = null;
 function filterSgmMentorsList(query) {
   const q = (query || '').toLowerCase().trim();
+  let visibleCount = 0;
   document.querySelectorAll('#schedule-sgm-modal .sgm-mentor-row').forEach(row => {
     const name = row.getAttribute('data-name') || '';
     const email = row.getAttribute('data-email') || '';
     if (!q || name.includes(q) || email.includes(q)) {
       row.style.display = 'flex';
+      visibleCount++;
     } else {
       row.style.display = 'none';
     }
   });
+
+  // Fallback search across entire directory if query has 2+ characters
+  if (q.length >= 2) {
+    if (_sgmMentorSearchTimer) clearTimeout(_sgmMentorSearchTimer);
+    _sgmMentorSearchTimer = setTimeout(async () => {
+      try {
+        const resp = await fetch(`/institution/search_participants_ajax?q=${encodeURIComponent(q)}&role=mentor`);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.success && Array.isArray(data.participants)) {
+            const checklist = document.getElementById('sgm-mentors-checklist');
+            if (checklist) {
+              data.participants.forEach(u => {
+                // Only append if not already in checklist
+                if (!checklist.querySelector(`.sgm-mentor-cb[value="${u.id}"]`)) {
+                  const label = document.createElement('label');
+                  label.className = 'sgm-mentor-row flex items-center justify-between p-2 rounded-lg hover:bg-white cursor-pointer transition text-xs border border-emerald-200 bg-emerald-50/40';
+                  label.setAttribute('data-name', (u.name || '').toLowerCase());
+                  label.setAttribute('data-email', (u.email || '').toLowerCase());
+                  label.innerHTML = `
+                    <div class="flex items-center gap-2.5">
+                      <input type="checkbox" value="${u.id}" data-mentor-name="${u.name}" onchange="updateSgmMentorsSelectedCount()" class="sgm-mentor-cb rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4">
+                      <div>
+                        <p class="font-semibold text-gray-800">${u.name} <span class="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-medium">Directory</span></p>
+                        <p class="text-[11px] text-gray-500">${u.email}</p>
+                      </div>
+                    </div>
+                    <span class="text-[10px] text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded">${u.organisation || u.institution || 'Partner'}</span>
+                  `;
+                  checklist.appendChild(label);
+                }
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('SGM mentor fallback search error:', err);
+      }
+    }, 300);
+  }
 }
 
 function toggleAllSgmMentors(check) {
@@ -3250,17 +3293,59 @@ function updateSgmInviteAllHint() {
   }
 }
 
+let _sgmMenteeSearchTimer = null;
 function filterSgmMenteesList(query) {
   const q = (query || '').toLowerCase().trim();
+  let visibleCount = 0;
   document.querySelectorAll('#schedule-sgm-modal .sgm-mentee-row').forEach(row => {
     const name = row.getAttribute('data-name') || '';
     const email = row.getAttribute('data-email') || '';
     if (!q || name.includes(q) || email.includes(q)) {
       row.style.display = 'flex';
+      visibleCount++;
     } else {
       row.style.display = 'none';
     }
   });
+
+  // Fallback search across entire directory if query has 2+ characters
+  if (q.length >= 2) {
+    if (_sgmMenteeSearchTimer) clearTimeout(_sgmMenteeSearchTimer);
+    _sgmMenteeSearchTimer = setTimeout(async () => {
+      try {
+        const resp = await fetch(`/institution/search_participants_ajax?q=${encodeURIComponent(q)}&role=mentee`);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.success && Array.isArray(data.participants)) {
+            const checklist = document.getElementById('sgm-mentees-checklist');
+            if (checklist) {
+              data.participants.forEach(u => {
+                if (!checklist.querySelector(`.sgm-mentee-cb[value="${u.id}"]`)) {
+                  const label = document.createElement('label');
+                  label.className = 'sgm-mentee-row flex items-center justify-between p-2 rounded-lg hover:bg-white cursor-pointer transition text-xs border border-emerald-200 bg-emerald-50/40';
+                  label.setAttribute('data-name', (u.name || '').toLowerCase());
+                  label.setAttribute('data-email', (u.email || '').toLowerCase());
+                  label.innerHTML = `
+                    <div class="flex items-center gap-2.5">
+                      <input type="checkbox" value="${u.id}" onchange="updateSgmSelectedCount()" class="sgm-mentee-cb rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4">
+                      <div>
+                        <p class="font-semibold text-gray-800">${u.name} <span class="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-medium">Directory</span></p>
+                        <p class="text-[11px] text-gray-500">${u.email}</p>
+                      </div>
+                    </div>
+                    <span class="text-[10px] text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded">${u.organisation || u.institution || 'Partner'}</span>
+                  `;
+                  checklist.appendChild(label);
+                }
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('SGM mentee fallback search error:', err);
+      }
+    }, 300);
+  }
 }
 
 function toggleAllSgmMentees(check) {
