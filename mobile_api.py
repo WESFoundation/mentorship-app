@@ -5927,10 +5927,13 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
     @api_bp.route("/ai/health", methods=["GET"])
     def api_ai_health():
         import ai_feedback_service
+        azure_key, azure_endpoint, azure_deployment = ai_feedback_service.get_azure_config()
         return jsonify({
             "success": True,
             "configured": ai_feedback_service.is_ai_configured(),
             "has_groq": bool(ai_feedback_service.get_groq_api_key()),
+            "has_azure": bool(azure_key and azure_endpoint),
+            "azure_deployment": azure_deployment if (azure_key and azure_endpoint) else None,
             "queue_size": ai_feedback_service.task_queue.qsize(),
             "stt_model": ai_feedback_service.GROQ_STT_MODEL,
             "llm_model": ai_feedback_service.GROQ_LLM_MODEL

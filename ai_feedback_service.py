@@ -23,15 +23,25 @@ logger = logging.getLogger(__name__)
 
 # Keys from environment (Coolify / .env)
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "").strip()
-AZURE_OPENAI_API_KEY = os.environ.get("AZURE_OPENAI_API_KEY", "").strip()
-AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip()
+AZURE_OPENAI_API_KEY = (
+    os.environ.get("AZURE_OPENAI_API_KEY", "").strip()
+    or os.environ.get("AZURE_AI_FOUNDRY_API_KEY", "").strip()
+)
+AZURE_OPENAI_ENDPOINT = (
+    os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip()
+    or os.environ.get("AZURE_AI_FOUNDRY_ENDPOINT", "").strip()
+)
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 TRANSCRIBE_API_KEY = os.environ.get("TRANSCRIBE_API_KEY", "").strip()
 
 # Default models
 GROQ_STT_MODEL = os.environ.get("GROQ_STT_MODEL", "whisper-large-v3-turbo")
 GROQ_LLM_MODEL = os.environ.get("GROQ_LLM_MODEL", "qwen/qwen3.8-27b")
-AZURE_OPENAI_DEPLOYMENT = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini")
+AZURE_OPENAI_DEPLOYMENT = (
+    os.environ.get("AZURE_OPENAI_DEPLOYMENT", "").strip()
+    or os.environ.get("AZURE_AI_FOUNDRY_MODEL", "").strip()
+    or "model-router"
+)
 
 # Task queue and thread-safe store
 task_queue = queue.Queue()
@@ -43,8 +53,30 @@ def get_groq_api_key():
     return os.environ.get("GROQ_API_KEY", "").strip() or GROQ_API_KEY
 
 
+def get_azure_config():
+    """Returns (api_key, endpoint, deployment) dynamically from environment."""
+    key = (
+        os.environ.get("AZURE_OPENAI_API_KEY", "").strip()
+        or os.environ.get("AZURE_AI_FOUNDRY_API_KEY", "").strip()
+        or AZURE_OPENAI_API_KEY
+    )
+    endpoint = (
+        os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip()
+        or os.environ.get("AZURE_AI_FOUNDRY_ENDPOINT", "").strip()
+        or AZURE_OPENAI_ENDPOINT
+    )
+    deployment = (
+        os.environ.get("AZURE_OPENAI_DEPLOYMENT", "").strip()
+        or os.environ.get("AZURE_AI_FOUNDRY_MODEL", "").strip()
+        or AZURE_OPENAI_DEPLOYMENT
+        or "model-router"
+    )
+    return key, endpoint, deployment
+
+
 def is_ai_configured():
-    return bool(get_groq_api_key() or AZURE_OPENAI_API_KEY or ANTHROPIC_API_KEY or TRANSCRIBE_API_KEY)
+    azure_key, azure_endpoint, _ = get_azure_config()
+    return bool(get_groq_api_key() or (azure_key and azure_endpoint) or ANTHROPIC_API_KEY or TRANSCRIBE_API_KEY)
 
 
 def transcribe_audio_cloud(audio_bytes: bytes, filename: str = "feedback.webm", mimetype: str = "audio/webm") -> str:
@@ -266,10 +298,21 @@ Extract and format into valid JSON with these keys:
         cleaned["_tokens"] = tokens
         return cleaned
 
-    # Fallback to Azure OpenAI if configured
-    if AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT:
-        url = f"{AZURE_OPENAI_ENDPOINT.rstrip('/')}/openai/deployments/{AZURE_OPENAI_DEPLOYMENT}/chat/completions?api-version=2024-02-15-preview"
+    # Fallback to Azure OpenAI / Microsoft Foundry if configured
+    azure_key, azure_endpoint, azure_deployment = get_azure_config()
+    if azure_key and azure_endpoint:
+        ep = azure_endpoint.rstrip("/")
+        if "/chat/completions" in ep:
+            url = ep
+        elif "/openai/v1" in ep:
+            url = f"{ep}/chat/completions"
+        elif "services.ai.azure.com" in ep:
+            url = f"{ep}/openai/v1/chat/completions"
+        else:
+            url = f"{ep}/openai/deployments/{azure_deployment}/chat/completions?api-version=2024-02-15-preview"
+
         payload = {
+            "model": azure_deployment,
             "messages": [
                 {"role": "system", "content": system_msg},
                 {"role": "user", "content": user_prompt}
@@ -282,8 +325,10 @@ Extract and format into valid JSON with these keys:
             url,
             data=json.dumps(payload).encode("utf-8"),
             headers={
-                "api-key": AZURE_OPENAI_API_KEY,
-                "Content-Type": "application/json"
+                "api-key": azure_key,
+                "Authorization": f"Bearer {azure_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "WES-Mentorship-CloudAudio/1.0"
             }
         )
         with urllib.request.urlopen(req, timeout=30) as resp:

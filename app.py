@@ -13831,7 +13831,7 @@ def ai_feedback_from_audio():
             return jsonify({"success": True, "transcript": transcript, "fields": {}})
 
         # Structure feedback using cloud LLM (Groq / Azure) or legacy Claude
-        if ai_feedback_service.get_groq_api_key() or ai_feedback_service.AZURE_OPENAI_API_KEY:
+        if ai_feedback_service.get_groq_api_key() or ai_feedback_service.get_azure_config()[0]:
             fields = ai_feedback_service.structure_feedback_cloud(transcript, form_type)
         else:
             fields = _ai.structure_feedback(transcript, form_type)
