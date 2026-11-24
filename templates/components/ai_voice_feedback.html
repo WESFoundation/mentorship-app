@@ -149,6 +149,66 @@
             });
         }
 
+        // Helper: Extract task title and description from active modal or page
+        function getTaskContext() {
+            var title = '', desc = '';
+            var container = box.closest('#institute-reflection-modal, #mentee-reflection-modal, #mentor-reflection-modal, #rating-modal, .modal, [id*="modal"], [id*="reflection"], form') || document;
+            
+            var titleEl = container.querySelector('#modal-inst-task-title, #modal-task-title, #task-modal-title, #task-title, .task-title, [data-task-title]');
+            var descEl = container.querySelector('#task-modal-description, #modal-task-desc, #task-description, .task-description, [data-task-description]');
+            
+            if (!titleEl) titleEl = document.querySelector('#modal-inst-task-title, #task-modal-title, #taskDetailsTitle');
+            if (!descEl) descEl = document.querySelector('#task-modal-description, #taskDetailsDescription');
+
+            if (titleEl) title = (titleEl.getAttribute('data-task-title') || titleEl.textContent || '').trim();
+            if (descEl) desc = (descEl.getAttribute('data-task-description') || descEl.textContent || '').trim();
+
+            return { title: title, description: desc };
+        }
+
+        // Helper: Poll queue worker until completed
+        function pollQueueTask(taskId, onTranscribed, onCompleted, onError) {
+            var attempts = 0;
+            var maxAttempts = 60;
+            var pollInterval = setInterval(function () {
+                attempts++;
+                if (attempts > maxAttempts) {
+                    clearInterval(pollInterval);
+                    onError('Processing took too long. Please retry.');
+                    return;
+                }
+                fetch('/ai/feedback_status/' + encodeURIComponent(taskId), { credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        if (!res || !res.success) {
+                            clearInterval(pollInterval);
+                            onError(res && res.message ? res.message : 'Could not fetch status.');
+                            return;
+                        }
+                        if (res.status === 'queued') {
+                            var pos = res.queue_position || 1;
+                            say('Queued (position ' + pos + ') — processing sequentially…', 'text-violet-600');
+                        } else if (res.status === 'transcribing') {
+                            say('Transcribing speech in cloud…', 'text-violet-600');
+                        } else if (res.status === 'transcribed') {
+                            clearInterval(pollInterval);
+                            onTranscribed(res);
+                        } else if (res.status === 'structuring') {
+                            say('Structuring feedback with AI…', 'text-violet-600');
+                        } else if (res.status === 'completed') {
+                            clearInterval(pollInterval);
+                            onCompleted(res);
+                        } else if (res.status === 'failed') {
+                            clearInterval(pollInterval);
+                            onError(res.error || 'Processing failed. Please check audio or retry.');
+                        }
+                    })
+                    .catch(function () {
+                        // Keep polling on temporary glitch
+                    });
+            }, 800);
+        }
+
         // Retry transcription
         if (retryBtn) {
             retryBtn.addEventListener('click', function () {
@@ -156,33 +216,64 @@
             });
         }
 
-        // Step 1: Send audio to backend for transcription only (so user can review)
+        // Step 1: Send audio to backend queue for transcription only (so user can review)
         function sendAudioForTranscription(blob) {
             btn.disabled = true;
-            label.textContent = 'Transcribing…';
-            say('Transcribing your speech in cloud...', 'text-violet-600');
+            label.textContent = 'Processing…';
+            say('Sending audio to cloud queue…', 'text-violet-600');
+            var ctx = getTaskContext();
             var fd = new FormData();
             fd.append('form_type', box.dataset.form);
             fd.append('mode', 'transcribe_only');
+            fd.append('enqueue', '1');
+            fd.append('task_title', ctx.title);
+            fd.append('task_description', ctx.description);
             fd.append('audio', blob, 'recording.webm');
 
             fetch('/ai/feedback_from_audio', { method: 'POST', body: fd, credentials: 'same-origin' })
                 .then(function (r) { return r.json(); })
                 .then(function (res) {
                     if (!res.success) {
-                        say(res.message || 'Could not transcribe recording.', 'text-red-600');
+                        say(res.message || 'Could not queue recording.', 'text-red-600');
+                        btn.disabled = false;
+                        label.textContent = 'Record again';
                         return;
                     }
-                    if (transcriptBox && transcriptText) {
-                        transcriptText.value = res.transcript || '';
-                        transcriptBox.classList.remove('hidden');
+                    if (res.task_id) {
+                        pollQueueTask(
+                            res.task_id,
+                            function (doneRes) {
+                                if (transcriptBox && transcriptText) {
+                                    transcriptText.value = doneRes.transcript || '';
+                                    transcriptBox.classList.remove('hidden');
+                                }
+                                say('Transcription ready! Review or edit above, then click "Enhance with AI".', 'text-emerald-600');
+                                btn.disabled = false;
+                                label.textContent = 'Record again';
+                            },
+                            function (doneRes) {
+                                // In case direct completion
+                                btn.disabled = false;
+                                label.textContent = 'Record again';
+                            },
+                            function (errMsg) {
+                                say(errMsg, 'text-red-600');
+                                btn.disabled = false;
+                                label.textContent = 'Record again';
+                            }
+                        );
+                    } else if (res.transcript) {
+                        if (transcriptBox && transcriptText) {
+                            transcriptText.value = res.transcript || '';
+                            transcriptBox.classList.remove('hidden');
+                        }
+                        say('Transcription ready! Review or edit above, then click "Enhance with AI".', 'text-emerald-600');
+                        btn.disabled = false;
+                        label.textContent = 'Record again';
                     }
-                    say('Transcription ready! Review or edit above, then click "Enhance with AI".', 'text-emerald-600');
                 })
                 .catch(function () {
                     say('Upload failed. Check your connection and try again.', 'text-red-600');
-                })
-                .then(function () {
                     btn.disabled = false;
                     label.textContent = 'Record again';
                 });
@@ -200,52 +291,80 @@
                 enhanceBtn.disabled = true;
                 enhanceBtn.innerHTML = '<span>Enhancing…</span>';
             }
-            say('Processing feedback and organizing form fields with AI…', 'text-violet-600');
+            say('Sending to AI queue for field structuring…', 'text-violet-600');
 
+            var ctx = getTaskContext();
             var fd = new FormData();
             fd.append('form_type', box.dataset.form);
             fd.append('transcript', rawText);
             fd.append('mode', 'transcribe_and_structure');
+            fd.append('enqueue', '1');
+            fd.append('task_title', ctx.title);
+            fd.append('task_description', ctx.description);
 
             fetch('/ai/feedback_from_audio', { method: 'POST', body: fd, credentials: 'same-origin' })
                 .then(function (r) { return r.json(); })
                 .then(function (res) {
                     if (!res.success) {
-                        say(res.message || 'Could not structure feedback.', 'text-red-600');
+                        say(res.message || 'Could not queue feedback.', 'text-red-600');
+                        resetEnhanceBtn();
                         return;
                     }
-                    var filled = 0;
-                    Object.keys(map).forEach(function (field) {
-                        var el = document.getElementById(map[field]);
-                        var val = res.fields && res.fields[field];
-                        if (!el || !val) return;
-                        el.value = el.value.trim() ? el.value.trim() + '\n' + val : val;
-                        el.dispatchEvent(new Event('input', { bubbles: true }));
-                        filled++;
-                    });
-
-                    // If rating slider or field is present and returned
-                    if (res.fields && res.fields.rating && map['rating']) {
-                        var rEl = document.getElementById(map['rating']);
-                        if (rEl) {
-                            rEl.value = res.fields.rating;
-                            rEl.dispatchEvent(new Event('change', { bubbles: true }));
-                        }
+                    if (res.task_id) {
+                        pollQueueTask(
+                            res.task_id,
+                            function () {},
+                            function (doneRes) {
+                                applyFields(doneRes.fields);
+                                resetEnhanceBtn();
+                            },
+                            function (errMsg) {
+                                say(errMsg, 'text-red-600');
+                                resetEnhanceBtn();
+                            }
+                        );
+                    } else if (res.fields) {
+                        applyFields(res.fields);
+                        resetEnhanceBtn();
                     }
-
-                    say(filled ? 'Done — ' + filled + ' field' + (filled > 1 ? 's' : '') + ' updated. Please review before saving.'
-                               : 'We processed the text, but could not fit it into fields. Check transcript and try again.',
-                        filled ? 'text-emerald-600' : 'text-amber-600');
                 })
                 .catch(function () {
                     say('Enhancement failed. Check connection and try again.', 'text-red-600');
-                })
-                .then(function () {
-                    if (enhanceBtn) {
-                        enhanceBtn.disabled = false;
-                        enhanceBtn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg><span>Enhance with AI</span>';
-                    }
+                    resetEnhanceBtn();
                 });
+        }
+
+        function resetEnhanceBtn() {
+            if (enhanceBtn) {
+                enhanceBtn.disabled = false;
+                enhanceBtn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg><span>Enhance with AI</span>';
+            }
+        }
+
+        function applyFields(fields) {
+            if (!fields) return;
+            var filled = 0;
+            Object.keys(map).forEach(function (field) {
+                var el = document.getElementById(map[field]);
+                var val = fields[field];
+                if (!el || !val) return;
+                el.value = el.value.trim() ? el.value.trim() + '\n' + val : val;
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                filled++;
+            });
+
+            // If rating slider or field is present and returned
+            if (fields.rating && map['rating']) {
+                var rEl = document.getElementById(map['rating']);
+                if (rEl) {
+                    rEl.value = fields.rating;
+                    rEl.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }
+
+            say(filled ? 'Done — ' + filled + ' field' + (filled > 1 ? 's' : '') + ' updated. Please review before saving.'
+                       : 'Processed transcript, but could not map fields. Please check transcript.',
+                filled ? 'text-emerald-600' : 'text-amber-600');
         }
 
         if (enhanceBtn) {

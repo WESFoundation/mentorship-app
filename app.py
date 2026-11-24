@@ -13783,10 +13783,13 @@ _VOICE_FORMS_BY_TYPE = {
 @app.route("/ai/feedback_from_audio", methods=["POST"])
 def ai_feedback_from_audio():
     """Transcribes a recording or processes an edited transcript and splits it into the feedback form's fields.
-    Supports cloud STT and LLM services (Groq Whisper Turbo + Qwen/Llama) with zero GPU overhead."""
+    Supports cloud STT (Groq Whisper / Azure Speech) and LLM services (Foundry / Groq) with async queue worker."""
     vtype = str(session.get("user_type", ""))
     form_type = request.form.get("form_type") or (request.json.get("form_type") if request.is_json else "") or ""
     mode = request.form.get("mode") or (request.json.get("mode") if request.is_json else "") or "transcribe_and_structure"
+    task_title = (request.form.get("task_title") or (request.json.get("task_title") if request.is_json else "") or "").strip()
+    task_description = (request.form.get("task_description") or (request.json.get("task_description") if request.is_json else "") or "").strip()
+    use_queue = (request.form.get("enqueue") == "1") or (request.json.get("enqueue") if request.is_json else False) or (request.args.get("async") == "1")
     
     if "email" not in session or form_type not in _VOICE_FORMS_BY_TYPE.get(vtype, set()):
         return jsonify({"success": False, "message": "Unauthorized"}), 401
@@ -13808,19 +13811,39 @@ def ai_feedback_from_audio():
     if not data and not transcript:
         return jsonify({"success": False, "message": "No recording or transcript received."}), 400
 
+    mimetype = (file.mimetype or "").split(";")[0] if file else "audio/webm"
+    ext = {"audio/webm": "webm", "video/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "m4a",
+           "audio/mpeg": "mp3", "audio/wav": "wav", "audio/x-wav": "wav"}.get(mimetype, "webm")
+
+    # If client requested background queue processing
+    if use_queue:
+        task_id = ai_feedback_service.enqueue_task(
+            audio_bytes=data,
+            filename=f"recording.{ext}" if data else "feedback.webm",
+            mimetype=mimetype,
+            transcript=transcript,
+            form_type=form_type,
+            mode=mode,
+            task_title=task_title,
+            task_description=task_description
+        )
+        return jsonify({
+            "success": True,
+            "task_id": task_id,
+            "status": "queued",
+            "queue_position": ai_feedback_service.task_queue.qsize()
+        })
+
     try:
         # Transcribe if audio was provided and transcript was not supplied
         if data and not transcript:
-            mimetype = (file.mimetype or "").split(";")[0]
             if not mimetype.startswith(("audio/", "video/webm")):
                 return jsonify({"success": False, "message": "Unsupported recording type."}), 400
-            ext = {"audio/webm": "webm", "video/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "m4a",
-                   "audio/mpeg": "mp3", "audio/wav": "wav", "audio/x-wav": "wav"}.get(mimetype, "webm")
             
-            # Use Groq Whisper Turbo if key is configured, else fallback
-            if ai_feedback_service.get_groq_api_key():
+            # Use cloud STT (Groq Whisper Turbo / Azure Speech), fallback to legacy
+            try:
                 transcript = ai_feedback_service.transcribe_audio_cloud(data, f"recording.{ext}", mimetype)
-            else:
+            except Exception:
                 transcript = _ai.transcribe_audio(data, f"recording.{ext}", mimetype)
 
         if not transcript:
@@ -13830,9 +13853,14 @@ def ai_feedback_from_audio():
         if mode == "transcribe_only":
             return jsonify({"success": True, "transcript": transcript, "fields": {}})
 
-        # Structure feedback using cloud LLM (Groq / Azure) or legacy Claude
+        # Structure feedback using cloud LLM (Foundry / Groq) or legacy Claude
         if ai_feedback_service.get_groq_api_key() or ai_feedback_service.get_azure_config()[0]:
-            fields = ai_feedback_service.structure_feedback_cloud(transcript, form_type)
+            fields = ai_feedback_service.structure_feedback_cloud(
+                transcript,
+                form_type=form_type,
+                task_title=task_title,
+                task_description=task_description
+            )
         else:
             fields = _ai.structure_feedback(transcript, form_type)
 
@@ -13843,6 +13871,18 @@ def ai_feedback_from_audio():
         return jsonify({"success": False, "message": str(e) or "Could not process the recording."}), 500
 
     return jsonify({"success": True, "transcript": transcript, "fields": fields})
+
+
+@app.route("/ai/feedback_status/<task_id>", methods=["GET"])
+def ai_feedback_status(task_id):
+    """Polls queue worker status for an async audio feedback task."""
+    if "email" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    import ai_feedback_service
+    res = ai_feedback_service.get_task_result(task_id)
+    if not res:
+        return jsonify({"success": False, "message": "Task not found"}), 404
+    return jsonify({"success": True, **res})
 
 
 # ===== MENTORSHIP RATING SYSTEM =====

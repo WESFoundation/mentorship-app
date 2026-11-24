@@ -5865,6 +5865,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         transcript = ""
         form_type = request.form.get("form_type") or "generic"
         mode = request.form.get("mode") or "transcribe_and_structure"
+        task_title = (request.form.get("task_title") or "").strip()
+        task_description = (request.form.get("task_description") or "").strip()
 
         if "audio" in request.files:
             audio_file = request.files["audio"]
@@ -5876,6 +5878,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             transcript = req_data.get("transcript", "").strip()
             form_type = req_data.get("form_type") or form_type
             mode = req_data.get("mode") or mode
+            task_title = (req_data.get("task_title") or task_title).strip()
+            task_description = (req_data.get("task_description") or task_description).strip()
 
         if not audio_bytes and not transcript:
             return jsonify({"success": False, "error": "No audio or transcript provided"}), 400
@@ -5886,7 +5890,9 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             mimetype=mimetype,
             transcript=transcript,
             form_type=form_type,
-            mode=mode
+            mode=mode,
+            task_title=task_title,
+            task_description=task_description
         )
         return jsonify({
             "success": True,
@@ -5909,6 +5915,8 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         data = request.get_json(silent=True) or request.form or {}
         transcript = (data.get("transcript") or "").strip()
         form_type = (data.get("form_type") or "generic").strip()
+        task_title = (data.get("task_title") or "").strip()
+        task_description = (data.get("task_description") or "").strip()
 
         if not transcript:
             return jsonify({"success": False, "error": "Transcript cannot be empty"}), 400
@@ -5916,7 +5924,9 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
         task_id = ai_feedback_service.enqueue_task(
             transcript=transcript,
             form_type=form_type,
-            mode="transcribe_and_structure"
+            mode="transcribe_and_structure",
+            task_title=task_title,
+            task_description=task_description
         )
         return jsonify({
             "success": True,

@@ -128,6 +128,43 @@ def transcribe_audio_cloud(audio_bytes: bytes, filename: str = "feedback.webm", 
             logger.error(f"Groq Whisper network error: {e}")
             raise
 
+    # Fallback to Azure Cognitive Services Speech STT if Azure key is available
+    azure_key, azure_endpoint, _ = get_azure_config()
+    if azure_key:
+        region = os.environ.get("AZURE_SPEECH_REGION", "southindia").strip()
+        stt_url = f"https://{region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=en-US"
+        m = (mimetype or "").lower()
+        if "webm" in m:
+            ct = "audio/webm; codecs=opus"
+        elif "ogg" in m:
+            ct = "audio/ogg; codecs=opus"
+        elif "wav" in m:
+            ct = "audio/wav; codecs=audio/pcm; samplerate=16000"
+        else:
+            ct = "audio/webm; codecs=opus"
+
+        req = urllib.request.Request(
+            stt_url,
+            data=audio_bytes,
+            headers={
+                "Ocp-Apim-Subscription-Key": azure_key,
+                "Content-Type": ct,
+                "Accept": "application/json",
+                "User-Agent": "WES-Mentorship-CloudAudio/1.0"
+            }
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                data = json.loads(resp.read().decode())
+                text = (data.get("DisplayText") or data.get("Text") or "").strip()
+                if text:
+                    return text
+        except urllib.error.HTTPError as err:
+            err_msg = err.read().decode(errors="ignore")
+            logger.warning(f"Azure Speech STT HTTP error {err.code}: {err_msg}")
+        except Exception as e:
+            logger.warning(f"Azure Speech STT network error: {e}")
+
     # Fallback to legacy transcribe_audio if configured
     transcribe_key = os.environ.get("TRANSCRIBE_API_KEY")
     if transcribe_key:
@@ -163,10 +200,11 @@ def transcribe_audio_cloud(audio_bytes: bytes, filename: str = "feedback.webm", 
     raise ValueError("Neither GROQ_API_KEY nor TRANSCRIBE_API_KEY is configured on server.")
 
 
-def structure_feedback_cloud(transcript: str, form_type: str = "generic") -> dict:
+def structure_feedback_cloud(transcript: str, form_type: str = "generic", task_title: str = "", task_description: str = "") -> dict:
     """
-    Structures the transcript into form fields using Groq Qwen / Llama or Azure OpenAI.
+    Structures the transcript into form fields using Groq Qwen / Llama or Azure OpenAI / Foundry.
     Handles different form types: mentee_reflection, mentor_reflection, mentor_rating, institution_reflection, generic.
+    Includes task title and description for contextual understanding if provided.
     """
     groq_key = get_groq_api_key()
 
@@ -218,6 +256,13 @@ def structure_feedback_cloud(transcript: str, form_type: str = "generic") -> dic
     schema = form_schemas.get(form_type, form_schemas["generic"])
     field_prompt = "\n".join([f'- "{k}": {v}' for k, v in schema["fields"].items()])
 
+    context_lines = []
+    if task_title and task_title.strip():
+        context_lines.append(f"Task Title: {task_title.strip()}")
+    if task_description and task_description.strip():
+        context_lines.append(f"Task Description: {task_description.strip()}")
+    context_block = ("\n" + "\n".join(context_lines) + "\n") if context_lines else ""
+
     system_msg = (
         f"You are a concise JSON generator for a mentorship platform. Your role is structuring {schema['desc']}. "
         "Output valid JSON only. Do not wrap in markdown or backticks. Keep 'summary' (if present) strictly 2-4 words, "
@@ -225,7 +270,7 @@ def structure_feedback_cloud(transcript: str, form_type: str = "generic") -> dic
         "Preserve the speaker's true intent without fabricating facts."
     )
 
-    user_prompt = f"""Transcript: "{transcript[:12000]}"
+    user_prompt = f"""{context_block}Spoken Feedback Transcript: "{transcript[:12000]}"
 
 Extract and format into valid JSON with these keys:
 {field_prompt}"""
@@ -364,6 +409,8 @@ def queue_worker():
         transcript = task.get("transcript", "")
         form_type = task.get("form_type", "generic")
         mode = task.get("mode", "transcribe_and_structure")
+        task_title = task.get("task_title", "")
+        task_description = task.get("task_description", "")
         t0 = task["start_time"]
 
         try:
@@ -401,7 +448,12 @@ def queue_worker():
                 }
 
             infer_t0 = time.perf_counter()
-            feedback_data = structure_feedback_cloud(transcript, form_type=form_type)
+            feedback_data = structure_feedback_cloud(
+                transcript,
+                form_type=form_type,
+                task_title=task_title,
+                task_description=task_description
+            )
             tokens_info = feedback_data.pop("_tokens", {})
             infer_latency_ms = round((time.perf_counter() - infer_t0) * 1000, 1)
 
@@ -447,13 +499,15 @@ _worker_thread.start()
 
 
 def enqueue_task(audio_bytes=None, filename="feedback.webm", mimetype="audio/webm",
-                 transcript="", form_type="generic", mode="transcribe_and_structure") -> str:
+                 transcript="", form_type="generic", mode="transcribe_and_structure",
+                 task_title="", task_description="") -> str:
     """Enqueues audio or transcript task and returns task_id."""
     task_id = str(uuid.uuid4())
+    pos = task_queue.qsize() + 1
     with task_results_lock:
         task_results[task_id] = {
             "status": "queued",
-            "queue_position": task_queue.qsize() + 1
+            "queue_position": pos
         }
 
     task_queue.put({
@@ -464,6 +518,8 @@ def enqueue_task(audio_bytes=None, filename="feedback.webm", mimetype="audio/web
         "transcript": transcript,
         "form_type": form_type,
         "mode": mode,
+        "task_title": task_title,
+        "task_description": task_description,
         "start_time": time.perf_counter()
     })
     return task_id
@@ -475,4 +531,7 @@ def get_task_result(task_id: str) -> dict:
         res = task_results.get(task_id)
         if not res:
             return None
-        return dict(res)
+        res_copy = dict(res)
+        if res_copy.get("status") == "queued":
+            res_copy["queue_position"] = max(1, task_queue.qsize())
+        return res_copy
