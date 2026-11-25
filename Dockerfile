@@ -1,5 +1,5 @@
-# Base Python Image
-FROM python:3.10-slim
+# Base Python Image (Bookworm avoids Debian Trixie OpenSSL 3.5 TLS handshake timeouts on Azure)
+FROM python:3.10-slim-bookworm
 
 # Prevent Python from writing pyc files and enable unbuffered logging
 ENV PYTHONUNBUFFERED=1 \
