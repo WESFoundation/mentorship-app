@@ -170,13 +170,19 @@
         function pollQueueTask(taskId, onTranscribed, onCompleted, onError) {
             var attempts = 0;
             var maxAttempts = 60;
+            var settled = false;
+            var inFlight = false;
             var pollInterval = setInterval(function () {
+                if (settled) { clearInterval(pollInterval); return; }
+                if (inFlight) return;
                 attempts++;
                 if (attempts > maxAttempts) {
+                    settled = true;
                     clearInterval(pollInterval);
                     onError('Processing took too long. Please retry.');
                     return;
                 }
+                inFlight = true;
                 fetch('/ai/feedback_status/' + encodeURIComponent(taskId), { credentials: 'same-origin' })
                     .then(function (r) {
                         return r.json().catch(function () {
@@ -184,7 +190,10 @@
                         });
                     })
                     .then(function (res) {
+                        inFlight = false;
+                        if (settled) return;
                         if (!res || !res.success) {
+                            settled = true;
                             clearInterval(pollInterval);
                             var errText = (res && (res.error || res.message)) || 'Could not fetch status.';
                             onError(errText);
@@ -196,19 +205,23 @@
                         } else if (res.status === 'transcribing') {
                             say('Transcribing speech in cloud…', 'text-violet-600');
                         } else if (res.status === 'transcribed') {
+                            settled = true;
                             clearInterval(pollInterval);
                             onTranscribed(res);
                         } else if (res.status === 'structuring') {
                             say('Structuring feedback with AI…', 'text-violet-600');
                         } else if (res.status === 'completed') {
+                            settled = true;
                             clearInterval(pollInterval);
                             onCompleted(res);
                         } else if (res.status === 'failed') {
+                            settled = true;
                             clearInterval(pollInterval);
                             onError(res.error || 'Processing failed. Please check audio or retry.');
                         }
                     })
                     .catch(function () {
+                        inFlight = false;
                         // Keep polling on temporary glitch
                     });
             }, 800);
@@ -351,9 +364,16 @@
             var filled = 0;
             Object.keys(map).forEach(function (field) {
                 var el = document.getElementById(map[field]);
-                var val = fields[field];
-                if (!el || !val) return;
-                el.value = el.value.trim() ? el.value.trim() + '\n' + val : val;
+                var rawVal = fields[field];
+                if (!el || !rawVal) return;
+                var val = String(rawVal).trim();
+                if (!val) return;
+                var existing = (el.value || '').trim();
+                if (existing === val || existing.indexOf(val) !== -1) {
+                    filled++;
+                    return;
+                }
+                el.value = existing ? existing + '\n' + val : val;
                 el.dispatchEvent(new Event('input', { bubbles: true }));
                 filled++;
             });
