@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Keys from environment (Coolify / .env)
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "").strip()
+GROQ_STT_API_KEY = os.environ.get("GROQ_STT_API_KEY", "").strip()
 AZURE_OPENAI_API_KEY = (
     os.environ.get("AZURE_OPENAI_API_KEY", "").strip()
     or os.environ.get("AZURE_AI_FOUNDRY_API_KEY", "").strip()
@@ -53,6 +54,15 @@ def get_groq_api_key():
     return os.environ.get("GROQ_API_KEY", "").strip() or GROQ_API_KEY
 
 
+def get_groq_stt_api_key():
+    """Returns Groq API key dedicated to Whisper STT transcription only."""
+    return (
+        os.environ.get("GROQ_STT_API_KEY", "").strip()
+        or GROQ_STT_API_KEY
+        or get_groq_api_key()
+    )
+
+
 def get_azure_config():
     """Returns (api_key, endpoint, deployment) dynamically from environment."""
     key = (
@@ -76,12 +86,12 @@ def get_azure_config():
 
 def is_ai_configured():
     azure_key, azure_endpoint, _ = get_azure_config()
-    return bool(get_groq_api_key() or (azure_key and azure_endpoint) or ANTHROPIC_API_KEY or TRANSCRIBE_API_KEY)
+    return bool(get_groq_stt_api_key() or get_groq_api_key() or (azure_key and azure_endpoint) or ANTHROPIC_API_KEY or TRANSCRIBE_API_KEY)
 
 
 def transcribe_audio_cloud(audio_bytes: bytes, filename: str = "feedback.webm", mimetype: str = "audio/webm") -> str:
     """Sends audio to Groq Whisper Turbo (or OpenAI/Azure fallback) for fast transcription."""
-    groq_key = get_groq_api_key()
+    groq_key = get_groq_stt_api_key()
     if groq_key:
         boundary = f"----WebKitFormBoundary{uuid.uuid4().hex[:16]}"
         body = bytearray()
@@ -128,8 +138,42 @@ def transcribe_audio_cloud(audio_bytes: bytes, filename: str = "feedback.webm", 
             logger.error(f"Groq Whisper network error: {e}")
             raise
 
-    # Fallback to Azure Cognitive Services Speech STT if Azure key is available
+    # 2. Try Azure OpenAI Whisper if deployed on resource
     azure_key, azure_endpoint, _ = get_azure_config()
+    if azure_key and azure_endpoint:
+        whisper_dep = os.environ.get("AZURE_WHISPER_DEPLOYMENT", "whisper").strip()
+        ep_clean = azure_endpoint.rstrip("/")
+        base_host = ep_clean.split("/openai")[0] if "/openai" in ep_clean else ep_clean
+        whisper_url = f"{base_host}/openai/deployments/{whisper_dep}/audio/transcriptions?api-version=2024-02-15-preview"
+        
+        boundary = f"----WebKitFormBoundary{uuid.uuid4().hex[:16]}"
+        body = bytearray()
+        body.extend(f"--{boundary}\r\n".encode())
+        body.extend(b'Content-Disposition: form-data; name="file"; filename="recording.webm"\r\n')
+        body.extend(f"Content-Type: {mimetype or 'audio/webm'}\r\n\r\n".encode())
+        body.extend(audio_bytes)
+        body.extend(b"\r\n")
+        body.extend(f"--{boundary}--\r\n".encode())
+
+        req = urllib.request.Request(
+            whisper_url,
+            data=bytes(body),
+            headers={
+                "api-key": azure_key,
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+                "User-Agent": "WES-Mentorship-CloudAudio/1.0"
+            }
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                data = json.loads(resp.read().decode())
+                text = (data.get("text") or "").strip()
+                if text:
+                    return text
+        except Exception as e:
+            logger.info(f"Azure OpenAI Whisper STT attempt ({whisper_dep}): {e}")
+
+    # 3. Fallback to Azure Cognitive Services Speech STT if Azure key is available
     if azure_key:
         region = os.environ.get("AZURE_SPEECH_REGION", "southindia").strip()
         stt_url = f"https://{region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=en-US"
@@ -165,7 +209,7 @@ def transcribe_audio_cloud(audio_bytes: bytes, filename: str = "feedback.webm", 
         except Exception as e:
             logger.warning(f"Azure Speech STT network error: {e}")
 
-    # Fallback to legacy transcribe_audio if configured
+    # 4. Fallback to legacy transcribe_audio if configured
     transcribe_key = os.environ.get("TRANSCRIBE_API_KEY")
     if transcribe_key:
         base = (os.environ.get("TRANSCRIBE_API_BASE") or "https://api.openai.com/v1").rstrip("/")
@@ -197,7 +241,7 @@ def transcribe_audio_cloud(audio_bytes: bytes, filename: str = "feedback.webm", 
                 raise ValueError("No speech detected in audio")
             return text
 
-    raise ValueError("Neither GROQ_API_KEY nor TRANSCRIBE_API_KEY is configured on server.")
+    raise ValueError("Speech-to-text not available. Add GROQ_API_KEY (free at console.groq.com) or deploy 'whisper' model in Microsoft Foundry.")
 
 
 def structure_feedback_cloud(transcript: str, form_type: str = "generic", task_title: str = "", task_description: str = "") -> dict:

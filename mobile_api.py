@@ -5318,6 +5318,113 @@ def register_mobile_api(app, db, User, MentorProfile, MenteeProfile, Institution
             db.session.rollback()
             return jsonify({"success": False, "message": f"Error deleting user: {str(e)}"}), 500
 
+    @api_bp.route("/account/delete", methods=["DELETE", "POST"])
+    def api_user_delete_self_account():
+        """
+        Self-service account deletion endpoint for Google Play compliance.
+        Permanently erases user account and cascades across associated records.
+        """
+        user = get_current_user_from_req(User)
+        if not user:
+            return jsonify({"success": False, "message": "Authentication required to delete account"}), 401
+
+        user_id = user.id
+        user_name = user.name
+        user_email = user.email
+
+        try:
+            from sqlalchemy import text as _text
+
+            # 1. Nullify references where target user is a secondary participant/actor
+            nullable_fk_cleanups = [
+                ("meeting_requests", "rescheduled_by_id"),
+                ("mentorship_requests", "rated_by"),
+                ("mentor_profile", "referred_by_seller_id"),
+                ("seller_profiles", "verified_by"),
+                ("coupon_assignments", "assigned_by"),
+                ("coupon_requests", "handled_by"),
+                ("resource_notes", "mentor_id"),
+                ("personal_tasks", "mentor_id"),
+            ]
+            for table, col in nullable_fk_cleanups:
+                try:
+                    with db.session.begin_nested():
+                        db.session.execute(_text(f"UPDATE {table} SET {col} = NULL WHERE {col} = :uid"), {"uid": user_id})
+                except Exception as null_err:
+                    logger.warning(f"api_user_delete_self_account: nullify {table}.{col}: {null_err}")
+
+            # Unlink institutions owned by this user
+            try:
+                with db.session.begin_nested():
+                    db.session.execute(_text("UPDATE signup_details SET institution_id = NULL WHERE institution_id IN (SELECT id FROM institutions WHERE user_id = :uid)"), {"uid": user_id})
+                    db.session.execute(_text("UPDATE resource_notes SET institution_id = NULL WHERE institution_id IN (SELECT id FROM institutions WHERE user_id = :uid)"), {"uid": user_id})
+            except Exception as inst_err:
+                logger.warning(f"api_user_delete_self_account: unlink institution: {inst_err}")
+
+            # 2. Delete related records first (due to foreign key constraints)
+            tables_to_clean = [
+                ("profile_completion_reminders", "user_id"),
+                ("mentor_profile", "user_id"),
+                ("mentee_profile", "user_id"),
+                ("supervisor_profile", "user_id"),
+                ("institutions", "user_id"),
+                ("mentorship_requests", "mentee_id"),
+                ("mentorship_requests", "mentor_id"),
+                ("meeting_requests", "requester_id"),
+                ("meeting_requests", "requested_to_id"),
+                ("mentee_tasks", "mentee_id"),
+                ("mentee_tasks", "mentor_id"),
+                ("personal_tasks", "mentee_id"),
+                ("personal_tasks", "mentor_id"),
+                ("task_ratings", "mentee_id"),
+                ("task_ratings", "mentor_id"),
+                ("mentee_feedbacks", "mentee_id"),
+                ("mentor_reflections", "mentor_id"),
+                ("resource_notes", "mentee_id"),
+                ("mentor_sourcing_requests", "mentee_id"),
+                ("scholarly_applications", "mentee_id"),
+                ("premium_applications", "mentor_id"),
+                ("seller_profiles", "user_id"),
+                ("seller_shops", "seller_user_id"),
+                ("seller_referrals", "user_id"),
+                ("seller_referrals", "seller_id"),
+                ("coupon_requests", "user_id"),
+                ("account_verifications", "user_id"),
+                ("notifications", "user_id"),
+                ("coupon_assignments", "user_id"),
+                ("chat_messages", "sender_id"),
+                ("chat_conversations", "participant1_id"),
+                ("chat_conversations", "participant2_id"),
+            ]
+
+            for table, column in tables_to_clean:
+                try:
+                    with db.session.begin_nested():
+                        db.session.execute(_text(f"DELETE FROM {table} WHERE {column} = :uid"), {"uid": user_id})
+                except Exception as clean_err:
+                    logger.warning(f"api_user_delete_self_account: skipped {table}.{column}: {clean_err}")
+
+            if MentorCoupon:
+                for col, val in (("seller_id", None), ("redeemed_by_user_id", None), ("partner_user_id", None),
+                                 ("issued_by_user_id", None), ("refunded_by", None)):
+                    try:
+                        with db.session.begin_nested():
+                            db.session.execute(_text(f"UPDATE mentor_coupons SET {col} = :v WHERE {col} = :uid"), {"v": val, "uid": user_id})
+                    except Exception as ce:
+                        logger.warning(f"api_user_delete_self_account: coupon unlink {col}: {ce}")
+
+            db.session.expire_all()
+            user_to_delete = db.session.get(User, user_id)
+            if user_to_delete:
+                db.session.delete(user_to_delete)
+            db.session.commit()
+            logger.info(f"USER_SELF_ACCOUNT_DELETED user_id={user_id} email={user_email}")
+
+            return jsonify({"success": True, "message": "Your account and associated personal data have been permanently deleted."})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": f"Error deleting account: {str(e)}"}), 500
+
     # -------------------------------------------------------------
     # 11. IN-APP CHAT REST ENDPOINTS
     # -------------------------------------------------------------

@@ -13882,6 +13882,14 @@ def ai_feedback_status(task_id):
     res = ai_feedback_service.get_task_result(task_id)
     if not res:
         return jsonify({"success": False, "message": "Task not found"}), 404
+    if res.get("status") == "failed":
+        err_msg = res.get("error") or "Audio processing failed"
+        return jsonify({
+            "success": False,
+            "status": "failed",
+            "message": err_msg,
+            "error": err_msg
+        })
     return jsonify({"success": True, **res})
 
 
@@ -25913,6 +25921,183 @@ def _start_auto_drive_migration():
         app.logger.info("Auto-migration thread queued successfully.")
     except Exception as e:
         app.logger.warning(f"Could not initialize auto-migration: {e}")
+
+@app.route("/privacy-policy")
+def privacy_policy_page():
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - WES Mentor Connect</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 820px; margin: 40px auto; padding: 0 20px; color: #1e293b; line-height: 1.6; }
+    h1, h2 { color: #0f172a; }
+    .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Privacy Policy</h1>
+  <p><strong>WES Luxembourg Mentorship Platform (Mentor Connect)</strong></p>
+  <div class="card">
+    <h2>1. Information We Collect</h2>
+    <p>We collect account details (name, email, role), optional profile information (city, education, career goals, skills, profile photo), mentorship activity (meetings, tasks, reflections, messages), and partner voucher redemption records.</p>
+    <h2>2. How We Use Information</h2>
+    <p>Data is used exclusively to match mentees and mentors, coordinate educational sessions, deliver notifications, and operate partner voucher redemptions. All data is encrypted in transit over HTTPS.</p>
+    <h2>3. Data Retention &amp; Deletion</h2>
+    <p>You may permanently delete your account at any time inside the mobile app (Profile &rarr; Delete Account) or via <a href="/delete-account">/delete-account</a>. Profile, messages, tasks, and pairing records are permanently erased. Anonymized voucher ledger records may be retained only where required by Luxembourg accounting law.</p>
+    <h2>4. Contact</h2>
+    <p>For privacy inquiries, contact <a href="mailto:info@wazireducationsociety.org">info@wazireducationsociety.org</a>.</p>
+  </div>
+</body>
+</html>"""
+
+
+@app.route("/terms")
+def terms_of_service_page():
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms of Service - WES Mentor Connect</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 820px; margin: 40px auto; padding: 0 20px; color: #1e293b; line-height: 1.6; }
+    h1, h2 { color: #0f172a; }
+    .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Terms of Service</h1>
+  <p><strong>WES Luxembourg Mentorship Platform (Mentor Connect)</strong></p>
+  <div class="card">
+    <h2>1. Acceptance of Terms</h2>
+    <p>By accessing or using Mentor Connect, you agree to comply with these Terms of Service and applicable Luxembourg regulations.</p>
+    <h2>2. Educational &amp; Mentorship Conduct</h2>
+    <p>Users must provide accurate information, maintain respectful professional conduct during mentorship sessions, and use partner vouchers solely as authorized.</p>
+    <h2>3. Account Termination</h2>
+    <p>You may delete your account anytime from the app or at <a href="/delete-account">/delete-account</a>. WES reserves the right to suspend accounts violating community standards.</p>
+  </div>
+</body>
+</html>"""
+
+
+@app.route("/delete-account", methods=["GET", "POST"])
+def delete_account_page():
+    msg = ""
+    err = ""
+    if request.method == "POST":
+        email = (request.form.get("email") or session.get("email") or "").strip().lower()
+        password = request.form.get("password") or ""
+        confirm = (request.form.get("confirm") or "").strip().upper()
+        if confirm != "DELETE":
+            err = "Please type DELETE to confirm permanent account deletion."
+        elif not email:
+            err = "Please enter your account email address."
+        else:
+            target = User.query.filter_by(email=email).first()
+            if not target:
+                err = "No account found for that email address."
+            elif session.get("email", "").lower() != email and not (password and check_password_hash(target.password_hash or "", password)):
+                err = "Invalid password for the specified account."
+            else:
+                try:
+                    uid = target.id
+                    for tbl, col in (
+                        ("meeting_requests", "rescheduled_by_id"),
+                        ("mentorship_requests", "rated_by"),
+                        ("mentor_profile", "referred_by_seller_id"),
+                        ("seller_profiles", "verified_by"),
+                        ("coupon_assignments", "assigned_by"),
+                        ("coupon_requests", "handled_by"),
+                        ("resource_notes", "mentor_id"),
+                        ("personal_tasks", "mentor_id"),
+                    ):
+                        try:
+                            with db.session.begin_nested():
+                                db.session.execute(db.text(f"UPDATE {tbl} SET {col} = NULL WHERE {col} = :uid"), {"uid": uid})
+                        except Exception:
+                            pass
+                    for tbl, col in (
+                        ("profile_completion_reminders", "user_id"),
+                        ("mentor_profile", "user_id"),
+                        ("mentee_profile", "user_id"),
+                        ("supervisor_profile", "user_id"),
+                        ("institutions", "user_id"),
+                        ("mentorship_requests", "mentee_id"),
+                        ("mentorship_requests", "mentor_id"),
+                        ("meeting_requests", "requester_id"),
+                        ("meeting_requests", "requested_to_id"),
+                        ("mentee_tasks", "mentee_id"),
+                        ("mentee_tasks", "mentor_id"),
+                        ("personal_tasks", "mentee_id"),
+                        ("personal_tasks", "mentor_id"),
+                        ("task_ratings", "mentee_id"),
+                        ("task_ratings", "mentor_id"),
+                        ("mentee_feedbacks", "mentee_id"),
+                        ("mentor_reflections", "mentor_id"),
+                        ("resource_notes", "mentee_id"),
+                        ("mentor_sourcing_requests", "mentee_id"),
+                        ("scholarly_applications", "mentee_id"),
+                        ("premium_applications", "mentor_id"),
+                        ("seller_profiles", "user_id"),
+                        ("seller_shops", "seller_user_id"),
+                        ("seller_referrals", "user_id"),
+                        ("seller_referrals", "seller_id"),
+                        ("coupon_requests", "user_id"),
+                        ("account_verifications", "user_id"),
+                        ("notifications", "user_id"),
+                        ("coupon_assignments", "user_id"),
+                        ("chat_messages", "sender_id"),
+                        ("chat_conversations", "participant1_id"),
+                        ("chat_conversations", "participant2_id"),
+                    ):
+                        try:
+                            with db.session.begin_nested():
+                                db.session.execute(db.text(f"DELETE FROM {tbl} WHERE {col} = :uid"), {"uid": uid})
+                        except Exception:
+                            pass
+                    db.session.expire_all()
+                    u = db.session.get(User, uid)
+                    if u:
+                        db.session.delete(u)
+                    db.session.commit()
+                    session.clear()
+                    msg = "Your account and associated personal data have been permanently deleted."
+                except Exception as exc:
+                    db.session.rollback()
+                    err = f"Unable to delete account: {exc}"
+    logged_email = session.get("email", "")
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Delete Account - WES Mentor Connect</title>
+  <style>
+    body {{ font-family: system-ui, -apple-system, sans-serif; max-width: 560px; margin: 40px auto; padding: 0 20px; color: #1e293b; line-height: 1.6; }}
+    .card {{ background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; box-shadow: 0 4px 16px rgba(0,0,0,0.04); }}
+    input {{ width: 100%; padding: 10px 12px; margin: 6px 0 14px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }}
+    button {{ background: #e11d48; color: #fff; border: none; padding: 12px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; width: 100%; }}
+    .ok {{ background: #ecfdf5; color: #047857; padding: 12px; border-radius: 8px; margin-bottom: 14px; }}
+    .err {{ background: #fff1f2; color: #be123c; padding: 12px; border-radius: 8px; margin-bottom: 14px; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Delete Your Account</h1>
+    <p>Deleting your WES Mentor Connect account permanently erases your profile, credentials, mentorship pairings, scheduled sessions, chat messages, tasks, and notes. Anonymized voucher audit logs may be retained where legally required.</p>
+    {f'<div class="ok">{msg}</div>' if msg else ''}
+    {f'<div class="err">{err}</div>' if err else ''}
+    <form method="POST">
+      <label>Account Email</label>
+      <input type="email" name="email" value="{logged_email}" required placeholder="you@example.com">
+      {'' if logged_email else '<label>Password</label><input type="password" name="password" required placeholder="Your account password">'}
+      <label>Type <strong>DELETE</strong> to confirm</label>
+      <input type="text" name="confirm" required placeholder="DELETE">
+      <button type="submit">Permanently Delete Account</button>
+    </form>
+  </div>
+</body>
+</html>"""
+
 
 _start_auto_drive_migration()
 

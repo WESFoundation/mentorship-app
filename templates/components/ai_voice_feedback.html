@@ -178,11 +178,16 @@
                     return;
                 }
                 fetch('/ai/feedback_status/' + encodeURIComponent(taskId), { credentials: 'same-origin' })
-                    .then(function (r) { return r.json(); })
+                    .then(function (r) {
+                        return r.json().catch(function () {
+                            throw new Error('HTTP ' + r.status + ': Server response error');
+                        });
+                    })
                     .then(function (res) {
                         if (!res || !res.success) {
                             clearInterval(pollInterval);
-                            onError(res && res.message ? res.message : 'Could not fetch status.');
+                            var errText = (res && (res.error || res.message)) || 'Could not fetch status.';
+                            onError(errText);
                             return;
                         }
                         if (res.status === 'queued') {
