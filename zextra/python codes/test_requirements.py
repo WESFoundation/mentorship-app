@@ -311,6 +311,9 @@ r = sup_coupon_client.post("/supervisor/coupons/create", json={
 data = r.get_json()
 codes = list((data.get("urls") or {}).keys())
 check("REQ12 supervisor can generate several coupon keys at once", len(codes) == 3, codes)
+shop_client = app.test_client()
+login(shop_client, type("U", (), {"email": f"coupon_shop_{stamp}@t.com", "id": SHOP_ID, "user_type": "4"})())
+BILL = {"goods_total": "25.00", "goods_currency": "EUR"}
 KEY = codes[0]
 
 check("REQ13 QR points at the weslux page",
@@ -324,14 +327,16 @@ check("REQ12 a QR image is served for each key",
 anon = app.test_client()
 r = anon.get(f"/coupon/verify/{KEY}")
 html = r.get_data(as_text=True)
-check("REQ11 seller lands on a verify page WITHOUT logging in", r.status_code == 200)
-check("REQ11 verify page has a button to verify the coupon", "Verify coupon" in html)
-check("REQ11 verify page shows the mentor and discount",
-      f"Coupon Mentor {stamp}" in html and "1 free session" in html)
+check("REQ11 scanning the QR opens the verify page (anyone can view the details)", r.status_code == 200)
+check("REQ11 verify page shows the discount", "1 free session" in html)
+check("REQ11 only a signed-in partner can redeem", anon.post(f"/coupon/verify/{KEY}", data=BILL).status_code == 403)
+r = shop_client.get(f"/coupon/verify/{KEY}")
+html = r.get_data(as_text=True)
+check("REQ11 verify page has a button to verify the coupon", "mark as redeemed" in html)
 check("REQ14 page tells the seller to apply the discount themselves",
       "Apply the discount yourself" in html)
 
-r = anon.post(f"/coupon/verify/{KEY}", data={"seller_account": SHOP_ID, "redeemer_id": CM_ID})
+r = shop_client.post(f"/coupon/verify/{KEY}", data=BILL)
 check("REQ11 seller presses the button", r.status_code == 200, r.status_code)
 check("REQ11 confirmation shown", "Coupon verified" in r.get_data(as_text=True))
 
@@ -342,7 +347,7 @@ with app.app_context():
     check("REQ14 which seller used it is recorded", c.used_by == "Weslux Store Berlin", c.used_by)
     check("REQ14 verification count recorded", c.verification_count == 1)
 
-r = anon.post(f"/coupon/verify/{KEY}", data={"seller": "Someone Else"})
+r = shop_client.post(f"/coupon/verify/{KEY}", data=BILL)
 check("REQ14 the same key cannot be used twice", r.status_code == 409, r.status_code)
 with app.app_context():
     check("REQ14 verification count NOT bumped on the blocked attempt",

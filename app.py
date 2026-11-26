@@ -23206,6 +23206,103 @@ def mentor_coupons():
 
 
 # --------------------------------------------------------------------------
+# My Coupons > Coupon Ledger (mentor / mentee): spent, available, saved
+# --------------------------------------------------------------------------
+LEDGER_PERIOD_DAYS = {"month": 30, "year": 365}
+
+
+def _holder_ledger_period(args):
+    """Parse ?period=month|year|custom[&from=&to=] -> (key, start, end_exclusive, error).
+
+    Rolling windows end now ("last month" = the last 30 days, "year" = the last 365).
+    A custom range is whole days, past or today only, inclusive of both ends."""
+    key = (args.get("period") or "month").strip().lower()
+    now = datetime.utcnow()
+    if key in LEDGER_PERIOD_DAYS:
+        return key, now - timedelta(days=LEDGER_PERIOD_DAYS[key]), now + timedelta(seconds=1), None
+    if key != "custom":
+        return key, None, None, "Unknown period."
+    try:
+        d_from = datetime.strptime((args.get("from") or "").strip(), "%Y-%m-%d")
+        d_to = datetime.strptime((args.get("to") or "").strip(), "%Y-%m-%d")
+    except ValueError:
+        return key, None, None, "Please choose both a start and an end date."
+    if d_from > d_to:
+        return key, None, None, "The start date must be on or before the end date."
+    if d_to.date() > now.date():
+        return key, None, None, "The end date cannot be in the future."
+    return key, d_from, d_to + timedelta(days=1), None
+
+
+def _holder_coupon_ledger(holder, start, end):
+    """Figures for one mentor/mentee. Money is kept per currency, never summed across them.
+
+    spent     - the bills of purchases where a coupon was used (before the coupon), in the period
+    saved     - the value the coupons took off those bills, in the period
+    available - what is still spendable on the holder's active coupons RIGHT NOW (not period-bound);
+                percent / free-text coupons have no money value and are only counted
+    """
+    R = CouponRedemption
+    rows = (R.query.filter(R.redeemed_by_user_id == holder.id, R.voided_at.is_(None),
+                           R.created_at >= start, R.created_at < end)
+            .order_by(R.created_at.desc()).all())
+    spent, saved, entries = {}, {}, []
+    for r in rows:
+        cur = (r.goods_currency or "EUR").upper()
+        goods = r.goods_total or _decimal.Decimal("0")
+        disc = r.discount_amount or _decimal.Decimal("0")
+        spent[cur] = spent.get(cur, _decimal.Decimal("0")) + goods
+        saved[cur] = saved.get(cur, _decimal.Decimal("0")) + disc
+        entries.append({
+            "date": r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else "",
+            "coupon": r.coupon.title if r.coupon else "", "code": r.coupon.code if r.coupon else "",
+            "partner": r.shop_name or r.seller_display_name, "currency": cur,
+            "bill": str(goods), "saved": str(disc),
+            "balance_after": str(r.balance_after) if r.balance_after is not None else None,
+        })
+
+    assigned = _coupon_assignments_for_user(holder.id)
+    if not assigned and str(holder.user_type) == "1":
+        assigned = MentorCoupon.query.filter_by(mentor_id=holder.id).all()
+    available, other = {}, 0
+    for c in assigned:
+        if c.status != "active" or c.is_expired:
+            continue
+        if c.has_balance:
+            value, cur = c.remaining_balance, (c.balance_currency or "EUR").upper()
+        elif c.used_at is None:   # a flat "5€ off" coupon issued before balances existed
+            value, cur = _flat_value_from_label(c.discount_label)
+            cur = cur or "EUR"
+        else:
+            value = None
+        if value is None or value <= 0:
+            other += 1
+            continue
+        available[cur] = available.get(cur, _decimal.Decimal("0")) + value
+
+    def fmt(d):
+        return {k: f"{v:.2f}" for k, v in sorted(d.items(), key=lambda kv: (kv[0] != "EUR", kv[0]))}
+
+    return {"spent": fmt(spent), "saved": fmt(saved), "available": fmt(available),
+            "other_available_coupons": other, "entries": entries}
+
+
+@app.route("/mentor/coupons/ledger")
+def holder_coupon_ledger():
+    """JSON for the Coupon Ledger tab; the three-dot menu re-requests it with a new period."""
+    holder = _holder_or_none()
+    if not holder:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    key, start, end, err = _holder_ledger_period(request.args)
+    if err:
+        return jsonify({"success": False, "message": err}), 400
+    data = _holder_coupon_ledger(holder, start, end)
+    data.update(success=True, period=key, symbols={k: v.strip() for k, v in LEDGER_CURRENCIES.items()},
+                start=start.strftime("%Y-%m-%d"), end=(end - timedelta(seconds=1)).strftime("%Y-%m-%d"))
+    return jsonify(data)
+
+
+# --------------------------------------------------------------------------
 # Partners / sellers  (user_type == "4")
 # --------------------------------------------------------------------------
 SELLER_USER_TYPE = "4"

@@ -15,7 +15,7 @@ ensure_test_schema()
 
 from app import (  # noqa: E402
     app, db, User, MentorProfile, MenteeProfile, SellerProfile, CouponAssignment,
-    CouponRequest, MentorCoupon,
+    CouponRequest, MentorCoupon, CouponRedemption,
 )
 
 stamp = dt.datetime.now().strftime("%H%M%S%f")
@@ -64,7 +64,7 @@ with seller_client.session_transaction() as s:
     s["user_id"] = ids["seller"]
     s["user_type"] = "4"
 
-r = seller_client.get("/seller/dashboard")
+r = seller_client.get("/partner/dashboard")
 check("seller can reach their dashboard", r.status_code == 200, r.status_code)
 
 # Shop is automatically available on the verify page without admin verification.
@@ -75,19 +75,23 @@ r = sup_client.post("/supervisor/coupons/create", json={
 data = r.get_json()
 check("supervisor issues 2 coupons", r.status_code == 200 and data.get("success"), data)
 check("assigned to 4 people at once", data.get("assigned_to") == 4, data.get("assigned_to"))
-code = list(data["urls"].keys())[0]
+# One coupon per holder per unit of quantity: 2 x 4 holders = 8 coupons, each with its own key.
+check("8 unique keys (2 for each of the 4 holders)", len(data["urls"]) == 8, len(data["urls"]))
+with app.app_context():
+    code = next(c.code for c in MentorCoupon.query.filter(MentorCoupon.code.in_(list(data["urls"]))).all()
+                if [u.id for u in c.assignees] == [ids["e2"]])
 
 anon = app.test_client()
+BILL = {"goods_total": "25.00", "goods_currency": "EUR"}
 r = anon.get(f"/coupon/verify/{code}")
-html = r.get_data(as_text=True)
-check("seller shop appears automatically in the dropdown", "Corner Shop" in html)
-check("dropdown is a select, not free text", 'name="seller_account"' in html and 'type="text" id="seller"' not in html)
-check("all 4 holders are offered as redeemer choices",
-      html.count('name="redeemer_id"') == 1 and ('value="%d"' % ids["e2"] in html))
+check("a visitor sees the coupon but no redeem form", r.status_code == 200 and 'id="goods_total"' not in r.get_data(as_text=True))
+r = seller_client.get(f"/coupon/verify/{code}")
+check("the signed-in partner gets the redeem form", 'id="goods_total"' in r.get_data(as_text=True))
 
 # ---------------------------------------------------------------- redeem + filters
-r = anon.post(f"/coupon/verify/{code}",
-              data={"seller_account": ids["seller"], "redeemer_id": ids["e2"]})
+r = anon.post(f"/coupon/verify/{code}", data=BILL)
+check("a visitor cannot redeem", r.status_code == 403, r.status_code)
+r = seller_client.post(f"/coupon/verify/{code}", data=BILL)
 check("redemption succeeds", r.status_code == 200, r.status_code)
 
 with app.app_context():
@@ -96,7 +100,7 @@ with app.app_context():
     check("seller recorded", c.seller_id == ids["seller"], c.seller_id)
     check("used_by is the shop name", c.used_by == "Corner Shop", c.used_by)
 
-r = seller_client.get("/seller/dashboard")
+r = seller_client.get("/partner/dashboard")
 html = r.get_data(as_text=True)
 check("seller dashboard lists the redemption", "Two free sessions" in html)
 check("dashboard names the redeemer", "E2" in html)
@@ -109,17 +113,19 @@ old = dt.datetime.utcnow() - dt.timedelta(days=40)
 with app.app_context():
     c = MentorCoupon.query.filter_by(code=code).first()
     c.used_at = old
+    for red in CouponRedemption.query.filter_by(coupon_id=c.id).all():
+        red.created_at = old
     db.session.commit()
 
-r = seller_client.get("/seller/dashboard?window=30d")
+r = seller_client.get("/partner/dashboard?window=30d")
 check("a 40-day-old redemption is outside 'last 30 days'",
       "Two free sessions" not in r.get_data(as_text=True))
-r = seller_client.get("/seller/dashboard?window=all")
+r = seller_client.get("/partner/dashboard?window=all")
 check("'all time' still shows it", "Two free sessions" in r.get_data(as_text=True))
-r = seller_client.get(f"/seller/dashboard?since={old.strftime('%Y-%m-%d')}")
+r = seller_client.get(f"/partner/dashboard?since={old.strftime('%Y-%m-%d')}")
 check("a 'redeemed since' date before the sale includes it",
       "Two free sessions" in r.get_data(as_text=True))
-r = seller_client.get("/seller/dashboard?window=7d")
+r = seller_client.get("/partner/dashboard?window=7d")
 check("'last 7 days' excludes the 40-day-old redemption",
       "Two free sessions" not in r.get_data(as_text=True))
 
@@ -131,7 +137,7 @@ with mentee_client.session_transaction() as s:
     s["user_type"] = "2"
 
 r = mentee_client.post("/coupon/request", json={
-    "title": "Please give me 5 coupons", "discount_label": "20% off", "quantity": 5,
+    "title": "Please give me 5 coupons", "description": "For the students I mentor this term", "discount_label": "20% off", "quantity": 5,
 })
 check("mentee can request coupons", r.status_code == 200 and r.get_json().get("success"), r.get_json())
 req_id = r.get_json()["request"]["id"]
@@ -210,8 +216,8 @@ r = sup_client.post("/supervisor/coupons/create", json={
 })
 fresh_code = list(r.get_json()["urls"].keys())[0]
 r = anon.get(f"/coupon/verify/{fresh_code}")
-check("seller shop is offered on a fresh coupon",
-      "Corner Shop" in r.get_data(as_text=True))
+r = seller_client.get(f"/coupon/verify/{fresh_code}")
+check("the partner can redeem a fresh coupon", 'id="goods_total"' in r.get_data(as_text=True))
 
 print()
 if failures:

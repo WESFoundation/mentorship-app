@@ -67,6 +67,12 @@ with mentor_client.session_transaction() as s:
     s["user_id"] = mentor_id
     s["user_type"] = "1"
 
+shop_client = app.test_client()
+with shop_client.session_transaction() as s:
+    s["email"] = shop_email
+    s["user_id"] = shop_id
+    s["user_type"] = "4"
+
 sup_client = app.test_client()
 with sup_client.session_transaction() as s:
     s["email"] = supervisor_email
@@ -118,13 +124,18 @@ data = r.get_json()
 check("POST /supervisor/coupons/create", r.status_code == 200 and data.get("success"), data)
 check("coupons assigned to 2 people", data.get("assigned_to") == 2, data.get("assigned_to"))
 codes = list((data.get("urls") or {}).keys())
-check("3 unique keys generated", len(codes) == 3 and len(set(codes)) == 3, codes)
+# One coupon per holder per unit of quantity: 3 x 2 holders = 6 unique keys.
+check("6 unique keys generated (3 per holder)", len(codes) == 6 and len(set(codes)) == 6, codes)
 check("keys have the WES- prefix", all(c.startswith("WES-") for c in codes), codes)
 alphabet = "ABCDEFGHJKLMNPQRTUVWXYZ23456789"
 check("keys use an unambiguous alphabet",
       all(ch in alphabet for c in codes for ch in c.split("-", 1)[1].replace("-", "")), codes)
 urls = data["urls"]
-first = codes[0]
+with app.app_context():
+    _holders = {c.code: [u.id for u in c.assignees] for c in MentorCoupon.query.filter(MentorCoupon.code.in_(codes)).all()}
+mentor_codes = [c for c in codes if _holders[c] == [mentor_id]]
+mentee_codes = [c for c in codes if _holders[c] == [mentee_id]]
+first = mentor_codes[0]
 check("QR target points at the weslux page",
       urls[first] == f"https://mentorship.weslux.lu/coupon/verify/{first}", urls[first])
 
@@ -132,8 +143,8 @@ check("QR target points at the weslux page",
 with app.app_context():
     held = {c.code: sorted(u.id for u in c.assignees)
             for c in MentorCoupon.query.filter(MentorCoupon.code.in_(codes)).all()}
-    check("all 3 coupons went to mentor + mentee",
-          all(v == sorted([mentor_id, mentee_id]) for v in held.values()), held)
+    check("every key belongs to exactly one person (3 mentor, 3 mentee)",
+          len(mentor_codes) == 3 and len(mentee_codes) == 3 and all(len(v) == 1 for v in held.values()), held)
     check("each holder has their own assignment rows",
           CouponAssignment.query.filter_by(user_id=mentee_id).count() >= 3)
 
@@ -161,31 +172,33 @@ check("anonymous cannot fetch a coupon QR", r.status_code == 401, r.status_code)
 with app.app_context():
     c = MentorCoupon.query.filter_by(code=first).first()
     check("the coupon is already assigned by the supervisor",
-          sorted(u.id for u in c.assignees) == sorted([mentor_id, mentee_id]),
+          sorted(u.id for u in c.assignees) == [mentor_id],
           [u.id for u in c.assignees])
 
 r = anon.get(f"/coupon/verify/{first}")
 html = r.get_data(as_text=True)
 check("GET /coupon/verify/<code> is public", r.status_code == 200, r.status_code)
-check("verify page shows the mentor", "Coupon Mentor" in html)
 check("verify page shows the discount", "1 free session" in html)
-check("verify page offers the verified-shop dropdown", "Weslux Store Berlin" in html)
-check("verify page names the redeemer", f"Coupon Mentor {stamp}" in html)
+check("a visitor who is not a partner sees details only", 'id="goods_total"' not in html and "mark as redeemed" not in html)
+r = shop_client.get(f"/coupon/verify/{first}")
+html = r.get_data(as_text=True)
+check("the signed-in partner gets the redeem form", r.status_code == 200 and 'id="goods_total"' in html, r.status_code)
 check("tells the seller to apply the discount", "Apply the discount yourself" in html)
 
 r = anon.get("/coupon/verify/NOPE-NOT-A-KEY")
 check("unknown key returns 404", r.status_code == 404, r.status_code)
 check("unknown key explains itself", "not recognised" in r.get_data(as_text=True))
 
-# An unverified shop must be refused.
-r = anon.post(f"/coupon/verify/{first}", data={"seller_account": "99999999", "redeemer_id": mentor_id})
-check("an unverified shop is refused", r.status_code == 400, r.status_code)
+BILL = {"goods_total": "25.00", "goods_currency": "EUR"}
+# Only a signed-in partner may redeem.
+r = anon.post(f"/coupon/verify/{first}", data=BILL)
+check("a visitor who is not signed in cannot redeem", r.status_code == 403, r.status_code)
+r = mentor_client.post(f"/coupon/verify/{first}", data=BILL)
+check("a mentor (not a partner) cannot redeem", r.status_code == 403, r.status_code)
+r = shop_client.post(f"/coupon/verify/{first}", data={"goods_currency": "EUR"})
+check("the partner must enter the bill total", r.status_code == 400, r.status_code)
 
-# A redeemer who does not hold the coupon must be refused.
-r = anon.post(f"/coupon/verify/{first}", data={"seller_account": shop_id, "redeemer_id": other_id})
-check("a non-holder cannot redeem", r.status_code == 400, r.status_code)
-
-r = anon.post(f"/coupon/verify/{first}", data={"seller_account": shop_id, "redeemer_id": mentor_id})
+r = shop_client.post(f"/coupon/verify/{first}", data=BILL)
 html = r.get_data(as_text=True)
 check("POST /coupon/verify/<code> succeeds", r.status_code == 200, r.status_code)
 check("confirmation shown", "Coupon verified" in html)
@@ -200,21 +213,21 @@ with app.app_context():
     check("verification_count incremented", c.verification_count == 1, c.verification_count)
     check("is_usable now False", c.is_usable is False)
 
-    r2 = anon.post(f"/coupon/verify/{first}", data={"seller_account": shop_id, "redeemer_id": mentee_id})
+    r2 = shop_client.post(f"/coupon/verify/{first}", data=BILL)
     check("second use is rejected", r2.status_code == 409, r2.status_code)
     check("rejection message shown", "already been used" in r2.get_data(as_text=True))
     check("verification_count NOT bumped",
           MentorCoupon.query.filter_by(code=first).first().verification_count == 1)
     check("other keys still active",
-          all(MentorCoupon.query.filter_by(code=c).first().status == "active" for c in codes[1:]))
+          all(MentorCoupon.query.filter_by(code=c).first().status == "active" for c in codes if c != first))
 
-    second = codes[1]
+    second = mentor_codes[1]
     second_id = MentorCoupon.query.filter_by(code=second).first().id
     r = sup_client.post(f"/supervisor/coupons/{second_id}/status", json={"action": "revoke"})
     check("revoke works", r.get_json().get("success") and
           MentorCoupon.query.filter_by(code=second).first().status == "revoked")
 
-    r = anon.post(f"/coupon/verify/{second}", data={"seller_account": shop_id, "redeemer_id": mentor_id})
+    r = shop_client.post(f"/coupon/verify/{second}", data=BILL)
     check("revoked key rejected by seller page", r.status_code == 409, r.status_code)
     check("revoked message shown", "withdrawn" in r.get_data(as_text=True))
 
@@ -222,8 +235,6 @@ with app.app_context():
     check("reinstate works", r.get_json().get("success") and
           MentorCoupon.query.filter_by(code=second).first().status == "active")
 
-    r = anon.post(f"/coupon/verify/{second}", data={"seller_account": shop_id})
-    check("redeeming without naming a redeemer is refused", r.status_code == 400, r.status_code)
 
     row = MentorCoupon.query.filter_by(code=second).first()
     check("reinstated coupon carries no stale redemption",
@@ -231,7 +242,7 @@ with app.app_context():
           (row.redeemed_by_user_id, row.seller_id))
     check("second coupon is already assigned to the mentor",
           mentor_id in [u.id for u in row.assignees], [u.id for u in row.assignees])
-    r = anon.post(f"/coupon/verify/{second}", data={"seller_account": shop_id, "redeemer_id": mentor_id})
+    r = shop_client.post(f"/coupon/verify/{second}", data=BILL)
     check("reinstated key verifies again", r.status_code == 200, r.status_code)
 
     first_id = MentorCoupon.query.filter_by(code=first).first().id
@@ -249,13 +260,13 @@ with app.app_context():
     )
     db.session.add(expired)
     db.session.commit()
-    r = anon.post("/coupon/verify/WES-EXPIRED-TEST1")
+    r = shop_client.post("/coupon/verify/WES-EXPIRED-TEST1", data=BILL)
     check("expired key rejected", r.status_code == 410, r.status_code)
     check("expired message shown", "expired" in r.get_data(as_text=True))
 
     r = mentor_client.get("/mentor/coupons")
     check("dashboard lists all generated coupons",
-          all(c in r.get_data(as_text=True) for c in codes))
+          all(c in r.get_data(as_text=True) for c in mentor_codes))
 
     db.session.query(MentorCoupon).filter(MentorCoupon.mentor_id == mentor_id).delete(
         synchronize_session=False)

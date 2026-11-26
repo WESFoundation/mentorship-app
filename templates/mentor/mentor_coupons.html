@@ -15,6 +15,19 @@
     .coupon-card:hover { box-shadow: 0 6px 18px rgba(15, 23, 42, .08); }
     .qr-frame { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 8px; display: inline-block; }
     .stat-tile { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; }
+    /* Browser-style tabs */
+    .cp-tabs { display: flex; gap: 4px; border-bottom: 1px solid #e5e7eb; }
+    .cp-tab { padding: 10px 20px; font-size: 14px; font-weight: 600; color: #6b7280; background: #f3f4f6;
+              border: 1px solid #e5e7eb; border-bottom: none; border-radius: 10px 10px 0 0; margin-bottom: -1px; cursor: pointer; }
+    .cp-tab:hover { background: #e5e7eb; }
+    .cp-tab.active { background: #fff; color: #1d4ed8; border-bottom: 1px solid #fff; }
+    .led-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 22px 24px; }
+    .led-amt { font-size: 32px; font-weight: 800; line-height: 1.15; }
+    .led-menu { position: absolute; right: 0; top: 100%; z-index: 30; width: 260px; background: #fff;
+                border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 10px 25px rgba(15,23,42,.12); padding: 6px; }
+    .led-menu button.opt { display: block; width: 100%; text-align: left; padding: 8px 12px; border-radius: 8px; font-size: 13px; }
+    .led-menu button.opt:hover { background: #f3f4f6; }
+    .led-menu button.opt.sel { background: #eff6ff; color: #1d4ed8; font-weight: 600; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .06em; }
 
     /* ---- Print sheet -------------------------------------------------
@@ -98,6 +111,13 @@
         and track which ones have been redeemed.
     </p>
 </div>
+
+<div class="cp-tabs mb-6 no-print" role="tablist">
+    <button type="button" class="cp-tab active" id="tabBtnCoupons" role="tab" aria-selected="true">My Coupons</button>
+    <button type="button" class="cp-tab" id="tabBtnLedger" role="tab" aria-selected="false">Coupon Ledger</button>
+</div>
+
+<div id="tab-coupons">
 
 <!-- Stat tiles -->
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 no-print">
@@ -317,6 +337,65 @@
 </div>
 {% endif %}
 
+</div><!-- /tab-coupons -->
+
+<!-- Coupon Ledger tab -->
+<div id="tab-ledger" class="hidden no-print">
+    <div class="flex items-start justify-between gap-3 mb-4">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-800">Coupon Ledger</h2>
+            <p class="text-xs text-gray-500 mt-0.5" id="ledPeriodLabel">Last month</p>
+        </div>
+        <div class="relative">
+            <button type="button" id="ledMenuBtn" aria-label="Change reporting period" aria-haspopup="true" aria-expanded="false"
+                    class="w-10 h-10 rounded-full border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center text-xl leading-none">&#8942;</button>
+            <div id="ledMenu" class="led-menu hidden">
+                <button type="button" class="opt sel" data-period="month">Last month</button>
+                <button type="button" class="opt" data-period="year">Last year</button>
+                <button type="button" class="opt" data-period="custom">Custom dates&hellip;</button>
+                <div id="ledCustom" class="hidden px-3 pb-3 pt-2 border-t border-gray-100 mt-1 space-y-2">
+                    <label class="block text-[11px] text-gray-500">From
+                        <input type="date" id="ledFrom" class="mt-0.5 w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"></label>
+                    <label class="block text-[11px] text-gray-500">To
+                        <input type="date" id="ledTo" class="mt-0.5 w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"></label>
+                    <button type="button" id="ledApply" class="w-full px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Apply</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="ledErr" class="hidden mb-4 rounded-lg px-4 py-3 text-sm bg-rose-50 text-rose-800 border border-rose-200"></div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="led-card">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Total spent</p>
+            <div id="ledSpent" class="mt-2 text-gray-900"></div>
+            <p class="text-xs text-gray-500 mt-2" data-period-text>Bills where you used a coupon, last month</p>
+        </div>
+        <div class="led-card">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Coupon value available</p>
+            <div id="ledAvail" class="mt-2 text-blue-600"></div>
+            <p class="text-xs text-gray-500 mt-2" id="ledAvailNote">Unused balance on your active coupons today</p>
+        </div>
+        <div class="led-card">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Total money saved</p>
+            <div id="ledSaved" class="mt-2 text-emerald-600"></div>
+            <p class="text-xs text-gray-500 mt-2" data-period-text>Taken off your bills by coupons, last month</p>
+        </div>
+    </div>
+
+    <div class="coupon-card overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead><tr class="text-left text-[11px] uppercase tracking-wider text-gray-400 border-b border-gray-100">
+                <th class="px-4 py-3">Date (UTC)</th><th class="px-4 py-3">Coupon</th><th class="px-4 py-3">Shop</th>
+                <th class="px-4 py-3 text-right">Bill</th><th class="px-4 py-3 text-right">Saved</th><th class="px-4 py-3 text-right">Left on coupon</th>
+            </tr></thead>
+            <tbody id="ledRows"></tbody>
+        </table>
+        <p id="ledEmpty" class="hidden p-6 text-center text-sm text-gray-500">No coupon purchases in this period.</p>
+    </div>
+</div>
+
 {{ coupon_fields_js() }}
 <script>
 CF.setSellers('rq', {{ sellers|tojson }});
@@ -368,5 +447,88 @@ document.addEventListener('click', function (e) {
     btn.textContent = 'Copied';
     setTimeout(function () { btn.textContent = old; }, 1200);
 });
+
+/* ---- Tabs + Coupon Ledger ---- */
+(function () {
+    var tabC = document.getElementById('tab-coupons'), tabL = document.getElementById('tab-ledger');
+    var bC = document.getElementById('tabBtnCoupons'), bL = document.getElementById('tabBtnLedger');
+    var loaded = false, cur = { period: 'month' };
+    function show(which) {
+        var led = which === 'ledger';
+        tabC.classList.toggle('hidden', led); tabL.classList.toggle('hidden', !led);
+        bC.classList.toggle('active', !led); bL.classList.toggle('active', led);
+        bC.setAttribute('aria-selected', String(!led)); bL.setAttribute('aria-selected', String(led));
+        try { history.replaceState(null, '', led ? '#ledger' : location.pathname + location.search); } catch (e) {}
+        if (led && !loaded) load();
+    }
+    bC.onclick = function () { show('coupons'); };
+    bL.onclick = function () { show('ledger'); };
+
+    function esc(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+    // "€" -> "€5.00"; a code with no symbol ("INR" etc.) -> "INR 5.00"
+    function money(sym, code, v) { return (sym === code ? code + ' ' : sym) + v; }
+    function paint(el, map, sym) {
+        var keys = Object.keys(map);
+        if (!keys.length) { el.innerHTML = '<p class="led-amt">' + esc(money(sym.EUR || 'EUR', 'EUR', '0.00')) + '</p>'; return; }
+        el.innerHTML = keys.map(function (k, i) {
+            return '<p class="' + (i ? 'text-lg font-bold mt-1' : 'led-amt') + '">' + esc(money(sym[k] || k, k, map[k])) + '</p>';
+        }).join('');
+    }
+    var LABEL = { month: 'last month', year: 'last year' };
+    function load() {
+        var q = new URLSearchParams({ period: cur.period });
+        if (cur.period === 'custom') { q.set('from', cur.from); q.set('to', cur.to); }
+        var err = document.getElementById('ledErr'); err.classList.add('hidden');
+        fetch('/mentor/coupons/ledger?' + q.toString(), { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+                if (!res.ok || !res.j.success) { err.textContent = (res.j && res.j.message) || 'Could not load the ledger.'; err.classList.remove('hidden'); return; }
+                loaded = true; var j = res.j, sym = j.symbols;
+                var label = cur.period === 'custom' ? j.start + ' to ' + j.end : LABEL[cur.period];
+                document.getElementById('ledPeriodLabel').textContent = cur.period === 'custom' ? label : label.charAt(0).toUpperCase() + label.slice(1);
+                document.querySelectorAll('[data-period-text]').forEach(function (n, i) {
+                    n.textContent = (i === 0 ? 'Bills where you used a coupon, ' : 'Taken off your bills by coupons, ') + label;
+                });
+                paint(document.getElementById('ledSpent'), j.spent, sym);
+                paint(document.getElementById('ledSaved'), j.saved, sym);
+                paint(document.getElementById('ledAvail'), j.available, sym);
+                document.getElementById('ledAvailNote').textContent = 'Unused balance on your active coupons today' +
+                    (j.other_available_coupons ? ' (+' + j.other_available_coupons + ' percentage/free coupon' + (j.other_available_coupons === 1 ? '' : 's') + ' with no cash value)' : '');
+                document.getElementById('ledRows').innerHTML = j.entries.map(function (e) {
+                    var s = sym[e.currency] || e.currency;
+                    return '<tr class="border-b border-gray-50"><td class="px-4 py-3 whitespace-nowrap">' + esc(e.date) + '</td><td class="px-4 py-3">' +
+                        esc(e.coupon) + '<span class="block text-[10px] text-gray-400 mono">' + esc(e.code) + '</span></td><td class="px-4 py-3">' + esc(e.partner || '-') +
+                        '</td><td class="px-4 py-3 text-right">' + esc(money(s, e.currency, e.bill)) + '</td><td class="px-4 py-3 text-right text-emerald-600 font-semibold">' +
+                        esc(money(s, e.currency, e.saved)) + '</td><td class="px-4 py-3 text-right">' + (e.balance_after == null ? '-' : esc(money(s, e.currency, e.balance_after))) + '</td></tr>';
+                }).join('');
+                document.getElementById('ledEmpty').classList.toggle('hidden', j.entries.length > 0);
+            })
+            .catch(function () { err.textContent = 'Network error. Please try again.'; err.classList.remove('hidden'); });
+    }
+
+    var menu = document.getElementById('ledMenu'), mbtn = document.getElementById('ledMenuBtn');
+    function toggle(open) { menu.classList.toggle('hidden', !open); mbtn.setAttribute('aria-expanded', String(open)); }
+    mbtn.onclick = function (e) { e.stopPropagation(); toggle(menu.classList.contains('hidden')); };
+    document.addEventListener('click', function (e) { if (!menu.contains(e.target)) toggle(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') toggle(false); });
+    var today = new Date().toISOString().slice(0, 10);
+    document.getElementById('ledFrom').max = today; document.getElementById('ledTo').max = today;
+    function mark(p) { menu.querySelectorAll('.opt').forEach(function (o) { o.classList.toggle('sel', o.dataset.period === p); }); }
+    menu.querySelectorAll('.opt').forEach(function (o) {
+        o.onclick = function () {
+            var p = o.dataset.period; mark(p);
+            if (p === 'custom') { document.getElementById('ledCustom').classList.remove('hidden'); return; }
+            document.getElementById('ledCustom').classList.add('hidden');
+            cur = { period: p }; toggle(false); load();
+        };
+    });
+    document.getElementById('ledApply').onclick = function () {
+        var f = document.getElementById('ledFrom').value, t = document.getElementById('ledTo').value;
+        var err = document.getElementById('ledErr');
+        if (!f || !t) { err.textContent = 'Please choose both a start and an end date.'; err.classList.remove('hidden'); return; }
+        cur = { period: 'custom', from: f, to: t }; toggle(false); load();
+    };
+    if (location.hash === '#ledger') show('ledger');
+})();
 </script>
 {% endblock %}
