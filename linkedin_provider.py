@@ -128,8 +128,20 @@ def _fetch_mock(url):
 PROVIDERS = {"peopledatalabs": _fetch_peopledatalabs, "mock": _fetch_mock}
 
 
+def status():
+    """(ready, reason) - why the URL lookup can or cannot run on this server."""
+    name = (os.environ.get("LINKEDIN_PROVIDER") or "").strip().lower()
+    if not name:
+        return False, "LINKEDIN_PROVIDER is not set (use 'peopledatalabs')"
+    if name not in PROVIDERS:
+        return False, f"LINKEDIN_PROVIDER '{name}' is unknown (use one of: {', '.join(sorted(PROVIDERS))})"
+    if name != "mock" and not (os.environ.get("LINKEDIN_API_KEY") or "").strip():
+        return False, f"LINKEDIN_PROVIDER is '{name}' but LINKEDIN_API_KEY is empty"
+    return True, f"provider '{name}'"
+
+
 def is_configured():
-    return (os.environ.get("LINKEDIN_PROVIDER") or "").strip().lower() in PROVIDERS
+    return status()[0]
 
 
 def fetch_profile(url):

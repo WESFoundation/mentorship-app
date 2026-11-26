@@ -13732,6 +13732,10 @@ def ai_profile_from_linkedin():
 
 import linkedin_provider as _li
 
+# Say at start-up whether "fill from LinkedIn link" can work, so a missing key is not a mystery.
+_li_ready, _li_reason = _li.status()
+print(f"LinkedIn link autofill: {'READY - ' if _li_ready else 'NOT CONFIGURED - '}{_li_reason}")
+
 
 @app.route("/ai/profile_from_linkedin_url", methods=["POST"])
 def ai_profile_from_linkedin_url():
@@ -13748,6 +13752,7 @@ def ai_profile_from_linkedin_url():
         return jsonify({"success": False,
                         "message": "Please confirm this is your own LinkedIn profile."}), 400
     if not _li.is_configured():
+        app.logger.warning(f"LinkedIn link autofill requested but not configured: {_li.status()[1]}")
         return jsonify({"success": False,
                         "message": "Filling from a LinkedIn link isn't set up on this server yet. "
                                    "Please upload your LinkedIn PDF or fill the form by hand."}), 503
@@ -23229,9 +23234,11 @@ def _holder_ledger_period(args):
         return key, None, None, "Please choose both a start and an end date."
     if d_from > d_to:
         return key, None, None, "The start date must be on or before the end date."
-    if d_to.date() > now.date():
+    # The browser's "today" can already be tomorrow in UTC (users east of Greenwich), so allow
+    # one day of slack; the range is still capped at the present moment.
+    if d_to.date() > now.date() + timedelta(days=1):
         return key, None, None, "The end date cannot be in the future."
-    return key, d_from, d_to + timedelta(days=1), None
+    return key, d_from, min(d_to + timedelta(days=1), now + timedelta(seconds=1)), None
 
 
 def _holder_coupon_ledger(holder, start, end):

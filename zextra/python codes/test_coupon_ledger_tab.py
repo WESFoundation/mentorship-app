@@ -100,13 +100,18 @@ code, j = ledger(mentee_c, period="year")
 check("year adds the 100-day-old purchase, not the 400-day-old one",
       j["spent"]["EUR"] == "82.50" and j["saved"]["EUR"] == "12.00", (j["spent"], j["saved"]))
 
-today = dt.date.today()
+today = dt.datetime.utcnow().date()   # rows are stamped in UTC, so ranges are built from the UTC calendar
 code, j = ledger(mentee_c, period="custom", **{"from": (today - dt.timedelta(days=120)).isoformat(), "to": (today - dt.timedelta(days=60)).isoformat()})
 check("custom range picks only the 100-day-old purchase", j["spent"] == {"EUR": "40.00"} and len(j["entries"]) == 1, j)
 code, j = ledger(mentee_c, period="custom", **{"from": today.isoformat(), "to": today.isoformat()})
 check("custom 'today only' includes nothing older", j["success"] and j["entries"] == [], j)
 code, j = ledger(mentee_c, period="custom", **{"from": (today - dt.timedelta(days=3)).isoformat(), "to": today.isoformat()})
 check("custom range end day is inclusive (3-day-old and 2-day-old rows)", len(j["entries"]) == 2, j)
+
+# A user east of UTC can already be on "tomorrow": picking their own today must not be rejected,
+# and it must not pull in anything beyond now.
+code, j = ledger(mentee_c, period="custom", **{"from": (today - dt.timedelta(days=3)).isoformat(), "to": (today + dt.timedelta(days=1)).isoformat()})
+check("end date one day ahead of UTC (user's local 'today') is accepted", code == 200 and j["success"] and len(j["entries"]) == 2, (code, j.get("message")))
 
 # ---- available value is "now", independent of period
 k5 = issue("5€ off")                                        # untouched flat coupon: 5 available even before first view

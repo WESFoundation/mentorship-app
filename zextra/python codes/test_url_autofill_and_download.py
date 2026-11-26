@@ -90,7 +90,8 @@ check("unconfigured server says so (503)", r.status_code == 503 and "PDF" in r.g
 os.environ["LINKEDIN_PROVIDER"] = "peopledatalabs"
 os.environ.pop("LINKEDIN_API_KEY", None)
 r = mc.post(URL, json=good)
-check("provider without a key is a clean 503", r.status_code == 503 and "LINKEDIN_API_KEY" in r.get_json()["message"], r.get_json())
+check("provider without a key is a clean 503 that does not leak config names",
+      r.status_code == 503 and "LINKEDIN_API_KEY" not in r.get_json()["message"] and "PDF" in r.get_json()["message"], r.get_json())
 os.environ["LINKEDIN_PROVIDER"] = "mock"
 
 # ----------------------------- PDF/URL component present on the edit pages
